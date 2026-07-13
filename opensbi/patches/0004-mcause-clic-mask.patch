@@ -1,0 +1,12 @@
+diff --git a/firmware/fw_base.S b/firmware/fw_base.S
+index aaaaaaaa..bbbbbbbb 100644
+--- a/firmware/fw_base.S
++++ b/firmware/fw_base.S
+@@ -611,6 +611,8 @@
+ .macro	TRAP_SAVE_INFO have_mstatush have_h_extension
+ 	csrr	t0, CSR_MCAUSE
++	li	t1, 0x80000fff
++	and	t0, t0, t1
+ 	REG_S	t0, (SBI_TRAP_REGS_SIZE + SBI_TRAP_INFO_OFFSET(cause))(sp)
+ 	csrr	t0, CSR_MTVAL
+ 

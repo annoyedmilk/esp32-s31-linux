@@ -1,0 +1,1 @@
+# Linux uses its built-in device tree; OpenSBI receives no FDT.

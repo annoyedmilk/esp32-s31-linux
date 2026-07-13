@@ -1,0 +1,20 @@
+// SPDX-License-Identifier: GPL-2.0+
+/*
+ * ESP32-S31 Device Tree Source
+ * Author: Marco Müller <hello@annoyedmilk.ch>
+ */
+/dts-v1/;
+#include "esp32s31.dtsi"
+
+/ {
+	model = "Espressif ESP32-S31 S-mode (generic)";
+	compatible = "espressif,esp32s31";
+
+	chosen {
+		linux,initrd-start = <0x50800000>;
+		linux,initrd-end = <0x50A00000>;
+		stdout-path = "serial0:115200n8";
+	};
+};
+
+&uart0 { status = "okay"; };

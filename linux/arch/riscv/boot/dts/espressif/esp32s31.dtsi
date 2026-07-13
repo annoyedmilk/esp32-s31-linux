@@ -1,0 +1,83 @@
+// SPDX-License-Identifier: GPL-2.0+
+/*
+ * Espressif ESP32-S31 minimal Device Tree Source.
+ * Author: Marco Müller <hello@annoyedmilk.ch>
+ */
+
+#include <dt-bindings/interrupt-controller/irq.h>
+
+/ {
+	#address-cells = <1>;
+	#size-cells = <1>;
+	compatible = "espressif,esp32s31";
+
+	memory@50000000 {
+		device_type = "memory";
+		/* 16MB RAM */
+		reg = <0x50000000 0x01000000>;
+	};
+
+	aliases {
+		serial0 = &uart0;
+	};
+
+	cpus {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		timebase-frequency = <320000000>;
+
+		cpu0: cpu@0 {
+			device_type = "cpu";
+			compatible = "espressif,esp32s31", "riscv";
+			reg = <0>;
+			riscv,isa = "rv32imabcn_zba_zbb";
+			riscv,isa-base = "rv32i";
+			riscv,isa-extensions = "i", "m", "a", "zba", "zbb", "c",
+					       "zicntr", "zicsr", "zifencei";
+			mmu-type = "riscv,sv32";
+			cpu0_intc: interrupt-controller {
+				#interrupt-cells = <1>;
+				interrupt-controller;
+				compatible = "riscv,cpu-intc";
+			};
+		};
+
+		cpu-map {
+			cluster0 {
+				core0 { cpu = <&cpu0>; };
+			};
+		};
+	};
+
+	xtal: oscillator {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <40000000>;
+	};
+
+	soc {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		compatible = "simple-bus";
+		ranges;
+
+		clic: interrupt-controller@10a00000 {
+			#interrupt-cells = <3>;
+			#address-cells = <0>;
+			compatible = "espressif,esp32s31-clic";
+			reg = <0x10a00000 0x20000>;
+			interrupt-controller;
+			espressif,num-interrupts = <48>;
+		};
+
+		uart0: serial@2038a000 {
+			compatible = "esp,esp32s3-uart";
+			reg = <0x2038a000 0x1000>;
+			interrupt-parent = <&clic>;
+			interrupts = <32 9 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&xtal>;
+			status = "okay";
+		};
+
+	};
+};

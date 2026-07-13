@@ -1,0 +1,80 @@
+diff --git a/include/sbi/sbi_timer.h b/include/sbi/sbi_timer.h
+--- a/include/sbi/sbi_timer.h
++++ b/include/sbi/sbi_timer.h
+@@ -175,6 +175,16 @@
+ /** Start supervisor timer event on current HART */
+ void sbi_timer_smode_event_start(u64 next_event);
+ 
++/**
++ * Platform hook to assert the S-mode timer interrupt on the current HART.
++ * The default (weak) implementation sets MIP.STIP; platforms without a
++ * writable MIP (e.g. CLIC-only cores) override it.
++ */
++void sbi_timer_plat_sirq_set(void);
++
++/** Platform hook to clear the S-mode timer interrupt (default MIP.STIP). */
++void sbi_timer_plat_sirq_clear(void);
++
+ /** Process timer event for current HART */
+ void sbi_timer_process(void);
+ 
+diff --git a/lib/sbi/sbi_timer.c b/lib/sbi/sbi_timer.c
+--- a/lib/sbi/sbi_timer.c
++++ b/lib/sbi/sbi_timer.c
+@@ -248,6 +248,16 @@
+ 	}
+ }
+ 
++void __attribute__((weak)) sbi_timer_plat_sirq_set(void)
++{
++	csr_set(CSR_MIP, MIP_STIP);
++}
++
++void __attribute__((weak)) sbi_timer_plat_sirq_clear(void)
++{
++	csr_clear(CSR_MIP, MIP_STIP);
++}
++
+ static void sbi_timer_smode_event_callback(struct sbi_timer_event *ev,
+ 					   struct sbi_timer_event_restart *restart)
+ {
+@@ -257,13 +267,13 @@
+ 	 * only invoked if M-mode programs the timer for its own purpose.
+ 	 */
+ 	if (!sbi_hart_has_extension(sbi_scratch_thishart_ptr(), SBI_HART_EXT_SSTC))
+-		csr_set(CSR_MIP, MIP_STIP);
++		sbi_timer_plat_sirq_set();
+ }
+ 
+ static void sbi_timer_smode_event_cleanup(struct sbi_timer_event *ev)
+ {
+ 	if (!sbi_hart_has_extension(sbi_scratch_thishart_ptr(), SBI_HART_EXT_SSTC))
+-		csr_clear(CSR_MIP, MIP_STIP);
++		sbi_timer_plat_sirq_clear();
+ }
+ 
+ void sbi_timer_smode_event_start(u64 next_event)
+@@ -280,7 +290,7 @@
+ 	if (sbi_hart_has_extension(sbi_scratch_thishart_ptr(), SBI_HART_EXT_SSTC)) {
+ 		csr_write64(CSR_STIMECMP, next_event);
+ 	} else {
+-		csr_clear(CSR_MIP, MIP_STIP);
++		sbi_timer_plat_sirq_clear();
+ 		sbi_timer_event_start(&tstate->smode_ev, next_event);
+ 	}
+ }
+@@ -333,7 +343,13 @@
+ 		return;
+ 
+ 	timer_dev = dev;
+-	if (!get_time_val && timer_dev->timer_value)
++	/*
++	 * A device-provided counter defines the SBI timebase even when a
++	 * readable TIME CSR was detected, keeping event comparisons and
++	 * reported time in one clock domain (the ESP32-S31 TIME CSR and
++	 * MMIO machine timer tick at different rates).
++	 */
++	if (timer_dev->timer_value)
+ 		get_time_val = timer_dev->timer_value;
+ }
+ 

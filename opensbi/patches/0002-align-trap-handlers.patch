@@ -1,0 +1,44 @@
+diff --git a/firmware/fw_base.S b/firmware/fw_base.S
+index a37a3d5b..ee334455 100644
+--- a/firmware/fw_base.S
++++ b/firmware/fw_base.S
+@@ -737,7 +737,7 @@ _start_warm:
+ .endm
+ 
+ 	.section .entry, "ax", %progbits
+-	.align 3
++	.align 6
+ 	.globl _trap_handler
+ _trap_handler:
+ 	TRAP_SAVE_AND_SETUP_SP_T0
+@@ -759,7 +759,7 @@ _trap_handler:
+ 	mret
+ 
+ 	.section .entry, "ax", %progbits
+-	.align 3
++	.align 6
+ 	.globl _trap_handler_hyp
+ _trap_handler_hyp:
+ 	TRAP_SAVE_AND_SETUP_SP_T0
+diff --git a/lib/sbi/sbi_expected_trap.S b/lib/sbi/sbi_expected_trap.S
+index aabbccdd..eeff0011 100644
+--- a/lib/sbi/sbi_expected_trap.S
++++ b/lib/sbi/sbi_expected_trap.S
+@@ -19,7 +19,7 @@
+ 	 * A4 <- temporary
+ 	 */
+ 
+-	.align 3
++	.align 6
+ 	.global __sbi_expected_trap
+ __sbi_expected_trap:
+ 	/* Without H-extension so, MTVAL2 and MTINST CSRs and GVA not available */
+@@ -37,7 +37,7 @@ __sbi_expected_trap:
+ 	csrw	CSR_MEPC, a4
+ 	mret
+ 
+-	.align 3
++	.align 6
+ 	.global __sbi_expected_trap_hext
+ __sbi_expected_trap_hext:
+ 	/* With H-extension so, MTVAL2 and MTINST CSRs and GVA available */

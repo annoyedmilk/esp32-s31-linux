@@ -1,0 +1,170 @@
+diff --git a/arch/riscv/Kconfig.socs b/arch/riscv/Kconfig.socs
+index c174ac0ec..1276ced5a 100644
+--- a/arch/riscv/Kconfig.socs
++++ b/arch/riscv/Kconfig.socs
+@@ -111,4 +111,14 @@ config SOC_CANAAN_K210
+ 	help
+ 	  This enables support for Canaan Kendryte K210 SoC platform hardware.
+ 
++config ARCH_ESPRESSIF
++	def_bool SOC_ESP32S31
++
++config SOC_ESP32S31
++	bool "Espressif ESP32-S31 SoC"
++	select ESP32S31_CLIC
++	help
++	  This enables support for the Espressif ESP32-S31 SoC.
++	  With MMU enabled the kernel runs in Supervisor mode behind OpenSBI.
++
+ endmenu # "SoC selection"
+diff --git a/arch/riscv/boot/dts/Makefile b/arch/riscv/boot/dts/Makefile
+index 69d8751fb..fa0f23de2 100644
+--- a/arch/riscv/boot/dts/Makefile
++++ b/arch/riscv/boot/dts/Makefile
+@@ -3,6 +3,7 @@ subdir-y += allwinner
+ subdir-y += andes
+ subdir-y += anlogic
+ subdir-y += canaan
++subdir-y += espressif
+ subdir-y += eswin
+ subdir-y += microchip
+ subdir-y += renesas
+diff --git a/arch/riscv/kernel/Makefile b/arch/riscv/kernel/Makefile
+index cabb99cad..7970e8c04 100644
+--- a/arch/riscv/kernel/Makefile
++++ b/arch/riscv/kernel/Makefile
+@@ -118,6 +118,7 @@ obj-$(CONFIG_JUMP_LABEL)	+= jump_label.o
+ obj-$(CONFIG_CFI)		+= cfi.o
+ 
+ obj-$(CONFIG_EFI)		+= efi.o
++obj-$(CONFIG_ESP32S31_CLIC)	+= esp32s31-clic-trampoline.o
+ obj-$(CONFIG_COMPAT)		+= compat_syscall_table.o
+ obj-$(CONFIG_COMPAT)		+= compat_signal.o
+ obj-$(CONFIG_COMPAT)		+= compat_vdso/
+diff --git a/arch/riscv/kernel/entry.S b/arch/riscv/kernel/entry.S
+index 6c14ed7a5..cd281a99d 100644
+--- a/arch/riscv/kernel/entry.S
++++ b/arch/riscv/kernel/entry.S
+@@ -122,6 +122,14 @@
+ 		CONFIG_RISCV_USER_CFI)
+ .endm
+ 
++#ifdef CONFIG_SOC_ESP32S31
++	/*
++	 * ESP32-S31 runs with stvec forced to CLIC mode, whose BASE field is
++	 * 64-byte aligned.  Keep the common Linux exception entry on that
++	 * boundary so synchronous traps do not land before handle_exception.
++	 */
++	.balign 64
++#endif
+ SYM_CODE_START(handle_exception)
+ 	/*
+ 	 * If coming from userspace, preserve the user thread pointer and load
+@@ -224,6 +232,12 @@ SYM_CODE_START(handle_exception)
+ 	j ret_from_exception
+ 1:
+ 	/* Handle other exceptions */
++#ifdef CONFIG_SOC_ESP32S31
++	/* Mask CLIC state bits so handlers see the architectural code */
++	li t0, 0xfff
++	and s4, s4, t0
++	REG_S s4, PT_CAUSE(sp)
++#endif
+ 	slli t0, s4, RISCV_LGPTR
+ 	la t1, excp_vect_table
+ 	la t2, excp_vect_table_end
+diff --git a/arch/riscv/kernel/head.S b/arch/riscv/kernel/head.S
+index f6a8ca49e..9eb2d43a2 100644
+--- a/arch/riscv/kernel/head.S
++++ b/arch/riscv/kernel/head.S
+@@ -196,6 +196,10 @@ secondary_start_sbi:
+ .Lsetup_trap_vector:
+ 	/* Set trap vector to exception handler */
+ 	la a0, handle_exception
++#ifdef CONFIG_SOC_ESP32S31
++	/* ESP32-S31 stvec is hardwired to CLIC mode (low bits 0b11). */
++	ori a0, a0, 3
++#endif
+ 	csrw CSR_TVEC, a0
+ 
+ 	/*
+@@ -208,9 +212,19 @@ secondary_start_sbi:
+ SYM_CODE_END(_start)
+ 
+ SYM_CODE_START(_start_kernel)
++#ifdef CONFIG_SOC_ESP32S31
++	/*
++	 * The sie/sip CSRs are not implemented; interrupt routing is owned
++	 * by the firmware-configured CLIC.  Keep S-mode interrupts globally
++	 * off until the CLIC driver takes over.
++	 */
++	li t0, 2
++	csrc sstatus, t0
++#else
+ 	/* Mask all interrupts */
+ 	csrw CSR_IE, zero
+ 	csrw CSR_IP, zero
++#endif
+ 
+ #ifdef CONFIG_RISCV_M_MODE
+ 	/* flush the instruction cache */
+diff --git a/drivers/irqchip/Kconfig b/drivers/irqchip/Kconfig
+index e755a2a05..a0293261d 100644
+--- a/drivers/irqchip/Kconfig
++++ b/drivers/irqchip/Kconfig
+@@ -684,6 +684,14 @@ config THEAD_C900_ACLINT_SSWI
+ 	bool
+ 	select ACLINT_SSWI
+ 
++config ESP32S31_CLIC
++	bool "ESP32-S31 CLIC (Core-Local Interrupt Controller)"
++	depends on RISCV && 32BIT
++	select IRQ_DOMAIN
++	select IRQ_DOMAIN_HIERARCHY
++	help
++	  Support for the CLIC interrupt controller on ESP32-S31.
++
+ config EXYNOS_IRQ_COMBINER
+ 	bool "Samsung Exynos IRQ combiner support" if COMPILE_TEST
+ 	depends on (ARCH_EXYNOS && ARM) || COMPILE_TEST
+diff --git a/drivers/irqchip/Makefile b/drivers/irqchip/Makefile
+index 26aa3b6ec..70efc6722 100644
+--- a/drivers/irqchip/Makefile
++++ b/drivers/irqchip/Makefile
+@@ -108,6 +108,7 @@ obj-$(CONFIG_RISCV_APLIC_MSI)		+= irq-riscv-aplic-msi.o
+ obj-$(CONFIG_RISCV_IMSIC)		+= irq-riscv-imsic-state.o irq-riscv-imsic-early.o irq-riscv-imsic-platform.o
+ obj-$(CONFIG_RISCV_RPMI_SYSMSI)		+= irq-riscv-rpmi-sysmsi.o
+ obj-$(CONFIG_SIFIVE_PLIC)		+= irq-sifive-plic.o
++obj-$(CONFIG_ESP32S31_CLIC)		+= irq-esp32s31-clic.o
+ obj-$(CONFIG_STARFIVE_JH8100_INTC)	+= irq-starfive-jh8100-intc.o
+ obj-$(CONFIG_ACLINT_SSWI)		+= irq-aclint-sswi.o
+ obj-$(CONFIG_IMX_IRQSTEER)		+= irq-imx-irqsteer.o
+diff --git a/drivers/tty/serial/Kconfig b/drivers/tty/serial/Kconfig
+index ec284aceb..474b6dc6f 100644
+--- a/drivers/tty/serial/Kconfig
++++ b/drivers/tty/serial/Kconfig
+@@ -1594,5 +1594,15 @@ config SERIAL_NUVOTON_MA35D1_CONSOLE
+ 
+ endmenu
+ 
++config SERIAL_ESP32
++	tristate "Espressif ESP32 UART support"
++	depends on SOC_ESP32S31 || (COMPILE_TEST && OF)
++	select SERIAL_CORE
++	select SERIAL_CORE_CONSOLE
++	select SERIAL_EARLYCON
++	help
++	  Driver for the UART controllers in Espressif ESP32-family SoCs,
++	  including the ESP32-S31.
++
+ config SERIAL_MCTRL_GPIO
+ 	tristate
+diff --git a/drivers/tty/serial/Makefile b/drivers/tty/serial/Makefile
+index bba7b21a4..5345a7f8f 100644
+--- a/drivers/tty/serial/Makefile
++++ b/drivers/tty/serial/Makefile
+@@ -98,3 +98,4 @@ obj-$(CONFIG_SERIAL_MCTRL_GPIO)	+= serial_mctrl_gpio.o
+ 
+ obj-$(CONFIG_KGDB_SERIAL_CONSOLE) += kgdboc.o
+ obj-$(CONFIG_SERIAL_NUVOTON_MA35D1) += ma35d1_serial.o
++obj-$(CONFIG_SERIAL_ESP32)		+= esp32_uart.o

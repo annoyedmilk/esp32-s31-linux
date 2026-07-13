@@ -1,0 +1,15 @@
+diff --git a/firmware/fw_base.S b/firmware/fw_base.S
+index 0c5c65c1..a37a3d5b 100644
+--- a/firmware/fw_base.S
++++ b/firmware/fw_base.S
+@@ -33,8 +33,10 @@
+ 
+ .macro CLEAR_MDT tmp
+ #if __riscv_xlen == 32
++#ifndef FW_NO_MSTATUSH
+ 	li 	\tmp, MSTATUSH_MDT
+ 	csrc	CSR_MSTATUSH, \tmp
++#endif
+ #else
+ 	li 	\tmp, MSTATUS_MDT
+ 	csrc	CSR_MSTATUS, \tmp
