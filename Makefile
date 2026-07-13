@@ -10,11 +10,22 @@ ESPTOOL := $(PYTHON) -m esptool
 ESP_RISCV_BIN := $(lastword $(sort $(wildcard $(IDF_TOOLS_PATH)/tools/riscv32-esp-elf/*/riscv32-esp-elf/bin)))
 CROSS_COMPILE ?= $(ESP_RISCV_BIN)/riscv32-esp-elf-
 
+UNAME_S := $(shell uname -s)
+
+ifeq ($(UNAME_S),Linux)
+GMAKE ?= $(shell command -v make 2>/dev/null)
+GSED ?= $(shell command -v sed 2>/dev/null)
+GFIND ?= $(shell command -v find 2>/dev/null)
+GNU_HOST_PATH :=
+JOBS ?= $(shell nproc 2>/dev/null || echo 4)
+else
 BREW_PREFIX ?= $(shell brew --prefix 2>/dev/null)
 GMAKE ?= $(shell command -v gmake 2>/dev/null)
-GNU_HOST_PATH := $(BREW_PREFIX)/opt/gnu-sed/libexec/gnubin:$(BREW_PREFIX)/opt/findutils/libexec/gnubin
 GSED := $(BREW_PREFIX)/opt/gnu-sed/libexec/gnubin/sed
+GFIND := $(BREW_PREFIX)/opt/findutils/libexec/gnubin/find
+GNU_HOST_PATH := $(BREW_PREFIX)/opt/gnu-sed/libexec/gnubin:$(BREW_PREFIX)/opt/findutils/libexec/gnubin
 JOBS ?= $(shell sysctl -n hw.ncpu 2>/dev/null || echo 4)
+endif
 
 OPENSBI_DIR := external/opensbi
 OPENSBI_SRC := $(BUILD_DIR)/opensbi-src
@@ -75,11 +86,11 @@ help:
 check:
 	@test -n "$(PYTHON)" -a -x "$(PYTHON)" || { echo 'missing ESP-IDF Python environment'; exit 1; }
 	@test -n "$(ESP_RISCV_BIN)" -a -x "$(CROSS_COMPILE)gcc" || { echo 'missing Espressif RISC-V toolchain'; exit 1; }
-	@test -n "$(GMAKE)" -a -x "$(GMAKE)" || { echo 'missing GNU make (brew install make)'; exit 1; }
-	@test -x "$(BREW_PREFIX)/opt/gnu-sed/libexec/gnubin/sed" || { echo 'missing GNU sed (brew install gnu-sed)'; exit 1; }
-	@test -x "$(BREW_PREFIX)/opt/findutils/libexec/gnubin/find" || { echo 'missing GNU find (brew install findutils)'; exit 1; }
+	@test -n "$(GMAKE)" -a -x "$(GMAKE)" || { echo 'missing GNU make'; exit 1; }
+	@test -n "$(GSED)" -a -x "$(GSED)" || { echo 'missing GNU sed'; exit 1; }
+	@test -n "$(GFIND)" -a -x "$(GFIND)" || { echo 'missing GNU find'; exit 1; }
 	@test -f "$(IDF_PATH)/export.sh" || { echo 'missing ESP-IDF at $(IDF_PATH)'; exit 1; }
-	@test -n "$(LINUX_CROSS_GCC)" -o -n "$(ZIG)" -o -x "$(BUSYBOX_BIN)" || { echo 'missing RV32 Linux compiler (brew install zig)'; exit 1; }
+	@test -n "$(LINUX_CROSS_GCC)" -o -n "$(ZIG)" -o -x "$(BUSYBOX_BIN)" || { echo 'missing RV32 Linux compiler (e.g., Zig)'; exit 1; }
 	@"$(PYTHON)" -c 'import serial' || { echo 'missing pyserial in ESP-IDF Python environment'; exit 1; }
 	@git submodule status --recursive
 

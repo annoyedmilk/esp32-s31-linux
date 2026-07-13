@@ -97,8 +97,6 @@
 struct esp32_port {
 	struct uart_port port;
 	struct clk *clk;
-#ifdef CONFIG_SOC_ESP32S31
-#endif
 };
 
 struct esp32_uart_variant {

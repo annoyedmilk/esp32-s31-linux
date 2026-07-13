@@ -33,23 +33,24 @@ implemented on this hart.
 
 ## Hardware connections
 
-Use both board USB connections:
+The ESP32-S31 Korvo-1 board exposes two USB connections for debugging. You should use both:
 
-- the external USB-to-UART bridge is the Linux `ttyS0` console and the
-  `SERIAL_PORT` used by `make monitor`;
-- the on-chip Espressif USB-Serial/JTAG port is the `FLASH_PORT`, is used by
-  `make openocd`, and mirrors early loader/OpenSBI output for diagnosis.
+- **On-board USB-to-Serial bridge**: This external bridge chip connects to the ESP32-S31 UART0 pins. It serves as the Linux `ttyS0` console and is specified via `SERIAL_PORT` during `make monitor`.
+- **Native USB-Serial/JTAG port**: This is the native USB interface on the ESP32-S31 chip itself. It is specified via `FLASH_PORT` for flashing the binaries, starting JTAG debugging via `make openocd`, and it also mirrors early loader/OpenSBI firmware output.
 
-On macOS, identify the external bridge with `ls /dev/cu.*`. It normally
-appears as a CP210x, CH34x, or FTDI device. The on-chip port appears as
-`/dev/cu.usbmodem*` and must not be confused with the external UART.
+On macOS, identify the external bridge with `ls /dev/cu.*`. The bridge normally
+appears as a CP210x, CH34x, or FTDI device, and the on-chip port appears as
+`/dev/cu.usbmodem*`. On Linux, identify them with `ls /dev/ttyUSB*` and
+`ls /dev/ttyACM*`. The `/dev/ttyUSB*` device is normally the CP210x, CH34x,
+or FTDI bridge; the `/dev/ttyACM*` device is the on-chip port.
 
 ## Host requirements
 
-- macOS with Homebrew
+- Linux (Ubuntu/Debian) or macOS with Homebrew
 - ESP-IDF at `~/esp/esp-idf`
 - the ESP-IDF `riscv32-esp-elf` toolchain
-- `brew install make gnu-sed findutils zig`
+- macOS: `brew install make gnu-sed findutils zig`
+- Linux: `sudo apt install build-essential` (and obtain Zig from `ziglang.org/download`)
 
 Zig supplies the RV32 musl userspace compiler for BusyBox. If
 `riscv32-linux-musl-gcc` is installed, the build uses it instead. You can also
@@ -64,9 +65,9 @@ make ports
 ```
 
 `make ports` lists the serial devices and their USB descriptions. Connect both
-board USB ports before running it. The `/dev/cu.usbmodem*` device is normally
-the on-chip flash/reset port; the CP210x, CH34x, or FTDI device is the external
-Linux UART.
+board USB ports before running it. The on-chip flash/reset port is normally
+`/dev/cu.usbmodem*` (macOS) or `/dev/ttyACM*` (Linux); the external bridge is
+normally `/dev/cu.usbserial-*` (macOS) or `/dev/ttyUSB*` (Linux).
 
 ## Build and flash
 

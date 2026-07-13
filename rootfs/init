@@ -1,6 +1,5 @@
 #!/bin/sh
 
-mount -t devtmpfs devtmpfs /dev 2>/dev/null || true
 mkdir -p /dev/pts /proc /run /sys /tmp
 mount -t proc proc /proc 2>/dev/null || true
 mount -t sysfs sysfs /sys 2>/dev/null || true

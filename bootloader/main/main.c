@@ -21,7 +21,6 @@
 #include "soc/cpu_apm_reg.h"
 #include "soc/hp_apm_reg.h"
 #include "soc/hp_mem_apm_reg.h"
-#include "freertos/FreeRTOS.h"
 
 #define PSRAM_BASE                  0x50000000U
 #define OPENSBI_XIP_ADDR            0x40030000U
@@ -123,25 +122,6 @@ static void open_apm(void)
 
 static void install_global_pmp(void)
 {
-    RV_WRITE_CSR(pmpaddr1, 0);
-    RV_WRITE_CSR(pmpaddr2, 0);
-    RV_WRITE_CSR(pmpaddr3, 0);
-    RV_WRITE_CSR(pmpaddr4, 0);
-    RV_WRITE_CSR(pmpaddr5, 0);
-    RV_WRITE_CSR(pmpaddr6, 0);
-    RV_WRITE_CSR(pmpaddr7, 0);
-    RV_WRITE_CSR(pmpaddr8, 0);
-    RV_WRITE_CSR(pmpaddr9, 0);
-    RV_WRITE_CSR(pmpaddr10, 0);
-    RV_WRITE_CSR(pmpaddr11, 0);
-    RV_WRITE_CSR(pmpaddr12, 0);
-    RV_WRITE_CSR(pmpaddr13, 0);
-    RV_WRITE_CSR(pmpaddr14, 0);
-    RV_WRITE_CSR(pmpaddr15, 0);
-
-    RV_WRITE_CSR(pmpcfg1, 0);
-    RV_WRITE_CSR(pmpcfg2, 0);
-    RV_WRITE_CSR(pmpcfg3, 0);
     RV_WRITE_CSR(pmpaddr0, PMP_FULL_SPACE_NAPOT_ADDR);
     RV_WRITE_CSR(pmpcfg0, PMP_ENTRY_RWX_LOCK_NAPOT);
 }
