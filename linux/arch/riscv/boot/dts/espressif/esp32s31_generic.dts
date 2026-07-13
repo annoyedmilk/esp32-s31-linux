@@ -18,3 +18,5 @@
 };
 
 &uart0 { status = "okay"; };
+
+&sdmmc0 { status = "okay"; };

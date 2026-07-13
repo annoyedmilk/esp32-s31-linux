@@ -1,0 +1,23 @@
+diff --git a/drivers/mmc/host/dw_mmc.c b/drivers/mmc/host/dw_mmc.c
+--- a/drivers/mmc/host/dw_mmc.c
++++ b/drivers/mmc/host/dw_mmc.c
+@@ -2910,6 +2910,19 @@
+ 	struct device *dev = host->dev;
+ 
+ 	/*
++	 * Some platforms cannot use the internal DMA controller: on the
++	 * ESP32-S31 the IDMAC master is not coherent with the CPU caches
++	 * and the RV32 hart implements no Zicbom cache management, so
++	 * descriptor writeback and card reads would be shadowed by stale
++	 * cache lines. The "fifo-mode" property forces CPU-driven FIFO
++	 * (PIO) transfers instead.
++	 */
++	if (device_property_read_bool(dev, "fifo-mode")) {
++		dev_info(dev, "fifo-mode set, forcing PIO transfers\n");
++		goto no_dma;
++	}
++
++	/*
+ 	* Check tansfer mode from HCON[17:16]
+ 	* Clear the ambiguous description of dw_mmc databook:
+ 	* 2b'00: No DMA Interface -> Actually means using Internal DMA block
