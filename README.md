@@ -49,6 +49,30 @@ USB HID and evdev support are built in, so keyboards and mice appear under
 `/dev/input`. The controller currently uses PIO rather than DMA because Linux
 memory resides in cached PSRAM and cache maintenance is not implemented yet.
 
+## SD card
+
+The Korvo-1 microSD slot sits on SDMMC slot 0 (dedicated pads GPIO20–25,
+routed via IO MUX; the board's unpopulated SPI NAND footprint shares these
+pins). The loader powers the slot through the board's active-low enable on
+GPIO39, derives the 50 MHz controller clock from the already-running MPLL,
+releases the module reset, hands the pads to the SD host, and reports
+card-present/not-write-protected through the GPIO matrix constant inputs,
+since the slot has no CD/WP contacts.
+
+Linux drives the controller with the stock `dw_mmc` driver (the S31 SDHOST
+is a Synopsys DesignWare MSHC). Patch
+`0002-mmc-dw_mmc-add-fifo-mode-property.patch` adds a `fifo-mode` device
+tree property that forces PIO transfers: the controller's internal DMA is
+not coherent with the CPU caches and the hart implements no Zicbom cache
+management, so DMA descriptor writeback and card reads would observe stale
+cache lines. FAT (VFAT) and ext4 are enabled; the initramfs mounts the
+first partition of a detected card on `/mnt/sd` during boot. Cards can also
+be mounted manually:
+
+```sh
+mount /dev/mmcblk0p1 /mnt/sd
+```
+
 ## Hardware connections
 
 The ESP32-S31 Korvo-1 has two Type-C connectors, a Type-A host connector, and
@@ -73,11 +97,11 @@ as `/dev/ttyUSB*` and `/dev/ttyACM*`, respectively.
 
 ## Host requirements
 
-- Linux (Ubuntu/Debian) or macOS with Homebrew
+- macOS with Homebrew or Linux
 - ESP-IDF at `~/esp/esp-idf`
 - the ESP-IDF `riscv32-esp-elf` toolchain
 - macOS: `brew install make gnu-sed findutils zig`
-- Linux: `sudo apt install build-essential` (and obtain Zig from `ziglang.org/download`)
+- Linux: `sudo apt install build-essential` and obtain Zig
 
 Zig supplies the RV32 musl userspace compiler for BusyBox. If
 `riscv32-linux-musl-gcc` is installed, the build uses it instead. You can also

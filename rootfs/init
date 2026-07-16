@@ -8,6 +8,27 @@ mount -t devpts devpts /dev/pts 2>/dev/null || true
 mount -t tmpfs tmpfs /run 2>/dev/null || true
 mount -t tmpfs tmpfs /tmp 2>/dev/null || true
 
+sd=""
+for _ in 1 2 3; do
+	if [ -b /dev/mmcblk0p1 ]; then
+		sd=/dev/mmcblk0p1
+		break
+	fi
+	if [ -b /dev/mmcblk0 ]; then
+		sd=/dev/mmcblk0
+		break
+	fi
+	sleep 1
+done
+if [ -n "$sd" ]; then
+	mkdir -p /mnt/sd
+	if mount "$sd" /mnt/sd 2>/dev/null; then
+		echo "SD: mounted $sd on /mnt/sd"
+	else
+		echo "SD: $sd present but mount failed"
+	fi
+fi
+
 echo
 echo "=== ESP32-S31 Linux / BusyBox ==="
 echo "Console: ttyS0"

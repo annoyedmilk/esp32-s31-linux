@@ -106,7 +106,7 @@ bootloader:
 opensbi:
 	@rm -rf "$(OPENSBI_SRC)"
 	@mkdir -p "$(OPENSBI_SRC)"
-	@cp -Rc "$(OPENSBI_DIR)"/* "$(OPENSBI_SRC)/"
+	@cp -R "$(OPENSBI_DIR)"/* "$(OPENSBI_SRC)/"
 	@rm -rf "$(OPENSBI_OUT)"
 	@for patch_file in $(OPENSBI_PATCHES); do patch -d "$(OPENSBI_SRC)" -p1 -s < "$$patch_file"; done
 	@$(GMAKE) -C "$(OPENSBI_SRC)" \
@@ -120,8 +120,8 @@ opensbi:
 linux:
 	@rm -rf "$(LINUX_SRC)"
 	@mkdir -p "$(LINUX_SRC)"
-	@cp -Rc "$(LINUX_DIR)"/* "$(LINUX_SRC)/"
-	@cp -Rc $(LINUX_OVERLAY_DIRS) "$(LINUX_SRC)/"
+	@cp -R "$(LINUX_DIR)"/* "$(LINUX_SRC)/"
+	@cp -R $(LINUX_OVERLAY_DIRS) "$(LINUX_SRC)/"
 	@for patch_file in $(LINUX_PATCHES); do patch -d "$(LINUX_SRC)" -p1 -s < "$$patch_file"; done
 	@PATH="$(GNU_HOST_PATH):$$PATH" $(GMAKE) -C "$(LINUX_SRC)" O="$(LINUX_OUT)" \
 		ARCH=riscv CROSS_COMPILE="$(CROSS_COMPILE)" HOSTCFLAGS="$(LINUX_HOSTCFLAGS)" esp32s31_defconfig
@@ -144,10 +144,13 @@ busybox:
 			printf '%s\n' '#!/bin/sh' \
 				'for arg in "$$@"; do' \
 				'  shift' \
-				'  case "$$arg" in -finline-limit=0|-falign-jumps=1|-falign-labels=1|-Wl,--warn-common|-Wl,--sort-common|-Wl,--sort-section,alignment|-Wl,--verbose|-Wl,-Map,*) continue;; esac' \
+				'  case "$$arg" in' \
+				'    -finline-limit=0|-falign-jumps=1|-falign-labels=1|-Wl,--warn-common|-Wl,--sort-common|-Wl,--sort-section,alignment|-Wl,--verbose|-Wl,-Map,*) continue;;' \
+				'    -Wp,-MD,*) set -- "$$@" -MD -MF "$${arg#-Wp,-MD,}"; continue;;' \
+				'  esac' \
 				'  set -- "$$@" "$$arg"' \
 				'done' \
-				'exec env ZIG_GLOBAL_CACHE_DIR="$(BUSYBOX_OUT)/zig-cache" zig cc -target riscv32-linux-musl -mcpu=generic_rv32+m+a+c "$$@"' \
+				'exec env ZIG_GLOBAL_CACHE_DIR="$(BUSYBOX_OUT)/zig-cache" "$(ZIG)" cc -target riscv32-linux-musl -mcpu=generic_rv32+m+a+c "$$@"' \
 				> "$(ZIGCC)"; \
 			chmod +x "$(ZIGCC)"; \
 		fi; \

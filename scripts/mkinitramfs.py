@@ -7,10 +7,10 @@ from pathlib import Path
 
 
 APPLETS = (
-    "ash", "cat", "chmod", "clear", "cp", "cttyhack", "dmesg", "echo",
+    "[", "ash", "cat", "chmod", "clear", "cp", "cttyhack", "dmesg", "echo",
     "false", "free", "kill", "ln", "ls", "mkdir", "mknod", "mount",
     "mountpoint", "ps", "pwd", "reboot", "rm", "rmdir", "sh", "sleep",
-    "setsid", "sync", "true", "umount", "uname",
+    "setsid", "sync", "test", "true", "umount", "uname",
 )
 
 

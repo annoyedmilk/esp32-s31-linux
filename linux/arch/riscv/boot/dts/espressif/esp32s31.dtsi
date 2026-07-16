@@ -77,6 +77,20 @@
 			espressif,num-interrupts = <48>;
 		};
 
+		sdmmc0: mmc@20342000 {
+			compatible = "snps,dw-mshc";
+			reg = <0x20342000 0x1000>;
+			interrupt-parent = <&clic>;
+			interrupts = <33 3 IRQ_TYPE_LEVEL_HIGH>;
+			clock-frequency = <50000000>;
+			bus-width = <4>;
+			cap-sd-highspeed;
+			no-1-8-v;
+			disable-wp;
+			fifo-mode;
+			status = "disabled";
+		};
+
 		uart0: serial@2038a000 {
 			compatible = "esp,esp32s3-uart";
 			reg = <0x2038a000 0x1000>;
