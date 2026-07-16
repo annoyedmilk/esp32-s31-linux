@@ -81,12 +81,14 @@
 			compatible = "snps,dw-mshc";
 			reg = <0x20342000 0x1000>;
 			interrupt-parent = <&clic>;
-			interrupts = <33 3 IRQ_TYPE_LEVEL_HIGH>;
+			interrupts = <34 3 IRQ_TYPE_LEVEL_HIGH>;
 			clock-frequency = <50000000>;
+			fifo-depth = <32>;
 			bus-width = <4>;
 			cap-sd-highspeed;
 			no-1-8-v;
 			disable-wp;
+			espressif,auto-stop;
 			fifo-mode;
 			status = "disabled";
 		};

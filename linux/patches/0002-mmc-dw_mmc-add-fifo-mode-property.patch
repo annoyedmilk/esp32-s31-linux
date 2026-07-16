@@ -1,10 +1,85 @@
 diff --git a/drivers/mmc/host/dw_mmc.c b/drivers/mmc/host/dw_mmc.c
 --- a/drivers/mmc/host/dw_mmc.c
 +++ b/drivers/mmc/host/dw_mmc.c
-@@ -2910,6 +2910,19 @@
+@@ -238,6 +238,14 @@ static void mci_send_cmd(struct dw_mci *host, u32 cmd, u32 arg)
+ 			cmd, arg, cmd_status);
+ }
+ 
++static bool dw_mci_use_auto_stop(struct dw_mci *host,
++				 struct mmc_command *cmd)
++{
++	return (host->quirks & DW_MMC_QUIRK_AUTO_STOP) && cmd->data &&
++	       (cmd->opcode == MMC_READ_MULTIPLE_BLOCK ||
++		cmd->opcode == MMC_WRITE_MULTIPLE_BLOCK);
++}
++
+ static u32 dw_mci_prepare_command(struct mmc_host *mmc, struct mmc_command *cmd)
+ {
+ 	struct dw_mci *host = mmc_priv(mmc);
+@@ -255,6 +263,9 @@ static u32 dw_mci_prepare_command(struct mmc_host *mmc, struct mmc_command *cmd)
+ 	else if (cmd->opcode != MMC_SEND_STATUS && cmd->data)
+ 		cmdr |= SDMMC_CMD_PRV_DAT_WAIT;
+ 
++	if (dw_mci_use_auto_stop(host, cmd))
++		cmdr |= SDMMC_CMD_SEND_STOP;
++
+ 	if (cmd->opcode == SD_SWITCH_VOLTAGE) {
+ 		u32 clk_en_a;
+ 
+@@ -2063,8 +2074,11 @@ static void dw_mci_work_func(struct work_struct *t)
+ 			err = dw_mci_data_complete(host, data);
+ 
+ 			if (!err) {
+-				if (!data->stop || mrq->sbc) {
+-					if (mrq->sbc && data->stop)
++				if (!data->stop || mrq->sbc ||
++				    dw_mci_use_auto_stop(host, mrq->cmd)) {
++					if ((mrq->sbc ||
++					     dw_mci_use_auto_stop(host, mrq->cmd)) &&
++					    data->stop)
+ 						data->stop->error = 0;
+					dw_mci_request_end(host, mrq);
+					goto unlock;
+@@ -2659,6 +2673,31 @@ static irqreturn_t dw_mci_interrupt(int irq, void *dev_id)
+ 
+ 	pending = mci_readl(host, MINTSTS); /* read-only mask reg */
+ 
++	/*
++	 * PIO can report HTO after the requested bytes have been copied but
++	 * before the ESP32-S31 completes its automatic stop. Finish the data
++	 * phase and discard only the trailing FIFO data in that exact state.
++	 */
++	if ((host->quirks & DW_MMC_QUIRK_AUTO_STOP) &&
++	    host->use_dma == TRANS_MODE_PIO &&
++	    host->dir_status == MMC_DATA_READ &&
++	    (pending & SDMMC_INT_HTO)) {
++		mci_writel(host, RINTSTS, SDMMC_INT_HTO);
++		pending &= ~SDMMC_INT_HTO;
++
++		if (!host->sg &&
++		    test_bit(EVENT_XFER_COMPLETE, &host->pending_events)) {
++			spin_lock(&host->irq_lock);
++			timer_delete(&host->dto_timer);
++			pending &= ~SDMMC_INT_RXDR;
++			mci_writel(host, RINTSTS, SDMMC_INT_RXDR);
++			dw_mci_ctrl_reset(host, SDMMC_CTRL_FIFO_RESET);
++			set_bit(EVENT_DATA_COMPLETE, &host->pending_events);
++			queue_work(system_bh_wq, &host->bh_work);
++			spin_unlock(&host->irq_lock);
++		}
++	}
++
+ 	if (pending) {
+ 		/* Check volt switch first, since it can look like an error */
+ 		if ((host->state == STATE_SENDING_CMD11) &&
+@@ -2909,6 +2948,22 @@ static void dw_mci_init_dma(struct dw_mci *host)
+ 	int addr_config;
  	struct device *dev = host->dev;
  
- 	/*
++	if (device_property_read_bool(dev, "espressif,auto-stop"))
++		host->quirks |= DW_MMC_QUIRK_AUTO_STOP;
++
++	/*
 +	 * Some platforms cannot use the internal DMA controller: on the
 +	 * ESP32-S31 the IDMAC master is not coherent with the CPU caches
 +	 * and the RV32 hart implements no Zicbom cache management, so
@@ -17,7 +92,18 @@ diff --git a/drivers/mmc/host/dw_mmc.c b/drivers/mmc/host/dw_mmc.c
 +		goto no_dma;
 +	}
 +
-+	/*
+ 	/*
  	* Check tansfer mode from HCON[17:16]
  	* Clear the ambiguous description of dw_mmc databook:
- 	* 2b'00: No DMA Interface -> Actually means using Internal DMA block
+diff --git a/drivers/mmc/host/dw_mmc.h b/drivers/mmc/host/dw_mmc.h
+--- a/drivers/mmc/host/dw_mmc.h
++++ b/drivers/mmc/host/dw_mmc.h
+@@ -269,6 +269,8 @@ struct dw_mci_dma_ops {
+ #define DW_MMC_QUIRK_EXTENDED_TMOUT            BIT(0)
+ /* Force 32-bit access to the FIFO */
+ #define DW_MMC_QUIRK_FIFO64_32                 BIT(1)
++/* Use the controller's automatic stop command for multi-block transfers */
++#define DW_MMC_QUIRK_AUTO_STOP                 BIT(2)
+ 
+ #define DW_MMC_240A		0x240a
+ #define DW_MMC_280A		0x280a
