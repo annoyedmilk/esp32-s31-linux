@@ -61,13 +61,13 @@ since the slot has no CD/WP contacts.
 
 Linux drives the controller with the stock `dw_mmc` driver (the S31 SDHOST
 is a Synopsys DesignWare MSHC). Patch
-`0002-mmc-dw_mmc-add-fifo-mode-property.patch` adds a `fifo-mode` device
-tree property that forces PIO transfers: the controller's internal DMA is
-not coherent with the CPU caches and the hart implements no Zicbom cache
-management, so DMA descriptor writeback and card reads would observe stale
-cache lines. FAT (VFAT) and ext4 are enabled; the initramfs mounts the
-first partition of a detected card on `/mnt/sd` during boot. Cards can also
-be mounted manually:
+`0003-mmc-dw_mmc-add-esp32s31-support.patch` identifies the SoC integration
+and forces PIO transfers: the controller's internal DMA is not coherent with
+the CPU caches and the hart implements no Zicbom cache management, so DMA
+descriptor writeback and card reads would observe stale cache lines. FAT
+(VFAT) and ext4 are enabled; the initramfs mounts the first partition, or a
+whole-card filesystem when there is no partition table, on `/mnt/sd` during
+boot. Cards can also be mounted manually:
 
 ```sh
 mount /dev/mmcblk0p1 /mnt/sd
@@ -92,16 +92,14 @@ native USB Serial/JTAG signals on the LCD expansion connector:
   current-limited 5 V VBUS path. It is independent of the two debug ports.
 
 On macOS, the CP2102N normally appears as `/dev/cu.usbserial-*` and the native
-USB Serial/JTAG breakout as `/dev/cu.usbmodem*`. On Linux they normally appear
-as `/dev/ttyUSB*` and `/dev/ttyACM*`, respectively.
+USB Serial/JTAG breakout as `/dev/cu.usbmodem*`.
 
 ## Host requirements
 
-- macOS with Homebrew or Linux
+- macOS with Homebrew
 - ESP-IDF at `~/esp/esp-idf`
 - the ESP-IDF `riscv32-esp-elf` toolchain
-- macOS: `brew install make gnu-sed findutils zig`
-- Linux: `sudo apt install build-essential` and obtain Zig
+- `brew install make gnu-sed findutils zig`
 
 Zig supplies the RV32 musl userspace compiler for BusyBox. If
 `riscv32-linux-musl-gcc` is installed, the build uses it instead. You can also
@@ -116,9 +114,8 @@ make ports
 ```
 
 `make ports` lists the serial devices and USB descriptions. The CP2102N UART
-is normally `/dev/cu.usbserial-*` (macOS) or `/dev/ttyUSB*` (Linux). A wired
-native USB Serial/JTAG breakout is normally `/dev/cu.usbmodem*` (macOS) or
-`/dev/ttyACM*` (Linux).
+is normally `/dev/cu.usbserial-*`; a wired native USB Serial/JTAG breakout is
+normally `/dev/cu.usbmodem*`.
 
 ## Build and flash
 

@@ -1,0 +1,22 @@
+diff --git a/Documentation/devicetree/bindings/mmc/synopsys-dw-mshc.yaml b/Documentation/devicetree/bindings/mmc/synopsys-dw-mshc.yaml
+--- a/Documentation/devicetree/bindings/mmc/synopsys-dw-mshc.yaml
++++ b/Documentation/devicetree/bindings/mmc/synopsys-dw-mshc.yaml
+@@ -12,10 +12,14 @@ maintainers:
+ # Everything else is described in the common file
+ properties:
+   compatible:
+-    enum:
+-      - altr,socfpga-dw-mshc
+-      - img,pistachio-dw-mshc
+-      - snps,dw-mshc
++    oneOf:
++      - enum:
++          - altr,socfpga-dw-mshc
++          - img,pistachio-dw-mshc
++          - snps,dw-mshc
++      - items:
++          - const: espressif,esp32s31-dw-mshc
++          - const: snps,dw-mshc
+ 
+   reg:
+     maxItems: 1

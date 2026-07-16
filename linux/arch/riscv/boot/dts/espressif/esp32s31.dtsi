@@ -62,6 +62,12 @@
 		clock-frequency = <12000000>;
 	};
 
+	sdmmc_clk: sdmmc-clock {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <50000000>;
+	};
+
 	soc {
 		#address-cells = <1>;
 		#size-cells = <1>;
@@ -78,18 +84,18 @@
 		};
 
 		sdmmc0: mmc@20342000 {
-			compatible = "snps,dw-mshc";
+			compatible = "espressif,esp32s31-dw-mshc", "snps,dw-mshc";
 			reg = <0x20342000 0x1000>;
 			interrupt-parent = <&clic>;
 			interrupts = <34 3 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&sdmmc_clk>, <&sdmmc_clk>;
+			clock-names = "biu", "ciu";
 			clock-frequency = <50000000>;
 			fifo-depth = <32>;
 			bus-width = <4>;
 			cap-sd-highspeed;
 			no-1-8-v;
 			disable-wp;
-			espressif,auto-stop;
-			fifo-mode;
 			status = "disabled";
 		};
 

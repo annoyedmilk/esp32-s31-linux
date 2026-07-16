@@ -12,28 +12,27 @@
 #include "esp_partition.h"
 #include "esp_psram.h"
 #include "esp_rom_crc.h"
+#include "esp_rom_gpio.h"
+#include "esp_rom_sys.h"
+#include "esp_clk_tree.h"
+#include "driver/gpio.h"
 #include "riscv/csr.h"
 #include "esp32s31/rom/cache.h"
+#include "esp_private/esp_clk_tree_common.h"
+#include "esp_private/gpio.h"
+#include "esp_private/periph_ctrl.h"
 #include "hal/cache_ll.h"
 #include "hal/assist_debug_ll.h"
+#include "hal/sdmmc_ll.h"
 #include "hal/wdt_hal.h"
 #include "soc/soc.h"
+#include "soc/clk_tree_defs.h"
 #include "soc/cpu_apm_reg.h"
 #include "soc/hp_apm_reg.h"
 #include "soc/hp_mem_apm_reg.h"
-#include "soc/hp_sys_clkrst_reg.h"
 #include <soc/reg_base.h>
-#define DR_REG_CNNT_BASE             DR_REG_CNNT_SYS_REG_BASE
-#define DR_REG_CNNT_IO_MUX_BASE      DR_REG_CNNT_PAD_CTRL_BASE
-#include "soc/cnnt_sys_reg.h"
-#include "soc/cnnt_io_mux_reg.h"
-#include "soc/lp_clkrst_reg.h"
-#include "soc/io_mux_reg.h"
-#include "soc/gpio_reg.h"
 #include "soc/gpio_sig_map.h"
-#include "soc/gpio_pins.h"
-#include "soc/sdmmc_reg.h"
-#include "esp_rom_gpio.h"
+#include "soc/sdmmc_pins.h"
 #include "display.h"
 
 #define PSRAM_BASE                  0x50000000U
@@ -51,12 +50,8 @@
 #define PMP_FULL_SPACE_NAPOT_ADDR   0x3FFFFFFFU
 #define PMP_ENTRY_RWX_LOCK_NAPOT    0x9FU
 
-#define SD_POWER_EN_GPIO            39U         /* Korvo-1 BSP_SD_EN, active low */
-#define SD_SLOT0_GPIO_FIRST         20U         /* D0 D1 D2 D3 CLK CMD = GPIO20..25 */
-#define SD_SLOT0_GPIO_LAST          25U
-#define SD_SLOT0_GPIO_CLK           24U
+#define SD_POWER_EN_GPIO            GPIO_NUM_39
 #define SD_TARGET_CCLK_HZ           50000000U
-#define SD_XTAL_FREQ_MHZ            40U
 
 static const char *TAG = "s31-linux-loader";
 
@@ -197,69 +192,90 @@ static void disable_stack_protector(void)
     assist_debug_ll_sp_spill_set_max(1, 0xffffffff);
 }
 
+static esp_err_t configure_sd_pin(gpio_num_t gpio, bool pull_up)
+{
+    esp_err_t err;
+
+    err = gpio_pulldown_dis(gpio);
+    if (err != ESP_OK) {
+        return err;
+    }
+    err = pull_up ? gpio_pullup_en(gpio) : gpio_pullup_dis(gpio);
+    if (err != ESP_OK) {
+        return err;
+    }
+    err = gpio_input_enable(gpio);
+    if (err != ESP_OK) {
+        return err;
+    }
+    err = gpio_iomux_output(gpio, SDMMC_LL_IOMUX_FUNC);
+    if (err != ESP_OK) {
+        return err;
+    }
+    return gpio_set_drive_capability(gpio, GPIO_DRIVE_CAP_3);
+}
+
 static void init_sd_card(void)
 {
-    uint32_t fb_div, mpll_mhz, div, cclk_hz, reg;
+    static const gpio_num_t pins[] = {
+        SDMMC_SLOT0_IOMUX_PIN_NUM_D0,
+        SDMMC_SLOT0_IOMUX_PIN_NUM_D1,
+        SDMMC_SLOT0_IOMUX_PIN_NUM_D2,
+        SDMMC_SLOT0_IOMUX_PIN_NUM_D3,
+        SDMMC_SLOT0_IOMUX_PIN_NUM_CLK,
+        SDMMC_SLOT0_IOMUX_PIN_NUM_CMD,
+    };
+    uint32_t source_hz;
+    uint32_t div;
+    esp_err_t err;
 
-    esp_rom_gpio_pad_select_gpio(SD_POWER_EN_GPIO);
-    REG_WRITE(GPIO_OUT1_W1TC_REG, BIT(SD_POWER_EN_GPIO - 32));
-    REG_WRITE(GPIO_ENABLE1_W1TS_REG, BIT(SD_POWER_EN_GPIO - 32));
-
-    fb_div = REG_GET_FIELD(LP_AONCLKRST_MSPI_DIV_REG, LP_AONCLKRST_MSPI_FB_DIV);
-    mpll_mhz = SD_XTAL_FREQ_MHZ * (fb_div + 1) / 2;
-    if (mpll_mhz < 100) {
-        ESP_LOGW(TAG, "MPLL not running (%" PRIu32 " MHz); skipping SD host init",
-                 mpll_mhz);
+    err = gpio_set_direction(SD_POWER_EN_GPIO, GPIO_MODE_OUTPUT);
+    if (err == ESP_OK) {
+        err = gpio_set_level(SD_POWER_EN_GPIO, 0);
+    }
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "failed to enable SD slot power: %s", esp_err_to_name(err));
         return;
     }
-    div = (mpll_mhz * 1000000U + SD_TARGET_CCLK_HZ - 1) / SD_TARGET_CCLK_HZ;
-    if (div < 2) {
-        div = 2;
+
+    err = esp_clk_tree_enable_src(SDMMC_CLK_SRC_DEFAULT, true);
+    if (err == ESP_OK) {
+        err = esp_clk_tree_src_get_freq_hz(SDMMC_CLK_SRC_DEFAULT,
+                                           ESP_CLK_TREE_SRC_FREQ_PRECISION_CACHED,
+                                           &source_hz);
+    }
+    if (err != ESP_OK || !source_hz) {
+        ESP_LOGW(TAG, "failed to acquire SD host clock: %s", esp_err_to_name(err));
+        return;
+    }
+
+    div = (source_hz + SD_TARGET_CCLK_HZ - 1) / SD_TARGET_CCLK_HZ;
+    if (div < 1) {
+        div = 1;
     } else if (div > 16) {
         div = 16;
     }
-    cclk_hz = mpll_mhz * 1000000U / div;
 
-    REG_SET_BIT(HP_SYS_CLKRST_SDIO_HOST_CTRL0_REG, HP_SYS_CLKRST_REG_SDMMC_SYS_CLK_EN);
-    REG_CLR_BIT(HP_SYS_CLKRST_SDIO_HOST_CTRL0_REG, HP_SYS_CLKRST_REG_SDIO_LS_CLK_SRC_SEL);
-    REG_SET_BIT(HP_SYS_CLKRST_SDIO_HOST_CTRL0_REG, HP_SYS_CLKRST_REG_SDIO_LS_CLK_EN);
+    PERIPH_RCC_ATOMIC() {
+        sdmmc_ll_pad_set_pin_dedicated_ctrl(&SDMMC, true);
+        sdmmc_ll_enable_bus_clock(0, true);
+        sdmmc_ll_select_clk_source(&SDMMC, SDMMC_CLK_SRC_DEFAULT);
+        sdmmc_ll_set_clock_div(&SDMMC, div);
+        sdmmc_ll_init_phase_delay(&SDMMC);
+        sdmmc_ll_reset_register(0);
+        sdmmc_ll_mem_force_power_on(&SDMMC);
+    }
+    esp_rom_delay_us(10);
 
-    reg = REG_READ(HP_SYS_CLKRST_SDIO_HOST_FUNC_CTRL0_REG);
-    reg &= ~(HP_SYS_CLKRST_REG_SDIO_LS_CLK_EDGE_H_M |
-             HP_SYS_CLKRST_REG_SDIO_LS_CLK_EDGE_N_M |
-             HP_SYS_CLKRST_REG_SDIO_LS_CLK_EDGE_L_M |
-             HP_SYS_CLKRST_REG_SDIO_LS_DRV_CLK_EDGE_SEL_M |
-             HP_SYS_CLKRST_REG_SDIO_LS_SAM_CLK_EDGE_SEL_M |
-             HP_SYS_CLKRST_REG_SDIO_LS_SLF_CLK_EDGE_SEL_M);
-    reg |= (div / 2 - 1) << HP_SYS_CLKRST_REG_SDIO_LS_CLK_EDGE_H_S;
-    reg |= (div - 1) << HP_SYS_CLKRST_REG_SDIO_LS_CLK_EDGE_N_S;
-    reg |= (div - 1) << HP_SYS_CLKRST_REG_SDIO_LS_CLK_EDGE_L_S;
-    reg |= 1U << HP_SYS_CLKRST_REG_SDIO_LS_DRV_CLK_EDGE_SEL_S;
-    reg |= HP_SYS_CLKRST_REG_SDIO_LS_DRV_CLK_EN |
-           HP_SYS_CLKRST_REG_SDIO_LS_SAM_CLK_EN |
-           HP_SYS_CLKRST_REG_SDIO_LS_SLF_CLK_EN;
-    REG_WRITE(HP_SYS_CLKRST_SDIO_HOST_FUNC_CTRL0_REG, reg);
-    REG_SET_BIT(HP_SYS_CLKRST_SDIO_HOST_FUNC_CTRL0_REG,
-                HP_SYS_CLKRST_REG_SDIO_LS_CLK_EDGE_CFG_UPDATE);
-    REG_CLR_BIT(HP_SYS_CLKRST_SDIO_HOST_FUNC_CTRL0_REG,
-                HP_SYS_CLKRST_REG_SDIO_LS_CLK_EDGE_CFG_UPDATE);
+    for (size_t i = 0; i < sizeof(pins) / sizeof(pins[0]); i++) {
+        bool pull_up = pins[i] != SDMMC_SLOT0_IOMUX_PIN_NUM_CLK;
 
-    REG_SET_BIT(CNNT_SYS_HP_SDMMC_CTRL_REG, CNNT_SYS_SDMMC_RST_EN);
-    REG_CLR_BIT(CNNT_SYS_HP_SDMMC_CTRL_REG, CNNT_SYS_SDMMC_RST_EN);
-    REG_SET_BIT(CNNT_SYS_SDMMC_MEM_LP_CTRL_REG, CNNT_SYS_SDMMC_MEM_LP_FORCE_CTRL);
-    REG_CLR_BIT(CNNT_SYS_SDMMC_MEM_LP_CTRL_REG, CNNT_SYS_SDMMC_MEM_LP_EN);
-
-    REG_SET_BIT(CNNT_IO_MUX_CTRL_REG, CNNT_IO_MUX_SDIO_PAD_PIN_CTRL_DED_SEL);
-    for (uint32_t gpio = SD_SLOT0_GPIO_FIRST; gpio <= SD_SLOT0_GPIO_LAST; gpio++) {
-        uint32_t pad = PERIPHS_IO_MUX_U_GPIO20 + (gpio - SD_SLOT0_GPIO_FIRST) * 4;
-        uint32_t val = REG_READ(pad);
-
-        val &= ~(MCU_SEL_M | FUN_PD);
-        val |= FUN_IE;
-        if (gpio != SD_SLOT0_GPIO_CLK) {
-            val |= FUN_PU;
+        err = configure_sd_pin(pins[i], pull_up);
+        if (err != ESP_OK) {
+            ESP_LOGW(TAG, "failed to configure SD GPIO %d: %s",
+                     pins[i], esp_err_to_name(err));
+            return;
         }
-        REG_WRITE(pad, val);
     }
 
     esp_rom_gpio_connect_in_signal(GPIO_MATRIX_CONST_ZERO_INPUT,
@@ -269,9 +285,9 @@ static void init_sd_card(void)
     esp_rom_gpio_connect_in_signal(GPIO_MATRIX_CONST_ONE_INPUT,
                                    SD_CARD_INT_N_1_PAD_IN_IDX, false);
 
-    ESP_LOGI(TAG, "SD host: MPLL=%" PRIu32 "MHz cclk_in=%" PRIu32 "Hz div=%" PRIu32
+    ESP_LOGI(TAG, "SD host: source=%" PRIu32 "Hz cclk_in=%" PRIu32 "Hz div=%" PRIu32
                   " verid=0x%08" PRIx32,
-             mpll_mhz, cclk_hz, div, REG_READ(SDHOST_VERID_REG));
+             source_hz, source_hz / div, div, sdmmc_ll_get_version_id(&SDMMC));
 }
 
 static const esp_partition_t *find_partition(const char *name)

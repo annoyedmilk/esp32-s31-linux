@@ -2,7 +2,6 @@
  * Author: Marco Müller <hello@annoyedmilk.ch> */
 #ifndef _S31_MAC_COMPAT_H
 #define _S31_MAC_COMPAT_H
-#ifdef __APPLE__
 #include <unistd.h>
 #include <fcntl.h>
 #ifndef O_LARGEFILE
@@ -34,5 +33,4 @@ static inline ssize_t copy_file_range(int fd_in, off_t *off_in, int fd_out,
 	}
 	return total;
 }
-#endif /* __APPLE__ */
 #endif

@@ -38,8 +38,8 @@ diff --git a/drivers/mmc/host/dw_mmc.c b/drivers/mmc/host/dw_mmc.c
 +					     dw_mci_use_auto_stop(host, mrq->cmd)) &&
 +					    data->stop)
  						data->stop->error = 0;
-					dw_mci_request_end(host, mrq);
-					goto unlock;
+ 					dw_mci_request_end(host, mrq);
+ 					goto unlock;
 @@ -2659,6 +2673,31 @@ static irqreturn_t dw_mci_interrupt(int irq, void *dev_id)
  
  	pending = mci_readl(host, MINTSTS); /* read-only mask reg */
@@ -72,38 +72,48 @@ diff --git a/drivers/mmc/host/dw_mmc.c b/drivers/mmc/host/dw_mmc.c
  	if (pending) {
  		/* Check volt switch first, since it can look like an error */
  		if ((host->state == STATE_SENDING_CMD11) &&
-@@ -2909,6 +2948,22 @@ static void dw_mci_init_dma(struct dw_mci *host)
+@@ -2909,6 +2948,8 @@ static void dw_mci_init_dma(struct dw_mci *host)
  	int addr_config;
  	struct device *dev = host->dev;
  
-+	if (device_property_read_bool(dev, "espressif,auto-stop"))
-+		host->quirks |= DW_MMC_QUIRK_AUTO_STOP;
-+
-+	/*
-+	 * Some platforms cannot use the internal DMA controller: on the
-+	 * ESP32-S31 the IDMAC master is not coherent with the CPU caches
-+	 * and the RV32 hart implements no Zicbom cache management, so
-+	 * descriptor writeback and card reads would be shadowed by stale
-+	 * cache lines. The "fifo-mode" property forces CPU-driven FIFO
-+	 * (PIO) transfers instead.
-+	 */
-+	if (device_property_read_bool(dev, "fifo-mode")) {
-+		dev_info(dev, "fifo-mode set, forcing PIO transfers\n");
++	if (host->quirks & DW_MMC_QUIRK_FORCE_PIO)
 +		goto no_dma;
-+	}
-+
  	/*
  	* Check tansfer mode from HCON[17:16]
  	* Clear the ambiguous description of dw_mmc databook:
 diff --git a/drivers/mmc/host/dw_mmc.h b/drivers/mmc/host/dw_mmc.h
 --- a/drivers/mmc/host/dw_mmc.h
 +++ b/drivers/mmc/host/dw_mmc.h
-@@ -269,6 +269,8 @@ struct dw_mci_dma_ops {
+@@ -269,6 +269,10 @@ struct dw_mci_dma_ops {
  #define DW_MMC_QUIRK_EXTENDED_TMOUT            BIT(0)
  /* Force 32-bit access to the FIFO */
  #define DW_MMC_QUIRK_FIFO64_32                 BIT(1)
 +/* Use the controller's automatic stop command for multi-block transfers */
 +#define DW_MMC_QUIRK_AUTO_STOP                 BIT(2)
++/* Force CPU-driven FIFO transfers */
++#define DW_MMC_QUIRK_FORCE_PIO                 BIT(3)
  
  #define DW_MMC_240A		0x240a
  #define DW_MMC_280A		0x280a
+diff --git a/drivers/mmc/host/dw_mmc-pltfm.c b/drivers/mmc/host/dw_mmc-pltfm.c
+--- a/drivers/mmc/host/dw_mmc-pltfm.c
++++ b/drivers/mmc/host/dw_mmc-pltfm.c
+@@ -90,7 +90,18 @@ static const struct dw_mci_drv_data socfpga_drv_data = {
+ 	.init		= dw_mci_socfpga_priv_init,
+ };
+ 
++static int dw_mci_esp32s31_init(struct dw_mci *host)
++{
++	host->quirks |= DW_MMC_QUIRK_AUTO_STOP | DW_MMC_QUIRK_FORCE_PIO;
++	return 0;
++}
++
++static const struct dw_mci_drv_data esp32s31_drv_data = {
++	.init		= dw_mci_esp32s31_init,
++};
++
+ static const struct of_device_id dw_mci_pltfm_match[] = {
++	{ .compatible = "espressif,esp32s31-dw-mshc", .data = &esp32s31_drv_data, },
+ 	{ .compatible = "snps,dw-mshc", },
+ 	{ .compatible = "altr,socfpga-dw-mshc", .data = &socfpga_drv_data, },
+ 	{ .compatible = "img,pistachio-dw-mshc", },

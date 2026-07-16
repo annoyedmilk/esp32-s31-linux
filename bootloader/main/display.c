@@ -13,6 +13,8 @@
 #include "esp_rom_sys.h"
 #include "hal/axi_dma_ll.h"
 #include "hal/dma_types.h"
+#include "hal/gdma_channel.h"
+#include "hal/gdma_ll.h"
 #include "hal/lcd_ll.h"
 #include "heap_memory_layout.h"
 #include "soc/axi_dma_struct.h"
@@ -26,10 +28,10 @@
 #define LCD_PCLK_HZ            18000000U
 #define LCD_DMA_LINK_ADDR      0x2F079000U
 #define LCD_DMA_LINK_SIZE      0x1000U
-#define LCD_DMA_CHUNK_SIZE     4032U
+#define LCD_DMA_CHUNK_SIZE     DMA_DESCRIPTOR_BUFFER_MAX_SIZE_64B_ALIGNED
 #define LCD_DMA_NODE_COUNT     ((LCD_FB_SIZE + LCD_DMA_CHUNK_SIZE - 1U) / LCD_DMA_CHUNK_SIZE)
-#define LCD_AXI_DMA_PERIPH_ID  0
-#define LCD_AXI_DMA_CHANNELS   3
+#define LCD_AXI_DMA_PERIPH_ID  SOC_GDMA_TRIG_PERIPH_LCD0
+#define LCD_AXI_DMA_CHANNELS   GDMA_LL_AXI_PAIRS_PER_GROUP
 
 _Static_assert(LCD_DMA_NODE_COUNT * sizeof(dma_descriptor_align8_t) <= LCD_DMA_LINK_SIZE,
                "LCD DMA link exceeds its reserved SRAM region");
@@ -37,6 +39,7 @@ _Static_assert(LCD_DMA_NODE_COUNT * sizeof(dma_descriptor_align8_t) <= LCD_DMA_L
 SOC_RESERVE_MEMORY_REGION(LCD_DMA_LINK_ADDR, LCD_DMA_LINK_ADDR + LCD_DMA_LINK_SIZE, lcd_dma_link);
 
 static const char *TAG = "s31-linux-display";
+static esp_lcd_panel_handle_t panel;
 
 static void fill_color_bars(void)
 {
@@ -109,9 +112,12 @@ static void start_dma_link(int channel)
 
 bool display_init(void)
 {
-    esp_lcd_panel_handle_t panel = NULL;
     int channel;
     esp_err_t err;
+
+    if (panel) {
+        return true;
+    }
 
     fill_color_bars();
 
@@ -159,15 +165,16 @@ bool display_init(void)
     err = esp_lcd_panel_init(panel);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "esp_lcd_panel_init failed: %s", esp_err_to_name(err));
-        return false;
+        goto fail;
     }
 
     channel = find_lcd_dma_channel();
     if (channel < 0) {
         ESP_LOGE(TAG, "no AXI DMA TX channel bound to LCD_CAM");
-        return false;
+        goto fail;
     }
 
+    /* Keep the descriptor ring above the OpenSBI relocation destination. */
     build_dma_link();
     silence_lcd_interrupts(channel);
     start_dma_link(channel);
@@ -177,4 +184,9 @@ bool display_init(void)
              (unsigned)LCD_H_RES, (unsigned)LCD_V_RES,
              (uint32_t)LCD_FB_ADDR, (uint32_t)LCD_DMA_LINK_ADDR, channel);
     return true;
+
+fail:
+    esp_lcd_panel_del(panel);
+    panel = NULL;
+    return false;
 }

@@ -26,7 +26,6 @@
 #include <linux/irqchip.h>
 #include <linux/irqdomain.h>
 #include <linux/irq_work.h>
-#include <linux/module.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
 #include <linux/of_irq.h>
@@ -36,9 +35,6 @@
 #include <asm/csr.h>
 #include <asm/esp32s31-clic.h>
 #include <asm/irq.h>
-
-int esp32s31_clic_set_priority(unsigned int irq, unsigned int level,
-				      unsigned int prio);
 
 /* CLIC register map */
 
@@ -64,12 +60,12 @@ int esp32s31_clic_set_priority(unsigned int irq, unsigned int level,
 #define CLIC_EXT_MIN_ID 16 /* First external IRQ        */
 #define CLIC_EXT_MAX_ID 47 /* Last external IRQ         */
 #define CLIC_MAX_ID 47 /* Max interrupt ID          */
+#define ESP32S31_CLIC_IRQ_WORK_ID CLIC_EXT_MIN_ID
 
 /* CLIC configuration constants */
 
 #define ESP32S31_CLICINTCTLBITS 3 /* Hardwired implemented control bits */
 #define ESP32S31_CLICNLBITS 1 /* CLICCFG.nlbits established by firmware */
-#define ESP32S31_NR_LEVELS (1 << ESP32S31_CLICNLBITS) /* 2 */
 #define ESP32S31_MAX_PRIORITY 3 /* Two remaining implemented priority bits */
 
 /* CLIC CSRs */
@@ -183,23 +179,21 @@ static void esp32s31_clic_irq_eoi(struct irq_data *d)
 	unsigned long flags;
 
 	/*
-	 * For edge-triggered interrupts the ESP32-S31 CLIC uses
-	 * write-1-to-clear semantics on the IP (Interrupt Pending)
-	 * bit.  Writing 1 clears the edge-triggered pending latch;
-	 * writing 0 has no effect.  Confirmed against ESP-IDF
-	 * rv_utils_intr_edge_ack() which does:
+	 * Hardware-routed edge interrupts use write-one acknowledgement,
+	 * matching ESP-IDF rv_utils_intr_edge_ack():
 	 *   REG_SET_BIT(CLIC_INT_CTRL_REG(irq), CLIC_INT_IP);
 	 *
-	 * Level-triggered interrupts are cleared by the device
-	 * de-asserting its interrupt line; no software action needed.
-	 *
-	 * ATTR byte bit 1 (CLIC_ATTR_TRIG_EDGE) distinguishes
-	 * edge (1) from level (0).
+	 * Slot 16 is not matrix-routed; Linux uses its IP bit as writable
+	 * software-pending state for irq_work, so it is cleared with zero.
+	 * Level-triggered inputs clear when the device deasserts its line.
 	 */
 	raw_spin_lock_irqsave(lock, flags);
 	attr = clic_readb(clic, hwirq, ESP32S31_CLIC_INT_ATTR);
-	if (attr & CLIC_ATTR_TRIG_EDGE)
-		clic_writeb(clic, hwirq, ESP32S31_CLIC_INT_IP, 0);
+	if (attr & CLIC_ATTR_TRIG_EDGE) {
+		/* The software-owned irq_work slot has a regular writable IP bit. */
+		clic_writeb(clic, hwirq, ESP32S31_CLIC_INT_IP,
+			    hwirq == ESP32S31_CLIC_IRQ_WORK_ID ? 0 : 1);
+	}
 	raw_spin_unlock_irqrestore(lock, flags);
 }
 
@@ -244,59 +238,12 @@ static int esp32s31_clic_set_type(struct irq_data *d, unsigned int flow_type)
 	return 0;
 }
 
-static int esp32s31_clic_set_affinity(struct irq_data *d,
-				     const struct cpumask *mask_val, bool force)
-{
-	/*
-	 * CLIC is per-hart with address virtualisation.  Each hart
-	 * manages its own interrupt enables/pending via the same
-	 * register addresses.  Affinity changes require reprogramming
-	 * the Interrupt Matrix to steer the source to a different core's
-	 * CLIC input, then configuring the target core's CLIC registers.
-	 * Not currently implemented.
-	 */
-	return -EINVAL;
-}
-
-/*
- * Set interrupt priority.  Higher level = higher priority.
- * Level range: 0 (masked) to 1 (enabled).
- * Priority sub-level: 0-3 within level 1.
- *
- * The hardware implements three control bits. Firmware configures one as a
- * level bit, leaving two priority bits within the enabled level.
- */
-int esp32s31_clic_set_priority(unsigned int irq, unsigned int level,
-			      unsigned int prio)
-{
-	struct irq_data *d = irq_get_irq_data(irq);
-	struct esp32s31_clic *clic;
-	unsigned long flags;
-
-	if (!d || !d->chip_data)
-		return -EINVAL;
-
-	clic = irq_data_get_irq_chip_data(d);
-
-	if (level >= ESP32S31_NR_LEVELS || prio > ESP32S31_MAX_PRIORITY)
-		return -EINVAL;
-
-	raw_spin_lock_irqsave(this_cpu_ptr(&clic_lock), flags);
-	clic_writeb(clic, d->hwirq, ESP32S31_CLIC_INT_CTL,
-		    CLICCTL_MAKE(level, prio));
-	raw_spin_unlock_irqrestore(this_cpu_ptr(&clic_lock), flags);
-
-	return 0;
-}
-EXPORT_SYMBOL_GPL(esp32s31_clic_set_priority);
-
 static struct irq_chip esp32s31_clic_chip = {
 	.name = "ESP32S31-CLIC",
 	.irq_mask = esp32s31_clic_irq_mask,
 	.irq_unmask = esp32s31_clic_irq_unmask,
 	.irq_eoi = esp32s31_clic_irq_eoi,
 	.irq_set_type = esp32s31_clic_set_type,
-	.irq_set_affinity = esp32s31_clic_set_affinity,
 };
 
 /* S-mode CLIC chip for the riscv,cpu-intc domain */
@@ -311,8 +258,6 @@ static void __iomem *esp32s31_sclic_regs __ro_after_init;
 #define ESP32S31_SCLIC_CTRL_OFF	0x1000	/* per-interrupt control offset from base */
 
 #if defined(CONFIG_IRQ_WORK) && !defined(CONFIG_SMP)
-#define ESP32S31_CLIC_IRQ_WORK_ID CLIC_EXT_MIN_ID
-
 /*
  * Upstream RISC-V supplies arch_irq_work_raise() from smp.c, so a UP kernel
  * otherwise falls back to waiting for the next timer tick. That deadlocks
@@ -417,7 +362,7 @@ static void esp32s31_intmatrix_route(struct esp32s31_clic *clic,
 	if (!clic->intmatrix_regs)
 		return;
 
-	if (source * 4 >= ESP32S31_INTMATRIX_CORE_STRIDE) {
+	if (source >= ESP32S31_INTMATRIX_CORE_STRIDE / sizeof(u32)) {
 		pr_warn("CLIC: S31 interrupt source %u out of matrix range\n",
 			source);
 		return;
@@ -493,11 +438,6 @@ static int esp32s31_clic_domain_alloc(struct irq_domain *domain,
 	unsigned int source, level, type;
 	unsigned long flags;
 
-	/*
-	 * The current ESP32-S31 DTS uses one-cell interrupt specifiers
-	 * (<irq>). ESP32-S31 bring-up DTS uses three-cell specifiers:
-	 * (<raw CLIC ID>, <IDF interrupt source>, <IRQ_TYPE_*>).
-	 */
 	if (esp32s31_clic_parse_fwspec(fwspec, &hwirq, &source, &level, &type))
 		return -EINVAL;
 
@@ -580,31 +520,15 @@ void esp32s31_clic_handle_irq(struct pt_regs *regs)
 		if (fallback_handle_irq)
 			fallback_handle_irq(regs);
 		regs->cause = raw_cause;
-		goto out;
+		return;
 	}
 
 	if (irq_id >= clic->num_interrupts) {
 		pr_warn_ratelimited("CLIC: spurious interrupt %lu\n", irq_id);
-		goto out;
+		return;
 	}
 
 	generic_handle_domain_irq(clic->domain, irq_id);
-
-	/*
-	 * No claim/completion is needed. The hardware tracks the current
-	 * interrupt level via sintstatus. When the trampoline executes sret,
-	 * the CLIC restores the previous level and delivers eligible pending
-	 * interrupts.
-	 */
-
-out:
-	/*
-	 * RISC-V enters this handler through do_irq()/handle_riscv_irq(),
-	 * which already performs irqentry state management, irq_enter_rcu(),
-	 * irq_exit_rcu(), and set_irq_regs() around handle_arch_irq().
-	 * Repeating that work here corrupts nested IRQ accounting and can
-	 * trip scheduler invariants during timer-driven reschedule.
-	 */
 }
 
 /* Initialization */
@@ -677,12 +601,12 @@ static int __init esp32s31_clic_probe(struct device_node *node,
 		goto err_unmap;
 	}
 
-	/*
-	 * The ESP32-S31 CLIC is hardwired to 48 interrupts (IDs 0-47)
-	 * with two HP cores.
-	 */
-
-	clic->num_interrupts = 48;
+	of_property_read_u32(node, "espressif,num-interrupts", &num_interrupts);
+	if (num_interrupts <= CLIC_EXT_MIN_ID || num_interrupts > CLIC_MAX_ID + 1) {
+		ret = -EINVAL;
+		goto err_unmap;
+	}
+	clic->num_interrupts = num_interrupts;
 
 	/* Create IRQ domain */
 	clic->domain = irq_domain_add_linear(node, num_interrupts,
@@ -706,18 +630,7 @@ static int __init esp32s31_clic_probe(struct device_node *node,
 	fallback_handle_irq = handle_arch_irq;
 	handle_arch_irq = esp32s31_clic_handle_irq;
 
-	/*
-	 * Map the S-mode CLIC window for local interrupt masking and
-	 * swap the riscv,cpu-intc domain's irq_chip so that mask/unmask
-	 * of local interrupts (timer, IPI) goes through the CLIC MMIO
-	 * registers instead of the illegal sie/sieh CSRs.
-	 */
-	esp32s31_sclic_regs = ioremap(ESP32S31_CLIC_BASE, SZ_128K);
-	if (!esp32s31_sclic_regs) {
-		pr_err("CLIC: failed to ioremap S-mode CLIC window\n");
-		ret = -ENOMEM;
-		goto err_restore_handler;
-	}
+	esp32s31_sclic_regs = clic->regs;
 	{
 		struct fwnode_handle *intc_fwnode = riscv_get_intc_hwnode();
 		struct irq_domain *intc_domain;
@@ -744,9 +657,6 @@ static int __init esp32s31_clic_probe(struct device_node *node,
 
 	return 0;
 
-err_restore_handler:
-	handle_arch_irq = fallback_handle_irq;
-	fallback_handle_irq = NULL;
 err_unmap:
 	if (clic->intmatrix_regs)
 		iounmap(clic->intmatrix_regs);

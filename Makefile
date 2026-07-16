@@ -10,22 +10,12 @@ ESPTOOL := $(PYTHON) -m esptool
 ESP_RISCV_BIN := $(lastword $(sort $(wildcard $(IDF_TOOLS_PATH)/tools/riscv32-esp-elf/*/riscv32-esp-elf/bin)))
 CROSS_COMPILE ?= $(ESP_RISCV_BIN)/riscv32-esp-elf-
 
-UNAME_S := $(shell uname -s)
-
-ifeq ($(UNAME_S),Linux)
-GMAKE ?= $(shell command -v make 2>/dev/null)
-GSED ?= $(shell command -v sed 2>/dev/null)
-GFIND ?= $(shell command -v find 2>/dev/null)
-GNU_HOST_PATH :=
-JOBS ?= $(shell nproc 2>/dev/null || echo 4)
-else
 BREW_PREFIX ?= $(shell brew --prefix 2>/dev/null)
 GMAKE ?= $(shell command -v gmake 2>/dev/null)
 GSED := $(BREW_PREFIX)/opt/gnu-sed/libexec/gnubin/sed
 GFIND := $(BREW_PREFIX)/opt/findutils/libexec/gnubin/find
 GNU_HOST_PATH := $(BREW_PREFIX)/opt/gnu-sed/libexec/gnubin:$(BREW_PREFIX)/opt/findutils/libexec/gnubin
 JOBS ?= $(shell sysctl -n hw.ncpu 2>/dev/null || echo 4)
-endif
 
 OPENSBI_DIR := external/opensbi
 OPENSBI_SRC := $(BUILD_DIR)/opensbi-src
@@ -85,6 +75,8 @@ help:
 		'Override BUSYBOX_BIN to use an existing static RV32 BusyBox binary.'
 
 check:
+	@test "$$(uname -s)" = Darwin || { echo 'this build is supported on macOS only'; exit 1; }
+	@test -n "$(BREW_PREFIX)" || { echo 'missing Homebrew'; exit 1; }
 	@test -n "$(PYTHON)" -a -x "$(PYTHON)" || { echo 'missing ESP-IDF Python environment'; exit 1; }
 	@test -n "$(ESP_RISCV_BIN)" -a -x "$(CROSS_COMPILE)gcc" || { echo 'missing Espressif RISC-V toolchain'; exit 1; }
 	@test -n "$(GMAKE)" -a -x "$(GMAKE)" || { echo 'missing GNU make'; exit 1; }
@@ -128,7 +120,7 @@ linux:
 	@PATH="$(GNU_HOST_PATH):$$PATH" $(GMAKE) -C "$(LINUX_SRC)" O="$(LINUX_OUT)" \
 		ARCH=riscv CROSS_COMPILE="$(CROSS_COMPILE)" HOSTCFLAGS="$(LINUX_HOSTCFLAGS)" -j$(JOBS) Image
 	@cp "$(LINUX_OUT)/arch/riscv/boot/Image" "$(BUILD_DIR)/Image"
-	@"$(PYTHON)" -c 'import os, struct, zlib; p="$(BUILD_DIR)/Image"; data=open(p, "rb").read(); open("$(BUILD_DIR)/linux.size", "wb").write(struct.pack("<III", 0x455a4953, len(data), zlib.crc32(data)))'
+	@"$(PYTHON)" -c 'import struct, zlib; p="$(BUILD_DIR)/Image"; data=open(p, "rb").read(); open("$(BUILD_DIR)/linux.size", "wb").write(struct.pack("<III", 0x455a4953, len(data), zlib.crc32(data)))'
 
 busybox:
 	@set -e; \

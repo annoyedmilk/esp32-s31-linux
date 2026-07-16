@@ -14,10 +14,10 @@ def now_name():
     return time.strftime("%Y%m%d-%H%M%S")
 
 
-def pulse_reset(ser, bootloader=False):
+def pulse_reset(ser):
     # ESP USB-Serial/JTAG follows esptool-style active-low EN on RTS.
     # DTR controls GPIO0 on common boards; keep it inactive for normal boot.
-    ser.dtr = bool(bootloader)
+    ser.dtr = False
     ser.rts = True
     time.sleep(0.1)
     ser.rts = False
@@ -38,7 +38,7 @@ def main():
     parser.add_argument("--baud", type=int, default=115200)
     parser.add_argument("--log-dir", default="logs")
     parser.add_argument("--timeout", type=float, default=30.0)
-    parser.add_argument("--success-pattern", default="S31TIMER")
+    parser.add_argument("--success-pattern", default="ESP32-S31 Linux / BusyBox")
     parser.add_argument("--no-reset", action="store_true")
     parser.add_argument(
         "--interactive",

@@ -63,17 +63,12 @@ diff --git a/lib/sbi/sbi_timer.c b/lib/sbi/sbi_timer.c
  		sbi_timer_event_start(&tstate->smode_ev, next_event);
  	}
  }
-@@ -333,7 +343,13 @@
+@@ -333,7 +343,8 @@
  		return;
  
  	timer_dev = dev;
 -	if (!get_time_val && timer_dev->timer_value)
-+	/*
-+	 * A device-provided counter defines the SBI timebase even when a
-+	 * readable TIME CSR was detected, keeping event comparisons and
-+	 * reported time in one clock domain (the ESP32-S31 TIME CSR and
-+	 * MMIO machine timer tick at different rates).
-+	 */
++	/* Keep event comparisons and reported time in the device clock domain. */
 +	if (timer_dev->timer_value)
  		get_time_val = timer_dev->timer_value;
  }

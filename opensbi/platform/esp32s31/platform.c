@@ -3,13 +3,10 @@
 
 #include <sbi/riscv_asm.h>
 #include <sbi/sbi_console.h>
-#include <sbi/sbi_hart.h>
 #include <sbi/sbi_hart_protection.h>
 #include <sbi/sbi_ipi.h>
 #include <sbi/sbi_platform.h>
-#include <sbi/sbi_system.h>
 #include <sbi/sbi_timer.h>
-
 
 #define ESP32S31_UART0_BASE		0x2038a000UL
 #define ESP32S31_UART_FIFO		0x00UL
@@ -19,8 +16,7 @@
 #define ESP32S31_UART_TXFIFO_CNT_MASK	0xffUL
 #define ESP32S31_UART_TXFIFO_LIMIT	120UL
 
-/* Bring-up mirror for the native USB-Serial/JTAG CDC endpoint.
- * Offsets and bits are from ESP-IDF esp32s31 usb_serial_jtag_reg.h. */
+/* Native USB-Serial/JTAG CDC mirror. */
 #if ESP32S31_USB_SERIAL_JTAG_CONSOLE
 #define ESP32S31_USB_SERIAL_JTAG_BASE		0x20391000UL
 #define ESP32S31_USB_SERIAL_JTAG_EP1		0x00UL
@@ -33,10 +29,8 @@
 #define ESP32S31_HP_MEM_APM_ATTR0	0x2050480cUL
 #define ESP32S31_APM_REE_TEE_RWX	0x7777UL
 
-/* CPU_APM guards the CPU-local bus, including the S-mode CLIC window at
- * 0x10a00000 (sclicbase). Open one full-range region so S-mode can reach
- * its CLIC registers and the machine-timer window. Register layout from
- * GrieferPig/esp32-s31-linux bring-up (verified on chip rev v0.0). */
+/* CPU_APM guards the CPU-local bus. Open one full-range region so S-mode can
+ * reach the CLIC and machine-timer windows. */
 #define ESP32S31_CPU_APM_BASE		0x20504c00UL
 #define ESP32S31_CPU_APM_FILTER_EN	(ESP32S31_CPU_APM_BASE + 0x00UL)
 #define ESP32S31_CPU_APM_REGION0_START	(ESP32S31_CPU_APM_BASE + 0x04UL)
@@ -161,23 +155,6 @@ static struct sbi_console_device esp32s31_console = {
 	.console_getc = esp32s31_console_getc,
 };
 
-static int esp32s31_reset_check(u32 type, u32 reason)
-{
-	return 1;
-}
-
-static void esp32s31_reset(u32 type, u32 reason)
-{
-	sbi_printf("ERR reset_stub\n");
-	sbi_hart_hang();
-}
-
-static struct sbi_system_reset_device esp32s31_reset_device = {
-	.name = "esp32s31-reset-stub",
-	.system_reset_check = esp32s31_reset_check,
-	.system_reset = esp32s31_reset,
-};
-
 /*
  * The ESP32-S31 implements a single PMP entry.  The loader programs that
  * entry as a locked, full-address-space RWX grant before entering OpenSBI so
@@ -210,7 +187,6 @@ static int esp32s31_early_init(bool cold_boot)
 	if (cold_boot) {
 		sbi_hart_protection_register(&esp32s31_global_pmp);
 		sbi_console_set_device(&esp32s31_console);
-		sbi_system_reset_add_device(&esp32s31_reset_device);
 	}
 
 	return 0;
@@ -234,17 +210,13 @@ static int esp32s31_final_init(bool cold_boot)
 }
 
 /*
- * Machine timer and CLIC facts ported from GrieferPig/esp32-s31-linux
- * (their OpenSBI fork boots Linux 6.12 on chip rev v0.0):
- *
- * - A CLINT-style machine-timer window lives at 0x10000000: mtime at
+ * A CLINT-style machine-timer window lives at 0x10000000: mtime at
  *   +0xbff8, mtimecmp at +0x4000, a control register at +0x4010. The
  *   mtimecmp match is wired to CLIC input 7, the standard machine-timer
- *   interrupt ID. Measurements on Korvo-1 confirm that mtime and the TIME
- *   CSR use the same counter. The ESP-IDF loader raises the CPU and machine
- *   timer clock to 320 MHz before entering OpenSBI.
- * - mcliccfg.NMBITS at 0x10800000 IS writable (it reads 0 before the
- *   first write, which earlier probing misread as hardwired). NMBITS=1
+ *   interrupt ID. The ESP-IDF loader raises the CPU and machine timer clock
+ *   to 320 MHz before entering OpenSBI.
+ *
+ * mcliccfg.NMBITS is writable. NMBITS=1
  *   unlocks clicintattr[i].MODE so individual CLIC inputs can be
  *   delivered directly to S-mode. CLIC input 5 doubles as the S-mode
  *   timer interrupt because in CLIC mode the interrupt ID lands in the
@@ -394,13 +366,6 @@ static int esp32s31_timer_init(void)
 	esp32s31_timer_event_stop();
 	sbi_timer_set_device(&esp32s31_timer);
 
-	/* One-time hardware evidence for the mtime vs TIME CSR clock
-	 * domains: both count from reset, so the ratio of the absolute
-	 * values is the frequency ratio. */
-	sbi_printf("esp32s31: mtime=0x%lx time-csr=0x%lx\n",
-		   (unsigned long)esp32s31_timer_value(),
-		   (unsigned long)csr_read(CSR_TIME));
-
 	return 0;
 }
 
@@ -409,7 +374,6 @@ const struct sbi_platform_operations platform_ops = {
 	.final_init = esp32s31_final_init,
 	.timer_init = esp32s31_timer_init,
 };
-
 
 const struct sbi_platform platform = {
 	.opensbi_version = OPENSBI_VERSION,
