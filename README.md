@@ -31,18 +31,45 @@ bit for timer delivery. Linux masks local timer and software interrupts through
 the CLIC MMIO window because the standard S-mode interrupt CSRs are not
 implemented on this hart.
 
+The Korvo-1's 800x480 RGB LCD has a loader-only proof of concept when USB
+Serial/JTAG is disabled. The loader brings up the LCD_CAM RGB panel with a
+fixed RGB565 frame buffer at the top of PSRAM (`0x50F40000`), rebuilds the
+circular AXI DMA descriptor chain at `0x2F079000` in upper SRAM so the OpenSBI
+copy cannot clobber it, silences the LCD and DMA interrupt sources, and paints
+color bars. Linux does not yet reserve or expose this frame buffer, so the
+display is not currently a Linux framebuffer device. The LCD data bus uses
+GPIO33 and GPIO34, which are also the native USB Serial/JTAG D-/D+ pins, so
+the loader skips display initialization whenever the ESP-IDF USB Serial/JTAG
+console is enabled.
+
+The board's USB Type-A connector is exposed as a Linux high-speed USB host.
+An ESP32-S31 PHY driver performs the ESP-IDF clock, reset, UTMI, and host
+pull-down sequence, then the standard DWC2 host controller handles the bus.
+USB HID and evdev support are built in, so keyboards and mice appear under
+`/dev/input`. The controller currently uses PIO rather than DMA because Linux
+memory resides in cached PSRAM and cache maintenance is not implemented yet.
+
 ## Hardware connections
 
-The ESP32-S31 Korvo-1 board exposes two USB connections for debugging. You should use both:
+The ESP32-S31 Korvo-1 has two Type-C connectors, a Type-A host connector, and
+native USB Serial/JTAG signals on the LCD expansion connector:
 
-- **On-board USB-to-Serial bridge**: This external bridge chip connects to the ESP32-S31 UART0 pins. It serves as the Linux `ttyS0` console and is specified via `SERIAL_PORT` during `make monitor`.
-- **Native USB-Serial/JTAG port**: This is the native USB interface on the ESP32-S31 chip itself. It is specified via `FLASH_PORT` for flashing the binaries, starting JTAG debugging via `make openocd`, and it also mirrors early loader/OpenSBI firmware output.
+- **Power Type-C**: Supplies power only; it has no data connection.
+- **UART Type-C**: Connects through the on-board CP2102N bridge to UART0. It
+  can flash the board and provides the Linux `ttyS0` console.
+- **Native USB Serial/JTAG breakout**: The Korvo-1 has no dedicated native
+  USB Type-C connector. Connect USB white/D- to GPIO33, green/D+ to GPIO34,
+  and black/GND to board ground. Leave USB red/5 V disconnected when the
+  board is already powered through Type-C. This interface appears as
+  Espressif VID:PID `303a:1001`; it can flash the board and is used by
+  `make openocd`.
+- **USB Type-A host**: This connector is wired to the ESP32-S31 USB 2.0 OTG
+  high-speed peripheral and supplies attached devices from the board's
+  current-limited 5 V VBUS path. It is independent of the two debug ports.
 
-On macOS, identify the external bridge with `ls /dev/cu.*`. The bridge normally
-appears as a CP210x, CH34x, or FTDI device, and the on-chip port appears as
-`/dev/cu.usbmodem*`. On Linux, identify them with `ls /dev/ttyUSB*` and
-`ls /dev/ttyACM*`. The `/dev/ttyUSB*` device is normally the CP210x, CH34x,
-or FTDI bridge; the `/dev/ttyACM*` device is the on-chip port.
+On macOS, the CP2102N normally appears as `/dev/cu.usbserial-*` and the native
+USB Serial/JTAG breakout as `/dev/cu.usbmodem*`. On Linux they normally appear
+as `/dev/ttyUSB*` and `/dev/ttyACM*`, respectively.
 
 ## Host requirements
 
@@ -64,18 +91,17 @@ make check
 make ports
 ```
 
-`make ports` lists the serial devices and their USB descriptions. Connect both
-board USB ports before running it. The on-chip flash/reset port is normally
-`/dev/cu.usbmodem*` (macOS) or `/dev/ttyACM*` (Linux); the external bridge is
-normally `/dev/cu.usbserial-*` (macOS) or `/dev/ttyUSB*` (Linux).
+`make ports` lists the serial devices and USB descriptions. The CP2102N UART
+is normally `/dev/cu.usbserial-*` (macOS) or `/dev/ttyUSB*` (Linux). A wired
+native USB Serial/JTAG breakout is normally `/dev/cu.usbmodem*` (macOS) or
+`/dev/ttyACM*` (Linux).
 
 ## Build and flash
 
 ```sh
 make build
-make flash FLASH_PORT=/dev/cu.usbmodem101
-make monitor SERIAL_PORT=/dev/cu.usbserial-XXXX \
-  RESET_PORT=/dev/cu.usbmodem101
+make flash FLASH_PORT=/dev/cu.usbserial-XXXX
+make monitor SERIAL_PORT=/dev/cu.usbserial-XXXX
 ```
 
 The monitor waits up to 300 seconds for the BusyBox banner and then stays
@@ -101,6 +127,18 @@ A successful boot displays:
 
 and presents an interactive shell on the external UART.
 
+To verify a keyboard or mouse on the Type-A connector after boot:
+
+```sh
+dmesg | tail -n 30
+ls -l /sys/bus/usb/devices
+cat /proc/bus/input/devices
+ls -l /dev/input
+```
+
+The DWC2 root hub should be present before a device is connected. Plugging in
+a HID device should add a USB device and an `event*` input node.
+
 ## Flash layout
 
 | Offset | Contents |
@@ -115,7 +153,7 @@ and presents an interactive shell on the external UART.
 
 ## Debugging
 
-Start OpenOCD on the on-chip JTAG connection:
+With the GPIO33/34 native USB breakout connected, start OpenOCD:
 
 ```sh
 make openocd
@@ -134,4 +172,6 @@ Boot logs are written under `logs/` and ignored by Git.
   isolation is intentionally unavailable;
 - APM/PMS permissions are broad bring-up grants;
 - hardware reset/shutdown through SBI is not implemented;
+- USB host transfers use PIO and only the HID class is enabled; mass storage
+  and USB networking are not enabled yet;
 - networking and most board peripherals are not enabled yet.

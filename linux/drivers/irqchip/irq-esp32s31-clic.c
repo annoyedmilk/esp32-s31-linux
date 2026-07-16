@@ -10,21 +10,22 @@
  * Key ESP32-S31 CLIC characteristics:
  *   - S-mode register base at 0x10a0_0000
  *   - S-mode per-interrupt control at 0x10a0_1000
- *   - CLICINTCTLBITS = 3, giving 8 interrupt levels
+ *   - CLICINTCTLBITS = 3, with CLICCFG.nlbits configured to 1
  *   - 32 external interrupts (CLIC IDs 16-47) routed via Interrupt Matrix
  *   - Per-core address virtualization: each core accesses its OWN
  *     registers at the *same* physical address.  The hardware remaps
  *     based on which core performs the access.  The +0x10000 offset
  *     accesses the OTHER core's registers (for cross-core IPI).
  *   - CLICINTCTL byte (offset 3 of per-int word):
- *       bits [7:5] = interrupt level (0-7, writable)
- *       bits [4:0] = not used for priority with CLICINTCTLBITS=3
+ *       bit  [7]   = interrupt level (0-1)
+ *       bits [6:5] = priority (three implemented control bits total)
  */
 
 #include <linux/interrupt.h>
 #include <linux/irq.h>
 #include <linux/irqchip.h>
 #include <linux/irqdomain.h>
+#include <linux/irq_work.h>
 #include <linux/module.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
@@ -66,27 +67,32 @@ int esp32s31_clic_set_priority(unsigned int irq, unsigned int level,
 
 /* CLIC configuration constants */
 
-#define ESP32S31_CLICINTCTLBITS 3 /* Hardwired on S31 */
-#define ESP32S31_NR_LEVELS (1 << ESP32S31_CLICINTCTLBITS) /* 8 */
-#define ESP32S31_MAX_PRIORITY \
-	31 /* Max sub-priority (unused at CLICINTCTLBITS=3) */
+#define ESP32S31_CLICINTCTLBITS 3 /* Hardwired implemented control bits */
+#define ESP32S31_CLICNLBITS 1 /* CLICCFG.nlbits established by firmware */
+#define ESP32S31_NR_LEVELS (1 << ESP32S31_CLICNLBITS) /* 2 */
+#define ESP32S31_MAX_PRIORITY 3 /* Two remaining implemented priority bits */
 
 /* CLIC CSRs */
 #ifndef CSR_SINTTHRESH
 #define CSR_SINTTHRESH 0x147
 #endif
 
-/* clicintctl[i] level encoding with CLICINTCTLBITS=3 */
+/* clicintctl[i] encoding with CLICINTCTLBITS=3 and CLICCFG.nlbits=1 */
 /*
  * clicintctl[i] byte (byte 3 of the per-interrupt 32-bit word):
- *   bits [7:5] = interrupt level  (0-7, writable per ESP-IDF)
- *   bits [4:0] = not used for priority discrimination at CLICINTCTLBITS=3
+ *   bit  [7]   = interrupt level (0-1)
+ *   bits [6:5] = priority within that level (0-3)
  *
- * Higher level = higher priority.  With CLICINTCTLBITS=3 there are
- * 8 distinct levels and sub-priority bits [4:0] do not affect ordering.
+ * CLICINFO advertises three implemented control bits, but the live CLICCFG
+ * value installed by firmware is 0x23: nmbits=1 and nlbits=1.  Treating all
+ * three implemented bits as level bits encoded level 1 as 0x3f, whose bit 7
+ * is clear.  Such interrupts remained at effective level 0 and could never
+ * pass a zero threshold.  Put the configured level in bit 7 and priority in
+ * the following two implemented bits.
  */
 #define CLICCTL_MAKE(level, prio) \
-	(((level) << (8 - ESP32S31_CLICINTCTLBITS)) | ((prio) & 0x1F))
+	(((level) << (8 - ESP32S31_CLICNLBITS)) | \
+	 ((prio) << (8 - ESP32S31_CLICINTCTLBITS)))
 
 /* Interrupt attribute bits (byte 2 of per-interrupt word) */
 /*
@@ -254,12 +260,11 @@ static int esp32s31_clic_set_affinity(struct irq_data *d,
 
 /*
  * Set interrupt priority.  Higher level = higher priority.
- * Level range: 0 (lowest) to 7 (highest).
- * Priority sub-level: 0-31 within same level.
+ * Level range: 0 (masked) to 1 (enabled).
+ * Priority sub-level: 0-3 within level 1.
  *
- * Note: with CLICINTCTLBITS=3, only bits [7:5] (the level) affect
- * interrupt prioritisation.  The prio parameter is accepted but has
- * no hardware effect at this configuration (8 discrete levels).
+ * The hardware implements three control bits. Firmware configures one as a
+ * level bit, leaving two priority bits within the enabled level.
  */
 int esp32s31_clic_set_priority(unsigned int irq, unsigned int level,
 			      unsigned int prio)
@@ -303,8 +308,66 @@ static struct irq_chip esp32s31_clic_chip = {
  */
 
 static void __iomem *esp32s31_sclic_regs __ro_after_init;
-
 #define ESP32S31_SCLIC_CTRL_OFF	0x1000	/* per-interrupt control offset from base */
+
+#if defined(CONFIG_IRQ_WORK) && !defined(CONFIG_SMP)
+#define ESP32S31_CLIC_IRQ_WORK_ID CLIC_EXT_MIN_ID
+
+/*
+ * Upstream RISC-V supplies arch_irq_work_raise() from smp.c, so a UP kernel
+ * otherwise falls back to waiting for the next timer tick. That deadlocks
+ * with NO_HZ_IDLE when the only runnable task is waiting for irq_work (tiny
+ * SRCU does exactly this while replacing the boot console). CLIC local cause
+ * 1 accepts IP writes on S31 v0.0 but is not arbitrated, so reserve the first
+ * otherwise-unused external CLIC input as a software-owned self-interrupt.
+ */
+void arch_irq_work_raise(void)
+{
+	if (WARN_ON_ONCE(!esp32s31_sclic_regs))
+		return;
+
+	writeb(1, esp32s31_sclic_regs + ESP32S31_SCLIC_CTRL_OFF +
+		  (ESP32S31_CLIC_IRQ_WORK_ID * ESP32S31_CLIC_INT_STRIDE) +
+		  ESP32S31_CLIC_INT_IP);
+}
+
+static irqreturn_t esp32s31_irq_work_interrupt(int irq, void *dev_id)
+{
+	irq_work_run();
+	return IRQ_HANDLED;
+}
+
+static int __init esp32s31_irq_work_init(struct esp32s31_clic *clic)
+{
+	int virq;
+	int ret;
+
+	/* Slot 16 has no interrupt-matrix source; its IP bit is software-owned. */
+	clic_writeb(clic, ESP32S31_CLIC_IRQ_WORK_ID, ESP32S31_CLIC_INT_IP, 0);
+	clic_writeb(clic, ESP32S31_CLIC_IRQ_WORK_ID, ESP32S31_CLIC_INT_ATTR,
+		    CLIC_ATTR_MODE_S | CLIC_ATTR_TRIG_EDGE_RISE);
+	clic_writeb(clic, ESP32S31_CLIC_IRQ_WORK_ID, ESP32S31_CLIC_INT_CTL,
+		    CLICCTL_MAKE(1, ESP32S31_MAX_PRIORITY));
+
+	virq = irq_create_mapping(clic->domain, ESP32S31_CLIC_IRQ_WORK_ID);
+	if (!virq)
+		return -ENOMEM;
+
+	ret = request_irq(virq, esp32s31_irq_work_interrupt, 0,
+			  "esp32s31-irq-work", clic);
+	if (ret) {
+		irq_dispose_mapping(virq);
+		return ret;
+	}
+
+	return 0;
+}
+#else
+static int __init esp32s31_irq_work_init(struct esp32s31_clic *clic)
+{
+	return 0;
+}
+#endif
 
 static void esp32s31_intc_clic_irq_mask(struct irq_data *d)
 {
@@ -662,10 +725,15 @@ static int __init esp32s31_clic_probe(struct device_node *node,
 		if (intc_fwnode) {
 			intc_domain = irq_find_matching_fwnode(intc_fwnode,
 							      DOMAIN_BUS_ANY);
-			if (intc_domain)
+			if (intc_domain) {
 				intc_domain->host_data = &esp32s31_intc_chip;
-			else
+				ret = esp32s31_irq_work_init(clic);
+				if (ret)
+					pr_warn("CLIC: failed to initialize UP irq_work: %d\n",
+						ret);
+			} else {
 				pr_warn("CLIC: could not find INTC domain to swap chip\n");
+			}
 		} else {
 			pr_warn("CLIC: no INTC hwnode - local IRQ masking may fail\n");
 		}

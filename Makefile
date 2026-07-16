@@ -42,6 +42,7 @@ LINUX_HOSTCFLAGS := -I$(CURDIR)/scripts/hostshim -include $(CURDIR)/scripts/host
 BUSYBOX_DIR := external/busybox
 BUSYBOX_OUT := $(CURDIR)/$(BUILD_DIR)/busybox
 BUSYBOX_BIN ?= $(BUSYBOX_OUT)/busybox
+BUSYBOX_CONFIG_STAMP := $(BUSYBOX_OUT)/.rootfs-config-v2
 LINUX_CROSS_COMPILE ?= riscv32-linux-musl-
 ZIG ?= $(shell command -v zig 2>/dev/null)
 ZIGCC := $(BUSYBOX_OUT)/zigcc-rv32
@@ -54,7 +55,7 @@ SERIAL_PORT ?=
 RESET_PORT ?=
 BAUD ?= 115200
 BOOT_TIMEOUT ?= 300
-OPENOCD_CFG ?= board/esp32s31-builtin.cfg
+OPENOCD_CFG ?= openocd/esp32s31-linux.cfg
 
 BOOTLOADER_OFFSET := 0x2000
 PARTITION_TABLE_OFFSET := 0x8000
@@ -77,7 +78,7 @@ help:
 		'  make build                         build loader, OpenSBI, Linux, rootfs' \
 		'  make flash FLASH_PORT=/dev/cu.X    build and flash the complete image' \
 		'  make monitor SERIAL_PORT=/dev/cu.X open the BusyBox UART terminal' \
-		'  make openocd                       start JTAG debugging on on-chip USB' \
+		'  make openocd                       start JTAG via GPIO33/34 USB breakout' \
 		'  make clean                         remove generated build output' \
 		'' \
 		'BusyBox uses riscv32-linux-musl-gcc when present, otherwise Zig.' \
@@ -130,7 +131,12 @@ linux:
 	@"$(PYTHON)" -c 'import os, struct, zlib; p="$(BUILD_DIR)/Image"; data=open(p, "rb").read(); open("$(BUILD_DIR)/linux.size", "wb").write(struct.pack("<III", 0x455a4953, len(data), zlib.crc32(data)))'
 
 busybox:
-	@if test ! -x "$(BUSYBOX_BIN)"; then \
+	@set -e; \
+	if test "$(abspath $(BUSYBOX_BIN))" != "$(abspath $(BUSYBOX_OUT)/busybox)"; then \
+		test -x "$(BUSYBOX_BIN)" || { \
+			echo 'BUSYBOX_BIN does not name an executable RV32 BusyBox binary'; exit 1; }; \
+	elif test ! -x "$(BUSYBOX_BIN)" || \
+		! cmp -s rootfs/busybox.config "$(BUSYBOX_CONFIG_STAMP)"; then \
 		test -n "$(LINUX_CROSS_GCC)" -o -n "$(ZIG)" || { \
 			echo 'missing RV32 Linux compiler (install Zig or set LINUX_CROSS_COMPILE)'; exit 1; }; \
 		mkdir -p "$(BUSYBOX_OUT)"; \
@@ -141,7 +147,7 @@ busybox:
 				'  case "$$arg" in -finline-limit=0|-falign-jumps=1|-falign-labels=1|-Wl,--warn-common|-Wl,--sort-common|-Wl,--sort-section,alignment|-Wl,--verbose|-Wl,-Map,*) continue;; esac' \
 				'  set -- "$$@" "$$arg"' \
 				'done' \
-				'exec zig cc -target riscv32-linux-musl -mcpu=generic_rv32+m+a+c "$$@"' \
+				'exec env ZIG_GLOBAL_CACHE_DIR="$(BUSYBOX_OUT)/zig-cache" zig cc -target riscv32-linux-musl -mcpu=generic_rv32+m+a+c "$$@"' \
 				> "$(ZIGCC)"; \
 			chmod +x "$(ZIGCC)"; \
 		fi; \
@@ -156,6 +162,7 @@ busybox:
 			CROSS_COMPILE="$(BUSYBOX_CROSS_COMPILE)" CC="$(BUSYBOX_CC)" oldconfig >/dev/null; \
 		$(GMAKE) -C "$(BUSYBOX_DIR)" O="$(BUSYBOX_OUT)" \
 			CROSS_COMPILE="$(BUSYBOX_CROSS_COMPILE)" CC="$(BUSYBOX_CC)" -j$(JOBS) busybox; \
+		cp rootfs/busybox.config "$(BUSYBOX_CONFIG_STAMP)"; \
 	fi
 
 initramfs: busybox
@@ -163,7 +170,7 @@ initramfs: busybox
 		--init rootfs/init --output "$(BUILD_DIR)/initramfs.cpio" --size 0x200000
 
 flash: build
-	@test -n "$(FLASH_PORT)" || { echo 'set FLASH_PORT=/dev/cu.usbmodem<on-chip>'; exit 1; }
+	@test -n "$(FLASH_PORT)" || { echo 'set FLASH_PORT=/dev/cu.<flash-port>'; exit 1; }
 	@$(ESPTOOL) --chip esp32s31 -p "$(FLASH_PORT)" -b 921600 \
 		--before default-reset --after hard-reset write-flash \
 		$(BOOTLOADER_OFFSET) "$(BUILD_DIR)/bootloader/bootloader/bootloader.bin" \

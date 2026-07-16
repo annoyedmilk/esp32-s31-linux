@@ -1,0 +1,55 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/phy/espressif,esp32s31-usb-phy.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Espressif ESP32-S31 USB 2.0 UTMI PHY
+
+maintainers:
+  - Marco Mueller <hello@annoyedmilk.ch>
+
+description:
+  The ESP32-S31 integrates a high-speed UTMI PHY connected to its Synopsys
+  DWC2 controller.  Its clock, reset, host pull-down, and low-speed mode
+  controls reside in several SoC system register blocks.
+
+properties:
+  compatible:
+    const: espressif,esp32s31-usb-phy
+
+  reg:
+    minItems: 5
+    maxItems: 5
+
+  reg-names:
+    items:
+      - const: clkrst
+      - const: cnnt
+      - const: usb-ctrl
+      - const: otghs-ctrl
+      - const: utmi-fc06
+
+  "#phy-cells":
+    const: 0
+
+required:
+  - compatible
+  - reg
+  - reg-names
+  - "#phy-cells"
+
+additionalProperties: false
+
+examples:
+  - |
+    phy@205870ac {
+        compatible = "espressif,esp32s31-usb-phy";
+        reg = <0x205870ac 0x4>, <0x20359030 0x4>,
+              <0x20589024 0x4>, <0x205890b0 0x4>,
+              <0x20380018 0x4>;
+        reg-names = "clkrst", "cnnt", "usb-ctrl", "otghs-ctrl",
+                    "utmi-fc06";
+        #phy-cells = <0>;
+    };
+...

@@ -5,6 +5,7 @@
 #include <sbi/sbi_console.h>
 #include <sbi/sbi_hart.h>
 #include <sbi/sbi_hart_protection.h>
+#include <sbi/sbi_ipi.h>
 #include <sbi/sbi_platform.h>
 #include <sbi/sbi_system.h>
 #include <sbi/sbi_timer.h>
@@ -279,6 +280,7 @@ static int esp32s31_final_init(bool cold_boot)
 #define ESP32S31_CLIC_CTL_MAX		0xff
 
 #define ESP32S31_CLIC_MTIMER_ID	7	/* machine timer input */
+#define ESP32S31_CLIC_SSOFT_ID	1	/* S-mode software interrupt */
 #define ESP32S31_CLIC_STIMER_ID	5	/* S-mode timer input */
 
 /* CLIC level-threshold CSRs; both must be zero or everything is masked. */
@@ -341,6 +343,19 @@ void sbi_timer_plat_sirq_clear(void)
 	reg_write8(ESP32S31_CLIC_IP(ESP32S31_CLIC_STIMER_ID), 0);
 }
 
+/* MIP.SSIP is not writable on this CLIC-only hart. SBI self-IPIs (used by
+ * Linux irq_work even on a uniprocessor system) are delivered through CLIC
+ * input 1, whose cause code is the standard supervisor-software interrupt. */
+void sbi_ipi_plat_sirq_set(void)
+{
+	reg_write8(ESP32S31_CLIC_IP(ESP32S31_CLIC_SSOFT_ID), 1);
+}
+
+void sbi_ipi_plat_sirq_clear(void)
+{
+	reg_write8(ESP32S31_CLIC_IP(ESP32S31_CLIC_SSOFT_ID), 0);
+}
+
 static int esp32s31_timer_init(void)
 {
 	/* NMBITS=1: interpret clicintattr[i].MODE, enabling S-mode inputs. */
@@ -366,6 +381,14 @@ static int esp32s31_timer_init(void)
 	reg_write8(ESP32S31_CLIC_CTL(ESP32S31_CLIC_STIMER_ID),
 		   ESP32S31_CLIC_CTL_MAX);
 	reg_write8(ESP32S31_CLIC_IE(ESP32S31_CLIC_STIMER_ID), 1);
+
+	/* Supervisor software interrupt used by the SBI IPI extension. */
+	reg_write8(ESP32S31_CLIC_IP(ESP32S31_CLIC_SSOFT_ID), 0);
+	reg_write8(ESP32S31_CLIC_ATTR(ESP32S31_CLIC_SSOFT_ID),
+		   ESP32S31_CLIC_ATTR_S_EDGE);
+	reg_write8(ESP32S31_CLIC_CTL(ESP32S31_CLIC_SSOFT_ID),
+		   ESP32S31_CLIC_CTL_MAX);
+	reg_write8(ESP32S31_CLIC_IE(ESP32S31_CLIC_SSOFT_ID), 1);
 
 	reg_write(ESP32S31_MTIMECTL, 1);
 	esp32s31_timer_event_stop();

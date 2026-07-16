@@ -21,6 +21,7 @@
 #include "soc/cpu_apm_reg.h"
 #include "soc/hp_apm_reg.h"
 #include "soc/hp_mem_apm_reg.h"
+#include "display.h"
 
 #define PSRAM_BASE                  0x50000000U
 #define OPENSBI_XIP_ADDR            0x40030000U
@@ -126,6 +127,16 @@ static void install_global_pmp(void)
     RV_WRITE_CSR(pmpcfg0, PMP_ENTRY_RWX_LOCK_NAPOT);
 }
 
+static void mask_clic_slots(void)
+{
+    for (int i = 0; i < 128; i++) {
+        volatile uint8_t *ie = (volatile uint8_t *)(0x10801000 + i * 4 + 1);
+        volatile uint8_t *attr = (volatile uint8_t *)(0x10801000 + i * 4 + 2);
+        *ie = 0;
+        *attr = 0;
+    }
+}
+
 static void disable_watchdogs_and_clic(void)
 {
     volatile uint32_t *timg0 = (volatile uint32_t *)0x20580000;
@@ -144,12 +155,7 @@ static void disable_watchdogs_and_clic(void)
     wdt_hal_write_protect_disable(&rtc_wdt_ctx);
     wdt_hal_disable(&rtc_wdt_ctx);
 
-    for (int i = 0; i < 128; i++) {
-        volatile uint8_t *ie = (volatile uint8_t *)(0x10801000 + i * 4 + 1);
-        volatile uint8_t *attr = (volatile uint8_t *)(0x10801000 + i * 4 + 2);
-        *ie = 0;
-        *attr = 0;
-    }
+    mask_clic_slots();
 
     asm volatile ("csrw 0x307, zero");
 }
@@ -334,6 +340,16 @@ void app_main(void)
     if (!load_kernel_partition() || !load_initramfs_partition()) {
         esp_restart();
     }
+
+#if CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG_ENABLED
+    /* GPIO33/34 are native USB Serial/JTAG D-/D+ and LCD RGB data pins. */
+    ESP_LOGI(TAG, "display disabled: GPIO33/34 reserved for USB Serial/JTAG");
+#else
+    if (!display_init()) {
+        ESP_LOGW(TAG, "continuing without display");
+    }
+#endif
+    mask_clic_slots();
 
     ESP_LOGI(TAG, "handoff: OpenSBI 0x%08" PRIx32 "->0x%08" PRIx32
                   " kernel=0x%08" PRIx32 " initramfs=0x%08" PRIx32,

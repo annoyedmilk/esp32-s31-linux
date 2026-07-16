@@ -1,5 +1,6 @@
 #!/bin/sh
 
+mount -t devtmpfs devtmpfs /dev
 mkdir -p /dev/pts /proc /run /sys /tmp
 mount -t proc proc /proc 2>/dev/null || true
 mount -t sysfs sysfs /sys 2>/dev/null || true
@@ -11,4 +12,13 @@ echo
 echo "=== ESP32-S31 Linux / BusyBox ==="
 echo "Console: ttyS0"
 
-exec /bin/cttyhack /bin/sh -i
+# PID 1 must never exit: reset-time line glitches can feed the shell a stray
+# ^D (EOF), and an exiting init panics the kernel.  Respawn the shell instead.
+# Each shell needs its own session so cttyhack can make ttyS0 its controlling
+# terminal; the child of this PID 1 supervisor is not a session leader.
+while true; do
+	/bin/setsid /bin/cttyhack /bin/sh -i
+	rc=$?
+	echo "init: shell exited rc=$rc, respawning"
+	sleep 1
+done

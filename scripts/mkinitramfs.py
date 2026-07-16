@@ -10,7 +10,7 @@ APPLETS = (
     "ash", "cat", "chmod", "clear", "cp", "cttyhack", "dmesg", "echo",
     "false", "free", "kill", "ln", "ls", "mkdir", "mknod", "mount",
     "mountpoint", "ps", "pwd", "reboot", "rm", "rmdir", "sh", "sleep",
-    "sync", "true", "umount", "uname",
+    "setsid", "sync", "true", "umount", "uname",
 )
 
 

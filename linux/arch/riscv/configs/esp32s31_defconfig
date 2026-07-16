@@ -89,17 +89,27 @@ CONFIG_DEVTMPFS_MOUNT=y
 # CONFIG_FW_LOADER is not set
 # CONFIG_ALLOW_DEV_COREDUMP is not set
 
-# Input -- off
-# CONFIG_INPUT is not set
+# USB HID input devices
+CONFIG_INPUT=y
+CONFIG_INPUT_EVDEV=y
+# CONFIG_INPUT_KEYBOARD is not set
+# CONFIG_INPUT_MOUSE is not set
+CONFIG_HID=y
+CONFIG_HID_GENERIC=y
 
 # I2C / SPI -- off (re-enable when needed)
 # CONFIG_I2C is not set
 # CONFIG_SPI is not set
 
-# SCSI / MMC / USB -- off
+# SCSI / MMC -- off; USB host and HID are built in
 # CONFIG_SCSI is not set
 # CONFIG_MMC is not set
-# CONFIG_USB_SUPPORT is not set
+CONFIG_USB_SUPPORT=y
+CONFIG_USB=y
+CONFIG_USB_DWC2=y
+CONFIG_USB_DWC2_HOST=y
+CONFIG_USB_HID=y
+CONFIG_PHY_ESP32S31_USB=y
 
 # Network devices -- off
 # CONFIG_NETDEVICES is not set
@@ -133,6 +143,7 @@ CONFIG_PRINTK_TIME=y
 # CONFIG_DEBUG_BUGVERBOSE is not set
 # CONFIG_SECTION_MISMATCH_WARN_ONLY is not set
 # CONFIG_FRAME_POINTER is not set
+CONFIG_DEBUG_INFO_DWARF_TOOLCHAIN_DEFAULT=y
 # CONFIG_DEBUG_MISC is not set
 # CONFIG_SCHED_DEBUG is not set
 # CONFIG_RCU_TRACE is not set

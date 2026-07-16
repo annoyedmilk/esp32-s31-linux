@@ -1,0 +1,83 @@
+diff --git a/drivers/phy/Kconfig b/drivers/phy/Kconfig
+--- a/drivers/phy/Kconfig
++++ b/drivers/phy/Kconfig
+@@ -61,6 +61,18 @@ config PHY_CAN_TRANSCEIVER
+ 	  driver provides function for putting the transceivers in various
+ 	  functional modes using gpios and sets the attribute max link
+ 	  rate, for CAN drivers.
++
++config PHY_ESP32S31_USB
++	bool "Espressif ESP32-S31 USB PHY driver"
++	depends on OF && SOC_ESP32S31
++	select GENERIC_PHY
++	help
++	  Enable support for the integrated high-speed UTMI PHY used by the
++	  ESP32-S31 Synopsys DWC2 USB controller.  The driver programs the SoC
++	  clock/reset controls and configures the data-line pull-downs for host
++	  mode.
++
++	  If unsure, say N.
+ 
+ config PHY_GOOGLE_USB
+ 	tristate "Google Tensor SoC USB PHY driver"
+diff --git a/drivers/phy/Makefile b/drivers/phy/Makefile
+--- a/drivers/phy/Makefile
++++ b/drivers/phy/Makefile
+@@ -11,5 +11,6 @@ obj-$(CONFIG_GENERIC_PHY_MIPI_DPHY)	+= phy-core-mipi-dphy.o
+ obj-$(CONFIG_PHY_AIROHA_PCIE)		+= phy-airoha-pcie.o
+ obj-$(CONFIG_PHY_CAN_TRANSCEIVER)	+= phy-can-transceiver.o
++obj-$(CONFIG_PHY_ESP32S31_USB)		+= phy-esp32s31-usb.o
+ obj-$(CONFIG_PHY_GOOGLE_USB)		+= phy-google-usb.o
+ obj-$(CONFIG_USB_LGM_PHY)		+= phy-lgm-usb.o
+ obj-$(CONFIG_PHY_LPC18XX_USB_OTG)	+= phy-lpc18xx-usb-otg.o
+diff --git a/drivers/usb/dwc2/params.c b/drivers/usb/dwc2/params.c
+--- a/drivers/usb/dwc2/params.c
++++ b/drivers/usb/dwc2/params.c
+@@ -36,6 +36,38 @@ static void dwc2_set_bcm_params(struct dwc2_hsotg *hsotg)
+ 	p->ahbcfg = 0x10;
+ }
+ 
++static void dwc2_set_esp32s31_params(struct dwc2_hsotg *hsotg)
++{
++	struct dwc2_core_params *p = &hsotg->params;
++
++	dev_info(hsotg->dev,
++		 "ESP32-S31 FIFO: total=%u rx=%u nptx=%u ptx=%u channels=%u\n",
++		 hsotg->hw_params.total_fifo_size,
++		 hsotg->hw_params.rx_fifo_size,
++		 hsotg->hw_params.host_nperio_tx_fifo_size,
++		 hsotg->hw_params.host_perio_tx_fifo_size,
++		 hsotg->hw_params.host_channels);
++
++	/*
++	 * Linux memory lives in cached external PSRAM.  Start in slave/PIO
++	 * mode so device-to-memory traffic cannot leave stale cache lines.
++	 * DMA can be enabled later once cache maintenance is available.
++	 */
++	p->host_dma = false;
++	p->g_dma = false;
++	p->otg_caps.hnp_support = false;
++	p->otg_caps.srp_support = false;
++	p->speed = DWC2_SPEED_PARAM_HIGH;
++	p->phy_type = DWC2_PHY_TYPE_PARAM_UTMI;
++	p->phy_utmi_width = 16;
++	p->power_down = DWC2_POWER_DOWN_PARAM_NONE;
++	p->lpm = false;
++	p->lpm_clock_gating = false;
++	p->besl = false;
++	p->hird_threshold_en = false;
++	p->no_clock_gating = true;
++}
++
+ static void dwc2_set_his_params(struct dwc2_hsotg *hsotg)
+ {
+ 	struct dwc2_core_params *p = &hsotg->params;
+@@ -305,6 +337,8 @@ static void dwc2_set_stm32mp15_hsotg_params(struct dwc2_hsotg *hsotg)
+ 
+ const struct of_device_id dwc2_of_match_table[] = {
+ 	{ .compatible = "brcm,bcm2835-usb", .data = dwc2_set_bcm_params },
++	{ .compatible = "espressif,esp32s31-usb",
++	  .data = dwc2_set_esp32s31_params },
+ 	{ .compatible = "hisilicon,hi6220-usb", .data = dwc2_set_his_params },
+ 	{ .compatible = "ingenic,jz4775-otg", .data = dwc2_set_jz4775_params },
+ 	{ .compatible = "ingenic,jz4780-otg", .data = dwc2_set_jz4775_params },

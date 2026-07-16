@@ -1,0 +1,11 @@
+diff --git a/Documentation/devicetree/bindings/usb/dwc2.yaml b/Documentation/devicetree/bindings/usb/dwc2.yaml
+--- a/Documentation/devicetree/bindings/usb/dwc2.yaml
++++ b/Documentation/devicetree/bindings/usb/dwc2.yaml
+@@ -24,4 +24,7 @@ properties:
+       - const: brcm,bcm2835-usb
++      - items:
++          - const: espressif,esp32s31-usb
++          - const: snps,dwc2
+       - const: hisilicon,hi6220-usb
+       - const: ingenic,jz4775-otg
+       - const: ingenic,jz4780-otg

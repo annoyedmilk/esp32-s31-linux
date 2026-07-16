@@ -77,10 +77,14 @@ diff --git a/arch/riscv/kernel/head.S b/arch/riscv/kernel/head.S
 index f6a8ca49e..9eb2d43a2 100644
 --- a/arch/riscv/kernel/head.S
 +++ b/arch/riscv/kernel/head.S
-@@ -196,6 +196,10 @@ secondary_start_sbi:
+@@ -196,6 +196,14 @@ secondary_start_sbi:
  .Lsetup_trap_vector:
  	/* Set trap vector to exception handler */
++#ifdef CONFIG_SOC_ESP32S31
++	la a0, esp32s31_clic_trampoline
++#else
  	la a0, handle_exception
++#endif
 +#ifdef CONFIG_SOC_ESP32S31
 +	/* ESP32-S31 stvec is hardwired to CLIC mode (low bits 0b11). */
 +	ori a0, a0, 3
@@ -88,7 +92,7 @@ index f6a8ca49e..9eb2d43a2 100644
  	csrw CSR_TVEC, a0
  
  	/*
-@@ -208,9 +212,19 @@ secondary_start_sbi:
+@@ -208,9 +216,19 @@ secondary_start_sbi:
  SYM_CODE_END(_start)
  
  SYM_CODE_START(_start_kernel)

@@ -15,7 +15,7 @@
  *
  * We must:
  *   1. Save caller-saved registers → pt_regs on stack
- *   2. Call esp32s31_clic_handle_irq(regs) with SIE disabled
+ *   2. Call Linux's do_irq(regs) with SIE disabled
  *   3. Restore saved registers and execute sret
  *
  * Linux's generic IRQ core expects hard IRQ handlers to run with CPU
@@ -133,6 +133,9 @@
 
 #define CLIC_STATUS_PP SR_PP
 
+/* scause[23:16] holds the CLIC previous-interrupt-level (spil) field. */
+#define CLIC_CAUSE_SPIL_MASK (0xff << 16)
+
 SYM_CODE_START(esp32s31_clic_trampoline)
 
 	/*
@@ -145,9 +148,15 @@ SYM_CODE_START(esp32s31_clic_trampoline)
 
 .Lclic_from_kernel:
 	csrr	tp, CSR_SCRATCH
-	j	.Lclic_have_kernel_tp
+	/* Match handle_exception: publish the interrupted kernel stack first. */
+	REG_S	sp, TASK_TI_KERNEL_SP(tp)
 
 .Lclic_from_user:
+	/*
+	 * Use thread_info.user_sp as the common interrupted-stack slot.  For a
+	 * kernel trap TASK_TI_KERNEL_SP was just set to the current stack, while
+	 * for a user trap it still points at the top of the task's kernel stack.
+	 */
 	REG_S	sp, TASK_TI_USER_SP(tp)
 	REG_L	sp, TASK_TI_KERNEL_SP(tp)
 
@@ -206,16 +215,7 @@ SYM_CODE_START(esp32s31_clic_trampoline)
 	REG_S	t1,  PT_TP_OFFSET(sp)
 
 	/* Save the interrupted stack pointer, not the current kernel IRQ stack. */
-	li	t1, CLIC_STATUS_PP
-	and	t1, t0, t1
-	bnez	t1, .Lclic_save_kernel_sp
 	REG_L	t1, TASK_TI_USER_SP(tp)
-	j	.Lclic_save_sp_done
-
-.Lclic_save_kernel_sp:
-	addi	t1, sp, PT_SIZE_ON_STACK
-
-.Lclic_save_sp_done:
 	REG_S	t1,  PT_SP_OFFSET(sp)
 
 	/* Nested interrupts should reuse the live kernel tp/stack state. */
@@ -240,9 +240,43 @@ SYM_CODE_START(esp32s31_clic_trampoline)
 .Lclic_interrupt:
 
 	/*
+	 * Pop the CLIC supervisor level stack before entering C code.
+	 *
+	 * On this CLIC, sret is the only operation that lowers the running
+	 * supervisor interrupt level (sintstatus.SIL <- scause.spil).  do_irq()
+	 * may context-switch via irqentry_exit()/preempt_schedule_irq(), and
+	 * returning to the scheduler with the level still raised runs arbitrary
+	 * tasks at handler level with every S-mode interrupt masked.  Handler
+	 * frames belonging to preempted tasks then execute their sret in
+	 * scheduling order rather than nesting order, and a frame whose saved
+	 * level is stale can leave SIL raised forever: the timer tick dies and
+	 * the system silently hangs.
+	 *
+	 * Instead, sret to the next instruction with scause.spil forced to zero
+	 * so the handler and everything it schedules runs at base level.  SPIE
+	 * is cleared first so interrupts stay disabled across the pop, and SPP
+	 * is set so we remain in S-mode.  The interrupted context's real
+	 * sstatus/sepc/scause are in pt_regs and are restored on exit.
+	 */
+	REG_L	t0, PT_CAUSE_OFFSET(sp)
+	li	t1, CLIC_CAUSE_SPIL_MASK
+	not	t1, t1
+	and	t0, t0, t1
+	csrw	CSR_CAUSE, t0
+	li	t0, SR_SPIE
+	csrc	CSR_STATUS, t0
+	li	t0, SR_SPP
+	csrs	CSR_STATUS, t0
+	la	t0, .Lclic_level_popped
+	csrw	CSR_EPC, t0
+	sret
+
+.Lclic_level_popped:
+
+	/*
 	 * Call C handler
 	 *
-	 * void esp32s31_clic_handle_irq(struct pt_regs *regs)
+	 * void do_irq(struct pt_regs *regs)
 	 *
 	 * Pass pt_regs pointer in a0. Keep SIE disabled while Linux's generic IRQ
 	 * core runs; it will account and dispatch as a normal hardirq context.
@@ -251,7 +285,12 @@ SYM_CODE_START(esp32s31_clic_trampoline)
 	 * (avoid using the interrupted user stack).
 	 */
 	mv	a0, sp
-	call	esp32s31_clic_handle_irq
+	/*
+	 * Enter through the normal RISC-V IRQ wrapper.  Besides dispatching
+	 * handle_arch_irq, do_irq() installs irq_regs and performs hardirq/RCU
+	 * accounting required by the timer and scheduler paths.
+	 */
+	call	do_irq
 	j	.Lclic_irq_return
 
 .Lclic_exception:
@@ -328,7 +367,6 @@ SYM_CODE_START(esp32s31_clic_trampoline)
 	REG_L	ra,  PT_RA_OFFSET(sp)
 	REG_L	gp,  PT_GP_OFFSET(sp)
 	REG_L	tp,  PT_TP_OFFSET(sp)
-	REG_L	t1,  PT_T1_OFFSET(sp)
 	REG_L	t2,  PT_T2_OFFSET(sp)
 	REG_L	s0,  PT_S0_OFFSET(sp)
 	REG_L	s1,  PT_S1_OFFSET(sp)
@@ -355,12 +393,22 @@ SYM_CODE_START(esp32s31_clic_trampoline)
 	REG_L	t5,  PT_T5_OFFSET(sp)
 	REG_L	t6,  PT_T6_OFFSET(sp)
 
-	/* scause.spil must be live at sret; restore it after all other state. */
+	/*
+	 * scause must be live at sret; restore it after all other state.  The
+	 * level was already popped at entry, so force spil to zero here as
+	 * well: the interrupted context always resumes at base level, and the
+	 * saved spil may be stale if the scheduler interleaved handler frames.
+	 */
 	REG_L	t0, PT_CAUSE_OFFSET(sp)
+	li	t1, CLIC_CAUSE_SPIL_MASK
+	not	t1, t1
+	and	t0, t0, t1
 	csrw	CSR_CAUSE, t0
+	REG_L	t1, PT_T1_OFFSET(sp)
 	REG_L	t0, PT_T0_OFFSET(sp)
 
-	addi	sp, sp, PT_SIZE_ON_STACK
+	/* Return on the interrupted stack, not the unwound kernel IRQ stack. */
+	REG_L	sp, PT_SP_OFFSET(sp)
 
 	/*
 	 * sret returns to sepc, restores SIE from SPIE, and informs the
