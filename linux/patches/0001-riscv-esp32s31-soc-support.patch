@@ -2,7 +2,7 @@ diff --git a/arch/riscv/Kconfig.socs b/arch/riscv/Kconfig.socs
 index c174ac0ec..1276ced5a 100644
 --- a/arch/riscv/Kconfig.socs
 +++ b/arch/riscv/Kconfig.socs
-@@ -111,4 +111,14 @@ config SOC_CANAAN_K210
+@@ -111,4 +111,16 @@ config SOC_CANAAN_K210
  	help
  	  This enables support for Canaan Kendryte K210 SoC platform hardware.
  
@@ -13,8 +13,10 @@ index c174ac0ec..1276ced5a 100644
 +	bool "Espressif ESP32-S31 SoC"
 +	select ESP32S31_CLIC
 +	help
-+	  This enables support for the Espressif ESP32-S31 SoC.
-+	  With MMU enabled the kernel runs in Supervisor mode behind OpenSBI.
++	  This enables support for the Espressif ESP32-S31 SoC. The kernel
++	  runs in Supervisor mode behind OpenSBI with the Sv32 MMU enabled
++	  and receives all interrupts through the ESP32-S31 CLIC rather
++	  than the standard RISC-V local interrupt CSRs.
 +
  endmenu # "SoC selection"
 diff --git a/arch/riscv/boot/dts/Makefile b/arch/riscv/boot/dts/Makefile
@@ -116,7 +118,7 @@ diff --git a/drivers/irqchip/Kconfig b/drivers/irqchip/Kconfig
 index e755a2a05..a0293261d 100644
 --- a/drivers/irqchip/Kconfig
 +++ b/drivers/irqchip/Kconfig
-@@ -684,6 +684,14 @@ config THEAD_C900_ACLINT_SSWI
+@@ -684,6 +684,17 @@ config THEAD_C900_ACLINT_SSWI
  	bool
  	select ACLINT_SSWI
  
@@ -126,7 +128,10 @@ index e755a2a05..a0293261d 100644
 +	select IRQ_DOMAIN
 +	select IRQ_DOMAIN_HIERARCHY
 +	help
-+	  Support for the CLIC interrupt controller on ESP32-S31.
++	  Support for the RISC-V Core-Local Interrupt Controller on the
++	  Espressif ESP32-S31. Linux receives all supervisor interrupts
++	  through the S-mode CLIC window; peripheral inputs reach it via
++	  the SoC interrupt matrix.
 +
  config EXYNOS_IRQ_COMBINER
  	bool "Samsung Exynos IRQ combiner support" if COMPILE_TEST
@@ -147,7 +152,7 @@ diff --git a/drivers/tty/serial/Kconfig b/drivers/tty/serial/Kconfig
 index ec284aceb..474b6dc6f 100644
 --- a/drivers/tty/serial/Kconfig
 +++ b/drivers/tty/serial/Kconfig
-@@ -1594,5 +1594,15 @@ config SERIAL_NUVOTON_MA35D1_CONSOLE
+@@ -1594,5 +1594,17 @@ config SERIAL_NUVOTON_MA35D1_CONSOLE
  
  endmenu
  
@@ -158,8 +163,10 @@ index ec284aceb..474b6dc6f 100644
 +	select SERIAL_CORE_CONSOLE
 +	select SERIAL_EARLYCON
 +	help
-+	  Driver for the UART controllers in Espressif ESP32-family SoCs,
-+	  including the ESP32-S31.
++	  Driver for the UART controllers found in Espressif ESP32-family
++	  SoCs, including the ESP32-S31. The driver provides the ttyS
++	  serial console and an earlycon. If built as a module, the module
++	  is called esp32_uart.
 +
  config SERIAL_MCTRL_GPIO
  	tristate

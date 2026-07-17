@@ -28,10 +28,7 @@
 #include <linux/irq_work.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
-#include <linux/of_irq.h>
 #include <linux/percpu.h>
-#include <linux/hardirq.h>
-#include <linux/smp.h>
 #include <asm/csr.h>
 #include <asm/esp32s31-clic.h>
 #include <asm/irq.h>
@@ -39,14 +36,12 @@
 /* CLIC register map */
 
 #define ESP32S31_CLIC_BASE 0x10a00000	/* S-mode sclicbase window */
-#define ESP32S31_CLIC_DUALCORE_OFF 0x10000
-#define ESP32S31_CLIC_SIZE (ESP32S31_CLIC_DUALCORE_OFF * 2)
 
 /*
  * Per-interrupt control registers start at 0x10a0_1000.
  * Each interrupt gets a 32-bit word with four byte-accessible sub-registers.
  * The same address is used by ALL cores - the hardware virtualises per core.
- * To access the OTHER core's registers, add ESP32S31_CLIC_DUALCORE_OFF.
+ * To access the OTHER core's registers, add 0x10000.
  */
 #define ESP32S31_CLIC_CTRL_BASE 0x10a01000	/* S-mode per-interrupt window */
 #define ESP32S31_CLIC_INT_STRIDE 4 /* 4 bytes per interrupt */
@@ -58,8 +53,7 @@
 /* Interrupt numbering */
 
 #define CLIC_EXT_MIN_ID 16 /* First external IRQ        */
-#define CLIC_EXT_MAX_ID 47 /* Last external IRQ         */
-#define CLIC_MAX_ID 47 /* Max interrupt ID          */
+#define CLIC_NR_IRQS 48 /* 16 local + 32 external    */
 #define ESP32S31_CLIC_IRQ_WORK_ID CLIC_EXT_MIN_ID
 
 /* CLIC configuration constants */
@@ -117,7 +111,6 @@ struct esp32s31_clic {
 	void __iomem *regs;
 	void __iomem *intmatrix_regs;
 	struct irq_domain *domain;
-	u32 num_interrupts;
 };
 
 static DEFINE_PER_CPU(struct esp32s31_clic *, clic_per_cpu);
@@ -254,9 +247,6 @@ static struct irq_chip esp32s31_clic_chip = {
  * This chip replaces the upstream riscv_intc_chip on the INTC domain.
  */
 
-static void __iomem *esp32s31_sclic_regs __ro_after_init;
-#define ESP32S31_SCLIC_CTRL_OFF	0x1000	/* per-interrupt control offset from base */
-
 #if defined(CONFIG_IRQ_WORK) && !defined(CONFIG_SMP)
 /*
  * Upstream RISC-V supplies arch_irq_work_raise() from smp.c, so a UP kernel
@@ -268,12 +258,13 @@ static void __iomem *esp32s31_sclic_regs __ro_after_init;
  */
 void arch_irq_work_raise(void)
 {
-	if (WARN_ON_ONCE(!esp32s31_sclic_regs))
+	struct esp32s31_clic *clic = this_cpu_read(clic_per_cpu);
+
+	/* Queued work is picked up by the first timer tick after probe. */
+	if (!clic)
 		return;
 
-	writeb(1, esp32s31_sclic_regs + ESP32S31_SCLIC_CTRL_OFF +
-		  (ESP32S31_CLIC_IRQ_WORK_ID * ESP32S31_CLIC_INT_STRIDE) +
-		  ESP32S31_CLIC_INT_IP);
+	clic_writeb(clic, ESP32S31_CLIC_IRQ_WORK_ID, ESP32S31_CLIC_INT_IP, 1);
 }
 
 static irqreturn_t esp32s31_irq_work_interrupt(int irq, void *dev_id)
@@ -316,22 +307,14 @@ static int __init esp32s31_irq_work_init(struct esp32s31_clic *clic)
 
 static void esp32s31_intc_clic_irq_mask(struct irq_data *d)
 {
-	if (WARN_ON_ONCE(!esp32s31_sclic_regs))
-		return;
-
-	writeb(0, esp32s31_sclic_regs + ESP32S31_SCLIC_CTRL_OFF +
-		  (d->hwirq * ESP32S31_CLIC_INT_STRIDE) +
-		  ESP32S31_CLIC_INT_IE);
+	clic_writeb(this_cpu_read(clic_per_cpu), d->hwirq,
+		    ESP32S31_CLIC_INT_IE, 0);
 }
 
 static void esp32s31_intc_clic_irq_unmask(struct irq_data *d)
 {
-	if (WARN_ON_ONCE(!esp32s31_sclic_regs))
-		return;
-
-	writeb(1, esp32s31_sclic_regs + ESP32S31_SCLIC_CTRL_OFF +
-		  (d->hwirq * ESP32S31_CLIC_INT_STRIDE) +
-		  ESP32S31_CLIC_INT_IE);
+	clic_writeb(this_cpu_read(clic_per_cpu), d->hwirq,
+		    ESP32S31_CLIC_INT_IE, 1);
 }
 
 static void esp32s31_intc_clic_irq_eoi(struct irq_data *d)
@@ -377,32 +360,22 @@ static void esp32s31_intmatrix_route(struct esp32s31_clic *clic,
 	writel(val, reg);
 }
 
+/*
+ * ESP32-S31 interrupt specifiers are <raw CLIC ID, SoC interrupt source,
+ * type>.  For example UART0 is <32 9 IRQ_TYPE_LEVEL_HIGH>, where source 9
+ * is ETS_UART0_INTR_SOURCE in the S31 ESP-IDF table.
+ */
 static int esp32s31_clic_parse_fwspec(struct irq_fwspec *fwspec,
 				     irq_hw_number_t *hwirq,
 				     unsigned int *source,
-				     unsigned int *level,
 				     unsigned int *type)
 {
-	if (fwspec->param_count != 1 && fwspec->param_count != 2 &&
-	    fwspec->param_count != 3)
+	if (fwspec->param_count != 3)
 		return -EINVAL;
 
 	*hwirq = fwspec->param[0];
-	*source = UINT_MAX;
-	*level = 1;
-	*type = IRQ_TYPE_NONE;
-
-	if (fwspec->param_count == 2)
-		*type = fwspec->param[1] & IRQ_TYPE_SENSE_MASK;
-	else if (fwspec->param_count == 3) {
-		/*
-		 * ESP32-S31 uses <raw CLIC ID, IDF interrupt source, type>.
-		 * For example UART0 is <32 9 IRQ_TYPE_LEVEL_HIGH>, where
-		 * source 9 is ETS_UART0_INTR_SOURCE in the S31 ESP-IDF table.
-		 */
-		*source = fwspec->param[1];
-		*type = fwspec->param[2] & IRQ_TYPE_SENSE_MASK;
-	}
+	*source = fwspec->param[1];
+	*type = fwspec->param[2] & IRQ_TYPE_SENSE_MASK;
 
 	return 0;
 }
@@ -423,9 +396,9 @@ static int esp32s31_clic_domain_translate(struct irq_domain *domain,
 					 irq_hw_number_t *hwirq,
 					 unsigned int *type)
 {
-	unsigned int source, level;
+	unsigned int source;
 
-	return esp32s31_clic_parse_fwspec(fwspec, hwirq, &source, &level, type);
+	return esp32s31_clic_parse_fwspec(fwspec, hwirq, &source, type);
 }
 
 static int esp32s31_clic_domain_alloc(struct irq_domain *domain,
@@ -435,24 +408,23 @@ static int esp32s31_clic_domain_alloc(struct irq_domain *domain,
 	struct esp32s31_clic *clic = domain->host_data;
 	struct irq_fwspec *fwspec = data;
 	irq_hw_number_t hwirq;
-	unsigned int source, level, type;
+	unsigned int source, type;
 	unsigned long flags;
 
-	if (esp32s31_clic_parse_fwspec(fwspec, &hwirq, &source, &level, &type))
+	if (esp32s31_clic_parse_fwspec(fwspec, &hwirq, &source, &type))
 		return -EINVAL;
 
-	if (hwirq >= clic->num_interrupts)
+	if (hwirq >= CLIC_NR_IRQS)
 		return -EINVAL;
 
-	if (source != UINT_MAX)
-		esp32s31_intmatrix_route(clic, source, hwirq);
+	esp32s31_intmatrix_route(clic, source, hwirq);
 
 	irq_domain_set_info(domain, virq, hwirq, &esp32s31_clic_chip, clic,
 			    handle_fasteoi_irq, NULL, NULL);
 
 	raw_spin_lock_irqsave(this_cpu_ptr(&clic_lock), flags);
 	clic_writeb(clic, hwirq, ESP32S31_CLIC_INT_CTL,
-		    CLICCTL_MAKE(level, ESP32S31_MAX_PRIORITY));
+		    CLICCTL_MAKE(1, ESP32S31_MAX_PRIORITY));
 	raw_spin_unlock_irqrestore(this_cpu_ptr(&clic_lock), flags);
 
 	if (type != IRQ_TYPE_NONE)
@@ -523,7 +495,7 @@ void esp32s31_clic_handle_irq(struct pt_regs *regs)
 		return;
 	}
 
-	if (irq_id >= clic->num_interrupts) {
+	if (irq_id >= CLIC_NR_IRQS) {
 		pr_warn_ratelimited("CLIC: spurious interrupt %lu\n", irq_id);
 		return;
 	}
@@ -535,7 +507,6 @@ void esp32s31_clic_handle_irq(struct pt_regs *regs)
 
 static void __init esp32s31_clic_init_hart(struct esp32s31_clic *clic, int hart)
 {
-	const u8 mode_attr = CLIC_ATTR_MODE_S;
 	int i;
 
 	csr_write(CSR_SINTTHRESH, 0);
@@ -544,26 +515,25 @@ static void __init esp32s31_clic_init_hart(struct esp32s31_clic *clic, int hart)
 	 * OpenSBI owns the local CLIC slots. Linux initializes only external
 	 * inputs and leaves the machine and supervisor timer paths untouched.
 	 */
-	for (i = CLIC_EXT_MIN_ID; i <= CLIC_EXT_MAX_ID; i++) {
+	for (i = CLIC_EXT_MIN_ID; i < CLIC_NR_IRQS; i++) {
 		clic_writeb(clic, i, ESP32S31_CLIC_INT_IP, 0);
 		clic_writeb(clic, i, ESP32S31_CLIC_INT_IE, 0);
 		clic_writeb(clic, i, ESP32S31_CLIC_INT_ATTR,
-			    mode_attr | CLIC_ATTR_TRIG_LEVEL);
+			    CLIC_ATTR_MODE_S | CLIC_ATTR_TRIG_LEVEL);
 		clic_writeb(clic, i, ESP32S31_CLIC_INT_CTL,
 			    CLICCTL_MAKE(1, ESP32S31_MAX_PRIORITY));
 	}
 
 	per_cpu(clic_per_cpu, hart) = clic;
-
-	pr_debug("CLIC: S31 hart %d using S-mode sclicbase window\n", hart);
 }
 
 static int __init esp32s31_clic_probe(struct device_node *node,
 				     struct device_node *parent)
 {
+	struct fwnode_handle *intc_fwnode;
+	struct irq_domain *intc_domain;
 	struct esp32s31_clic *clic;
 	struct resource res;
-	u32 num_interrupts = CLIC_MAX_ID + 1;
 	int ret;
 
 	clic = kzalloc_obj(*clic, GFP_KERNEL);
@@ -571,19 +541,13 @@ static int __init esp32s31_clic_probe(struct device_node *node,
 		return -ENOMEM;
 
 	/*
-	 * Map CLIC registers. The S-mode window occupies 0x10a0_0000-0x10a1_ffff
-	 * (two 64 KB windows for dual-core).  Falls back to the known
-	 * base if no DT reg property.
-	 *
-	 * We map the full region even though the hardware virtualises
-	 * per-core access. This covers the threshold register and
-	 * allows future cross-core register access at +0x10000.
+	 * Map the full S-mode window even though the hardware virtualises
+	 * per-core access: it covers the threshold register and allows
+	 * future cross-core register access at +0x10000.
 	 */
 	ret = of_address_to_resource(node, 0, &res);
-	if (ret) {
-		res.start = ESP32S31_CLIC_BASE;
-		res.end = ESP32S31_CLIC_BASE + ESP32S31_CLIC_SIZE - 1;
-	}
+	if (ret)
+		goto err_free;
 
 	clic->regs = ioremap(res.start, resource_size(&res));
 	if (!clic->regs) {
@@ -601,15 +565,7 @@ static int __init esp32s31_clic_probe(struct device_node *node,
 		goto err_unmap;
 	}
 
-	of_property_read_u32(node, "espressif,num-interrupts", &num_interrupts);
-	if (num_interrupts <= CLIC_EXT_MIN_ID || num_interrupts > CLIC_MAX_ID + 1) {
-		ret = -EINVAL;
-		goto err_unmap;
-	}
-	clic->num_interrupts = num_interrupts;
-
-	/* Create IRQ domain */
-	clic->domain = irq_domain_add_linear(node, num_interrupts,
+	clic->domain = irq_domain_add_linear(node, CLIC_NR_IRQS,
 					     &esp32s31_clic_domain_ops, clic);
 	if (!clic->domain) {
 		pr_err("CLIC: Failed to create IRQ domain\n");
@@ -617,7 +573,6 @@ static int __init esp32s31_clic_probe(struct device_node *node,
 		goto err_unmap;
 	}
 
-	/* Initialize hart 0 (boot CPU) */
 	esp32s31_clic_init_hart(clic, 0);
 
 	/*
@@ -630,30 +585,21 @@ static int __init esp32s31_clic_probe(struct device_node *node,
 	fallback_handle_irq = handle_arch_irq;
 	handle_arch_irq = esp32s31_clic_handle_irq;
 
-	esp32s31_sclic_regs = clic->regs;
-	{
-		struct fwnode_handle *intc_fwnode = riscv_get_intc_hwnode();
-		struct irq_domain *intc_domain;
-
-		if (intc_fwnode) {
-			intc_domain = irq_find_matching_fwnode(intc_fwnode,
-							      DOMAIN_BUS_ANY);
-			if (intc_domain) {
-				intc_domain->host_data = &esp32s31_intc_chip;
-				ret = esp32s31_irq_work_init(clic);
-				if (ret)
-					pr_warn("CLIC: failed to initialize UP irq_work: %d\n",
-						ret);
-			} else {
-				pr_warn("CLIC: could not find INTC domain to swap chip\n");
-			}
-		} else {
-			pr_warn("CLIC: no INTC hwnode - local IRQ masking may fail\n");
-		}
+	intc_fwnode = riscv_get_intc_hwnode();
+	intc_domain = intc_fwnode ?
+		irq_find_matching_fwnode(intc_fwnode, DOMAIN_BUS_ANY) : NULL;
+	if (intc_domain) {
+		intc_domain->host_data = &esp32s31_intc_chip;
+		ret = esp32s31_irq_work_init(clic);
+		if (ret)
+			pr_warn("CLIC: failed to initialize UP irq_work: %d\n",
+				ret);
+	} else {
+		pr_warn("CLIC: no INTC domain - local IRQ masking unavailable\n");
 	}
 
 	pr_info("CLIC: initialized, %u interrupts, S-mode non-vectored\n",
-		num_interrupts);
+		CLIC_NR_IRQS);
 
 	return 0;
 

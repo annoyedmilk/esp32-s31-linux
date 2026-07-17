@@ -27,6 +27,7 @@ LINUX_SRC := $(BUILD_DIR)/linux-src
 LINUX_OUT := $(CURDIR)/$(BUILD_DIR)/linux
 LINUX_PATCHES := $(sort $(wildcard linux/patches/*.patch))
 LINUX_OVERLAY_DIRS := $(filter-out linux/patches,$(wildcard linux/*))
+LINUX_PREP_STAMP := $(LINUX_SRC)/.patched
 LINUX_HOSTCFLAGS := -I$(CURDIR)/scripts/hostshim -include $(CURDIR)/scripts/hostshim/mac-compat.h -D_UUID_T -D__GETHOSTUUID_H
 
 BUSYBOX_DIR := external/busybox
@@ -71,6 +72,13 @@ help:
 		'  make openocd                       start JTAG via GPIO33/34 USB breakout' \
 		'  make clean                         remove generated build output' \
 		'' \
+		'FLASH_PORT is the esptool target: the native USB Serial/JTAG' \
+		'(/dev/cu.usbmodem*) or the CP2102N UART bridge (/dev/cu.usbserial-*).' \
+		'SERIAL_PORT is the external UART carrying the Linux console.' \
+		'RESET_PORT optionally names a second port whose RTS pulse resets the' \
+		'board before monitoring when SERIAL_PORT cannot (BAUD, BOOT_TIMEOUT' \
+		'tune the monitor).' \
+		'' \
 		'BusyBox uses riscv32-linux-musl-gcc when present, otherwise Zig.' \
 		'Override BUSYBOX_BIN to use an existing static RV32 BusyBox binary.'
 
@@ -103,18 +111,22 @@ opensbi:
 	@for patch_file in $(OPENSBI_PATCHES); do patch -d "$(OPENSBI_SRC)" -p1 -s < "$$patch_file"; done
 	@$(GMAKE) -C "$(OPENSBI_SRC)" \
 		PLATFORM_DIR="$(CURDIR)/opensbi/platform" PLATFORM=esp32s31 \
-		O="$(OPENSBI_OUT)" CROSS_COMPILE="$(CROSS_COMPILE)" \
-		ESP32S31_USB_SERIAL_JTAG_CONSOLE=1 \
-		FW_JUMP=y FW_JUMP_ADDR=0x50000000 FW_PAYLOAD=n FW_DYNAMIC=n
+		O="$(OPENSBI_OUT)" CROSS_COMPILE="$(CROSS_COMPILE)"
 	@cp "$(OPENSBI_OUT)/platform/esp32s31/firmware/fw_jump.elf" "$(BUILD_DIR)/opensbi.elf"
 	@cp "$(OPENSBI_OUT)/platform/esp32s31/firmware/fw_jump.bin" "$(BUILD_DIR)/opensbi.bin"
 
-linux:
+# The patched kernel tree is rebuilt only when the patch series changes.
+# Overlay files (drivers, dts, defconfig) are copied fresh on every build;
+# run "make clean" after updating the external/linux submodule itself.
+$(LINUX_PREP_STAMP): $(LINUX_PATCHES)
 	@rm -rf "$(LINUX_SRC)"
 	@mkdir -p "$(LINUX_SRC)"
 	@cp -R "$(LINUX_DIR)"/* "$(LINUX_SRC)/"
-	@cp -R $(LINUX_OVERLAY_DIRS) "$(LINUX_SRC)/"
 	@for patch_file in $(LINUX_PATCHES); do patch -d "$(LINUX_SRC)" -p1 -s < "$$patch_file"; done
+	@touch "$@"
+
+linux: $(LINUX_PREP_STAMP)
+	@cp -R $(LINUX_OVERLAY_DIRS) "$(LINUX_SRC)/"
 	@PATH="$(GNU_HOST_PATH):$$PATH" $(GMAKE) -C "$(LINUX_SRC)" O="$(LINUX_OUT)" \
 		ARCH=riscv CROSS_COMPILE="$(CROSS_COMPILE)" HOSTCFLAGS="$(LINUX_HOSTCFLAGS)" esp32s31_defconfig
 	@PATH="$(GNU_HOST_PATH):$$PATH" $(GMAKE) -C "$(LINUX_SRC)" O="$(LINUX_OUT)" \

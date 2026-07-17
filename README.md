@@ -73,6 +73,12 @@ boot. Cards can also be mounted manually:
 mount /dev/mmcblk0p1 /mnt/sd
 ```
 
+Detection is the success criterion: a working card enumerates as
+`/dev/mmcblk0`. An empty card carries no partition table or filesystem, so
+its boot-time mount fails and init prints
+`SD: /dev/mmcblk0 present but mount failed`. That message is the expected
+result until a filesystem is written to the card.
+
 ## Hardware connections
 
 The ESP32-S31 Korvo-1 has two Type-C connectors, a Type-A host connector, and
@@ -125,14 +131,23 @@ make flash FLASH_PORT=/dev/cu.usbserial-XXXX
 make monitor SERIAL_PORT=/dev/cu.usbserial-XXXX
 ```
 
-The monitor waits up to 300 seconds for the BusyBox banner and then stays
-attached as an interactive terminal. Press Enter if the shell prompt is not
-visible. Press `Ctrl-]` to disconnect. Every session is copied verbatim to
-`logs/`.
+`FLASH_PORT` names the esptool target and may be either the native USB
+Serial/JTAG (`/dev/cu.usbmodem*`) or the CP2102N UART bridge
+(`/dev/cu.usbserial-*`). `SERIAL_PORT` names the external UART that carries
+the Linux console. `make build` reuses the patched kernel tree under
+`build/` and regenerates it when the patch series changes; run `make clean`
+after updating the `external/` submodules.
 
-If the external UART's RTS line resets the board, `RESET_PORT` can be omitted.
-If you do not want the monitor to reset a running system, invoke the script
-directly with `--no-reset`:
+The monitor waits up to 300 seconds (`BOOT_TIMEOUT`) for the BusyBox banner
+and then stays attached as an interactive terminal. Press Enter if the shell
+prompt is not visible. Press `Ctrl-]` to disconnect. Every session is copied
+verbatim to `logs/`.
+
+The monitor pulses RTS on `SERIAL_PORT` to reset the board before capturing.
+If that adapter cannot reset the board, set `RESET_PORT=/dev/cu.X` to send
+the pulse through a second port, such as the native USB Serial/JTAG. To
+attach to a running system without resetting it, invoke the script directly
+with `--no-reset`:
 
 ```sh
 source ~/esp/esp-idf/export.sh

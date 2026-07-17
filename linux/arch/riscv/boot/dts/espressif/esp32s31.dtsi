@@ -41,12 +41,6 @@
 				compatible = "riscv,cpu-intc";
 			};
 		};
-
-		cpu-map {
-			cluster0 {
-				core0 { cpu = <&cpu0>; };
-			};
-		};
 	};
 
 	xtal: oscillator {
@@ -80,7 +74,6 @@
 			compatible = "espressif,esp32s31-clic";
 			reg = <0x10a00000 0x20000>;
 			interrupt-controller;
-			espressif,num-interrupts = <48>;
 		};
 
 		sdmmc0: mmc@20342000 {
@@ -105,7 +98,6 @@
 			interrupt-parent = <&clic>;
 			interrupts = <32 9 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&xtal>;
-			status = "okay";
 		};
 
 		usb_phy: phy@205870ac {
@@ -129,7 +121,6 @@
 			phy-names = "usb2-phy";
 			dr_mode = "host";
 			disable-over-current;
-			status = "okay";
 		};
 
 	};

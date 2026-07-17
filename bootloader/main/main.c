@@ -25,7 +25,9 @@
 #include "hal/assist_debug_ll.h"
 #include "hal/sdmmc_ll.h"
 #include "hal/wdt_hal.h"
+#include "riscv/csr_clic.h"
 #include "soc/soc.h"
+#include "soc/clic_reg.h"
 #include "soc/clk_tree_defs.h"
 #include "soc/cpu_apm_reg.h"
 #include "soc/hp_apm_reg.h"
@@ -33,6 +35,7 @@
 #include <soc/reg_base.h>
 #include "soc/gpio_sig_map.h"
 #include "soc/sdmmc_pins.h"
+#include "soc/spi_mem_c_reg.h"
 #include "display.h"
 
 #define PSRAM_BASE                  0x50000000U
@@ -108,11 +111,18 @@ static void open_apm(void)
     REG_WRITE(HP_MEM_APM_REGION_FILTER_EN_REG, 1);
     REG_WRITE(HP_MEM_APM_FUNC_CTRL_REG, 0xFFFFFFFF);
 
+    /*
+     * Open all four flash/external-memory PMS sections on both MSPI
+     * controllers. The PSRAM controller mirrors the SPI_MEM_C register
+     * layout at DR_REG_PSRAM_MSPI0_BASE.
+     */
     for (int i = 0; i < 4; i++) {
-        REG_WRITE(DR_REG_FLASH_SPI0_BASE + 0x100 + i * 4, 0x1B);
-        REG_WRITE(DR_REG_FLASH_SPI0_BASE + 0x130 + i * 4, 0x1B);
-        REG_WRITE(DR_REG_PSRAM_MSPI0_BASE + 0x100 + i * 4, 0x1B);
-        REG_WRITE(DR_REG_PSRAM_MSPI0_BASE + 0x130 + i * 4, 0x1B);
+        const uint32_t psram_off = DR_REG_PSRAM_MSPI0_BASE - DR_REG_FLASH_SPI0_BASE;
+
+        REG_WRITE(SPI_FMEM_C_PMS0_ATTR_REG + i * 4, 0x1B);
+        REG_WRITE(SPI_SMEM_C_PMS0_ATTR_REG + i * 4, 0x1B);
+        REG_WRITE(SPI_FMEM_C_PMS0_ATTR_REG + psram_off + i * 4, 0x1B);
+        REG_WRITE(SPI_SMEM_C_PMS0_ATTR_REG + psram_off + i * 4, 0x1B);
     }
 
     REG_WRITE(HP_APM_M0_STATUS_CLR_REG, 1);
@@ -144,35 +154,31 @@ static void install_global_pmp(void)
 
 static void mask_clic_slots(void)
 {
+    /* The per-slot IE/ATTR registers are byte-addressed. */
     for (int i = 0; i < 128; i++) {
-        volatile uint8_t *ie = (volatile uint8_t *)(0x10801000 + i * 4 + 1);
-        volatile uint8_t *attr = (volatile uint8_t *)(0x10801000 + i * 4 + 2);
-        *ie = 0;
-        *attr = 0;
+        *(volatile uint8_t *)BYTE_CLIC_INT_IE_REG(i) = 0;
+        *(volatile uint8_t *)BYTE_CLIC_INT_ATTR_REG(i) = 0;
     }
+}
+
+static void disable_watchdog(wdt_inst_t inst)
+{
+    wdt_hal_context_t ctx;
+
+    wdt_hal_init(&ctx, inst, 0, false);
+    wdt_hal_write_protect_disable(&ctx);
+    wdt_hal_disable(&ctx);
 }
 
 static void disable_watchdogs_and_clic(void)
 {
-    volatile uint32_t *timg0 = (volatile uint32_t *)0x20580000;
-    volatile uint32_t *timg1 = (volatile uint32_t *)0x20581000;
-
-    timg0[0x64 / 4] = 0x50D83AA1;
-    timg0[0x48 / 4] = 0;
-    timg0[0x64 / 4] = 0;
-
-    timg1[0x64 / 4] = 0x50D83AA1;
-    timg1[0x48 / 4] = 0;
-    timg1[0x64 / 4] = 0;
-
-    wdt_hal_context_t rtc_wdt_ctx;
-    wdt_hal_init(&rtc_wdt_ctx, WDT_RWDT, 0, false);
-    wdt_hal_write_protect_disable(&rtc_wdt_ctx);
-    wdt_hal_disable(&rtc_wdt_ctx);
+    disable_watchdog(WDT_MWDT0);
+    disable_watchdog(WDT_MWDT1);
+    disable_watchdog(WDT_RWDT);
 
     mask_clic_slots();
 
-    asm volatile ("csrw 0x307, zero");
+    RV_WRITE_CSR(MTVT_CSR, 0);
 }
 
 static void clear_mstatus_mprv(void)

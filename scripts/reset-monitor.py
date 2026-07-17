@@ -22,7 +22,6 @@ def pulse_reset(ser):
     time.sleep(0.1)
     ser.rts = False
     time.sleep(0.1)
-    ser.dtr = False
 
 
 def main():
