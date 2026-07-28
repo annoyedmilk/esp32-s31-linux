@@ -112,7 +112,14 @@
 
 		usb0: usb@20300000 {
 			compatible = "espressif,esp32s31-usb", "snps,dwc2";
-			reg = <0x20300000 0x1000>;
+			/*
+			 * The named DWC2 registers end at 0xe04, but PIO
+			 * transfers reach the per-channel FIFO windows at
+			 * 0x1000 * (channel + 1).  Map the whole aperture the
+			 * SoC reserves for the controller, which ends where
+			 * the PAU block starts at 0x20341000.
+			 */
+			reg = <0x20300000 0x40000>;
 			interrupt-parent = <&clic>;
 			interrupts = <33 99 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&usb_ref_clk>;

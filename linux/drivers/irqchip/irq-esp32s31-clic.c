@@ -57,6 +57,17 @@
 #define ESP32S31_CLIC_IRQ_WORK_ID CLIC_EXT_MIN_ID
 
 /*
+ * Slot 16 is only software-owned when this driver reserves it for irq_work;
+ * otherwise it is an ordinary Interrupt Matrix input and must be acked
+ * normally.
+ */
+#if defined(CONFIG_IRQ_WORK) && !defined(CONFIG_SMP)
+#define esp32s31_clic_is_irq_work(hwirq) ((hwirq) == ESP32S31_CLIC_IRQ_WORK_ID)
+#else
+#define esp32s31_clic_is_irq_work(hwirq) ((void)(hwirq), false)
+#endif
+
+/*
  * In CLIC mode the low cause bits hold the interrupt ID while the upper bits
  * carry CLIC metadata such as the previous interrupt level.  CAUSE_IRQ_FLAG
  * does not strip those, so decode the exception code with an explicit mask.
@@ -175,25 +186,23 @@ static void esp32s31_clic_irq_eoi(struct irq_data *d)
 	struct esp32s31_clic *clic = irq_data_get_irq_chip_data(d);
 	raw_spinlock_t *lock = this_cpu_ptr(&clic_lock);
 	u32 hwirq = d->hwirq;
-	u8 attr;
 	unsigned long flags;
+	u8 attr;
 
 	/*
-	 * Hardware-routed edge interrupts use write-one acknowledgement,
-	 * matching ESP-IDF rv_utils_intr_edge_ack():
-	 *   REG_SET_BIT(CLIC_INT_CTRL_REG(irq), CLIC_INT_IP);
-	 *
-	 * Slot 16 is not matrix-routed; Linux uses its IP bit as writable
-	 * software-pending state for irq_work, so it is cleared with zero.
-	 * Level-triggered inputs clear when the device deasserts its line.
+	 * Edge inputs are acked by writing one to IP, matching ESP-IDF
+	 * rv_utils_intr_edge_ack(); level inputs clear when the device
+	 * deasserts.  The irq_work slot is skipped: its handler clears IP
+	 * before running the work, so acking here would drop an item that
+	 * re-raised IP from inside irq_work_run().
 	 */
+	if (esp32s31_clic_is_irq_work(hwirq))
+		return;
+
 	raw_spin_lock_irqsave(lock, flags);
 	attr = clic_readb(clic, hwirq, ESP32S31_CLIC_INT_ATTR);
-	if (attr & CLIC_ATTR_TRIG_EDGE) {
-		/* The software-owned irq_work slot has a regular writable IP bit. */
-		clic_writeb(clic, hwirq, ESP32S31_CLIC_INT_IP,
-			    hwirq == ESP32S31_CLIC_IRQ_WORK_ID ? 0 : 1);
-	}
+	if (attr & CLIC_ATTR_TRIG_EDGE)
+		clic_writeb(clic, hwirq, ESP32S31_CLIC_INT_IP, 1);
 	raw_spin_unlock_irqrestore(lock, flags);
 }
 
@@ -277,7 +286,22 @@ void arch_irq_work_raise(void)
 
 static irqreturn_t esp32s31_irq_work_interrupt(int irq, void *dev_id)
 {
+	struct esp32s31_clic *clic = dev_id;
+	raw_spinlock_t *lock = this_cpu_ptr(&clic_lock);
+	unsigned long flags;
+
+	/*
+	 * Clear the software pending bit before running the work.  An item
+	 * that queues more work re-raises IP from inside irq_work_run(), and
+	 * that assertion has to survive; the eoi callback leaves this slot
+	 * alone for the same reason.
+	 */
+	raw_spin_lock_irqsave(lock, flags);
+	clic_writeb(clic, ESP32S31_CLIC_IRQ_WORK_ID, ESP32S31_CLIC_INT_IP, 0);
+	raw_spin_unlock_irqrestore(lock, flags);
+
 	irq_work_run();
+
 	return IRQ_HANDLED;
 }
 

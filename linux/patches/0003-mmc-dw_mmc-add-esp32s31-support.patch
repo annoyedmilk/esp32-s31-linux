@@ -98,7 +98,7 @@ diff --git a/drivers/mmc/host/dw_mmc.h b/drivers/mmc/host/dw_mmc.h
 diff --git a/drivers/mmc/host/dw_mmc-pltfm.c b/drivers/mmc/host/dw_mmc-pltfm.c
 --- a/drivers/mmc/host/dw_mmc-pltfm.c
 +++ b/drivers/mmc/host/dw_mmc-pltfm.c
-@@ -90,7 +90,46 @@
+@@ -90,7 +90,37 @@
  	.init		= dw_mci_socfpga_priv_init,
  };
  
@@ -109,15 +109,8 @@ diff --git a/drivers/mmc/host/dw_mmc-pltfm.c b/drivers/mmc/host/dw_mmc-pltfm.c
 +	host->quirks |= DW_MMC_QUIRK_AUTO_STOP | DW_MMC_QUIRK_FORCE_PIO;
 +
 +	/*
-+	 * ESP-IDF drives this controller exclusively through its internal
-+	 * DMA; the FIFO data register has no users anywhere in the vendor
-+	 * tree.  DW_MMC_QUIRK_FORCE_PIO makes dw_mci_init_dma() bail out
-+	 * before it installs the IDMAC ops, and CTRL.use_internal_dma is
-+	 * only ever cleared from dw_mci_idmac_stop_dma(), so nothing else
-+	 * takes the controller out of DMA mode.  A controller still in that
-+	 * mode streams card data at the DMA interface while the CPU polls an
-+	 * empty FIFO, which reads back as all-zero or all-ones with no error
-+	 * reported.  Park the DMA interface explicitly instead.
++	 * DW_MMC_QUIRK_FORCE_PIO skips dw_mci_init_dma(), which otherwise
++	 * owns every write to the DMA interface, so park it here instead.
 +	 */
 +	ctrl = mci_readl(host, CTRL);
 +	ctrl &= ~(SDMMC_CTRL_USE_IDMAC | SDMMC_CTRL_DMA_ENABLE);
@@ -127,11 +120,9 @@ diff --git a/drivers/mmc/host/dw_mmc-pltfm.c b/drivers/mmc/host/dw_mmc-pltfm.c
 +	bmod &= ~(SDMMC_IDMAC_ENABLE | SDMMC_IDMAC_FB);
 +	mci_writel(host, BMOD, bmod);
 +
-+	dev_info(host->dev,
-+		 "esp32s31 ctrl=%#010x bmod=%#010x hcon=%#010x fifoth=%#010x status=%#010x\n",
-+		 mci_readl(host, CTRL), mci_readl(host, BMOD),
-+		 mci_readl(host, HCON), mci_readl(host, FIFOTH),
-+		 mci_readl(host, STATUS));
++	dev_dbg(host->dev, "ctrl %#010x bmod %#010x hcon %#010x fifoth %#010x\n",
++		mci_readl(host, CTRL), mci_readl(host, BMOD),
++		mci_readl(host, HCON), mci_readl(host, FIFOTH));
 +
 +	return 0;
 +}
