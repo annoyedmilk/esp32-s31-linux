@@ -1,0 +1,32 @@
+diff --git a/drivers/cache/Kconfig b/drivers/cache/Kconfig
+--- a/drivers/cache/Kconfig
++++ b/drivers/cache/Kconfig
+@@ -16,6 +16,17 @@
+ 	help
+ 	  Support for the L2 cache controller on Andes Technology AX45MP platforms.
+ 
++config ESP32S31_CACHE
++	bool "Espressif ESP32-S31 cache controller"
++	depends on RISCV && 32BIT
++	select RISCV_DMA_NONCOHERENT
++	select RISCV_NONSTANDARD_CACHE_OPS
++	help
++	  Support cache maintenance for DMA on the Espressif ESP32-S31.  The
++	  hart implements no Zicbom and the SoC has no uncached alias of its
++	  PSRAM aperture, so DMA coherency relies on the cache controller's
++	  MMIO sync engine.
++
+ config SIFIVE_CCACHE
+ 	bool "Sifive Composable Cache controller"
+ 	depends on ARCH_SIFIVE || ARCH_STARFIVE
+diff --git a/drivers/cache/Makefile b/drivers/cache/Makefile
+--- a/drivers/cache/Makefile
++++ b/drivers/cache/Makefile
+@@ -1,6 +1,7 @@
+ # SPDX-License-Identifier: GPL-2.0
+ 
+ obj-$(CONFIG_AX45MP_L2_CACHE)		+= ax45mp_cache.o
++obj-$(CONFIG_ESP32S31_CACHE)		+= esp32s31-cache.o
+ obj-$(CONFIG_SIFIVE_CCACHE)		+= sifive_ccache.o
+ obj-$(CONFIG_STARFIVE_STARLINK_CACHE)	+= starfive_starlink_cache.o
+ 

@@ -1,0 +1,44 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/cache/espressif,esp32s31-cache.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Espressif ESP32-S31 cache controller
+
+maintainers:
+  - Marco Müller <hello@annoyedmilk.ch>
+
+description:
+  The ESP32-S31 cache controller fronts the external PSRAM aperture. Its sync
+  engine performs address-ranged invalidate, writeback and writeback-invalidate
+  operations, which the kernel uses for DMA cache maintenance because the hart
+  implements no Zicbom and the SoC exposes no uncached alias of that aperture.
+
+properties:
+  compatible:
+    const: espressif,esp32s31-cache
+
+  reg:
+    maxItems: 1
+
+  cache-line-size:
+    const: 64
+
+  cache-level:
+    const: 1
+
+required:
+  - compatible
+  - reg
+
+additionalProperties: false
+
+examples:
+  - |
+    cache-controller@2c000000 {
+        compatible = "espressif,esp32s31-cache";
+        reg = <0x2c000000 0x1000>;
+        cache-line-size = <64>;
+        cache-level = <1>;
+    };

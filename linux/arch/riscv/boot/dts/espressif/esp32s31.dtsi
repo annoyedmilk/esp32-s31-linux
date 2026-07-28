@@ -67,6 +67,19 @@
 		#size-cells = <1>;
 		compatible = "simple-bus";
 		ranges;
+		/*
+		 * No bus master on this SoC is coherent with the data cache,
+		 * and the hart implements no Zicbom, so every DMA-capable
+		 * device below relies on the cache controller's sync engine.
+		 */
+		dma-noncoherent;
+
+		cache: cache-controller@2c000000 {
+			compatible = "espressif,esp32s31-cache";
+			reg = <0x2c000000 0x1000>;
+			cache-line-size = <64>;
+			cache-level = <1>;
+		};
 
 		clic: interrupt-controller@10a00000 {
 			#interrupt-cells = <3>;
