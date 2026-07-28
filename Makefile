@@ -72,6 +72,14 @@ help:
 		'  make openocd                       start JTAG via GPIO33/34 USB breakout' \
 		'  make clean                         remove generated build output' \
 		'' \
+		'Component targets, each buildable on its own:' \
+		'' \
+		'  make bootloader                    ESP-IDF loader application' \
+		'  make opensbi                       patched OpenSBI fw_jump' \
+		'  make linux                         patched kernel Image and manifest' \
+		'  make busybox                       static RV32 BusyBox binary' \
+		'  make initramfs                     newc archive of BusyBox and init' \
+		'' \
 		'FLASH_PORT is the esptool target: the native USB Serial/JTAG' \
 		'(/dev/cu.usbmodem*) or the CP2102N UART bridge (/dev/cu.usbserial-*).' \
 		'SERIAL_PORT is the external UART carrying the Linux console.' \
