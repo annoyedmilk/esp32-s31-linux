@@ -12,7 +12,6 @@
 #include "esp_partition.h"
 #include "esp_psram.h"
 #include "esp_rom_crc.h"
-#include "esp_rom_gpio.h"
 #include "esp_rom_sys.h"
 #include "esp_clk_tree.h"
 #include "driver/gpio.h"
@@ -27,12 +26,14 @@
 #include "hal/wdt_hal.h"
 #include "riscv/csr_clic.h"
 #include "soc/soc.h"
+#include "soc/soc_caps.h"
 #include "soc/clic_reg.h"
 #include "soc/clk_tree_defs.h"
 #include "soc/cpu_apm_reg.h"
 #include "soc/hp_apm_reg.h"
 #include "soc/hp_mem_apm_reg.h"
 #include <soc/reg_base.h>
+#include "soc/gpio_pins.h"
 #include "soc/gpio_sig_map.h"
 #include "soc/sdmmc_pins.h"
 #include "soc/spi_mem_c_reg.h"
@@ -53,8 +54,32 @@
 #define PMP_FULL_SPACE_NAPOT_ADDR   0x3FFFFFFFU
 #define PMP_ENTRY_RWX_LOCK_NAPOT    0x9FU
 
+/*
+ * APM region attribute word: one nibble per REE mode (R0 through R3), each
+ * holding X at bit 0, W at bit 1 and R at bit 2.  0x7777 grants read, write
+ * and execute to every mode, which is what bring-up needs before any real
+ * privilege separation exists.
+ */
+#define APM_REGION_ATTR_ALL_RWX     0x7777U
+
+/*
+ * MSPI PMS section attribute: secure and non-secure read/write granted with
+ * ECC left disabled.  The flash and PSRAM controllers share this bit layout,
+ * so the SPI_FMEM_C names describe all four register banks written below.
+ */
+#define MSPI_PMS_ATTR_RW \
+    (SPI_FMEM_C_PMS0_RD_ATTR | SPI_FMEM_C_PMS0_WR_ATTR | \
+     SPI_FMEM_C_PMS0_NONSECURE_RD_ATTR | SPI_FMEM_C_PMS0_NONSECURE_WR_ATTR)
+
 #define SD_POWER_EN_GPIO            GPIO_NUM_39
 #define SD_TARGET_CCLK_HZ           50000000U
+
+/*
+ * Total number of CLIC input slots: the 16 architectural local causes
+ * followed by the SOC_CPU_INTR_NUM Interrupt Matrix inputs.  This is the
+ * 48 that CLIC_INT_INFO.NUM_INT reports on the ESP32-S31.
+ */
+#define CLIC_SLOT_COUNT             (CLIC_EXT_INTR_NUM_OFFSET + SOC_CPU_INTR_NUM)
 
 static const char *TAG = "s31-linux-loader";
 
@@ -91,40 +116,50 @@ static void log_cache_mode(void)
              Cache_Address_Through_Cache(KERNEL_LOAD_ADDR) ? "cached" : "bypass");
 }
 
+/*
+ * Grant unrestricted access through every Access Permission Manager on the
+ * chip.  Each APM is programmed with a single region spanning the whole
+ * 32-bit address space, marked RWX for all REE modes, and its filter is then
+ * enabled so the (always-passing) check is actually applied.  FUNC_CTRL
+ * enables the per-master filters; every bit is set so no bus master is left
+ * unfiltered and therefore inconsistently permissive.
+ */
 static void open_apm(void)
 {
     REG_WRITE(CPU_APM_REGION0_ADDR_START_REG, 0);
     REG_WRITE(CPU_APM_REGION0_ADDR_END_REG, 0xFFFFFFFF);
-    REG_WRITE(CPU_APM_REGION0_ATTR_REG, 0x7777);
+    REG_WRITE(CPU_APM_REGION0_ATTR_REG, APM_REGION_ATTR_ALL_RWX);
     REG_WRITE(CPU_APM_REGION_FILTER_EN_REG, 1);
     REG_WRITE(CPU_APM_FUNC_CTRL_REG, 0xFFFFFFFF);
 
     REG_WRITE(HP_APM_REGION0_ADDR_START_REG, 0);
     REG_WRITE(HP_APM_REGION0_ADDR_END_REG, 0xFFFFFFFF);
-    REG_WRITE(HP_APM_REGION0_ATTR_REG, 0x7777);
+    REG_WRITE(HP_APM_REGION0_ATTR_REG, APM_REGION_ATTR_ALL_RWX);
     REG_WRITE(HP_APM_REGION_FILTER_EN_REG, 1);
     REG_WRITE(HP_APM_FUNC_CTRL_REG, 0xFFFFFFFF);
 
     REG_WRITE(HP_MEM_APM_REGION0_ADDR_START_REG, 0);
     REG_WRITE(HP_MEM_APM_REGION0_ADDR_END_REG, 0xFFFFFFFF);
-    REG_WRITE(HP_MEM_APM_REGION0_ATTR_REG, 0x7777);
+    REG_WRITE(HP_MEM_APM_REGION0_ATTR_REG, APM_REGION_ATTR_ALL_RWX);
     REG_WRITE(HP_MEM_APM_REGION_FILTER_EN_REG, 1);
     REG_WRITE(HP_MEM_APM_FUNC_CTRL_REG, 0xFFFFFFFF);
 
     /*
      * Open all four flash/external-memory PMS sections on both MSPI
-     * controllers. The PSRAM controller mirrors the SPI_MEM_C register
-     * layout at DR_REG_PSRAM_MSPI0_BASE.
+     * controllers.  The PSRAM controller mirrors the SPI_MEM_C register
+     * layout at DR_REG_PSRAM_MSPI0_BASE, so the same four section
+     * attributes are written again at that fixed offset.
      */
     for (int i = 0; i < 4; i++) {
         const uint32_t psram_off = DR_REG_PSRAM_MSPI0_BASE - DR_REG_FLASH_SPI0_BASE;
 
-        REG_WRITE(SPI_FMEM_C_PMS0_ATTR_REG + i * 4, 0x1B);
-        REG_WRITE(SPI_SMEM_C_PMS0_ATTR_REG + i * 4, 0x1B);
-        REG_WRITE(SPI_FMEM_C_PMS0_ATTR_REG + psram_off + i * 4, 0x1B);
-        REG_WRITE(SPI_SMEM_C_PMS0_ATTR_REG + psram_off + i * 4, 0x1B);
+        REG_WRITE(SPI_FMEM_C_PMS0_ATTR_REG + i * 4, MSPI_PMS_ATTR_RW);
+        REG_WRITE(SPI_SMEM_C_PMS0_ATTR_REG + i * 4, MSPI_PMS_ATTR_RW);
+        REG_WRITE(SPI_FMEM_C_PMS0_ATTR_REG + psram_off + i * 4, MSPI_PMS_ATTR_RW);
+        REG_WRITE(SPI_SMEM_C_PMS0_ATTR_REG + psram_off + i * 4, MSPI_PMS_ATTR_RW);
     }
 
+    /* Discard any permission faults latched while the filters were opening. */
     REG_WRITE(HP_APM_M0_STATUS_CLR_REG, 1);
     REG_WRITE(HP_APM_M1_STATUS_CLR_REG, 1);
     REG_WRITE(HP_APM_M2_STATUS_CLR_REG, 1);
@@ -146,6 +181,14 @@ static void open_apm(void)
     REG_WRITE(CPU_APM_M3_STATUS_CLR_REG, 1);
 }
 
+/*
+ * The ESP32-S31 implements a single PMP entry, so it is spent on one
+ * permanent full-address-space grant.  pmpaddr0 = 0x3fffffff is the NAPOT
+ * encoding of a 2^32-byte range based at zero (all 30 encoded address bits
+ * set), and pmpcfg0 = 0x9f is L | A=NAPOT | X | W | R.  The lock bit also
+ * makes the entry apply to M-mode, and it cannot be rewritten before reset,
+ * so OpenSBI must leave PMP-based domain isolation alone.
+ */
 static void install_global_pmp(void)
 {
     RV_WRITE_CSR(pmpaddr0, PMP_FULL_SPACE_NAPOT_ADDR);
@@ -154,8 +197,15 @@ static void install_global_pmp(void)
 
 static void mask_clic_slots(void)
 {
-    /* The per-slot IE/ATTR registers are byte-addressed. */
-    for (int i = 0; i < 128; i++) {
+    /*
+     * Silence every CLIC input before handing off.  Each slot owns one
+     * 32-bit control word whose four bytes are individually addressable:
+     * byte 0 is IP, byte 1 IE, byte 2 ATTR, byte 3 CTL.  Clearing IE
+     * disables the input and clearing ATTR returns it to M-mode,
+     * level-triggered, non-vectored delivery, so OpenSBI and Linux start
+     * from a known-quiet controller.
+     */
+    for (int i = 0; i < CLIC_SLOT_COUNT; i++) {
         *(volatile uint8_t *)BYTE_CLIC_INT_IE_REG(i) = 0;
         *(volatile uint8_t *)BYTE_CLIC_INT_ATTR_REG(i) = 0;
     }
@@ -284,12 +334,30 @@ static void init_sd_card(void)
         }
     }
 
-    esp_rom_gpio_connect_in_signal(GPIO_MATRIX_CONST_ZERO_INPUT,
-                                   SD_CARD_DETECT_N_1_PAD_IN_IDX, false);
-    esp_rom_gpio_connect_in_signal(GPIO_MATRIX_CONST_ONE_INPUT,
-                                   SD_CARD_WRITE_PRT_1_PAD_IN_IDX, true);
-    esp_rom_gpio_connect_in_signal(GPIO_MATRIX_CONST_ONE_INPUT,
-                                   SD_CARD_INT_N_1_PAD_IN_IDX, false);
+    /*
+     * The Korvo-1 microSD slot has no card-detect, write-protect or SDIO
+     * interrupt contacts, so those host inputs are driven from the GPIO
+     * matrix constant sources rather than from a pad.  CARD_DETECT_N is
+     * active low and tied to 0 to report a card as always present,
+     * WRITE_PRT is tied to an inverted 1 so the card never reads as write
+     * protected, and CARD_INT_N is held at 1 to keep the SDIO interrupt
+     * deasserted.
+     */
+    err = gpio_matrix_input(GPIO_MATRIX_CONST_ZERO_INPUT,
+                            SD_CARD_DETECT_N_1_PAD_IN_IDX, false);
+    if (err == ESP_OK) {
+        err = gpio_matrix_input(GPIO_MATRIX_CONST_ONE_INPUT,
+                                SD_CARD_WRITE_PRT_1_PAD_IN_IDX, true);
+    }
+    if (err == ESP_OK) {
+        err = gpio_matrix_input(GPIO_MATRIX_CONST_ONE_INPUT,
+                                SD_CARD_INT_N_1_PAD_IN_IDX, false);
+    }
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "failed to route SD slot status signals: %s",
+                 esp_err_to_name(err));
+        return;
+    }
 
     ESP_LOGI(TAG, "SD host: source=%" PRIu32 "Hz cclk_in=%" PRIu32 "Hz div=%" PRIu32
                   " verid=0x%08" PRIx32,
@@ -482,6 +550,19 @@ void app_main(void)
     copy_src = OPENSBI_XIP_ADDR;
     copy_dst = OPENSBI_RAM_ADDR;
 
+    /*
+     * Relocate OpenSBI out of the flash XIP window into SRAM and jump to it.
+     * The copy loop has to be inline assembly because it runs after the point
+     * of no return: interrupts are hard-disabled first (mie = 0, then
+     * mstatus.MIE cleared via csrci with bit 3), and once the destination is
+     * being overwritten no C runtime state may be relied upon.
+     *
+     * fence orders the copy against the following fetches and fence.i
+     * discards instruction-cache lines for the destination range, so the jump
+     * observes the freshly written image rather than stale prefetched bytes.
+     * a0 and a1 are zeroed because OpenSBI's fw_jump entry expects the hart
+     * ID in a0 and a device-tree pointer in a1; this platform passes neither.
+     */
     __asm__ volatile (
         "csrw  mie, zero\n\t"
         "csrci mstatus, 0x8\n\t"

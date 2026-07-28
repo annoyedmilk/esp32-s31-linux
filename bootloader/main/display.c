@@ -21,11 +21,22 @@
 #include "soc/lcd_cam_struct.h"
 #include "display.h"
 
+/*
+ * Frame buffer placement: RGB565 at 800x480 needs 768 KiB, carved out of the
+ * top of the 16 MiB PSRAM aperture so it stays clear of the kernel image at
+ * 0x50000000 and the initramfs at 0x50800000.
+ */
 #define LCD_FB_ADDR            0x50F40000U
 #define LCD_H_RES              800U
 #define LCD_V_RES              480U
 #define LCD_FB_SIZE            (LCD_H_RES * LCD_V_RES * 2U)
 #define LCD_PCLK_HZ            18000000U
+
+/*
+ * The AXI DMA descriptor ring lives in upper SRAM, above the 256 KiB that the
+ * loader relocates OpenSBI into at 0x2F000000.  The DMA engine keeps walking
+ * this ring after the handoff, so it must not be clobbered by that copy.
+ */
 #define LCD_DMA_LINK_ADDR      0x2F079000U
 #define LCD_DMA_LINK_SIZE      0x1000U
 #define LCD_DMA_CHUNK_SIZE     DMA_DESCRIPTOR_BUFFER_MAX_SIZE_64B_ALIGNED
@@ -55,6 +66,13 @@ static void fill_color_bars(void)
     }
 }
 
+/*
+ * Build a self-refreshing descriptor ring covering the whole frame buffer.
+ * The transfer is split into DMA_DESCRIPTOR_BUFFER_MAX_SIZE_64B_ALIGNED
+ * chunks because one descriptor cannot span the full 768 KiB.  The last
+ * descriptor links back to the first, so the DMA engine walks the frame
+ * buffer forever without any CPU involvement after the handoff.
+ */
 static void build_dma_link(void)
 {
     dma_descriptor_align8_t *link = (dma_descriptor_align8_t *)LCD_DMA_LINK_ADDR;
@@ -67,6 +85,7 @@ static void build_dma_link(void)
         if (chunk > LCD_DMA_CHUNK_SIZE) {
             chunk = LCD_DMA_CHUNK_SIZE;
         }
+        /* Hand ownership to the DMA engine and flag end-of-frame on the last node. */
         link[i].dw0.size = chunk;
         link[i].dw0.length = chunk;
         link[i].dw0.suc_eof = (i == LCD_DMA_NODE_COUNT - 1U);
@@ -174,7 +193,11 @@ bool display_init(void)
         goto fail;
     }
 
-    /* Keep the descriptor ring above the OpenSBI relocation destination. */
+    /*
+     * Replace the driver's descriptor chain with the standalone ring in
+     * SRAM and restart the transfer from it.  Interrupts are silenced first
+     * because nothing services them once Linux takes over the CLIC.
+     */
     build_dma_link();
     silence_lcd_interrupts(channel);
     start_dma_link(channel);

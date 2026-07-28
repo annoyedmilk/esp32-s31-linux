@@ -258,13 +258,9 @@ SYM_CODE_START(esp32s31_clic_trampoline)
 	csrw	CSR_STATUS, t0
 
 	/*
-	 * Restore xcause before xret. The CLIC stores the previous interrupt
-	 * level in xcause; xret copies it back to xintstatus. In S-mode this
-	 * must be scause+sret. Using mret leaves mintstatus.SIL at the taken
-	 * interrupt's level and permanently masks all later S interrupts.
+	 * Now safe to restore the GPRs: xIE is off, so there is no preemption.
+	 * All of them except sp, which is restored last.
 	 */
-	/* Now safe to restore GPRs - xIE is off, no preemption */
-	/* (Restore all GPRs except sp, restored last) */
 	REG_L	ra,  PT_RA(sp)
 	REG_L	gp,  PT_GP(sp)
 	REG_L	tp,  PT_TP(sp)
@@ -296,7 +292,12 @@ SYM_CODE_START(esp32s31_clic_trampoline)
 
 	/*
 	 * scause must be live at sret; restore it after all other state.  The
-	 * level was already popped at entry, so force spil to zero here as
+	 * CLIC stores the previous interrupt level in scause and sret copies
+	 * it back to sintstatus, so this must be scause plus sret: using mret
+	 * leaves mintstatus.SIL at the taken interrupt's level and permanently
+	 * masks every later supervisor interrupt.
+	 *
+	 * The level was already popped at entry, so force spil to zero here as
 	 * well: the interrupted context always resumes at base level, and the
 	 * saved spil may be stale if the scheduler interleaved handler frames.
 	 */

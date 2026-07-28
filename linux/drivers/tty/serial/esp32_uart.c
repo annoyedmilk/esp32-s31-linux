@@ -26,7 +26,6 @@
 #define UART_NR		3
 
 #define ESP32_UART_TX_FIFO_SIZE	127
-#define ESP32_UART_RX_FIFO_SIZE	127
 
 #define UART_FIFO_REG			0x00
 #define UART_INT_RAW_REG		0x04
@@ -39,7 +38,6 @@
 #define UART_CLKDIV_REG			0x14
 #define ESP32_UART_CLKDIV			GENMASK(19, 0)
 #define ESP32S3_UART_CLKDIV			GENMASK(11, 0)
-#define UART_CLKDIV_SHIFT			0
 #define UART_CLKDIV_FRAG			GENMASK(23, 20)
 #define UART_STATUS_REG			0x1c
 #define ESP32_UART_RXFIFO_CNT			GENMASK(7, 0)
@@ -289,11 +287,6 @@ static void esp32_uart_transmit_buffer(struct uart_port *port)
 	}
 }
 
-static void esp32_uart_txint(struct uart_port *port)
-{
-	esp32_uart_transmit_buffer(port);
-}
-
 static irqreturn_t esp32_uart_int(int irq, void *dev_id)
 {
 	struct uart_port *port = dev_id;
@@ -304,16 +297,11 @@ static irqreturn_t esp32_uart_int(int irq, void *dev_id)
 	if (status & (UART_RXFIFO_FULL_INT | UART_BRK_DET_INT))
 		esp32_uart_rxint(port);
 	if (status & UART_TXFIFO_EMPTY_INT)
-		esp32_uart_txint(port);
+		esp32_uart_transmit_buffer(port);
 
 	esp32_uart_write(port, UART_INT_CLR_REG, status);
 
 	return IRQ_RETVAL(status);
-}
-
-static void esp32_uart_start_tx(struct uart_port *port)
-{
-	esp32_uart_transmit_buffer(port);
 }
 
 static void esp32_uart_stop_rx(struct uart_port *port)
@@ -327,9 +315,9 @@ static void esp32_uart_stop_rx(struct uart_port *port)
 
 static int esp32_uart_startup(struct uart_port *port)
 {
-	int ret = 0;
-	unsigned long flags;
 	struct esp32_port *sport = container_of(port, struct esp32_port, port);
+	unsigned long flags;
+	int ret;
 
 	ret = clk_prepare_enable(sport->clk);
 	if (ret)
@@ -352,7 +340,7 @@ static int esp32_uart_startup(struct uart_port *port)
 	esp32_uart_write(port, UART_INT_ENA_REG, UART_RXFIFO_FULL_INT | UART_BRK_DET_INT);
 	spin_unlock_irqrestore(&port->lock, flags);
 
-	return ret;
+	return 0;
 }
 
 static void esp32_uart_shutdown(struct uart_port *port)
@@ -488,18 +476,12 @@ static int esp32_uart_poll_init(struct uart_port *port)
 	return clk_prepare_enable(sport->clk);
 }
 
-static void esp32_uart_poll_put_char(struct uart_port *port, unsigned char c)
-{
-	esp32_uart_put_char_sync(port, c);
-}
-
 static int esp32_uart_poll_get_char(struct uart_port *port)
 {
 	if (esp32_uart_rx_fifo_cnt(port))
 		return esp32_uart_read(port, UART_FIFO_REG);
 	else
 		return NO_POLL_CHAR;
-
 }
 #endif
 
@@ -508,7 +490,7 @@ static const struct uart_ops esp32_uart_pops = {
 	.set_mctrl	= esp32_uart_set_mctrl,
 	.get_mctrl	= esp32_uart_get_mctrl,
 	.stop_tx	= esp32_uart_stop_tx,
-	.start_tx	= esp32_uart_start_tx,
+	.start_tx	= esp32_uart_transmit_buffer,
 	.stop_rx	= esp32_uart_stop_rx,
 	.startup	= esp32_uart_startup,
 	.shutdown	= esp32_uart_shutdown,
@@ -517,21 +499,10 @@ static const struct uart_ops esp32_uart_pops = {
 	.config_port	= esp32_uart_config_port,
 #ifdef CONFIG_CONSOLE_POLL
 	.poll_init	= esp32_uart_poll_init,
-	.poll_put_char	= esp32_uart_poll_put_char,
+	.poll_put_char	= esp32_uart_put_char_sync,
 	.poll_get_char	= esp32_uart_poll_get_char,
 #endif
 };
-
-static void esp32_uart_console_putchar(struct uart_port *port, u8 c)
-{
-	esp32_uart_put_char_sync(port, c);
-}
-
-static void esp32_uart_string_write(struct uart_port *port, const char *s,
-				    unsigned int count)
-{
-	uart_console_write(port, s, count, esp32_uart_console_putchar);
-}
 
 static void
 esp32_uart_console_write(struct console *co, const char *s, unsigned int count)
@@ -548,7 +519,7 @@ esp32_uart_console_write(struct console *co, const char *s, unsigned int count)
 	else
 		spin_lock_irqsave(&port->lock, flags);
 
-	esp32_uart_string_write(port, s, count);
+	uart_console_write(port, s, count, esp32_uart_put_char_sync);
 
 	if (locked)
 		spin_unlock_irqrestore(&port->lock, flags);
@@ -605,17 +576,12 @@ static struct console esp32_uart_console = {
 	.data		= &esp32_uart_reg,
 };
 
-static void esp32_uart_earlycon_putchar(struct uart_port *port, u8 c)
-{
-	esp32_uart_put_char_sync(port, c);
-}
-
 static void esp32_uart_earlycon_write(struct console *con, const char *s,
 				      unsigned int n)
 {
 	struct earlycon_device *dev = con->data;
 
-	uart_console_write(&dev->port, s, n, esp32_uart_earlycon_putchar);
+	uart_console_write(&dev->port, s, n, esp32_uart_put_char_sync);
 }
 
 #ifdef CONFIG_CONSOLE_POLL
@@ -744,10 +710,9 @@ static void esp32_uart_remove(struct platform_device *pdev)
 	uart_remove_one_port(&esp32_uart_reg, port);
 }
 
-
 static struct platform_driver esp32_uart_driver = {
 	.probe		= esp32_uart_probe,
-	.remove	= esp32_uart_remove,
+	.remove		= esp32_uart_remove,
 	.driver		= {
 		.name	= DRIVER_NAME,
 		.of_match_table	= esp32_uart_dt_ids,

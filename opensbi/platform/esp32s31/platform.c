@@ -29,8 +29,10 @@
 #define ESP32S31_HP_MEM_APM_ATTR0	0x2050480cUL
 #define ESP32S31_APM_REE_TEE_RWX	0x7777UL
 
-/* CPU_APM guards the CPU-local bus. Open one full-range region so S-mode can
- * reach the CLIC and machine-timer windows. */
+/*
+ * CPU_APM guards the CPU-local bus.  Open one full-range region so S-mode
+ * can reach the CLIC and machine-timer windows.
+ */
 #define ESP32S31_CPU_APM_BASE		0x20504c00UL
 #define ESP32S31_CPU_APM_FILTER_EN	(ESP32S31_CPU_APM_BASE + 0x00UL)
 #define ESP32S31_CPU_APM_REGION0_START	(ESP32S31_CPU_APM_BASE + 0x04UL)
@@ -210,22 +212,21 @@ static int esp32s31_final_init(bool cold_boot)
 }
 
 /*
- * A CLINT-style machine-timer window lives at 0x10000000: mtime at
- *   +0xbff8, mtimecmp at +0x4000, a control register at +0x4010. The
- *   mtimecmp match is wired to CLIC input 7, the standard machine-timer
- *   interrupt ID. The ESP-IDF loader raises the CPU and machine timer clock
- *   to 320 MHz before entering OpenSBI.
+ * A CLINT-style machine-timer window lives at 0x10000000: mtime at +0xbff8,
+ * mtimecmp at +0x4000, and a control register at +0x4010.  The mtimecmp
+ * match is wired to CLIC input 7, the standard machine-timer interrupt ID.
+ * The ESP-IDF loader raises the CPU and machine-timer clock to 320 MHz
+ * before entering OpenSBI.
  *
- * mcliccfg.NMBITS is writable. NMBITS=1
- *   unlocks clicintattr[i].MODE so individual CLIC inputs can be
- *   delivered directly to S-mode. CLIC input 5 doubles as the S-mode
- *   timer interrupt because in CLIC mode the interrupt ID lands in the
- *   scause exception-code field and 5 == IRQ_S_TIMER.
+ * mcliccfg.NMBITS is writable.  NMBITS=1 unlocks clicintattr[i].MODE so
+ * individual CLIC inputs can be delivered directly to S-mode.  CLIC input 5
+ * doubles as the S-mode timer interrupt because in CLIC mode the interrupt
+ * ID lands in the scause exception-code field and 5 == IRQ_S_TIMER.
  *
  * Delivery path: mtimecmp match -> CLIC ID7 -> M-mode trap (standard
- * IRQ_M_TIMER handling, no platform hook) -> sbi_timer_process() ->
- * S-mode event callback asserts CLIC ID5 pending -> hardware delivers
- * to S-mode stvec once sstatus.SIE permits.
+ * IRQ_M_TIMER handling, no platform hook) -> sbi_timer_process() -> S-mode
+ * event callback asserts CLIC ID5 pending -> hardware delivers to S-mode
+ * stvec once sstatus.SIE permits.
  */
 #define ESP32S31_MTIMER_BASE		0x10000000UL
 #define ESP32S31_MTIMECMP_LO		(ESP32S31_MTIMER_BASE + 0x4000UL)
@@ -278,8 +279,10 @@ static void esp32s31_timer_event_start(u64 next_event)
 		   ESP32S31_CLIC_ATTR_M_EDGE);
 	reg_write8(ESP32S31_CLIC_IE(ESP32S31_CLIC_MTIMER_ID), 1);
 
-	/* Park the compare high word so the 64-bit update cannot match
-	 * a half-written value. */
+	/*
+	 * Park the compare high word so the 64-bit update cannot match a
+	 * half-written value.
+	 */
 	reg_write(ESP32S31_MTIMECMP_HI, 0xffffffffUL);
 	reg_write(ESP32S31_MTIMECMP_LO, (u32)next_event);
 	reg_write(ESP32S31_MTIMECMP_HI, (u32)(next_event >> 32));
@@ -300,8 +303,10 @@ static struct sbi_timer_device esp32s31_timer = {
 	.timer_event_stop = esp32s31_timer_event_stop,
 };
 
-/* Override the weak MIP.STIP hooks from sbi_timer.c: on this core MIP is
- * not writable, the S-mode timer interrupt is CLIC input 5 instead. */
+/*
+ * Override the weak MIP.STIP hooks from sbi_timer.c: on this core MIP is not
+ * writable, the S-mode timer interrupt is CLIC input 5 instead.
+ */
 void sbi_timer_plat_sirq_set(void)
 {
 	/* ATTR and CTL are configuration state; delivery only asserts IP. */
@@ -313,9 +318,11 @@ void sbi_timer_plat_sirq_clear(void)
 	reg_write8(ESP32S31_CLIC_IP(ESP32S31_CLIC_STIMER_ID), 0);
 }
 
-/* MIP.SSIP is not writable on this CLIC-only hart. SBI self-IPIs (used by
+/*
+ * MIP.SSIP is not writable on this CLIC-only hart.  SBI self-IPIs (used by
  * Linux irq_work even on a uniprocessor system) are delivered through CLIC
- * input 1, whose cause code is the standard supervisor-software interrupt. */
+ * input 1, whose cause code is the standard supervisor-software interrupt.
+ */
 void sbi_ipi_plat_sirq_set(void)
 {
 	reg_write8(ESP32S31_CLIC_IP(ESP32S31_CLIC_SSOFT_ID), 1);
@@ -343,8 +350,10 @@ static int esp32s31_timer_init(void)
 		   ESP32S31_CLIC_CTL_MAX);
 	reg_write8(ESP32S31_CLIC_IE(ESP32S31_CLIC_MTIMER_ID), 1);
 
-	/* S-mode timer input: enabled here so payloads without a CLIC
-	 * driver receive it; an S-mode kernel may manage IE itself. */
+	/*
+	 * S-mode timer input: enabled here so payloads without a CLIC driver
+	 * receive it; an S-mode kernel may manage IE itself.
+	 */
 	reg_write8(ESP32S31_CLIC_IP(ESP32S31_CLIC_STIMER_ID), 0);
 	reg_write8(ESP32S31_CLIC_ATTR(ESP32S31_CLIC_STIMER_ID),
 		   ESP32S31_CLIC_ATTR_S_EDGE);

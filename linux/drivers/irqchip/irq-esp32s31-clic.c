@@ -44,32 +44,39 @@
  * To access the OTHER core's registers, add 0x10000.
  */
 #define ESP32S31_CLIC_CTRL_BASE 0x10a01000	/* S-mode per-interrupt window */
-#define ESP32S31_CLIC_INT_STRIDE 4 /* 4 bytes per interrupt */
-#define ESP32S31_CLIC_INT_IP 0x0 /* Interrupt pending (byte 0, bit 0) */
-#define ESP32S31_CLIC_INT_IE 0x1 /* Interrupt enable  (byte 1, bit 0) */
-#define ESP32S31_CLIC_INT_ATTR 0x2 /* Interrupt attributes (byte 2) */
-#define ESP32S31_CLIC_INT_CTL 0x3 /* Interrupt level (byte 3, bits [7:5]) */
+#define ESP32S31_CLIC_INT_STRIDE 4		/* Bytes per interrupt */
+#define ESP32S31_CLIC_INT_IP 0x0		/* Pending (byte 0, bit 0) */
+#define ESP32S31_CLIC_INT_IE 0x1		/* Enable (byte 1, bit 0) */
+#define ESP32S31_CLIC_INT_ATTR 0x2		/* Attributes (byte 2) */
+#define ESP32S31_CLIC_INT_CTL 0x3		/* Level (byte 3, bits [7:5]) */
 
 /* Interrupt numbering */
 
-#define CLIC_EXT_MIN_ID 16 /* First external IRQ        */
-#define CLIC_NR_IRQS 48 /* 16 local + 32 external    */
+#define CLIC_EXT_MIN_ID 16			/* First external IRQ */
+#define CLIC_NR_IRQS 48				/* 16 local + 32 external */
 #define ESP32S31_CLIC_IRQ_WORK_ID CLIC_EXT_MIN_ID
+
+/*
+ * In CLIC mode the low cause bits hold the interrupt ID while the upper bits
+ * carry CLIC metadata such as the previous interrupt level.  CAUSE_IRQ_FLAG
+ * does not strip those, so decode the exception code with an explicit mask.
+ */
+#define CLIC_CAUSE_EXCCODE_MASK 0xfff
 
 /* CLIC configuration constants */
 
-#define ESP32S31_CLICINTCTLBITS 3 /* Hardwired implemented control bits */
-#define ESP32S31_CLICNLBITS 1 /* CLICCFG.nlbits established by firmware */
-#define ESP32S31_MAX_PRIORITY 3 /* Two remaining implemented priority bits */
+#define ESP32S31_CLICINTCTLBITS 3		/* Implemented control bits */
+#define ESP32S31_CLICNLBITS 1			/* CLICCFG.nlbits set by firmware */
+#define ESP32S31_MAX_PRIORITY 3			/* Two remaining priority bits */
 
 /* CLIC CSRs */
 #ifndef CSR_SINTTHRESH
 #define CSR_SINTTHRESH 0x147
 #endif
 
-/* clicintctl[i] encoding with CLICINTCTLBITS=3 and CLICCFG.nlbits=1 */
 /*
- * clicintctl[i] byte (byte 3 of the per-interrupt 32-bit word):
+ * clicintctl[i] encoding with CLICINTCTLBITS=3 and CLICCFG.nlbits=1.  The
+ * byte (byte 3 of the per-interrupt 32-bit word) is laid out as:
  *   bit  [7]   = interrupt level (0-1)
  *   bits [6:5] = priority within that level (0-3)
  *
@@ -84,8 +91,8 @@
 	(((level) << (8 - ESP32S31_CLICNLBITS)) | \
 	 ((prio) << (8 - ESP32S31_CLICINTCTLBITS)))
 
-/* Interrupt attribute bits (byte 2 of per-interrupt word) */
 /*
+ * Interrupt attribute bits (byte 2 of the per-interrupt word):
  *   bit 0:      SHV, left clear for non-vectored delivery
  *   bits [2:1]: TRIG, trigger type
  *     X0 = level, 01 = rising edge, 11 = falling edge
@@ -116,14 +123,14 @@ struct esp32s31_clic {
 static DEFINE_PER_CPU(struct esp32s31_clic *, clic_per_cpu);
 static DEFINE_PER_CPU(raw_spinlock_t, clic_lock);
 
-/* Register access helpers */
 /*
- * The ESP32-S31 CLIC uses per-core address virtualisation.
- * Every core accesses its OWN per-interrupt registers at the same
- * physical address (ESP32S31_CLIC_CTRL_BASE + irq_id*4 + byte_offset).
- * The +0x10000 dual-core offset is ONLY used to access the OTHER core's
- * registers from a different core - never for the current core's own
- * registers.
+ * Register access helpers.
+ *
+ * The ESP32-S31 CLIC uses per-core address virtualisation.  Every core
+ * accesses its OWN per-interrupt registers at the same physical address
+ * (ESP32S31_CLIC_CTRL_BASE + irq_id*4 + byte_offset).  The +0x10000
+ * dual-core offset is ONLY used to access the OTHER core's registers from a
+ * different core - never for the current core's own registers.
  */
 static inline u8 clic_readb(struct esp32s31_clic *clic, unsigned int irq_id,
 			    unsigned int byte_off)
@@ -239,8 +246,9 @@ static struct irq_chip esp32s31_clic_chip = {
 	.irq_set_type = esp32s31_clic_set_type,
 };
 
-/* S-mode CLIC chip for the riscv,cpu-intc domain */
 /*
+ * S-mode CLIC chip for the riscv,cpu-intc domain.
+ *
  * On ESP32-S31 in CLIC mode the standard S-mode interrupt-enable CSRs
  * (sie/sieh) are illegal.  Local riscv,cpu-intc interrupts (timer, IPI)
  * must be masked/unmasked through the S-mode CLIC MMIO window instead.
@@ -351,7 +359,7 @@ static void esp32s31_intmatrix_route(struct esp32s31_clic *clic,
 		return;
 	}
 
-	reg = clic->intmatrix_regs + source * 4;
+	reg = clic->intmatrix_regs + source * sizeof(u32);
 	val = readl(reg);
 	val &= ~(ESP32S31_INTMATRIX_MAP_MASK |
 		 ESP32S31_INTMATRIX_PASS_LEVEL_MASK);
@@ -469,14 +477,7 @@ void esp32s31_clic_handle_irq(struct pt_regs *regs)
 		return;
 
 	raw_cause = regs->cause;
-
-	/*
-	 * In CLIC mode the low cause bits hold the interrupt ID while the
-	 * upper bits carry interrupt metadata such as the current level. The
-	 * standard CAUSE_IRQ_FLAG mask does not strip those CLIC-specific bits,
-	 * so decode only the cause code itself here.
-	 */
-	irq_id = regs->cause & 0xfff;
+	irq_id = raw_cause & CLIC_CAUSE_EXCCODE_MASK;
 
 	/*
 	 * Interrupt IDs below the first CLIC external source are standard local
