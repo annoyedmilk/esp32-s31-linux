@@ -1,129 +1,124 @@
 diff --git a/drivers/mmc/host/dw_mmc.c b/drivers/mmc/host/dw_mmc.c
 --- a/drivers/mmc/host/dw_mmc.c
 +++ b/drivers/mmc/host/dw_mmc.c
-@@ -238,6 +238,14 @@
- 			cmd, arg, cmd_status);
+@@ -485,6 +485,35 @@
+ 	}
  }
  
-+static bool dw_mci_use_auto_stop(struct dw_mci *host,
-+				 struct mmc_command *cmd)
++/*
++ * The IDMAC ring is ordinary cached memory on platforms that cannot provide a
++ * coherent alias, so ownership hand-offs need explicit maintenance.  Sync the
++ * whole ring rather than individual descriptors: they are 16 bytes and several
++ * share a cache line, so a per-descriptor invalidate could discard a
++ * neighbour.
++ */
++static void dw_mci_desc_sync_for_cpu(struct dw_mci *host)
 +{
-+	return (host->quirks & DW_MMC_QUIRK_AUTO_STOP) && cmd->data &&
-+	       (cmd->opcode == MMC_READ_MULTIPLE_BLOCK ||
-+		cmd->opcode == MMC_WRITE_MULTIPLE_BLOCK);
++	if (host->quirks & DW_MMC_QUIRK_NONCOHERENT_DESC)
++		dma_sync_single_for_cpu(host->dev, host->sg_dma,
++					DESC_RING_BUF_SZ, DMA_BIDIRECTIONAL);
 +}
 +
- static u32 dw_mci_prepare_command(struct mmc_host *mmc, struct mmc_command *cmd)
++static void dw_mci_desc_sync_for_device(struct dw_mci *host)
++{
++	if (host->quirks & DW_MMC_QUIRK_NONCOHERENT_DESC)
++		dma_sync_single_for_device(host->dev, host->sg_dma,
++					   DESC_RING_BUF_SZ, DMA_BIDIRECTIONAL);
++}
++
++static void dw_mci_free_noncoherent_desc(void *data)
++{
++	struct dw_mci *host = data;
++
++	dma_free_noncoherent(host->dev, DESC_RING_BUF_SZ, host->sg_cpu,
++			     host->sg_dma, DMA_BIDIRECTIONAL);
++}
++
+ static int dw_mci_idmac_init(struct dw_mci *host)
  {
- 	struct dw_mci *host = mmc_priv(mmc);
-@@ -254,6 +262,9 @@
- 		cmdr |= SDMMC_CMD_STOP;
- 	else if (cmd->opcode != MMC_SEND_STATUS && cmd->data)
- 		cmdr |= SDMMC_CMD_PRV_DAT_WAIT;
+ 	int i;
+@@ -538,6 +567,8 @@
+ 		p->des0 = cpu_to_le32(IDMAC_DES0_ER);
+ 	}
+ 
++	dw_mci_desc_sync_for_device(host);
 +
-+	if (dw_mci_use_auto_stop(host, cmd))
-+		cmdr |= SDMMC_CMD_SEND_STOP;
+ 	dw_mci_idmac_reset(host);
  
- 	if (cmd->opcode == SD_SWITCH_VOLTAGE) {
- 		u32 clk_en_a;
-@@ -2063,8 +2074,11 @@
- 			err = dw_mci_data_complete(host, data);
+ 	if (host->dma_64bit_address == 1) {
+@@ -572,6 +603,8 @@
+ 	u32 val, des0;
+ 	int i, err;
  
- 			if (!err) {
--				if (!data->stop || mrq->sbc) {
--					if (mrq->sbc && data->stop)
-+				if (!data->stop || mrq->sbc ||
-+				    dw_mci_use_auto_stop(host, mrq->cmd)) {
-+					if ((mrq->sbc ||
-+					     dw_mci_use_auto_stop(host, mrq->cmd)) &&
-+					    data->stop)
- 						data->stop->error = 0;
- 					dw_mci_request_end(host, mrq);
- 					goto unlock;
-@@ -2659,6 +2673,31 @@
- 
- 	pending = mci_readl(host, MINTSTS); /* read-only mask reg */
- 
-+	/*
-+	 * PIO can report HTO after the requested bytes have been copied but
-+	 * before the ESP32-S31 completes its automatic stop. Finish the data
-+	 * phase and discard only the trailing FIFO data in that exact state.
-+	 */
-+	if ((host->quirks & DW_MMC_QUIRK_AUTO_STOP) &&
-+	    host->use_dma == TRANS_MODE_PIO &&
-+	    host->dir_status == MMC_DATA_READ &&
-+	    (pending & SDMMC_INT_HTO)) {
-+		mci_writel(host, RINTSTS, SDMMC_INT_HTO);
-+		pending &= ~SDMMC_INT_HTO;
++	dw_mci_desc_sync_for_cpu(host);
 +
-+		if (!host->sg &&
-+		    test_bit(EVENT_XFER_COMPLETE, &host->pending_events)) {
-+			spin_lock(&host->irq_lock);
-+			timer_delete(&host->dto_timer);
-+			pending &= ~SDMMC_INT_RXDR;
-+			mci_writel(host, RINTSTS, SDMMC_INT_RXDR);
-+			dw_mci_ctrl_reset(host, SDMMC_CTRL_FIFO_RESET);
-+			set_bit(EVENT_DATA_COMPLETE, &host->pending_events);
-+			queue_work(system_bh_wq, &host->bh_work);
-+			spin_unlock(&host->irq_lock);
+ 	if (is_64bit)
+ 		desc64_first = desc64_last = desc64 = host->sg_cpu;
+ 	else
+@@ -667,6 +700,8 @@
+ 	if (ret)
+ 		goto out;
+ 
++	dw_mci_desc_sync_for_device(host);
++
+ 	/* drain writebuffer */
+ 	wmb();
+ 
+@@ -2953,9 +2988,23 @@
+ 		}
+ 
+ 		/* Alloc memory for sg translation */
+-		host->sg_cpu = dmam_alloc_coherent(host->dev,
+-						   DESC_RING_BUF_SZ,
+-						   &host->sg_dma, GFP_KERNEL);
++		if (host->quirks & DW_MMC_QUIRK_NONCOHERENT_DESC) {
++			host->sg_cpu = dma_alloc_noncoherent(host->dev,
++							     DESC_RING_BUF_SZ,
++							     &host->sg_dma,
++							     DMA_BIDIRECTIONAL,
++							     GFP_KERNEL);
++			if (host->sg_cpu &&
++			    devm_add_action_or_reset(host->dev,
++						     dw_mci_free_noncoherent_desc,
++						     host))
++				host->sg_cpu = NULL;
++		} else {
++			host->sg_cpu = dmam_alloc_coherent(host->dev,
++							   DESC_RING_BUF_SZ,
++							   &host->sg_dma,
++							   GFP_KERNEL);
 +		}
-+	}
-+
- 	if (pending) {
- 		/* Check volt switch first, since it can look like an error */
- 		if ((host->state == STATE_SENDING_CMD11) &&
-@@ -2909,6 +2948,8 @@
- 	int addr_config;
- 	struct device *dev = host->dev;
- 
-+	if (host->quirks & DW_MMC_QUIRK_FORCE_PIO)
-+		goto no_dma;
- 	/*
- 	* Check tansfer mode from HCON[17:16]
- 	* Clear the ambiguous description of dw_mmc databook:
+ 		if (!host->sg_cpu) {
+ 			dev_err(host->dev,
+ 				"%s: could not alloc DMA memory\n",
 diff --git a/drivers/mmc/host/dw_mmc.h b/drivers/mmc/host/dw_mmc.h
 --- a/drivers/mmc/host/dw_mmc.h
 +++ b/drivers/mmc/host/dw_mmc.h
-@@ -269,6 +269,10 @@
+@@ -269,6 +269,8 @@
  #define DW_MMC_QUIRK_EXTENDED_TMOUT            BIT(0)
  /* Force 32-bit access to the FIFO */
  #define DW_MMC_QUIRK_FIFO64_32                 BIT(1)
-+/* Use the controller's automatic stop command for multi-block transfers */
-+#define DW_MMC_QUIRK_AUTO_STOP                 BIT(2)
-+/* Force CPU-driven FIFO transfers */
-+#define DW_MMC_QUIRK_FORCE_PIO                 BIT(3)
++/* Descriptor ring needs explicit cache maintenance, no coherent alias exists */
++#define DW_MMC_QUIRK_NONCOHERENT_DESC          BIT(2)
  
  #define DW_MMC_240A		0x240a
  #define DW_MMC_280A		0x280a
 diff --git a/drivers/mmc/host/dw_mmc-pltfm.c b/drivers/mmc/host/dw_mmc-pltfm.c
 --- a/drivers/mmc/host/dw_mmc-pltfm.c
 +++ b/drivers/mmc/host/dw_mmc-pltfm.c
-@@ -90,7 +90,37 @@
+@@ -90,7 +90,24 @@
  	.init		= dw_mci_socfpga_priv_init,
  };
  
 +static int dw_mci_esp32s31_init(struct dw_mci *host)
 +{
-+	u32 ctrl, bmod;
-+
-+	host->quirks |= DW_MMC_QUIRK_AUTO_STOP | DW_MMC_QUIRK_FORCE_PIO;
-+
 +	/*
-+	 * DW_MMC_QUIRK_FORCE_PIO skips dw_mci_init_dma(), which otherwise
-+	 * owns every write to the DMA interface, so park it here instead.
++	 * PSRAM has no uncached alias on this SoC and RV32 cannot remap it,
++	 * so dma_alloc_coherent() would hand back plain cached memory and the
++	 * IDMAC ownership bits would go stale.  Take the descriptor ring from
++	 * non-coherent DMA memory and maintain it explicitly instead.
 +	 */
-+	ctrl = mci_readl(host, CTRL);
-+	ctrl &= ~(SDMMC_CTRL_USE_IDMAC | SDMMC_CTRL_DMA_ENABLE);
-+	mci_writel(host, CTRL, ctrl);
-+
-+	bmod = mci_readl(host, BMOD);
-+	bmod &= ~(SDMMC_IDMAC_ENABLE | SDMMC_IDMAC_FB);
-+	mci_writel(host, BMOD, bmod);
-+
-+	dev_dbg(host->dev, "ctrl %#010x bmod %#010x hcon %#010x fifoth %#010x\n",
-+		mci_readl(host, CTRL), mci_readl(host, BMOD),
-+		mci_readl(host, HCON), mci_readl(host, FIFOTH));
-+
++	host->quirks |= DW_MMC_QUIRK_NONCOHERENT_DESC;
 +	return 0;
 +}
 +
