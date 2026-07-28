@@ -9,12 +9,13 @@ The verified boot chain is:
 ESP ROM -> ESP-IDF second stage -> loader -> OpenSBI -> Linux -> BusyBox initramfs
 ```
 
-The loader initializes PSRAM, copies the exact Linux image length through the
-cacheable aperture at `0x50000000`, zeroes its in-memory tail, copies the
-initramfs to `0x50800000`,
-installs the chip's single global PMP grant, and hands control to OpenSBI at
-`0x2f000000`. OpenSBI provides SBI TIME through the machine timer and delivers
-supervisor interrupts through the S31 CLIC.
+The ESP-IDF second stage brings up PSRAM before `app_main` runs. The loader
+verifies that, copies the exact Linux image length through the cacheable
+aperture at `0x50000000` after checking the image's size and CRC manifest,
+zeroes its in-memory tail, copies the initramfs to `0x50800000`, installs the
+chip's single global PMP grant, and hands control to OpenSBI at `0x2f000000`.
+OpenSBI provides SBI TIME through the machine timer and delivers supervisor
+interrupts through the S31 CLIC.
 
 The verified cache geometry is a 32 KiB, two-way instruction cache and a
 64 KiB, two-way data cache, both with 64-byte lines. OpenSBI marks cached
