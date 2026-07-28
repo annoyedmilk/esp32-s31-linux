@@ -84,7 +84,7 @@
 			clocks = <&sdmmc_clk>, <&sdmmc_clk>;
 			clock-names = "biu", "ciu";
 			clock-frequency = <50000000>;
-			fifo-depth = <32>;
+			fifo-depth = <512>;
 			bus-width = <4>;
 			cap-sd-highspeed;
 			no-1-8-v;
