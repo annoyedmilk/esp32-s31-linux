@@ -1,7 +1,41 @@
+diff --git a/arch/riscv/kernel/setup.c b/arch/riscv/kernel/setup.c
+--- a/arch/riscv/kernel/setup.c
++++ b/arch/riscv/kernel/setup.c
+@@ -28,7 +28,8 @@
+ #include <asm/alternative.h>
+ #include <asm/cacheflush.h>
+ #include <asm/cpufeature.h>
+ #include <asm/early_ioremap.h>
++#include <asm/esp32s31-cache.h>
+ #include <asm/pgtable.h>
+ #include <asm/setup.h>
+ #include <asm/set_memory.h>
+@@ -357,9 +358,21 @@
+ 	apply_boot_alternatives();
+ 	init_rt_signal_env();
+ 
+ 	if (IS_ENABLED(CONFIG_RISCV_ISA_ZICBOM) &&
+ 	    riscv_isa_extension_available(NULL, ZICBOM))
+ 		riscv_noncoherent_supported();
++	/*
++	 * The ESP32-S31 has no Zicbom; its cache controller driver supplies
++	 * the maintenance operations from an early_initcall, once ioremap()
++	 * is usable.  Declare the support here regardless: the slab allocator
++	 * sizes kmalloc from dma_get_cache_alignment() long before initcalls
++	 * run, and without SWIOTLB there is no bounce path for a DMA buffer
++	 * that shares a cache line with another allocation.
++	 */
++	if (IS_ENABLED(CONFIG_ESP32S31_CACHE)) {
++		riscv_cbom_block_size = ESP32S31_CACHE_LINE_SIZE;
++		riscv_noncoherent_supported();
++	}
+ 	riscv_set_dma_cache_alignment();
+ 
+ 	riscv_user_isa_enable();
 diff --git a/drivers/cache/Kconfig b/drivers/cache/Kconfig
 --- a/drivers/cache/Kconfig
 +++ b/drivers/cache/Kconfig
-@@ -16,6 +16,17 @@
+@@ -16,6 +16,20 @@
  	help
  	  Support for the L2 cache controller on Andes Technology AX45MP platforms.
  
@@ -10,11 +44,14 @@ diff --git a/drivers/cache/Kconfig b/drivers/cache/Kconfig
 +	depends on RISCV && 32BIT
 +	select RISCV_DMA_NONCOHERENT
 +	select RISCV_NONSTANDARD_CACHE_OPS
++	select DMA_GLOBAL_POOL if !DMA_DIRECT_REMAP
 +	help
 +	  Support cache maintenance for DMA on the Espressif ESP32-S31.  The
 +	  hart implements no Zicbom and the SoC has no uncached alias of its
 +	  PSRAM aperture, so DMA coherency relies on the cache controller's
-+	  MMIO sync engine.
++	  MMIO sync engine.  That aperture cannot back coherent allocations at
++	  all, so those come from a shared-dma-pool in internal SRAM, which is
++	  reached without the data cache.
 +
  config SIFIVE_CCACHE
  	bool "Sifive Composable Cache controller"

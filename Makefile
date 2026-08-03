@@ -182,7 +182,8 @@ busybox:
 
 initramfs: busybox
 	@"$(PYTHON)" scripts/mkinitramfs.py --busybox "$(BUSYBOX_BIN)" \
-		--init rootfs/init --output "$(BUILD_DIR)/initramfs.cpio" --size 0x200000
+		--init rootfs/init $(addprefix --script ,$(wildcard rootfs/bin/*)) \
+		--output "$(BUILD_DIR)/initramfs.cpio" --size 0x200000
 
 flash: build
 	@test -n "$(FLASH_PORT)" || { echo 'set FLASH_PORT=/dev/cu.<flash-port>'; exit 1; }

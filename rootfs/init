@@ -29,6 +29,20 @@ if [ -n "$sd" ]; then
 	fi
 fi
 
+# A second shell on the frame-buffer console, so a USB keyboard drives the
+# panel.  The kernel's VT layer already feeds key events from every input
+# device to the foreground VT; userspace does not route /dev/input at all.
+if [ -c /dev/tty1 ]; then
+	(
+		while true; do
+			/bin/setsid /bin/cttyhack /bin/sh -i \
+				</dev/tty1 >/dev/tty1 2>&1
+			sleep 1
+		done
+	) &
+	echo "VT: shell on /dev/tty1 (frame buffer console)"
+fi
+
 echo
 echo "=== ESP32-S31 Linux / BusyBox ==="
 echo "Console: ttyS0"

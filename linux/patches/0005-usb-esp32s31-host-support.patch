@@ -33,7 +33,7 @@ diff --git a/drivers/phy/Makefile b/drivers/phy/Makefile
 diff --git a/drivers/usb/dwc2/params.c b/drivers/usb/dwc2/params.c
 --- a/drivers/usb/dwc2/params.c
 +++ b/drivers/usb/dwc2/params.c
-@@ -36,6 +36,34 @@ static void dwc2_set_bcm_params(struct dwc2_hsotg *hsotg)
+@@ -36,6 +36,40 @@ static void dwc2_set_bcm_params(struct dwc2_hsotg *hsotg)
  	p->ahbcfg = 0x10;
  }
  
@@ -42,12 +42,18 @@ diff --git a/drivers/usb/dwc2/params.c b/drivers/usb/dwc2/params.c
 +	struct dwc2_core_params *p = &hsotg->params;
 +
 +	/*
-+	 * Linux memory lives in cached external PSRAM.  Start in slave/PIO
-+	 * mode so device-to-memory traffic cannot leave stale cache lines.
-+	 * DMA can be enabled later once cache maintenance is available.
++	 * Linux memory lives in cached external PSRAM, so the controller's
++	 * internal DMA depends on the cache controller for maintenance and on
++	 * the internal-SRAM pool for coherent allocations; both are in place,
++	 * so follow whatever GHWCFG2 reports.  Descriptor DMA stays off:
++	 * buffer DMA needs no controller-owned descriptor lists.
 +	 */
-+	p->host_dma = false;
++	p->host_dma = hsotg->hw_params.arch != GHWCFG2_SLAVE_ONLY_ARCH;
++	p->dma_desc_enable = false;
++	p->dma_desc_fs_enable = false;
 +	p->g_dma = false;
++	dev_info(hsotg->dev, "using %s\n",
++		 p->host_dma ? "internal DMA" : "slave mode (PIO)");
 +	/* The reset FIFO registers exceed the controller's 896-word RAM. */
 +	p->host_rx_fifo_size = 512;
 +	p->host_nperio_tx_fifo_size = 256;

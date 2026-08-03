@@ -50,9 +50,10 @@ CONFIG_THREAD_SIZE_ORDER=2
 CONFIG_RISCV_SLOW_UNALIGNED_ACCESS=y
 # CONFIG_FPU is not set
 
-# Linux and userspace use UART0 through the external USB-to-UART bridge.
-# OpenSBI retains its UART/on-chip USB console for firmware diagnostics.
-CONFIG_CMDLINE="earlycon=sbi console=ttyS0,115200 rdinit=/init"
+# Linux and userspace use UART0 through the external USB-to-UART bridge, and
+# the kernel log is mirrored onto the LCD through tty0.  OpenSBI retains its
+# UART console for firmware diagnostics.
+CONFIG_CMDLINE="earlycon=sbi console=tty0 console=ttyS0,115200 rdinit=/init"
 CONFIG_CMDLINE_FORCE=y
 
 # Reduce the timer/OpenSBI round-trip rate and suppress periodic idle ticks.
@@ -101,8 +102,16 @@ CONFIG_HID_GENERIC=y
 # CONFIG_I2C is not set
 # CONFIG_SPI is not set
 
-# SCSI -- off; MMC and USB host are built in
+# SCSI stays off, and with it USB mass storage: selecting CONFIG_SCSI,
+# CONFIG_BLK_DEV_SD and CONFIG_USB_STORAGE together hangs the boot between
+# parse_args() and setup_log_buf(), long before any of their initcalls run.
+# The hang moves with kernel layout -- adding printks to start_kernel() makes
+# the same configuration boot -- and is not an image-size threshold, since
+# padding an otherwise identical kernel past the failing size boots fine.
+# Bisected 2026-08-03; see README. Root cause still unknown.
 # CONFIG_SCSI is not set
+
+# USB host: HID only
 CONFIG_USB_SUPPORT=y
 CONFIG_USB=y
 CONFIG_USB_DWC2=y
@@ -110,13 +119,13 @@ CONFIG_USB_DWC2_HOST=y
 CONFIG_USB_HID=y
 CONFIG_PHY_ESP32S31_USB=y
 
-# MMC/SD card support
 # Cache maintenance for DMA. The hart implements no Zicbom, so the ISA
 # support is dropped: it only pulls in DMA_DIRECT_REMAP, which cannot produce
 # an uncached mapping on RV32 anyway.
 CONFIG_ESP32S31_CACHE=y
 # CONFIG_RISCV_ISA_ZICBOM is not set
 
+# MMC/SD card support
 CONFIG_MMC=y
 CONFIG_MMC_BLOCK=y
 CONFIG_MMC_DW=y
@@ -125,9 +134,19 @@ CONFIG_MMC_DW_PLTFM=y
 # Network devices -- off
 # CONFIG_NETDEVICES is not set
 
+# Frame buffer for the loader's 800x480 RGB565 panel, with fbcon on the VTs.
+# VT is a printk console and console=tty0 is on the command line, so the boot
+# log renders on the panel; scrolling that buffer in PSRAM costs about a
+# second of boot time. Drop CONFIG_VT_CONSOLE and console=tty0 to get it back
+# when the panel is not in use.
+CONFIG_FB=y
+CONFIG_FB_SIMPLE=y
+CONFIG_FRAMEBUFFER_CONSOLE=y
+
 # Serial / TTY
 # CONFIG_SERIO is not set
-# CONFIG_VT is not set
+CONFIG_VT=y
+CONFIG_VT_CONSOLE=y
 # CONFIG_UNIX98_PTYS is not set
 # CONFIG_LEGACY_PTYS is not set
 # CONFIG_LDISC_AUTOLOAD is not set

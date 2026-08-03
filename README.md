@@ -20,7 +20,20 @@ interrupts through the S31 CLIC.
 The verified cache geometry is a 32 KiB, two-way instruction cache and a
 64 KiB, two-way data cache, both with 64-byte lines. OpenSBI marks cached
 PSRAM write-through so Linux does not observe stale page-table or allocator
-state. Linux uses tickless idle at 100 Hz and enters native `wfi`; pending CLIC
+state. Only the flash and PSRAM apertures are cached at all; internal SRAM
+and MMIO bypass the cache.
+
+No bus master is coherent with the data cache and the hart implements no
+Zicbom, so DMA relies on the cache controller's MMIO sync engine, driven by
+`drivers/cache/esp32s31-cache.c` through the RISC-V non-standard cache-ops
+hook. Two consequences shape every DMA path here. Streaming mappings work
+normally, but because there is no SWIOTLB to bounce a buffer that shares a
+cache line with an unrelated allocation, `setup_arch()` declares non-coherent
+support early enough that kmalloc keeps 64-byte alignment. Coherent
+allocations cannot come from PSRAM at all: it has no uncached alias, and Sv32
+page tables carry no cacheability attribute, so `dma_alloc_coherent()` is
+served from a 64 KiB `shared-dma-pool` in internal SRAM at `0x2f040000`,
+which is coherent by construction. Linux uses tickless idle at 100 Hz and enters native `wfi`; pending CLIC
 interrupts wake the hart while the generic idle loop has `sstatus.SIE` clear.
 Its SBI early console hands off to UART0 without retaining the boot console.
 
@@ -32,23 +45,42 @@ bit for timer delivery. Linux masks local timer and software interrupts through
 the CLIC MMIO window because the standard S-mode interrupt CSRs are not
 implemented on this hart.
 
-The Korvo-1's 800x480 RGB LCD has a loader-only proof of concept when USB
-Serial/JTAG is disabled. The loader brings up the LCD_CAM RGB panel with a
-fixed RGB565 frame buffer at the top of PSRAM (`0x50F40000`), rebuilds the
-circular AXI DMA descriptor chain at `0x2F079000` in upper SRAM so the OpenSBI
-copy cannot clobber it, silences the LCD and DMA interrupt sources, and paints
-color bars. Linux does not yet reserve or expose this frame buffer, so the
-display is not currently a Linux framebuffer device. The LCD data bus uses
-GPIO33 and GPIO34, which are also the native USB Serial/JTAG D-/D+ pins, so
-the loader skips display initialization whenever the ESP-IDF USB Serial/JTAG
-console is enabled.
+The Korvo-1's 800x480 RGB LCD is a Linux frame buffer. The loader brings up
+the LCD_CAM RGB panel with a fixed RGB565 frame buffer at the top of PSRAM
+(`0x50F40000`), rebuilds the circular AXI DMA descriptor chain at `0x2F079000`
+in upper SRAM so the OpenSBI copy cannot clobber it, silences the LCD and DMA
+interrupt sources, and paints color bars; its DMA keeps scanning that buffer
+out across the handoff. Linux reserves it as `fb_region` and describes it as a
+`simple-framebuffer` under `/chosen`, so it appears as `/dev/fb0` with `fbcon`
+on the virtual terminals. `console=tty0` puts the kernel log on the panel, at
+the cost of about a second of boot time spent scrolling PSRAM, and the
+initramfs runs a second shell on `/dev/tty1` that a USB keyboard drives
+directly.
+
+The LCD data bus uses GPIO33 and GPIO34, which are also the native USB
+Serial/JTAG D-/D+ pins, so the loader initializes the display only when the
+ESP-IDF secondary console is off. `bootloader/sdkconfig.defaults` selects
+`CONFIG_ESP_CONSOLE_SECONDARY_NONE`, trading that port -- and with it
+`make openocd` -- for the panel. Flashing and the Linux console run over the
+CP2102N bridge either way. Select `CONFIG_ESP_CONSOLE_SECONDARY_USB_SERIAL_JTAG`
+instead to get JTAG back and leave the panel dark.
 
 The board's USB Type-A connector is exposed as a Linux high-speed USB host.
 An ESP32-S31 PHY driver performs the ESP-IDF clock, reset, UTMI, and host
 pull-down sequence, then the standard DWC2 host controller handles the bus.
 USB HID and evdev support are built in, so keyboards and mice appear under
-`/dev/input`. The controller currently uses PIO rather than DMA because Linux
-memory resides in cached PSRAM and cache maintenance is not implemented yet.
+`/dev/input`, and the VT layer feeds their key events straight to the
+foreground virtual terminal. The controller uses its internal (buffer) DMA,
+which GHWCFG2 advertises; descriptor DMA stays off. The boot log states which
+mode was chosen (`dwc2 20300000.usb: using internal DMA`).
+
+USB mass storage is deliberately **not** enabled. Selecting `CONFIG_SCSI`,
+`CONFIG_BLK_DEV_SD` and `CONFIG_USB_STORAGE` hangs the boot between
+`parse_args()` and `setup_log_buf()` — before any of their initcalls could
+run — and the hang moves with kernel layout: adding a few `pr_notice()` calls
+to `start_kernel()` makes the same configuration boot. It is not an image-size
+threshold; padding an otherwise identical kernel past the failing size boots
+fine. Bisected 2026-08-03; root cause still unknown.
 
 ## SD card
 
@@ -61,24 +93,27 @@ card-present/not-write-protected through the GPIO matrix constant inputs,
 since the slot has no CD/WP contacts.
 
 Linux drives the controller with the stock `dw_mmc` driver (the S31 SDHOST
-is a Synopsys DesignWare MSHC). Patch
+is a Synopsys DesignWare MSHC). Transfers use the controller's internal DMA:
+the host's PIO FIFO port is non-functional in silicon (CPU reads never pop
+the FIFO, they return the same latched word, and ESP-IDF never touches that
+register either), so IDMAC is the only working data path. Patch
 `0003-mmc-dw_mmc-add-esp32s31-support.patch` identifies the SoC integration
-and forces PIO transfers: the controller's internal DMA is not coherent with
-the CPU caches and the hart implements no Zicbom cache management, so DMA
-descriptor writeback and card reads would observe stale cache lines. FAT
-(VFAT) and ext4 are enabled; the initramfs mounts the first partition, or a
-whole-card filesystem when there is no partition table, on `/mnt/sd` during
+and takes the descriptor ring from `dma_alloc_noncoherent()` instead of
+`dma_alloc_coherent()`, syncing the whole ring around each ownership
+hand-off. The ring is synced as a unit because descriptors are 16 bytes and
+several share a cache line.
+
+FAT (VFAT) and ext4 are enabled; the initramfs mounts the first partition, or
+a whole-card filesystem when there is no partition table, on `/mnt/sd` during
 boot. Cards can also be mounted manually:
 
 ```sh
 mount /dev/mmcblk0p1 /mnt/sd
 ```
 
-Detection is the success criterion: a working card enumerates as
-`/dev/mmcblk0`. An empty card carries no partition table or filesystem, so
-its boot-time mount fails and init prints
-`SD: /dev/mmcblk0 present but mount failed`. That message is the expected
-result until a filesystem is written to the card.
+A working card enumerates as `/dev/mmcblk0`, but enumeration alone proves
+only the command path: verify the data path by comparing a file's
+`sha256sum` on the board against the host.
 
 ## Hardware connections
 
@@ -93,7 +128,8 @@ native USB Serial/JTAG signals on the LCD expansion connector:
   and black/GND to board ground. Leave USB red/5 V disconnected when the
   board is already powered through Type-C. This interface appears as
   Espressif VID:PID `303a:1001`; it can flash the board and is used by
-  `make openocd`.
+  `make openocd`. These are the LCD data pins, so it is unavailable once the
+  loader has initialized the display.
 - **USB Type-A host**: This connector is wired to the ESP32-S31 USB 2.0 OTG
   high-speed peripheral and supplies attached devices from the board's
   current-limited 5 V VBUS path. It is independent of the two debug ports.
@@ -174,7 +210,21 @@ ls -l /dev/input
 ```
 
 The DWC2 root hub should be present before a device is connected. Plugging in
-a HID device should add a USB device and an `event*` input node.
+a HID device should add a USB device and an `event*` input node, and its keys
+reach the `/dev/tty1` shell on the panel.
+
+To exercise the non-coherent DMA path, run the `dma-stress` applet that the
+initramfs carries (every script in `rootfs/bin` is installed into `/bin`):
+
+```sh
+dma-stress
+```
+
+It hashes a file across `drop_caches` cycles, writes and re-reads 1 MiB per
+round, reads the raw block device at deliberately misaligned block sizes, and
+remounts the card repeatedly, because a missed cache invalidate returns stale
+data rather than an I/O error. It writes and removes `/mnt/sd/dma-stress.tmp`
+and touches nothing else on the card.
 
 ## Flash layout
 
@@ -189,6 +239,10 @@ a HID device should add a USB device and an `event*` input node.
 | `0x00a20000` | 2 MiB initramfs partition |
 
 ## Debugging
+
+JTAG and the display are mutually exclusive: both need GPIO33/34. Select
+`CONFIG_ESP_CONSOLE_SECONDARY_USB_SERIAL_JTAG` in
+`bootloader/sdkconfig.defaults` first, so the loader leaves the panel alone.
 
 With the GPIO33/34 native USB breakout connected, start OpenOCD:
 
@@ -209,6 +263,8 @@ Boot logs are written under `logs/` and ignored by Git.
   isolation is intentionally unavailable;
 - APM/PMS permissions are broad bring-up grants;
 - hardware reset/shutdown through SBI is not implemented;
-- USB host transfers use PIO and only the HID class is enabled; mass storage
-  and USB networking are not enabled yet;
+- USB host carries the HID class only; mass storage and USB networking are
+  not enabled;
+- coherent DMA allocations all come from one 64 KiB SRAM pool, so a driver
+  that wants a large coherent buffer will fail to allocate;
 - networking and most board peripherals are not enabled yet.

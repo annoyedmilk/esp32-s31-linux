@@ -17,6 +17,38 @@
 		reg = <0x50000000 0x01000000>;
 	};
 
+	reserved-memory {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges;
+
+		/*
+		 * The loader's LCD frame buffer, which its DMA keeps scanning
+		 * out after the handoff.  800 * 480 * 2 = 0xbb800 bytes,
+		 * rounded up to a page so the whole buffer is covered.
+		 */
+		fb_region: framebuffer@50f40000 {
+			reg = <0x50f40000 0xbc000>;
+			no-map;
+		};
+
+		/*
+		 * Coherent allocations cannot be served from PSRAM: it is
+		 * cached, the SoC publishes no uncached alias of it, and Sv32
+		 * page tables carry no cacheability attribute to remap it
+		 * with.  Internal SRAM is reached without the data cache, so
+		 * a pool there is coherent by construction.  It sits above
+		 * the 256 KiB the loader relocates OpenSBI into and below the
+		 * loader's LCD descriptor ring at 0x2f079000.
+		 */
+		dma_pool: dma-pool@2f040000 {
+			compatible = "shared-dma-pool";
+			reg = <0x2f040000 0x10000>;
+			linux,dma-default;
+			no-map;
+		};
+	};
+
 	aliases {
 		serial0 = &uart0;
 	};

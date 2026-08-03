@@ -14,6 +14,7 @@
 #include <linux/align.h>
 #include <linux/bits.h>
 #include <linux/delay.h>
+#include <linux/dma-mapping.h>
 #include <linux/io.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
@@ -21,6 +22,7 @@
 #include <linux/spinlock.h>
 #include <asm/cacheflush.h>
 #include <asm/dma-noncoherent.h>
+#include <asm/esp32s31-cache.h>
 
 #define ESP32S31_CACHE_SYNC_CTRL		0x9c
 #define ESP32S31_CACHE_INVALIDATE_ENA		BIT(0)
@@ -34,7 +36,6 @@
 /* Sync map selects which cache the operation applies to. */
 #define ESP32S31_CACHE_MAP_L1_DCACHE		BIT(4)
 
-#define ESP32S31_CACHE_LINE_SIZE		64
 #define ESP32S31_CACHE_SYNC_TIMEOUT_US		100000
 
 static void __iomem *esp32s31_cache_base;
@@ -57,6 +58,16 @@ static void esp32s31_cache_sync(phys_addr_t paddr, size_t size, u32 op,
 
 	paddr = ALIGN_DOWN(paddr, ESP32S31_CACHE_LINE_SIZE);
 	size = ALIGN(end - paddr, ESP32S31_CACHE_LINE_SIZE);
+
+	/*
+	 * Internal SRAM, which the coherent DMA pool is carved from, is
+	 * reached without the data cache and is not a valid target for the
+	 * sync engine.  A single buffer never straddles the two, so a range
+	 * that is not entirely external needs no maintenance at all.
+	 */
+	if (paddr < ESP32S31_CACHE_EXTRAM_BASE ||
+	    paddr + size > ESP32S31_CACHE_EXTRAM_BASE + ESP32S31_CACHE_EXTRAM_SIZE)
+		return;
 
 	raw_spin_lock_irqsave(&esp32s31_cache_lock, flags);
 
@@ -134,17 +145,20 @@ static int __init esp32s31_cache_init(void)
 		return -ENOMEM;
 
 	/*
-	 * The DMA layer sizes its bounce and alignment decisions from
-	 * riscv_cbom_block_size.  Zicbom is absent here, so nothing else
-	 * populates it; publish the real line size before declaring
-	 * non-coherent DMA supported so the value is never zero.
+	 * setup_arch() has already published the line size and declared
+	 * non-coherent DMA supported, because the slab allocator sizes its
+	 * DMA alignment long before initcalls run.  Only the operations
+	 * themselves have to wait for ioremap().
 	 */
-	riscv_cbom_block_size = ESP32S31_CACHE_LINE_SIZE;
 	riscv_noncoherent_register_cache_ops(&esp32s31_cache_ops);
-	riscv_noncoherent_supported();
 
-	pr_info("esp32s31-cache: non-coherent DMA cache ops registered (%u-byte lines)\n",
-		ESP32S31_CACHE_LINE_SIZE);
+	/*
+	 * The reported alignment is what keeps a kmalloc'd DMA buffer from
+	 * sharing a cache line with another allocation; anything below the
+	 * line size means the setup_arch() declaration was missed.
+	 */
+	pr_info("esp32s31-cache: non-coherent DMA cache ops registered (%u-byte lines, DMA alignment %d)\n",
+		ESP32S31_CACHE_LINE_SIZE, dma_get_cache_alignment());
 
 	return 0;
 }
