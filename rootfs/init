@@ -1,4 +1,5 @@
 #!/bin/sh
+# SPDX-License-Identifier: MIT
 
 mount -t devtmpfs devtmpfs /dev
 mkdir -p /dev/pts /proc /run /sys /tmp

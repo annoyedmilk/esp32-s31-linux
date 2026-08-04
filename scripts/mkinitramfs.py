@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
 """Build the fixed-size newc initramfs stored in the flash partition."""
 
 import argparse

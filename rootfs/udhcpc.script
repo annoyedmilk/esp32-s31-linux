@@ -1,4 +1,5 @@
 #!/bin/sh
+# SPDX-License-Identifier: MIT
 # udhcpc hook: BusyBox calls this with the lease state in $1 and the lease
 # itself in the environment.
 

@@ -115,15 +115,16 @@ CONFIG_HID_GENERIC=y
 # CONFIG_SPI is not set
 
 # SCSI stays off, and with it USB mass storage: selecting CONFIG_SCSI,
-# CONFIG_BLK_DEV_SD and CONFIG_USB_STORAGE together hangs the boot between
-# parse_args() and setup_log_buf(), long before any of their initcalls run.
-# The hang moves with kernel layout -- adding printks to start_kernel() makes
-# the same configuration boot -- and is not an image-size threshold, since
-# padding an otherwise identical kernel past the failing size boots fine.
-# Bisected 2026-08-03; see README. Root cause still unknown.
+# CONFIG_BLK_DEV_SD and CONFIG_USB_STORAGE together breaks early boot in a
+# layout-sensitive way.  Under write-through PSRAM this was a silent hang
+# before setup_log_buf(); re-tested 2026-08-05 on hart 1 under write-back it
+# panics in shmem_init(): SLUB reads 0x89abcdef as a freelist pointer for the
+# first dentry allocation.  The poison value is constant across harts, cache
+# modes and layouts, and is neither the IDF memtest pattern nor any kernel
+# constant, which points at a hardware readback.  Root cause still open.
 # CONFIG_SCSI is not set
 
-# USB host: HID only
+# USB host: HID only, see the SCSI note above
 CONFIG_USB_SUPPORT=y
 CONFIG_USB=y
 CONFIG_USB_DWC2=y

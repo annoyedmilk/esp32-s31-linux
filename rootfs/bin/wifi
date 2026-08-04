@@ -1,4 +1,5 @@
 #!/bin/sh
+# SPDX-License-Identifier: MIT
 # wifi <ssid> [passphrase]  -- associate and take a DHCP lease
 # wifi off                  -- disconnect
 

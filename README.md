@@ -286,6 +286,15 @@ frames with that firmware through fixed-size slot rings and a pair of
 cross-core doorbell interrupts. Association is not implemented yet, so the
 interface has no carrier.
 
+## Licensing
+
+The repository `LICENSE` (MIT) covers the build system, scripts and rootfs
+pieces. Components carry their own licenses in their SPDX headers: the
+loader and firmware under `bootloader/` and the OpenSBI platform are
+BSD-2-Clause, the kernel drivers and patches under `linux/` are GPL-2.0, and
+`shared/esp32s31-wifi-ipc.h` is dual GPL-2.0/BSD-2-Clause because both worlds
+compile it.
+
 ## Current limitations
 
 - Wi-Fi carries no association yet, so `eth0` never gains a carrier;
