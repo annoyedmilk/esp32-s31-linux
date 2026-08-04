@@ -42,17 +42,19 @@
 #define ESP32S31_CPU_APM_FUNC_CTRL	(ESP32S31_CPU_APM_BASE + 0xc4UL)
 
 /*
- * PSRAM runs write-back.  An early bring-up on hart 0, before the kernel had
- * any DMA cache maintenance, corrupted allocator state under write-back and
- * ran write-through (cfg 0xc400001d) for a long time; the configuration was
- * re-validated on hart 1 with the full DMA stack and the panel and holds.
+ * PSRAM must be write-through: the LCD DMA engine reads the framebuffer
+ * directly from PSRAM without the CPU cache or the DMA API, so write-back
+ * leaves dirty lines in L1 that the panel never sees, producing glitched
+ * text.  The DMA API path (SD, USB) handles its own cache maintenance via
+ * the esp32s31-cache driver, so write-through does not regress those.
+ * cfg bit [10] = 1 selects write-through; the rest is RWX + cacheable.
  */
 #define ESP32S31_PMAADDR0		0xbd0
 #define ESP32S31_PMACFG0		0xbc0
 #define ESP32S31_SRAM_PMA_NAPOT	0x0bc03fffUL
 #define ESP32S31_PSRAM_PMA_NAPOT	0x141fffffUL
 #define ESP32S31_SRAM_PMA_RWX		0xc000001dUL
-#define ESP32S31_PSRAM_PMA_RWX		0xc000001dUL
+#define ESP32S31_PSRAM_PMA_RWX_WT	0xc400001dUL
 
 static inline void reg_write(unsigned long addr, unsigned long val)
 {
@@ -90,7 +92,7 @@ static void esp32s31_pma_init(void)
 	csr_write_num(ESP32S31_PMAADDR0, ESP32S31_SRAM_PMA_NAPOT);
 	csr_write_num(ESP32S31_PMACFG0, ESP32S31_SRAM_PMA_RWX);
 	csr_write_num(ESP32S31_PMAADDR0 + 1, ESP32S31_PSRAM_PMA_NAPOT);
-	csr_write_num(ESP32S31_PMACFG0 + 1, ESP32S31_PSRAM_PMA_RWX);
+	csr_write_num(ESP32S31_PMACFG0 + 1, ESP32S31_PSRAM_PMA_RWX_WT);
 }
 
 #if ESP32S31_USB_SERIAL_JTAG_CONSOLE
