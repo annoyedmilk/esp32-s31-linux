@@ -126,7 +126,8 @@
 			#interrupt-cells = <3>;
 			#address-cells = <0>;
 			compatible = "espressif,esp32s31-clic";
-			reg = <0x10a00000 0x20000>;
+			reg = <0x10a00000 0x20000>, <0x20585000 0x1000>;
+			reg-names = "clic", "intmatrix";
 			interrupt-controller;
 		};
 

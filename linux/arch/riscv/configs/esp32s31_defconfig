@@ -23,15 +23,13 @@ CONFIG_RD_GZIP=y
 # CONFIG_RD_ZSTD is not set
 CONFIG_CC_OPTIMIZE_FOR_SIZE=y
 
-# Disable heavyweight syscalls / features
+# Disable heavyweight syscalls / features.  FUTEX, EPOLL, TIMERFD and EVENTFD
+# stay on: threads and ordinary event loops (wpa_supplicant among them) need
+# them, and their cost is small.
 # CONFIG_SYSFS_SYSCALL is not set
 # CONFIG_FHANDLE is not set
 # CONFIG_BASE_FULL is not set
-# CONFIG_FUTEX is not set
-# CONFIG_EPOLL is not set
 # CONFIG_SIGNALFD is not set
-# CONFIG_TIMERFD is not set
-# CONFIG_EVENTFD is not set
 # CONFIG_AIO is not set
 # CONFIG_IO_URING is not set
 # CONFIG_ADVISE_SYSCALLS is not set

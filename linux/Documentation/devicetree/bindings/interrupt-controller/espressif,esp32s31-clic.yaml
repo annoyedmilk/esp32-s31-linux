@@ -1,0 +1,60 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/interrupt-controller/espressif,esp32s31-clic.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Espressif ESP32-S31 Core-Local Interrupt Controller
+
+maintainers:
+  - Marco Müller <hello@annoyedmilk.ch>
+
+description: >
+  Each ESP32-S31 core has a CLIC with 48 inputs, 16 architectural local causes
+  followed by 32 inputs fed from a per-core Interrupt Matrix that routes SoC
+  interrupt sources onto them. The register window is per-core virtualised at
+  a single physical address, and machine-mode firmware must delegate an input
+  before the supervisor window shows it at all, so this binding describes the
+  supervisor view only.
+
+  Because a peripheral interrupt exists as a SoC source number until the
+  matrix routes it, an interrupt specifier carries three cells, the CLIC input
+  to deliver on, the SoC interrupt source to route there, and the trigger type.
+
+properties:
+  compatible:
+    const: espressif,esp32s31-clic
+
+  reg:
+    items:
+      - description: supervisor CLIC register window
+      - description: Interrupt Matrix routing blocks for both cores
+
+  reg-names:
+    items:
+      - const: clic
+      - const: intmatrix
+
+  interrupt-controller: true
+
+  "#interrupt-cells":
+    const: 3
+
+required:
+  - compatible
+  - reg
+  - reg-names
+  - interrupt-controller
+  - "#interrupt-cells"
+
+additionalProperties: false
+
+examples:
+  - |
+    interrupt-controller@10a00000 {
+        compatible = "espressif,esp32s31-clic";
+        reg = <0x10a00000 0x20000>, <0x20585000 0x1000>;
+        reg-names = "clic", "intmatrix";
+        interrupt-controller;
+        #interrupt-cells = <3>;
+    };

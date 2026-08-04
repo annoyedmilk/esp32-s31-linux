@@ -121,9 +121,7 @@
  * independent block per core.  Only the block belonging to the hart Linux
  * runs on is mapped; the other one belongs to the resident M-mode firmware.
  */
-#define ESP32S31_INTMATRIX_BASE 0x20585000
 #define ESP32S31_INTMATRIX_CORE_STRIDE 0x800
-#define ESP32S31_INTMATRIX_CORES 2
 #define ESP32S31_INTMATRIX_MAP_MASK 0x3f
 #define ESP32S31_INTMATRIX_PASS_LEVEL_SHIFT 8
 #define ESP32S31_INTMATRIX_PASS_LEVEL_MASK (0x3 << ESP32S31_INTMATRIX_PASS_LEVEL_SHIFT)
@@ -589,14 +587,20 @@ static int __init esp32s31_clic_probe(struct device_node *node,
 		goto err_free;
 	}
 
+	ret = of_address_to_resource(node, 1, &res);
+	if (ret) {
+		pr_err("CLIC: missing interrupt matrix resource\n");
+		goto err_unmap;
+	}
+
 	hart = cpuid_to_hartid_map(0);
-	if (hart >= ESP32S31_INTMATRIX_CORES) {
+	if ((hart + 1) * ESP32S31_INTMATRIX_CORE_STRIDE > resource_size(&res)) {
 		pr_err("CLIC: hart %lu has no interrupt matrix block\n", hart);
 		ret = -EINVAL;
 		goto err_unmap;
 	}
 
-	clic->intmatrix_regs = ioremap(ESP32S31_INTMATRIX_BASE +
+	clic->intmatrix_regs = ioremap(res.start +
 				       hart * ESP32S31_INTMATRIX_CORE_STRIDE,
 				       ESP32S31_INTMATRIX_CORE_STRIDE);
 	if (!clic->intmatrix_regs) {

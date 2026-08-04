@@ -152,12 +152,19 @@ static void ipc_tx_task(void *arg)
 {
     static uint8_t frame[ESP32S31_IPC_SLOT_DATA];
     uint32_t len;
+    bool drained;
 
     for (;;) {
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
         ipc_run_command();
+        drained = false;
         while (ipc_ring_pop(&ipc->to_firmware, frame, &len)) {
             esp_wifi_internal_tx(WIFI_IF_STA, frame, len);
+            drained = true;
+        }
+        /* Freed slots are the transmit-completion signal Linux waits on. */
+        if (drained) {
+            REG_WRITE(IPC_DOORBELL_TO_LINUX_REG, 1);
         }
     }
 }

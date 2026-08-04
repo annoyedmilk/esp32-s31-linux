@@ -38,6 +38,12 @@ esp32s31_wifi_slot(struct esp32s31_ipc_ring __iomem *ring, u32 index)
 	return &ring->slot[index % ESP32S31_IPC_SLOTS];
 }
 
+static bool esp32s31_wifi_tx_full(struct esp32s31_ipc_ring __iomem *ring)
+{
+	return ioread32(&ring->head) - ioread32(&ring->tail) >=
+	       ESP32S31_IPC_SLOTS;
+}
+
 static void esp32s31_wifi_rx_one(struct esp32s31_wifi *priv,
 				 struct esp32s31_ipc_slot __iomem *slot,
 				 u32 len)
@@ -97,6 +103,10 @@ static int esp32s31_wifi_poll(struct napi_struct *napi, int budget)
 		done++;
 	}
 
+	if (netif_queue_stopped(priv->ndev) &&
+	    !esp32s31_wifi_tx_full(&priv->ipc->to_firmware))
+		netif_wake_queue(priv->ndev);
+
 	if (done < budget)
 		napi_complete_done(napi, done);
 
@@ -122,16 +132,15 @@ static netdev_tx_t esp32s31_wifi_xmit(struct sk_buff *skb,
 	u32 head = ioread32(&ring->head);
 	unsigned int len = skb->len;
 
-	/*
-	 * A full ring is dropped rather than stopping the queue: the firmware
-	 * signals no transmit completion, so a stopped queue would have
-	 * nothing to wake it again.
-	 */
-	if (len > ESP32S31_IPC_SLOT_DATA ||
-	    head - ioread32(&ring->tail) >= ESP32S31_IPC_SLOTS) {
+	if (len > ESP32S31_IPC_SLOT_DATA) {
 		ndev->stats.tx_dropped++;
 		dev_kfree_skb_any(skb);
 		return NETDEV_TX_OK;
+	}
+
+	if (esp32s31_wifi_tx_full(ring)) {
+		netif_stop_queue(ndev);
+		return NETDEV_TX_BUSY;
 	}
 
 	slot = esp32s31_wifi_slot(ring, head);
@@ -143,6 +152,17 @@ static netdev_tx_t esp32s31_wifi_xmit(struct sk_buff *skb,
 	ndev->stats.tx_packets++;
 	ndev->stats.tx_bytes += len;
 	dev_kfree_skb_any(skb);
+
+	/*
+	 * The firmware rings the doorbell back as it drains, which reopens
+	 * the queue from the poll loop.  Re-check after stopping in case that
+	 * drain won the race, since an empty ring produces no more doorbells.
+	 */
+	if (esp32s31_wifi_tx_full(ring)) {
+		netif_stop_queue(ndev);
+		if (!esp32s31_wifi_tx_full(ring))
+			netif_wake_queue(ndev);
+	}
 
 	return NETDEV_TX_OK;
 }
