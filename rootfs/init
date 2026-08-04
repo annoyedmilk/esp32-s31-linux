@@ -1,6 +1,12 @@
 #!/bin/sh
 # SPDX-License-Identifier: MIT
 
+# BusyBox reboot/poweroff/halt send signals to PID 1.  A shell-script init
+# must trap them and call the forced variant (direct syscall, no signaling).
+trap 'exec reboot -f'   TERM
+trap 'exec poweroff -f' USR1
+trap 'exec halt -f'     USR2
+
 mount -t devtmpfs devtmpfs /dev
 mkdir -p /dev/pts /proc /run /sys /tmp
 mount -t proc proc /proc 2>/dev/null || true
