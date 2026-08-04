@@ -135,6 +135,7 @@ $(LINUX_PREP_STAMP): $(LINUX_PATCHES)
 
 linux: $(LINUX_PREP_STAMP)
 	@cp -R $(LINUX_OVERLAY_DIRS) "$(LINUX_SRC)/"
+	@cp shared/esp32s31-wifi-ipc.h "$(LINUX_SRC)/drivers/net/wireless/espressif/"
 	@PATH="$(GNU_HOST_PATH):$$PATH" $(GMAKE) -C "$(LINUX_SRC)" O="$(LINUX_OUT)" \
 		ARCH=riscv CROSS_COMPILE="$(CROSS_COMPILE)" HOSTCFLAGS="$(LINUX_HOSTCFLAGS)" esp32s31_defconfig
 	@PATH="$(GNU_HOST_PATH):$$PATH" $(GMAKE) -C "$(LINUX_SRC)" O="$(LINUX_OUT)" \
