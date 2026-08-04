@@ -12,7 +12,7 @@ APPLETS = (
     "kill", "ln", "ls", "mkdir", "mknod", "mount", "mountpoint", "od", "ps",
     "pwd", "reboot", "rm", "rmdir", "setsid", "sh", "sha256sum", "sleep",
     "stat", "sync", "tail", "test", "true", "umount", "uname",
-    "ifconfig", "ip", "nslookup", "ping", "route", "udhcpc", "wget",
+    "ifconfig", "ip", "nslookup", "ping", "route", "udhcpc",
 )
 
 
