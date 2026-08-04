@@ -11,7 +11,7 @@ APPLETS = (
     "[", "ash", "blkid", "cat", "chmod", "clear", "cmp", "cp", "cttyhack",
     "dd", "df", "dmesg", "echo", "false", "free", "grep", "head", "hexdump",
     "kill", "ln", "ls", "mkdir", "mknod", "mount", "mountpoint", "od", "ps",
-    "pwd", "reboot", "rm", "rmdir", "setsid", "sh", "sha256sum", "sleep",
+    "pwd", "rm", "rmdir", "setsid", "sh", "sha256sum", "sleep",
     "stat", "sync", "tail", "test", "true", "umount", "uname",
     "ifconfig", "ip", "nslookup", "ping", "route", "udhcpc",
 )

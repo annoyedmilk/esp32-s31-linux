@@ -1,0 +1,3 @@
+#!/bin/sh
+# SPDX-License-Identifier: MIT
+exec /bin/busybox poweroff -f "$@"
