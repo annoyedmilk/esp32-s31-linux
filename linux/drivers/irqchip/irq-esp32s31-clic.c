@@ -32,6 +32,7 @@
 #include <asm/csr.h>
 #include <asm/esp32s31-clic.h>
 #include <asm/irq.h>
+#include <asm/smp.h>
 
 /* CLIC register map */
 
@@ -115,9 +116,14 @@
 #define CLIC_ATTR_TRIG_EDGE 0x02 /* bit 1: 1 = edge, 0 = level */
 #define CLIC_ATTR_MODE_S 0x40 /* S-mode on ESP32-S31 */
 
+/*
+ * The Interrupt Matrix maps SoC interrupt sources onto CLIC inputs, with one
+ * independent block per core.  Only the block belonging to the hart Linux
+ * runs on is mapped; the other one belongs to the resident M-mode firmware.
+ */
 #define ESP32S31_INTMATRIX_BASE 0x20585000
 #define ESP32S31_INTMATRIX_CORE_STRIDE 0x800
-#define ESP32S31_INTMATRIX_SIZE (ESP32S31_INTMATRIX_CORE_STRIDE * 2)
+#define ESP32S31_INTMATRIX_CORES 2
 #define ESP32S31_INTMATRIX_MAP_MASK 0x3f
 #define ESP32S31_INTMATRIX_PASS_LEVEL_SHIFT 8
 #define ESP32S31_INTMATRIX_PASS_LEVEL_MASK (0x3 << ESP32S31_INTMATRIX_PASS_LEVEL_SHIFT)
@@ -530,7 +536,7 @@ void esp32s31_clic_handle_irq(struct pt_regs *regs)
 
 /* Initialization */
 
-static void __init esp32s31_clic_init_hart(struct esp32s31_clic *clic, int hart)
+static void __init esp32s31_clic_init_cpu(struct esp32s31_clic *clic, int cpu)
 {
 	int i;
 
@@ -549,7 +555,7 @@ static void __init esp32s31_clic_init_hart(struct esp32s31_clic *clic, int hart)
 			    CLICCTL_MAKE(1, ESP32S31_MAX_PRIORITY));
 	}
 
-	per_cpu(clic_per_cpu, hart) = clic;
+	per_cpu(clic_per_cpu, cpu) = clic;
 }
 
 static int __init esp32s31_clic_probe(struct device_node *node,
@@ -559,6 +565,7 @@ static int __init esp32s31_clic_probe(struct device_node *node,
 	struct irq_domain *intc_domain;
 	struct esp32s31_clic *clic;
 	struct resource res;
+	unsigned long hart;
 	int ret;
 
 	clic = kzalloc_obj(*clic, GFP_KERNEL);
@@ -582,8 +589,16 @@ static int __init esp32s31_clic_probe(struct device_node *node,
 		goto err_free;
 	}
 
-	clic->intmatrix_regs = ioremap(ESP32S31_INTMATRIX_BASE,
-				       ESP32S31_INTMATRIX_SIZE);
+	hart = cpuid_to_hartid_map(0);
+	if (hart >= ESP32S31_INTMATRIX_CORES) {
+		pr_err("CLIC: hart %lu has no interrupt matrix block\n", hart);
+		ret = -EINVAL;
+		goto err_unmap;
+	}
+
+	clic->intmatrix_regs = ioremap(ESP32S31_INTMATRIX_BASE +
+				       hart * ESP32S31_INTMATRIX_CORE_STRIDE,
+				       ESP32S31_INTMATRIX_CORE_STRIDE);
 	if (!clic->intmatrix_regs) {
 		pr_err("CLIC: Failed to ioremap S31 interrupt matrix\n");
 		ret = -ENOMEM;
@@ -598,7 +613,7 @@ static int __init esp32s31_clic_probe(struct device_node *node,
 		goto err_unmap;
 	}
 
-	esp32s31_clic_init_hart(clic, 0);
+	esp32s31_clic_init_cpu(clic, 0);
 
 	/*
 	 * Take over as the top-level IRQ handler.  The riscv-intc has

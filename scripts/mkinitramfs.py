@@ -12,6 +12,7 @@ APPLETS = (
     "kill", "ln", "ls", "mkdir", "mknod", "mount", "mountpoint", "od", "ps",
     "pwd", "reboot", "rm", "rmdir", "setsid", "sh", "sha256sum", "sleep",
     "stat", "sync", "tail", "test", "true", "umount", "uname",
+    "ifconfig", "ip", "nslookup", "ping", "route", "udhcpc", "wget",
 )
 
 
@@ -34,11 +35,13 @@ def add_entry(archive: bytearray, name: str, mode: int, data: bytes = b"",
 
 
 def build(busybox: Path, init: Path, size: int,
-          scripts: tuple[Path, ...] = ()) -> bytes:
+          scripts: tuple[Path, ...] = (),
+          udhcpc_script: Path | None = None) -> bytes:
     archive = bytearray()
     ino = 1
 
-    for directory in (".", "bin", "dev", "dev/pts", "proc", "run", "sys", "tmp"):
+    for directory in (".", "bin", "dev", "dev/pts", "etc", "proc", "run",
+                      "sys", "tmp", "usr", "usr/share", "usr/share/udhcpc"):
         add_entry(archive, directory, stat.S_IFDIR | 0o755, ino=ino)
         ino += 1
 
@@ -52,6 +55,11 @@ def build(busybox: Path, init: Path, size: int,
     for script in scripts:
         add_entry(archive, f"bin/{script.name}", stat.S_IFREG | 0o755,
                   script.read_bytes(), ino)
+        ino += 1
+
+    if udhcpc_script is not None:
+        add_entry(archive, "usr/share/udhcpc/default.script",
+                  stat.S_IFREG | 0o755, udhcpc_script.read_bytes(), ino)
         ino += 1
 
     add_entry(archive, "init", stat.S_IFREG | 0o755, init.read_bytes(), ino)
@@ -71,6 +79,8 @@ def main() -> int:
     parser.add_argument("--size", type=lambda value: int(value, 0), default=0x200000)
     parser.add_argument("--script", type=Path, action="append", default=[],
                         help="shell script to install in /bin, repeatable")
+    parser.add_argument("--udhcpc-script", type=Path,
+                        help="script to install as udhcpc default.script")
     args = parser.parse_args()
 
     if not args.busybox.is_file():
@@ -80,7 +90,7 @@ def main() -> int:
             parser.error(f"script not found: {script}")
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_bytes(build(args.busybox, args.init, args.size,
-                                  tuple(args.script)))
+                                  tuple(args.script), args.udhcpc_script))
     print(f"initramfs: {args.output} ({args.size} bytes)")
     return 0
 

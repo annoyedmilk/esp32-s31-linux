@@ -13,8 +13,9 @@ PLATFORM_RISCV_CODE_MODEL = medany
 
 PLATFORM_HART_COUNT = 1
 
-# fw_jump runs from SRAM at 0x2f000000 and enters the kernel in PSRAM.
-FW_TEXT_START = 0x2f000000
+# fw_jump runs from reserved PSRAM and enters the kernel in PSRAM. Internal
+# SRAM belongs to the ESP-IDF firmware, which stays resident on hart 0.
+FW_TEXT_START = 0x50e00000
 FW_JUMP = y
 FW_JUMP_ADDR = 0x50000000
 FW_DYNAMIC = n

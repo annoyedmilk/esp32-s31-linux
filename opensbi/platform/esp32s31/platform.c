@@ -83,6 +83,21 @@ static void esp32s31_apm_init(void)
 	reg_write(ESP32S31_CPU_APM_FUNC_CTRL, 0x0fUL);
 }
 
+/*
+ * The chip implements a single PMP entry, spent on one permanent
+ * full-address-space grant.  pmpaddr0 = 0x3fffffff is the NAPOT encoding of a
+ * 2^32-byte range based at zero and pmpcfg0 = 0x9f is L | A=NAPOT | X | W | R.
+ * PMP is per-hart state, so this runs on whichever hart boots Linux.
+ */
+#define ESP32S31_PMP_FULL_SPACE_NAPOT	0x3fffffffUL
+#define ESP32S31_PMP_ENTRY_RWX_LOCK	0x9fUL
+
+static void esp32s31_pmp_init(void)
+{
+	csr_write(CSR_PMPADDR0, ESP32S31_PMP_FULL_SPACE_NAPOT);
+	csr_write(CSR_PMPCFG0, ESP32S31_PMP_ENTRY_RWX_LOCK);
+}
+
 static void esp32s31_pma_init(void)
 {
 	csr_write_num(ESP32S31_PMAADDR0, ESP32S31_SRAM_PMA_NAPOT);
@@ -184,6 +199,7 @@ static struct sbi_hart_protection esp32s31_global_pmp = {
 static int esp32s31_early_init(bool cold_boot)
 {
 	esp32s31_apm_init();
+	esp32s31_pmp_init();
 	esp32s31_pma_init();
 
 	if (cold_boot) {
@@ -236,9 +252,22 @@ static int esp32s31_final_init(bool cold_boot)
 #define ESP32S31_MTIME_HI		(ESP32S31_MTIMER_BASE + 0xbffcUL)
 #define ESP32S31_MTIMER_FREQ		320000000UL
 
+/*
+ * cliccfg is per-hart state: nvbits at bit 0, nlbits at [4:1], nmbits at
+ * [6:5].  Every field is written explicitly because the hart running Linux
+ * never executes the ESP-IDF startup that would otherwise leave nlbits set,
+ * and a wrong nlbits puts the level bits of clicintctl in the wrong place,
+ * leaving every input at effective level 0 where it can never pass a zero
+ * threshold.  nmbits = 1 makes clicintattr[i].MODE meaningful, which is what
+ * lets individual inputs be delivered straight to S-mode.
+ */
 #define ESP32S31_MCLICCFG		0x10800000UL
-#define ESP32S31_MCLICCFG_NMBITS_MASK	(3UL << 5)
+#define ESP32S31_MCLICCFG_NVBITS	(1UL << 0)
+#define ESP32S31_MCLICCFG_NLBITS_1	(1UL << 1)
 #define ESP32S31_MCLICCFG_NMBITS_M_S	(1UL << 5)
+#define ESP32S31_MCLICCFG_VALUE \
+	(ESP32S31_MCLICCFG_NVBITS | ESP32S31_MCLICCFG_NLBITS_1 | \
+	 ESP32S31_MCLICCFG_NMBITS_M_S)
 
 #define ESP32S31_CLIC_CTRL_BASE	0x10801000UL
 #define ESP32S31_CLIC_IP(id)		(ESP32S31_CLIC_CTRL_BASE + 4UL * (id) + 0)
@@ -248,7 +277,11 @@ static int esp32s31_final_init(bool cold_boot)
 
 #define ESP32S31_CLIC_ATTR_M_EDGE	0xc2	/* MODE=M, edge, non-vectored */
 #define ESP32S31_CLIC_ATTR_S_EDGE	0x42	/* MODE=S, edge, non-vectored */
+#define ESP32S31_CLIC_ATTR_S_LEVEL	0x40	/* MODE=S, level, non-vectored */
 #define ESP32S31_CLIC_CTL_MAX		0xff
+
+#define ESP32S31_CLIC_EXT_MIN_ID	16
+#define ESP32S31_CLIC_NUM_INT		48
 
 #define ESP32S31_CLIC_MTIMER_ID	7	/* machine timer input */
 #define ESP32S31_CLIC_SSOFT_ID	1	/* S-mode software interrupt */
@@ -335,12 +368,22 @@ void sbi_ipi_plat_sirq_clear(void)
 
 static int esp32s31_timer_init(void)
 {
-	/* NMBITS=1: interpret clicintattr[i].MODE, enabling S-mode inputs. */
-	reg_write(ESP32S31_MCLICCFG,
-		  (reg_read(ESP32S31_MCLICCFG) & ~ESP32S31_MCLICCFG_NMBITS_MASK) |
-		  ESP32S31_MCLICCFG_NMBITS_M_S);
+	int i;
+
+	reg_write(ESP32S31_MCLICCFG, ESP32S31_MCLICCFG_VALUE);
 	csr_write(ESP32S31_CSR_MINTTHRESH, 0);
 	csr_write(ESP32S31_CSR_SINTTHRESH, 0);
+
+	/*
+	 * M-mode owns the CLIC, and an input is only reachable through the
+	 * supervisor register window once its MODE says S: from S-mode the
+	 * others read as zero and ignore writes.  Hand every Interrupt Matrix
+	 * input to the kernel disabled, leaving trigger and level to it.
+	 */
+	for (i = ESP32S31_CLIC_EXT_MIN_ID; i < ESP32S31_CLIC_NUM_INT; i++) {
+		reg_write8(ESP32S31_CLIC_IE(i), 0);
+		reg_write8(ESP32S31_CLIC_ATTR(i), ESP32S31_CLIC_ATTR_S_LEVEL);
+	}
 
 	/* Machine timer input: M-mode, edge, max level, enabled. */
 	reg_write8(ESP32S31_CLIC_IP(ESP32S31_CLIC_MTIMER_ID), 0);
@@ -382,12 +425,19 @@ const struct sbi_platform_operations platform_ops = {
 	.timer_init = esp32s31_timer_init,
 };
 
+/*
+ * Hart 0 stays in M-mode running the resident ESP-IDF firmware that owns the
+ * WLAN modem, so OpenSBI manages the single hart that runs Linux: hart 1.
+ */
+static const u32 esp32s31_hart_index2id[] = { 1 };
+
 const struct sbi_platform platform = {
 	.opensbi_version = OPENSBI_VERSION,
 	.platform_version = SBI_PLATFORM_VERSION(0x0, 0x01),
 	.name = "ESP32-S31 Korvo-1",
 	.features = SBI_PLATFORM_DEFAULT_FEATURES,
 	.hart_count = 1,
+	.hart_index2id = esp32s31_hart_index2id,
 	.hart_stack_size = SBI_PLATFORM_DEFAULT_HART_STACK_SIZE,
 	.heap_size = SBI_PLATFORM_DEFAULT_HEAP_SIZE(1),
 	.platform_ops_addr = (unsigned long)&platform_ops,

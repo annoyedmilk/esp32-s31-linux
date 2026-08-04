@@ -1,0 +1,23 @@
+#!/bin/sh
+# udhcpc hook: BusyBox calls this with the lease state in $1 and the lease
+# itself in the environment.
+
+case "$1" in
+deconfig)
+	ip addr flush dev "$interface"
+	ip link set "$interface" up
+	;;
+bound | renew)
+	ip addr add "$ip/$mask" dev "$interface"
+	ip link set "$interface" up
+
+	for gateway in $router; do
+		ip route add default via "$gateway" dev "$interface" 2>/dev/null
+	done
+
+	: >/etc/resolv.conf
+	for server in $dns; do
+		echo "nameserver $server" >>/etc/resolv.conf
+	done
+	;;
+esac

@@ -14,20 +14,31 @@
 #include "esp_rom_crc.h"
 #include "esp_rom_sys.h"
 #include "esp_clk_tree.h"
+#include "esp_attr.h"
+#include "esp_cpu.h"
+#include "esp_event.h"
+#include "esp_wifi.h"
+#include "esp_intr_alloc.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "esp_private/wifi.h"
+#include "soc/hp_system_reg.h"
+#include "soc/interrupts.h"
+#include "esp32s31-wifi-ipc.h"
 #include "driver/gpio.h"
-#include "riscv/csr.h"
+#include "esp32s31/rom/ets_sys.h"
+#include "hal/cpu_utility_ll.h"
 #include "esp32s31/rom/cache.h"
 #include "esp_private/esp_clk_tree_common.h"
 #include "esp_private/gpio.h"
 #include "esp_private/periph_ctrl.h"
 #include "hal/cache_ll.h"
 #include "hal/assist_debug_ll.h"
+#include "heap_memory_layout.h"
 #include "hal/sdmmc_ll.h"
 #include "hal/wdt_hal.h"
-#include "riscv/csr_clic.h"
 #include "soc/soc.h"
 #include "soc/soc_caps.h"
-#include "soc/clic_reg.h"
 #include "soc/clk_tree_defs.h"
 #include "soc/cpu_apm_reg.h"
 #include "soc/hp_apm_reg.h"
@@ -40,9 +51,8 @@
 #include "display.h"
 
 #define PSRAM_BASE                  0x50000000U
-#define OPENSBI_XIP_ADDR            0x40030000U
-#define OPENSBI_RAM_ADDR            0x2F000000U
-#define OPENSBI_COPY_SIZE           0x00040000U
+#define OPENSBI_LOAD_ADDR           0x50E00000U
+#define OPENSBI_LOAD_SIZE           0x00040000U
 #define KERNEL_LOAD_ADDR            0x50000000U
 #define KERNEL_IMAGE_SIZE_OFFSET    0x10U
 #define KERNEL_MAGIC2_OFFSET        0x38U
@@ -51,8 +61,28 @@
 #define INITRAMFS_LOAD_ADDR         0x50800000U
 #define INITRAMFS_PARTITION_SIZE    0x00200000U
 #define INITRAMFS_NEWC_MAGIC0       0x37303730U
-#define PMP_FULL_SPACE_NAPOT_ADDR   0x3FFFFFFFU
-#define PMP_ENTRY_RWX_LOCK_NAPOT    0x9FU
+#define LINUX_HART                  1U
+
+/*
+ * Internal SRAM handed to Linux.  Both regions are kept out of the ESP-IDF
+ * heap because this firmware stays resident: the pool backs the kernel's
+ * coherent DMA allocations and the window carries the Wi-Fi rings, and SRAM
+ * is reached without the data cache, which is what makes either usable from
+ * both harts at once.
+ */
+#define LINUX_DMA_POOL_ADDR         0x2F040000U
+#define LINUX_DMA_POOL_SIZE         0x00010000U
+#define WIFI_IPC_ADDR               0x2F050000U
+#define WIFI_IPC_SIZE               0x00010000U
+
+SOC_RESERVE_MEMORY_REGION(LINUX_DMA_POOL_ADDR,
+                          LINUX_DMA_POOL_ADDR + LINUX_DMA_POOL_SIZE,
+                          linux_dma_pool);
+SOC_RESERVE_MEMORY_REGION(WIFI_IPC_ADDR, WIFI_IPC_ADDR + WIFI_IPC_SIZE,
+                          wifi_ipc);
+
+_Static_assert(sizeof(struct esp32s31_ipc) <= WIFI_IPC_SIZE,
+               "Wi-Fi IPC block exceeds its reserved SRAM window");
 
 /*
  * APM region attribute word: one nibble per REE mode (R0 through R3), each
@@ -73,13 +103,6 @@
 
 #define SD_POWER_EN_GPIO            GPIO_NUM_39
 #define SD_TARGET_CCLK_HZ           50000000U
-
-/*
- * Total number of CLIC input slots: the 16 architectural local causes
- * followed by the SOC_CPU_INTR_NUM Interrupt Matrix inputs.  This is the
- * 48 that CLIC_INT_INFO.NUM_INT reports on the ESP32-S31.
- */
-#define CLIC_SLOT_COUNT             (CLIC_EXT_INTR_NUM_OFFSET + SOC_CPU_INTR_NUM)
 
 static const char *TAG = "s31-linux-loader";
 
@@ -181,33 +204,226 @@ static void open_apm(void)
     REG_WRITE(CPU_APM_M3_STATUS_CLR_REG, 1);
 }
 
-/*
- * The ESP32-S31 implements a single PMP entry, so it is spent on one
- * permanent full-address-space grant.  pmpaddr0 = 0x3fffffff is the NAPOT
- * encoding of a 2^32-byte range based at zero (all 30 encoded address bits
- * set), and pmpcfg0 = 0x9f is L | A=NAPOT | X | W | R.  The lock bit also
- * makes the entry apply to M-mode, and it cannot be rewritten before reset,
- * so OpenSBI must leave PMP-based domain isolation alone.
- */
-static void install_global_pmp(void)
+static struct esp32s31_ipc *const ipc = (struct esp32s31_ipc *)WIFI_IPC_ADDR;
+
+#define IPC_DOORBELL_TO_LINUX_REG   HP_SYSTEM_CPU_INT_FROM_CPU_0_REG
+#define IPC_DOORBELL_TO_FIRMWARE    ETS_CPU_INTR_FROM_CPU_1_SOURCE
+#define IPC_DOORBELL_TO_FIRMWARE_REG HP_SYSTEM_CPU_INT_FROM_CPU_1_REG
+
+static bool ipc_ring_pop(struct esp32s31_ipc_ring *ring, void *buf, uint32_t *len)
 {
-    RV_WRITE_CSR(pmpaddr0, PMP_FULL_SPACE_NAPOT_ADDR);
-    RV_WRITE_CSR(pmpcfg0, PMP_ENTRY_RWX_LOCK_NAPOT);
+    uint32_t tail = ring->tail;
+    struct esp32s31_ipc_slot *slot;
+
+    if (tail == ring->head) {
+        return false;
+    }
+
+    slot = &ring->slot[tail % ESP32S31_IPC_SLOTS];
+    *len = slot->len;
+    if (*len > ESP32S31_IPC_SLOT_DATA) {
+        *len = ESP32S31_IPC_SLOT_DATA;
+    }
+    memcpy(buf, slot->data, *len);
+
+    __atomic_store_n(&ring->tail, tail + 1, __ATOMIC_RELEASE);
+    return true;
 }
 
-static void mask_clic_slots(void)
+static bool ipc_ring_push(struct esp32s31_ipc_ring *ring, const void *buf,
+                          uint32_t len)
 {
-    /*
-     * Silence every CLIC input before handing off.  Each slot owns one
-     * 32-bit control word whose four bytes are individually addressable:
-     * byte 0 is IP, byte 1 IE, byte 2 ATTR, byte 3 CTL.  Clearing IE
-     * disables the input and clearing ATTR returns it to M-mode,
-     * level-triggered, non-vectored delivery, so OpenSBI and Linux start
-     * from a known-quiet controller.
-     */
-    for (int i = 0; i < CLIC_SLOT_COUNT; i++) {
-        *(volatile uint8_t *)BYTE_CLIC_INT_IE_REG(i) = 0;
-        *(volatile uint8_t *)BYTE_CLIC_INT_ATTR_REG(i) = 0;
+    uint32_t head = ring->head;
+    struct esp32s31_ipc_slot *slot;
+
+    if (len > ESP32S31_IPC_SLOT_DATA ||
+        head - __atomic_load_n(&ring->tail, __ATOMIC_ACQUIRE) >=
+        ESP32S31_IPC_SLOTS) {
+        return false;
+    }
+
+    slot = &ring->slot[head % ESP32S31_IPC_SLOTS];
+    memcpy(slot->data, buf, len);
+    slot->len = len;
+
+    __atomic_store_n(&ring->head, head + 1, __ATOMIC_RELEASE);
+    return true;
+}
+
+/* Frames from the air: hand them to Linux and release the Wi-Fi buffer. */
+static esp_err_t ipc_wifi_rx(void *buffer, uint16_t len, void *eb)
+{
+    bool queued = ipc_ring_push(&ipc->to_linux, buffer, len);
+
+    if (eb) {
+        esp_wifi_internal_free_rx_buffer(eb);
+    }
+    if (queued) {
+        REG_WRITE(IPC_DOORBELL_TO_LINUX_REG, 1);
+    }
+    return ESP_OK;
+}
+
+static TaskHandle_t ipc_tx_task_handle;
+
+/* esp_wifi_internal_tx() may block, so the doorbell only wakes the task. */
+static void ipc_from_linux_isr(void *arg)
+{
+    BaseType_t higher_priority_woken = pdFALSE;
+
+    REG_WRITE(IPC_DOORBELL_TO_FIRMWARE_REG, 0);
+    vTaskNotifyGiveFromISR(ipc_tx_task_handle, &higher_priority_woken);
+    portYIELD_FROM_ISR(higher_priority_woken);
+}
+
+/* Retry association only while Linux still wants a connection. */
+static bool ipc_want_connection;
+
+static void ipc_run_command(void)
+{
+    wifi_config_t cfg = { 0 };
+    esp_err_t err;
+    uint32_t code;
+
+    code = __atomic_exchange_n(&ipc->cmd.code, ESP32S31_IPC_CMD_NONE,
+                               __ATOMIC_ACQUIRE);
+
+    switch (code) {
+    case ESP32S31_IPC_CMD_CONNECT:
+        memcpy(cfg.sta.ssid, ipc->cmd.ssid, sizeof(cfg.sta.ssid));
+        memcpy(cfg.sta.password, ipc->cmd.psk, sizeof(cfg.sta.password));
+
+        /*
+         * A station that is already associating rejects a new config, so
+         * stand the old attempt down first and let it settle.
+         */
+        ipc_want_connection = false;
+        esp_wifi_disconnect();
+        vTaskDelay(pdMS_TO_TICKS(100));
+
+        ESP_LOGI(TAG, "connecting to \"%s\"", (const char *)cfg.sta.ssid);
+        err = esp_wifi_set_config(WIFI_IF_STA, &cfg);
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "set config failed: %s", esp_err_to_name(err));
+            break;
+        }
+        ipc_want_connection = true;
+        esp_wifi_connect();
+        break;
+    case ESP32S31_IPC_CMD_DISCONNECT:
+        ipc_want_connection = false;
+        esp_wifi_disconnect();
+        break;
+    }
+}
+
+static void ipc_tx_task(void *arg)
+{
+    static uint8_t frame[ESP32S31_IPC_SLOT_DATA];
+    uint32_t len;
+
+    for (;;) {
+        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        ipc_run_command();
+        while (ipc_ring_pop(&ipc->to_firmware, frame, &len)) {
+            esp_wifi_internal_tx(WIFI_IF_STA, frame, len);
+        }
+    }
+}
+
+static void ipc_set_link(uint32_t up)
+{
+    __atomic_store_n(&ipc->link_up, up, __ATOMIC_RELEASE);
+    REG_WRITE(IPC_DOORBELL_TO_LINUX_REG, 1);
+}
+
+static void ipc_wifi_event(void *arg, esp_event_base_t base, int32_t id,
+                           void *data)
+{
+    if (base != WIFI_EVENT) {
+        return;
+    }
+
+    switch (id) {
+    case WIFI_EVENT_STA_CONNECTED:
+        ESP_LOGI(TAG, "associated");
+        ipc_set_link(1);
+        break;
+    case WIFI_EVENT_STA_DISCONNECTED:
+        ipc_set_link(0);
+        if (ipc_want_connection) {
+            esp_wifi_connect();
+        }
+        break;
+    }
+}
+
+static esp_err_t start_ipc(void)
+{
+    esp_err_t err;
+
+    memset(ipc, 0, sizeof(*ipc));
+    err = esp_wifi_get_mac(WIFI_IF_STA, ipc->mac);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    if (xTaskCreate(ipc_tx_task, "wifi_ipc_tx", 4096, NULL, 5,
+                    &ipc_tx_task_handle) != pdPASS) {
+        return ESP_ERR_NO_MEM;
+    }
+
+    err = esp_intr_alloc(IPC_DOORBELL_TO_FIRMWARE, 0, ipc_from_linux_isr,
+                         NULL, NULL);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    err = esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID,
+                                     ipc_wifi_event, NULL);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    esp_wifi_internal_reg_rxcb(WIFI_IF_STA, ipc_wifi_rx);
+
+    ipc->version = ESP32S31_IPC_VERSION;
+    __atomic_store_n(&ipc->magic, ESP32S31_IPC_MAGIC, __ATOMIC_RELEASE);
+
+    ESP_LOGI(TAG, "wifi ipc at 0x%08" PRIx32 ", mac %02x:%02x:%02x:%02x:%02x:%02x",
+             (uint32_t)WIFI_IPC_ADDR, ipc->mac[0], ipc->mac[1], ipc->mac[2],
+             ipc->mac[3], ipc->mac[4], ipc->mac[5]);
+    return ESP_OK;
+}
+
+/*
+ * Bringing the radio up reads the flash, and a flash transaction disables the
+ * cache Linux executes from, so this has to complete before hart 1 is
+ * released.  NVS is switched off for the same reason: nothing may write flash
+ * once the kernel is running.
+ */
+static void start_wifi(void)
+{
+    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+    esp_err_t err;
+
+    cfg.nvs_enable = false;
+
+    err = esp_event_loop_create_default();
+    if (err == ESP_OK) {
+        err = esp_wifi_init(&cfg);
+    }
+    if (err == ESP_OK) {
+        err = esp_wifi_set_mode(WIFI_MODE_STA);
+    }
+    if (err == ESP_OK) {
+        err = esp_wifi_start();
+    }
+    if (err == ESP_OK) {
+        err = start_ipc();
+    }
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Wi-Fi setup failed: %s", esp_err_to_name(err));
     }
 }
 
@@ -220,32 +436,23 @@ static void disable_watchdog(wdt_inst_t inst)
     wdt_hal_disable(&ctx);
 }
 
-static void disable_watchdogs_and_clic(void)
+static void disable_watchdogs(void)
 {
     disable_watchdog(WDT_MWDT0);
     disable_watchdog(WDT_MWDT1);
     disable_watchdog(WDT_RWDT);
-
-    mask_clic_slots();
-
-    RV_WRITE_CSR(MTVT_CSR, 0);
 }
 
-static void clear_mstatus_mprv(void)
+/*
+ * The stack-spill monitor of the hart that runs Linux would fire on kernel
+ * stacks, so widen it away.  Hart 0 keeps its own monitor.
+ */
+static void disable_linux_hart_stack_protector(void)
 {
-    RV_CLEAR_CSR(mstatus, MSTATUS_MPRV);
-}
-
-static void disable_stack_protector(void)
-{
-    assist_debug_ll_sp_spill_monitor_disable(0);
-    assist_debug_ll_sp_spill_monitor_disable(1);
-    assist_debug_ll_sp_spill_interrupt_disable(0);
-    assist_debug_ll_sp_spill_interrupt_disable(1);
-    assist_debug_ll_sp_spill_set_min(0, 0);
-    assist_debug_ll_sp_spill_set_max(0, 0xffffffff);
-    assist_debug_ll_sp_spill_set_min(1, 0);
-    assist_debug_ll_sp_spill_set_max(1, 0xffffffff);
+    assist_debug_ll_sp_spill_monitor_disable(LINUX_HART);
+    assist_debug_ll_sp_spill_interrupt_disable(LINUX_HART);
+    assist_debug_ll_sp_spill_set_min(LINUX_HART, 0);
+    assist_debug_ll_sp_spill_set_max(LINUX_HART, 0xffffffff);
 }
 
 static esp_err_t configure_sd_pin(gpio_num_t gpio, bool pull_up)
@@ -364,6 +571,34 @@ static void init_sd_card(void)
              source_hz, source_hz / div, div, sdmmc_ll_get_version_id(&SDMMC));
 }
 
+/*
+ * Reset entry for hart 1, reached from the app-CPU ROM once its boot address
+ * is set.  PMA is per-hart state and this hart comes out of reset without an
+ * entry covering PSRAM, so OpenSBI would fault on the first write to its own
+ * BSS; grant the same regions ESP-IDF gives its application core first.
+ * OpenSBI's _start builds its own stack, so all it needs from here is the
+ * entry ABI: hart ID in a0, device tree in a1.
+ */
+static void IRAM_ATTR linux_hart_entry(void)
+{
+    esp_cpu_configure_region_protection();
+
+    __asm__ volatile (
+        "li   a0, %0\n\t"
+        "li   a1, 0\n\t"
+        "li   t0, %1\n\t"
+        "jr   t0"
+        :: "i"(LINUX_HART), "i"(OPENSBI_LOAD_ADDR)
+        : "a0", "a1", "t0");
+}
+
+static void start_linux_hart(void)
+{
+    esp_cpu_unstall(LINUX_HART);
+    cpu_utility_ll_enable_clock_and_reset_app_cpu();
+    ets_set_appcpu_boot_addr((uint32_t)linux_hart_entry);
+}
+
 static const esp_partition_t *find_partition(const char *name)
 {
     const esp_partition_t *part = esp_partition_find_first(
@@ -445,6 +680,41 @@ static bool load_kernel_partition(void)
     return true;
 }
 
+static bool load_opensbi_partition(void)
+{
+    const esp_partition_t *part = find_partition("opensbi");
+    esp_err_t err;
+
+    if (!part) {
+        return false;
+    }
+
+    if (part->size < OPENSBI_LOAD_SIZE) {
+        ESP_LOGE(TAG, "opensbi partition size 0x%08" PRIx32
+                      " is smaller than the loaded window 0x%08" PRIx32,
+                 part->size, (uint32_t)OPENSBI_LOAD_SIZE);
+        return false;
+    }
+
+    /*
+     * fw_jump carries no size manifest, so a fixed window is loaded and
+     * OpenSBI's own startup clears whatever follows the image as BSS.
+     */
+    err = esp_partition_read(part, 0, (void *)OPENSBI_LOAD_ADDR,
+                             OPENSBI_LOAD_SIZE);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "reading opensbi partition failed: %s",
+                 esp_err_to_name(err));
+        return false;
+    }
+
+    ESP_LOGI(TAG, "opensbi copied: flash=0x%08" PRIx32 " size=0x%08" PRIx32
+                  " psram=0x%08" PRIx32,
+             part->address, (uint32_t)OPENSBI_LOAD_SIZE,
+             (uint32_t)OPENSBI_LOAD_ADDR);
+    return true;
+}
+
 static bool load_initramfs_partition(void)
 {
     const esp_partition_t *part = find_partition("initramfs");
@@ -485,19 +755,8 @@ static bool load_initramfs_partition(void)
 
 void app_main(void)
 {
-    const esp_partition_t *opensbi_part;
-    const void *opensbi_ptr;
-    esp_partition_mmap_handle_t mmap_handle;
-    uintptr_t copy_src;
-    uintptr_t copy_dst;
-    const uintptr_t copy_end = OPENSBI_RAM_ADDR + OPENSBI_COPY_SIZE;
-    const uintptr_t opensbi_entry = OPENSBI_RAM_ADDR;
-    esp_err_t err;
-
     open_apm();
-    disable_watchdogs_and_clic();
-    clear_mstatus_mprv();
-    install_global_pmp();
+    disable_watchdogs();
 
     if (!esp_psram_is_initialized()) {
         ESP_LOGE(TAG, "PSRAM not initialized");
@@ -506,26 +765,8 @@ void app_main(void)
     log_cache_mode();
     init_sd_card();
 
-    opensbi_part = find_partition("opensbi");
-    if (!opensbi_part) {
-        esp_restart();
-    }
-
-    err = esp_partition_mmap(opensbi_part, 0, opensbi_part->size,
-                             ESP_PARTITION_MMAP_INST,
-                             &opensbi_ptr, &mmap_handle);
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG, "esp_partition_mmap failed: %s", esp_err_to_name(err));
-        esp_restart();
-    }
-
-    if ((uintptr_t)opensbi_ptr != OPENSBI_XIP_ADDR) {
-        ESP_LOGE(TAG, "OpenSBI mmap address %p != linked load address 0x%08" PRIx32,
-                 opensbi_ptr, (uint32_t)OPENSBI_XIP_ADDR);
-        esp_restart();
-    }
-
-    if (!load_kernel_partition() || !load_initramfs_partition()) {
+    if (!load_opensbi_partition() || !load_kernel_partition() ||
+        !load_initramfs_partition()) {
         esp_restart();
     }
 
@@ -537,48 +778,17 @@ void app_main(void)
         ESP_LOGW(TAG, "continuing without display");
     }
 #endif
-    mask_clic_slots();
 
-    ESP_LOGI(TAG, "handoff: OpenSBI 0x%08" PRIx32 "->0x%08" PRIx32
-                  " kernel=0x%08" PRIx32 " initramfs=0x%08" PRIx32,
-             (uint32_t)OPENSBI_XIP_ADDR, (uint32_t)OPENSBI_RAM_ADDR,
-             (uint32_t)KERNEL_LOAD_ADDR, (uint32_t)INITRAMFS_LOAD_ADDR);
+    ESP_LOGI(TAG, "handoff: OpenSBI=0x%08" PRIx32 " kernel=0x%08" PRIx32
+                  " initramfs=0x%08" PRIx32,
+             (uint32_t)OPENSBI_LOAD_ADDR, (uint32_t)KERNEL_LOAD_ADDR,
+             (uint32_t)INITRAMFS_LOAD_ADDR);
 
-    disable_stack_protector();
+    start_wifi();
+
+    disable_linux_hart_stack_protector();
     flush_l1_cache_before_handoff();
 
-    copy_src = OPENSBI_XIP_ADDR;
-    copy_dst = OPENSBI_RAM_ADDR;
-
-    /*
-     * Relocate OpenSBI out of the flash XIP window into SRAM and jump to it.
-     * The copy loop has to be inline assembly because it runs after the point
-     * of no return: interrupts are hard-disabled first (mie = 0, then
-     * mstatus.MIE cleared via csrci with bit 3), and once the destination is
-     * being overwritten no C runtime state may be relied upon.
-     *
-     * fence orders the copy against the following fetches and fence.i
-     * discards instruction-cache lines for the destination range, so the jump
-     * observes the freshly written image rather than stale prefetched bytes.
-     * a0 and a1 are zeroed because OpenSBI's fw_jump entry expects the hart
-     * ID in a0 and a device-tree pointer in a1; this platform passes neither.
-     */
-    __asm__ volatile (
-        "csrw  mie, zero\n\t"
-        "csrci mstatus, 0x8\n\t"
-        "1:\n\t"
-        "lw    t0, 0(%0)\n\t"
-        "sw    t0, 0(%1)\n\t"
-        "addi  %0, %0, 4\n\t"
-        "addi  %1, %1, 4\n\t"
-        "bltu  %1, %2, 1b\n\t"
-        "fence\n\t"
-        "fence.i\n\t"
-        "mv    a0, zero\n\t"
-        "mv    a1, zero\n\t"
-        "jr    %3"
-        : "+&r"(copy_src), "+&r"(copy_dst)
-        : "r"(copy_end), "r"(opensbi_entry)
-        : "t0", "a0", "a1", "memory");
-    __builtin_unreachable();
+    start_linux_hart();
+    ESP_LOGI(TAG, "hart 0 resident");
 }

@@ -1,0 +1,58 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/net/wireless/espressif,esp32s31-wifi.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Espressif ESP32-S31 WLAN modem
+
+maintainers:
+  - Marco Müller <hello@annoyedmilk.ch>
+
+description: >
+  The WLAN modem of the ESP32-S31 is owned by ESP-IDF firmware resident on the
+  hart that does not run Linux, which keeps the 802.11 side to itself and
+  exchanges 802.3 frames through fixed-size slot rings in internal SRAM. The
+  firmware publishes its ring layout, protocol version and station MAC address
+  at the start of that region. Each direction is signalled by one of the
+  cross-core interrupt registers, the first raised by the firmware and
+  acknowledged by Linux, the second raised by Linux.
+
+allOf:
+  - $ref: /schemas/net/network-class.yaml#
+
+properties:
+  compatible:
+    const: espressif,esp32s31-wifi
+
+  reg:
+    items:
+      - description: shared ring region in internal SRAM
+      - description: cross-core doorbell register pair
+
+  reg-names:
+    items:
+      - const: ipc
+      - const: doorbell
+
+  interrupts:
+    maxItems: 1
+    description: doorbell raised by the firmware when frames are queued
+
+required:
+  - compatible
+  - reg
+  - reg-names
+  - interrupts
+
+unevaluatedProperties: false
+
+examples:
+  - |
+    wifi@2f050000 {
+        compatible = "espressif,esp32s31-wifi";
+        reg = <0x2f050000 0x10000>, <0x20586010 0x8>;
+        reg-names = "ipc", "doorbell";
+        interrupt-parent = <&clic>;
+        interrupts = <35 65 4>;
+    };

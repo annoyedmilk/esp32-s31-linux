@@ -32,10 +32,14 @@ fi
 # A second shell on the frame-buffer console, so a USB keyboard drives the
 # panel.  The kernel's VT layer already feeds key events from every input
 # device to the foreground VT; userspace does not route /dev/input at all.
+# cttyhack must not be used here: it ignores the redirection below and reopens
+# whatever /sys/class/tty/console/active names last, which is the serial port,
+# leaving nothing reading the panel.  setsid -c takes tty1 as the controlling
+# terminal instead, which is what makes Ctrl-C work there.
 if [ -c /dev/tty1 ]; then
 	(
 		while true; do
-			/bin/setsid /bin/cttyhack /bin/sh -i \
+			/bin/setsid -c /bin/sh -i \
 				</dev/tty1 >/dev/tty1 2>&1
 			sleep 1
 		done
@@ -46,6 +50,7 @@ fi
 echo
 echo "=== ESP32-S31 Linux / BusyBox ==="
 echo "Console: ttyS0"
+echo "Wi-Fi:   wifi <ssid> [passphrase]   then: ping 8.8.8.8"
 
 # PID 1 must never exit: reset-time line glitches can feed the shell a stray
 # ^D (EOF), and an exiting init panics the kernel.  Respawn the shell instead.

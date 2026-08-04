@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: GPL-2.0-only
+config WLAN_VENDOR_ESPRESSIF
+	bool "Espressif devices"
+	default y
+	help
+	  If you have a wireless card belonging to this class, say Y.
+
+	  Note that the answer to this question doesn't directly affect the
+	  kernel: saying N will just cause the configurator to skip all the
+	  questions about these cards. If you say Y, you will be asked for
+	  your specific card in the following questions.
+
+if WLAN_VENDOR_ESPRESSIF
+
+config ESP32S31_WIFI
+	tristate "ESP32-S31 WLAN modem"
+	depends on SOC_ESP32S31 || COMPILE_TEST
+	depends on OF
+	help
+	  Network device for the WLAN modem of the ESP32-S31, which is driven
+	  by ESP-IDF firmware resident on the second hart. Linux exchanges
+	  802.3 frames with that firmware through shared internal SRAM.
+
+	  To compile this driver as a module, choose M here: the module will
+	  be called esp32s31-wifi.
+
+endif # WLAN_VENDOR_ESPRESSIF

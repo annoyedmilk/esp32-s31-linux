@@ -32,14 +32,19 @@
 			no-map;
 		};
 
+		/* M-mode firmware; Linux must never map or allocate it. */
+		opensbi_region: opensbi@50e00000 {
+			reg = <0x50e00000 0x40000>;
+			no-map;
+		};
+
 		/*
 		 * Coherent allocations cannot be served from PSRAM: it is
 		 * cached, the SoC publishes no uncached alias of it, and Sv32
 		 * page tables carry no cacheability attribute to remap it
 		 * with.  Internal SRAM is reached without the data cache, so
-		 * a pool there is coherent by construction.  It sits above
-		 * the 256 KiB the loader relocates OpenSBI into and below the
-		 * loader's LCD descriptor ring at 0x2f079000.
+		 * a pool there is coherent by construction.  It sits below
+		 * the loader's LCD descriptor ring at 0x2f079000.
 		 */
 		dma_pool: dma-pool@2f040000 {
 			compatible = "shared-dma-pool";
@@ -58,16 +63,20 @@
 		#size-cells = <0>;
 		timebase-frequency = <320000000>;
 
-		cpu0: cpu@0 {
+		/*
+		 * Hart 0 stays in M-mode running the resident ESP-IDF
+		 * firmware that owns the WLAN modem; Linux is given hart 1.
+		 */
+		cpu1: cpu@1 {
 			device_type = "cpu";
 			compatible = "espressif,esp32s31", "riscv";
-			reg = <0>;
+			reg = <1>;
 			riscv,isa = "rv32imabcn_zba_zbb";
 			riscv,isa-base = "rv32i";
 			riscv,isa-extensions = "i", "m", "a", "zba", "zbb", "c",
 					       "zicntr", "zicsr", "zifencei";
 			mmu-type = "riscv,sv32";
-			cpu0_intc: interrupt-controller {
+			cpu1_intc: interrupt-controller {
 				#interrupt-cells = <1>;
 				interrupt-controller;
 				compatible = "riscv,cpu-intc";
@@ -143,6 +152,25 @@
 			interrupt-parent = <&clic>;
 			interrupts = <32 9 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&xtal>;
+		};
+
+		trng: rng@20814000 {
+			compatible = "espressif,esp32s31-trng";
+			reg = <0x20814000 0x100>, <0x2071003c 0x4>;
+			reg-names = "trng", "clkrst";
+		};
+
+		/*
+		 * The rings live in internal SRAM and the doorbells are the
+		 * cross-core interrupt registers: FROM_CPU_0 is raised by the
+		 * firmware and acknowledged here, FROM_CPU_1 is raised here.
+		 */
+		wifi: wifi@2f050000 {
+			compatible = "espressif,esp32s31-wifi";
+			reg = <0x2f050000 0x10000>, <0x20586010 0x8>;
+			reg-names = "ipc", "doorbell";
+			interrupt-parent = <&clic>;
+			interrupts = <35 65 IRQ_TYPE_LEVEL_HIGH>;
 		};
 
 		usb_phy: phy@205870ac {

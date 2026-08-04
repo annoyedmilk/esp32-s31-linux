@@ -83,11 +83,25 @@ CONFIG_BINFMT_ELF=y
 CONFIG_DEVTMPFS=y
 CONFIG_DEVTMPFS_MOUNT=y
 
-# Networking is not needed for the serial BusyBox environment.
-# CONFIG_NET is not set
+# Networking, for the esp-hosted Wi-Fi interface. The device is full-MAC and
+# talks cfg80211 directly, so mac80211 stays out. PACKET and UNIX are what
+# wpa_supplicant needs; INET carries the actual traffic.
+CONFIG_NET=y
+CONFIG_PACKET=y
+CONFIG_UNIX=y
+CONFIG_INET=y
+CONFIG_CFG80211=y
+# There is no firmware loader here, so "regulatory.db" can never be read and
+# cfg80211 falls back to the built-in world domain; the device applies its own
+# regulatory rules. Requiring a signed regdb would only drag in PKCS#7, X.509
+# and the trusted keyring, and make the build depend on host OpenSSL headers.
+CONFIG_CFG80211_CERTIFICATION_ONUS=y
+# CONFIG_CFG80211_REQUIRE_SIGNED_REGDB is not set
+# CONFIG_CFG80211_USE_KERNEL_REGDB_KEYS is not set
 
-# Firmware loader / core dumps -- off
-# CONFIG_FW_LOADER is not set
+# Core dumps off. CONFIG_FW_LOADER cannot be turned off any more: CFG80211
+# selects it. Nothing supplies a regulatory.db, so the load fails at boot and
+# cfg80211 falls back to its built-in world regulatory domain.
 # CONFIG_ALLOW_DEV_COREDUMP is not set
 
 # USB HID input devices
@@ -131,8 +145,12 @@ CONFIG_MMC_BLOCK=y
 CONFIG_MMC_DW=y
 CONFIG_MMC_DW_PLTFM=y
 
-# Network devices -- off
-# CONFIG_NETDEVICES is not set
+# Network devices: the wireless class only, for the esp-hosted interface.
+CONFIG_NETDEVICES=y
+CONFIG_WLAN=y
+CONFIG_WLAN_VENDOR_ESPRESSIF=y
+CONFIG_ESP32S31_WIFI=y
+# CONFIG_ETHERNET is not set
 
 # Frame buffer for the loader's 800x480 RGB565 panel, with fbcon on the VTs.
 # VT is a printk console and console=tty0 is on the command line, so the boot
@@ -153,8 +171,10 @@ CONFIG_VT_CONSOLE=y
 CONFIG_SERIAL_EARLYCON_RISCV_SBI=y
 CONFIG_SERIAL_ESP32=y
 
-# No hardware RNG
-# CONFIG_HW_RANDOM is not set
+# The SoC's TRNG seeds the CRNG at boot; without it the kernel needs about
+# twenty seconds of interrupt timing before getrandom() stops blocking.
+CONFIG_HW_RANDOM=y
+CONFIG_HW_RANDOM_ESP32S31=y
 # CONFIG_DEVMEM is not set
 
 # Virtualisation I/O -- off

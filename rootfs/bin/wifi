@@ -1,0 +1,43 @@
+#!/bin/sh
+# wifi <ssid> [passphrase]  -- associate and take a DHCP lease
+# wifi off                  -- disconnect
+
+dev=/sys/class/net/eth0/device
+
+if [ ! -d "$dev" ]; then
+	echo "wifi: no ESP32-S31 WLAN device" >&2
+	exit 1
+fi
+
+if [ -z "$1" ] || [ "$1" = "-h" ]; then
+	echo "usage: wifi <ssid> [passphrase]"
+	echo "       wifi off"
+	exit 1
+fi
+
+if [ "$1" = "off" ]; then
+	echo 0 >"$dev/connect"
+	ip addr flush dev eth0
+	echo "wifi: disconnected"
+	exit 0
+fi
+
+echo "$1" >"$dev/ssid"
+echo "$2" >"$dev/psk"
+
+ip link set eth0 up
+echo 1 >"$dev/connect"
+
+echo "wifi: associating with \"$1\""
+for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
+	ip link show eth0 | grep -q NO-CARRIER || break
+	sleep 1
+done
+
+if ip link show eth0 | grep -q NO-CARRIER; then
+	echo "wifi: no carrier -- check the name and passphrase" >&2
+	exit 1
+fi
+
+echo "wifi: associated, requesting a lease"
+udhcpc -i eth0 -n -q

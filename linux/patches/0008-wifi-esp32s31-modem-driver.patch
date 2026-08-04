@@ -1,0 +1,35 @@
+From: Marco Müller <hello@annoyedmilk.ch>
+Subject: [PATCH] wifi: esp32s31: hook up the ESP32-S31 WLAN modem driver
+
+The modem is owned by ESP-IDF firmware resident on the second hart, and
+Linux exchanges 802.3 frames with it through shared internal SRAM.  Add
+the vendor directory to the wireless Kconfig and Makefile.
+
+Signed-off-by: Marco Müller <hello@annoyedmilk.ch>
+---
+ drivers/net/wireless/Kconfig  | 1 +
+ drivers/net/wireless/Makefile | 1 +
+ 2 files changed, 2 insertions(+)
+
+diff --git a/drivers/net/wireless/Kconfig b/drivers/net/wireless/Kconfig
+--- a/drivers/net/wireless/Kconfig
++++ b/drivers/net/wireless/Kconfig
+@@ -21,6 +21,7 @@ source "drivers/net/wireless/admtek/Kconfig"
+ source "drivers/net/wireless/ath/Kconfig"
+ source "drivers/net/wireless/atmel/Kconfig"
+ source "drivers/net/wireless/broadcom/Kconfig"
++source "drivers/net/wireless/espressif/Kconfig"
+ source "drivers/net/wireless/intel/Kconfig"
+ source "drivers/net/wireless/intersil/Kconfig"
+ source "drivers/net/wireless/marvell/Kconfig"
+diff --git a/drivers/net/wireless/Makefile b/drivers/net/wireless/Makefile
+--- a/drivers/net/wireless/Makefile
++++ b/drivers/net/wireless/Makefile
+@@ -7,6 +7,7 @@ obj-$(CONFIG_WLAN_VENDOR_ADMTEK) += admtek/
+ obj-$(CONFIG_WLAN_VENDOR_ATH) += ath/
+ obj-$(CONFIG_WLAN_VENDOR_ATMEL) += atmel/
+ obj-$(CONFIG_WLAN_VENDOR_BROADCOM) += broadcom/
++obj-$(CONFIG_WLAN_VENDOR_ESPRESSIF) += espressif/
+ obj-$(CONFIG_WLAN_VENDOR_INTEL) += intel/
+ obj-$(CONFIG_WLAN_VENDOR_INTERSIL) += intersil/
+ obj-$(CONFIG_WLAN_VENDOR_MARVELL) += marvell/

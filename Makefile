@@ -183,6 +183,7 @@ busybox:
 initramfs: busybox
 	@"$(PYTHON)" scripts/mkinitramfs.py --busybox "$(BUSYBOX_BIN)" \
 		--init rootfs/init $(addprefix --script ,$(wildcard rootfs/bin/*)) \
+		--udhcpc-script rootfs/udhcpc.script \
 		--output "$(BUILD_DIR)/initramfs.cpio" --size 0x200000
 
 flash: build

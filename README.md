@@ -9,13 +9,26 @@ The verified boot chain is:
 ESP ROM -> ESP-IDF second stage -> loader -> OpenSBI -> Linux -> BusyBox initramfs
 ```
 
+The two harts are split. Hart 0 never leaves M-mode: it runs the ESP-IDF
+loader, which stays resident afterwards as the firmware that owns the WLAN
+modem. Linux gets hart 1 to itself.
+
 The ESP-IDF second stage brings up PSRAM before `app_main` runs. The loader
 verifies that, copies the exact Linux image length through the cacheable
 aperture at `0x50000000` after checking the image's size and CRC manifest,
-zeroes its in-memory tail, copies the initramfs to `0x50800000`, installs the
-chip's single global PMP grant, and hands control to OpenSBI at `0x2f000000`.
-OpenSBI provides SBI TIME through the machine timer and delivers supervisor
-interrupts through the S31 CLIC.
+zeroes its in-memory tail, copies the initramfs to `0x50800000` and OpenSBI to
+`0x50e00000`, brings up Wi-Fi, and then releases hart 1 into OpenSBI. OpenSBI
+provides SBI TIME through the machine timer and delivers supervisor interrupts
+through the S31 CLIC.
+
+OpenSBI runs from reserved PSRAM rather than internal SRAM because the resident
+firmware links its own data at the bottom of SRAM. Two pieces of per-hart state
+have to be established before hart 1 can get anywhere: the loader's entry stub
+grants it a PMA entry covering PSRAM, without which OpenSBI faults on the first
+write to its own BSS, and OpenSBI hands the CLIC's Interrupt Matrix inputs to
+S-mode. An input whose `clicintattr.MODE` is not supervisor is invisible
+through the supervisor register window -- it reads as zero and drops writes --
+so without that step Linux silently receives no external interrupt at all.
 
 The verified cache geometry is a 32 KiB, two-way instruction cache and a
 64 KiB, two-way data cache, both with 64-byte lines. OpenSBI marks cached
@@ -213,18 +226,17 @@ The DWC2 root hub should be present before a device is connected. Plugging in
 a HID device should add a USB device and an `event*` input node, and its keys
 reach the `/dev/tty1` shell on the panel.
 
-To exercise the non-coherent DMA path, run the `dma-stress` applet that the
-initramfs carries (every script in `rootfs/bin` is installed into `/bin`):
+Every script in `rootfs/bin` is installed into `/bin`.
+
+To join a network and reach the internet, from either console:
 
 ```sh
-dma-stress
+wifi <ssid> [passphrase]
+ping 8.8.8.8
 ```
 
-It hashes a file across `drop_caches` cycles, writes and re-reads 1 MiB per
-round, reads the raw block device at deliberately misaligned block sizes, and
-remounts the card repeatedly, because a missed cache invalidate returns stale
-data rather than an I/O error. It writes and removes `/mnt/sd/dma-stress.tmp`
-and touches nothing else on the card.
+`wifi` hands the credentials to the firmware through sysfs, waits for the
+carrier, then takes a DHCP lease with `udhcpc`. `wifi off` disconnects.
 
 ## Flash layout
 
@@ -232,11 +244,16 @@ and touches nothing else on the card.
 | ---: | --- |
 | `0x00002000` | ESP-IDF second-stage bootloader |
 | `0x00008000` | partition table |
-| `0x00020000` | ESP32-S31 Linux loader |
+| `0x00020000` | ESP32-S31 Linux loader and Wi-Fi firmware |
 | `0x00220000` | OpenSBI fw_jump |
 | `0x002a0000` | Linux Image |
 | `0x00a1fff4` | Linux size and CRC manifest |
 | `0x00a20000` | 2 MiB initramfs partition |
+
+Internal SRAM is shared between the two harts. The firmware keeps the ESP-IDF
+heap out of `0x2f040000`-`0x2f060000`: the lower half is the kernel's coherent
+DMA pool and the upper half carries the Wi-Fi rings. Both are reached without
+the data cache, which is what makes them usable from both harts at once.
 
 ## Debugging
 
@@ -256,10 +273,24 @@ Then connect the ESP RISC-V GDB to port 3333 using
 
 Boot logs are written under `logs/` and ignored by Git.
 
+## Wi-Fi
+
+The WLAN modem belongs to the firmware on hart 0, which runs the 802.11 side
+with ESP-IDF and never touches the flash again once Linux is running: a flash
+transaction disables the cache the kernel executes from, so radio bring-up is
+ordered ahead of releasing hart 1. NVS is disabled for the same reason, at the
+cost of a full RF calibration on every boot.
+
+Linux sees an Ethernet-class `eth0` from `esp32s31-wifi`, which exchanges 802.3
+frames with that firmware through fixed-size slot rings and a pair of
+cross-core doorbell interrupts. Association is not implemented yet, so the
+interface has no carrier.
+
 ## Current limitations
 
-- one CPU is enabled;
-- the single PMP entry is a locked global RWX grant, so OpenSBI domain
+- Wi-Fi carries no association yet, so `eth0` never gains a carrier;
+- Linux is uniprocessor on hart 1, and hart 0 is not available to it;
+- the PMP entry OpenSBI installs is a locked global RWX grant, so its domain
   isolation is intentionally unavailable;
 - APM/PMS permissions are broad bring-up grants;
 - hardware reset/shutdown through SBI is not implemented;
@@ -267,4 +298,5 @@ Boot logs are written under `logs/` and ignored by Git.
   not enabled;
 - coherent DMA allocations all come from one 64 KiB SRAM pool, so a driver
   that wants a large coherent buffer will fail to allocate;
-- networking and most board peripherals are not enabled yet.
+- most board peripherals other than the panel, SD slot, USB host and WLAN
+  modem are not enabled yet.
