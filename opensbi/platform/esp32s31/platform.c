@@ -41,17 +41,18 @@
 #define ESP32S31_CPU_APM_ATTR0		(ESP32S31_CPU_APM_BASE + 0x0cUL)
 #define ESP32S31_CPU_APM_FUNC_CTRL	(ESP32S31_CPU_APM_BASE + 0xc4UL)
 
+/*
+ * PSRAM runs write-back.  An early bring-up on hart 0, before the kernel had
+ * any DMA cache maintenance, corrupted allocator state under write-back and
+ * ran write-through (cfg 0xc400001d) for a long time; the configuration was
+ * re-validated on hart 1 with the full DMA stack and the panel and holds.
+ */
 #define ESP32S31_PMAADDR0		0xbd0
 #define ESP32S31_PMACFG0		0xbc0
 #define ESP32S31_SRAM_PMA_NAPOT	0x0bc03fffUL
 #define ESP32S31_PSRAM_PMA_NAPOT	0x141fffffUL
 #define ESP32S31_SRAM_PMA_RWX		0xc000001dUL
-/*
- * Linux Sv32 corrupts early allocator state when PSRAM is write-back, even
- * after the loader writes back and invalidates the complete L1 cache.  Keep
- * PSRAM write-through until page-table-walker coherency is understood.
- */
-#define ESP32S31_PSRAM_PMA_RWX_WT	0xc400001dUL
+#define ESP32S31_PSRAM_PMA_RWX		0xc000001dUL
 
 static inline void reg_write(unsigned long addr, unsigned long val)
 {
@@ -89,7 +90,7 @@ static void esp32s31_pma_init(void)
 	csr_write_num(ESP32S31_PMAADDR0, ESP32S31_SRAM_PMA_NAPOT);
 	csr_write_num(ESP32S31_PMACFG0, ESP32S31_SRAM_PMA_RWX);
 	csr_write_num(ESP32S31_PMAADDR0 + 1, ESP32S31_PSRAM_PMA_NAPOT);
-	csr_write_num(ESP32S31_PMACFG0 + 1, ESP32S31_PSRAM_PMA_RWX_WT);
+	csr_write_num(ESP32S31_PMACFG0 + 1, ESP32S31_PSRAM_PMA_RWX);
 }
 
 #if ESP32S31_USB_SERIAL_JTAG_CONSOLE
