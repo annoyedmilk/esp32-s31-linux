@@ -3,9 +3,10 @@
 
 #include <sbi/riscv_asm.h>
 #include <sbi/sbi_console.h>
-#include <sbi/sbi_hart_protection.h>
+#include <sbi/sbi_ecall_interface.h>
 #include <sbi/sbi_ipi.h>
 #include <sbi/sbi_platform.h>
+#include <sbi/sbi_system.h>
 #include <sbi/sbi_timer.h>
 
 #define ESP32S31_UART0_BASE		0x2038a000UL
@@ -83,21 +84,6 @@ static void esp32s31_apm_init(void)
 	reg_write(ESP32S31_CPU_APM_FUNC_CTRL, 0x0fUL);
 }
 
-/*
- * The chip implements a single PMP entry, spent on one permanent
- * full-address-space grant.  pmpaddr0 = 0x3fffffff is the NAPOT encoding of a
- * 2^32-byte range based at zero and pmpcfg0 = 0x9f is L | A=NAPOT | X | W | R.
- * PMP is per-hart state, so this runs on whichever hart boots Linux.
- */
-#define ESP32S31_PMP_FULL_SPACE_NAPOT	0x3fffffffUL
-#define ESP32S31_PMP_ENTRY_RWX_LOCK	0x9fUL
-
-static void esp32s31_pmp_init(void)
-{
-	csr_write(CSR_PMPADDR0, ESP32S31_PMP_FULL_SPACE_NAPOT);
-	csr_write(CSR_PMPCFG0, ESP32S31_PMP_ENTRY_RWX_LOCK);
-}
-
 static void esp32s31_pma_init(void)
 {
 	csr_write_num(ESP32S31_PMAADDR0, ESP32S31_SRAM_PMA_NAPOT);
@@ -173,37 +159,40 @@ static struct sbi_console_device esp32s31_console = {
 };
 
 /*
- * The ESP32-S31 implements a single PMP entry.  The loader programs that
- * entry as a locked, full-address-space RWX grant before entering OpenSBI so
- * S-mode can access PSRAM and peripherals.  OpenSBI's generic PMP domain
- * isolation needs at least one entry per domain region and cannot replace the
- * locked entry, so advertise the loader-owned policy as the preferred hart
- * protection mechanism and leave the hardware entry untouched.
+ * A write-to-trigger bit that resets the whole digital system, equivalent to
+ * the reset button.  Both harts restart through the normal boot chain.
  */
-static int esp32s31_global_pmp_configure(struct sbi_scratch *scratch)
+#define ESP32S31_LP_SYS_CTRL		0x20700008UL
+#define ESP32S31_LP_SYS_SW_RST		(1UL << 1)
+
+static int esp32s31_system_reset_check(u32 type, u32 reason)
 {
-	return 0;
+	return type == SBI_SRST_RESET_TYPE_COLD_REBOOT ||
+	       type == SBI_SRST_RESET_TYPE_WARM_REBOOT;
 }
 
-static void esp32s31_global_pmp_unconfigure(struct sbi_scratch *scratch)
+static void esp32s31_system_reset(u32 type, u32 reason)
 {
+	reg_write(ESP32S31_LP_SYS_CTRL,
+		  reg_read(ESP32S31_LP_SYS_CTRL) | ESP32S31_LP_SYS_SW_RST);
+
+	while (1)
+		wfi();
 }
 
-static struct sbi_hart_protection esp32s31_global_pmp = {
-	.name = "esp32s31-global-pmp",
-	.rating = 1000,
-	.configure = esp32s31_global_pmp_configure,
-	.unconfigure = esp32s31_global_pmp_unconfigure,
+static struct sbi_system_reset_device esp32s31_reset = {
+	.name = "esp32s31-sys-rst",
+	.system_reset_check = esp32s31_system_reset_check,
+	.system_reset = esp32s31_system_reset,
 };
 
 static int esp32s31_early_init(bool cold_boot)
 {
 	esp32s31_apm_init();
-	esp32s31_pmp_init();
 	esp32s31_pma_init();
 
 	if (cold_boot) {
-		sbi_hart_protection_register(&esp32s31_global_pmp);
+		sbi_system_reset_add_device(&esp32s31_reset);
 		sbi_console_set_device(&esp32s31_console);
 	}
 
@@ -275,9 +264,20 @@ static int esp32s31_final_init(bool cold_boot)
 #define ESP32S31_CLIC_ATTR(id)		(ESP32S31_CLIC_CTRL_BASE + 4UL * (id) + 2)
 #define ESP32S31_CLIC_CTL(id)		(ESP32S31_CLIC_CTRL_BASE + 4UL * (id) + 3)
 
-#define ESP32S31_CLIC_ATTR_M_EDGE	0xc2	/* MODE=M, edge, non-vectored */
-#define ESP32S31_CLIC_ATTR_S_EDGE	0x42	/* MODE=S, edge, non-vectored */
-#define ESP32S31_CLIC_ATTR_S_LEVEL	0x40	/* MODE=S, level, non-vectored */
+/*
+ * clicintattr byte: SHV at bit 0 (clear for non-vectored), TRIG at [2:1],
+ * MODE at [7:6].  MODE selects the privilege an input is delivered to, and
+ * also gates its visibility through the supervisor register window.
+ */
+#define ESP32S31_CLIC_ATTR_TRIG_EDGE	(1UL << 1)
+#define ESP32S31_CLIC_ATTR_MODE_S	(1UL << 6)
+#define ESP32S31_CLIC_ATTR_MODE_M	(3UL << 6)
+
+#define ESP32S31_CLIC_ATTR_M_EDGE \
+	(ESP32S31_CLIC_ATTR_MODE_M | ESP32S31_CLIC_ATTR_TRIG_EDGE)
+#define ESP32S31_CLIC_ATTR_S_EDGE \
+	(ESP32S31_CLIC_ATTR_MODE_S | ESP32S31_CLIC_ATTR_TRIG_EDGE)
+#define ESP32S31_CLIC_ATTR_S_LEVEL	ESP32S31_CLIC_ATTR_MODE_S
 #define ESP32S31_CLIC_CTL_MAX		0xff
 
 #define ESP32S31_CLIC_EXT_MIN_ID	16
