@@ -297,7 +297,10 @@ compile it.
 
 ## Current limitations
 
-- Wi-Fi carries no association yet, so `eth0` never gains a carrier;
+- Wi-Fi is an Ethernet-style netdev fed by the hart 0 firmware over shared
+  memory, so there is no cfg80211 and no scan: the IPC carries CONNECT and
+  DISCONNECT only, and `wifi <ssid> [passphrase]` pushes credentials through
+  sysfs;
 - Linux is uniprocessor on hart 1, and hart 0 is not available to it;
 - the PMP entry OpenSBI installs is a locked global RWX grant, so its domain
   isolation is intentionally unavailable;
