@@ -161,24 +161,26 @@ static struct sbi_console_device esp32s31_console = {
 	.console_getc = esp32s31_console_getc,
 };
 
-/*
- * A write-to-trigger bit that resets the whole digital system, equivalent to
- * the reset button.  Both harts restart through the normal boot chain.
- */
+/* Resets the whole digital system, equivalent to the reset button. */
 #define ESP32S31_LP_SYS_CTRL		0x20700008UL
 #define ESP32S31_LP_SYS_SW_RST		(1UL << 1)
 
 static int esp32s31_system_reset_check(u32 type, u32 reason)
 {
-	return type == SBI_SRST_RESET_TYPE_COLD_REBOOT ||
+	return type == SBI_SRST_RESET_TYPE_SHUTDOWN ||
+	       type == SBI_SRST_RESET_TYPE_COLD_REBOOT ||
 	       type == SBI_SRST_RESET_TYPE_WARM_REBOOT;
 }
 
 static void esp32s31_system_reset(u32 type, u32 reason)
 {
-	reg_write(ESP32S31_LP_SYS_CTRL,
-		  reg_read(ESP32S31_LP_SYS_CTRL) | ESP32S31_LP_SYS_SW_RST);
+	/* The part has no power switch, so shutdown parks the hart instead. */
+	if (type != SBI_SRST_RESET_TYPE_SHUTDOWN)
+		reg_write(ESP32S31_LP_SYS_CTRL,
+			  reg_read(ESP32S31_LP_SYS_CTRL) |
+			  ESP32S31_LP_SYS_SW_RST);
 
+	csr_write(CSR_MIE, 0);
 	while (1)
 		wfi();
 }
