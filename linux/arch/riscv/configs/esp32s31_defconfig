@@ -81,25 +81,14 @@ CONFIG_BINFMT_ELF=y
 CONFIG_DEVTMPFS=y
 CONFIG_DEVTMPFS_MOUNT=y
 
-# Networking, for the esp-hosted Wi-Fi interface. The device is full-MAC and
-# talks cfg80211 directly, so mac80211 stays out. PACKET and UNIX are what
-# wpa_supplicant needs; INET carries the actual traffic.
+# Networking. eth0 is an Ethernet-style netdev fed by the hart 0 firmware,
+# which owns all 802.11 state, so neither cfg80211 nor mac80211 is built.
+# PACKET is the raw socket udhcpc needs; INET carries the actual traffic.
 CONFIG_NET=y
 CONFIG_PACKET=y
 CONFIG_UNIX=y
 CONFIG_INET=y
-CONFIG_CFG80211=y
-# There is no firmware loader here, so "regulatory.db" can never be read and
-# cfg80211 falls back to the built-in world domain; the device applies its own
-# regulatory rules. Requiring a signed regdb would only drag in PKCS#7, X.509
-# and the trusted keyring, and make the build depend on host OpenSSL headers.
-CONFIG_CFG80211_CERTIFICATION_ONUS=y
-# CONFIG_CFG80211_REQUIRE_SIGNED_REGDB is not set
-# CONFIG_CFG80211_USE_KERNEL_REGDB_KEYS is not set
 
-# Core dumps off. CONFIG_FW_LOADER cannot be turned off any more: CFG80211
-# selects it. Nothing supplies a regulatory.db, so the load fails at boot and
-# cfg80211 falls back to its built-in world regulatory domain.
 # CONFIG_ALLOW_DEV_COREDUMP is not set
 
 # USB HID input devices
