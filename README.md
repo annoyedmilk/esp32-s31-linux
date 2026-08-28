@@ -302,7 +302,9 @@ compile it.
 - the PMP entry OpenSBI installs is a locked global RWX grant, so its domain
   isolation is intentionally unavailable;
 - APM/PMS permissions are broad bring-up grants;
-- hardware reset/shutdown through SBI is not implemented;
+- `poweroff` and `halt` park the hart rather than cutting power, because the
+  part has no power switch and OpenSBI does not carry the PMU deep-sleep
+  sequence;
 - USB host carries the HID class only; mass storage and USB networking are
   not enabled;
 - coherent DMA allocations all come from one 64 KiB SRAM pool, so a driver
