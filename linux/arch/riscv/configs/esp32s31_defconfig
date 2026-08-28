@@ -89,6 +89,8 @@ CONFIG_PACKET=y
 CONFIG_UNIX=y
 CONFIG_INET=y
 
+# Nothing in this image requests firmware now that cfg80211 is gone.
+# CONFIG_FW_LOADER is not set
 # CONFIG_ALLOW_DEV_COREDUMP is not set
 
 # USB HID input devices
