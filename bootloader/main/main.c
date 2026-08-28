@@ -16,6 +16,7 @@
 #include "esp_cpu.h"
 #include "esp32s31/rom/cache.h"
 #include "esp32s31/rom/ets_sys.h"
+#include "riscv/csr.h"
 #include "hal/assist_debug_ll.h"
 #include "hal/cache_ll.h"
 #include "hal/cpu_utility_ll.h"
@@ -41,6 +42,7 @@
 #define INITRAMFS_LOAD_ADDR         0x50800000U
 #define INITRAMFS_PARTITION_SIZE    0x00200000U
 #define INITRAMFS_NEWC_MAGIC0       0x37303730U
+#define PSRAM_PMA_SIZE              0x01000000U
 #define LINUX_HART                  1U
 
 /*
@@ -210,16 +212,17 @@ static void disable_linux_hart_stack_protector(void)
 }
 
 /*
- * Reset entry for hart 1, reached from the app-CPU ROM once its boot address
- * is set.  PMA is per-hart state and this hart comes out of reset without an
- * entry covering PSRAM, so OpenSBI would fault on the first write to its own
- * BSS; grant the same regions ESP-IDF gives its application core first.
- * OpenSBI's _start builds its own stack, so all it needs from here is the
- * entry ABI: hart ID in a0, device tree in a1.
+ * Reset entry for hart 1.  PMA is per-hart and this hart resets without an
+ * entry covering PSRAM, so OpenSBI would fault on its first BSS write; use the
+ * index esp32s31_pma_init() reprograms later.  Do not call
+ * esp_cpu_configure_region_protection() here: it locks all sixteen PMP entries
+ * and leaves PSRAM non-executable.  Entry ABI: hart ID in a0, DTB in a1.
  */
 static void IRAM_ATTR linux_hart_entry(void)
 {
-    esp_cpu_configure_region_protection();
+    PMA_ENTRY_SET_NAPOT(1, PSRAM_BASE, PSRAM_PMA_SIZE,
+                        PMA_NAPOT | PMA_WRITETHROUGH |
+                        PMA_EN | PMA_R | PMA_W | PMA_X);
 
     __asm__ volatile (
         "li   a0, %0\n\t"
