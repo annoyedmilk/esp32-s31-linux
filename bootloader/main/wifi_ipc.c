@@ -238,7 +238,8 @@ static esp_err_t start_ipc(void)
  * Bringing the radio up reads the flash, and a flash transaction disables the
  * cache Linux executes from, so this has to complete before hart 1 is
  * released.  NVS is switched off for the same reason: nothing may write flash
- * once the kernel is running.
+ * once the kernel is running.  The phy_init error and the full RF calibration
+ * it forces at every boot are the accepted cost of that.
  */
 void start_wifi(void)
 {
