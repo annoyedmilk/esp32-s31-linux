@@ -73,8 +73,9 @@
 			reg = <1>;
 			riscv,isa = "rv32imabcn_zba_zbb";
 			riscv,isa-base = "rv32i";
-			riscv,isa-extensions = "i", "m", "a", "zba", "zbb", "c",
-					       "zicntr", "zicsr", "zifencei";
+			riscv,isa-extensions = "i", "m", "a", "zba", "zbb",
+					       "zbs", "c", "zicntr", "zicsr",
+					       "zifencei";
 			mmu-type = "riscv,sv32";
 			cpu1_intc: interrupt-controller {
 				#interrupt-cells = <1>;
