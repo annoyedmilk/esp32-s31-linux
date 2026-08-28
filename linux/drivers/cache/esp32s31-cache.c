@@ -44,7 +44,7 @@ static DEFINE_RAW_SPINLOCK(esp32s31_cache_lock);
 /*
  * Issue one sync operation over the requested range.  The controller latches
  * ADDR/SIZE and self-clears the start bit, so a repeat only has to rewrite
- * CTRL.  Errata: on this SoC a writeback can lose part of the range unless
+ * CTRL.  Erratum: on this SoC a writeback can lose part of the range unless
  * the operation runs twice, which is what ESP-IDF's ROM patch does for
  * ESP_ROM_CACHE_WRITEBACK_NEEDS_SYNC_TWICE_MAP.  A plain invalidate is not
  * affected and runs once.

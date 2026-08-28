@@ -12,13 +12,6 @@
  *   - S-mode per-interrupt control at 0x10a0_1000
  *   - CLICINTCTLBITS = 3, with CLICCFG.nlbits configured to 1
  *   - 32 external interrupts (CLIC IDs 16-47) routed via Interrupt Matrix
- *   - Per-core address virtualization: each core accesses its OWN
- *     registers at the *same* physical address.  The hardware remaps
- *     based on which core performs the access.  The +0x10000 offset
- *     accesses the OTHER core's registers (for cross-core IPI).
- *   - CLICINTCTL byte (offset 3 of per-int word):
- *       bit  [7]   = interrupt level (0-1)
- *       bits [6:5] = priority (three implemented control bits total)
  */
 
 #include <linux/interrupt.h>
@@ -87,17 +80,11 @@
 #endif
 
 /*
- * clicintctl[i] encoding with CLICINTCTLBITS=3 and CLICCFG.nlbits=1.  The
- * byte (byte 3 of the per-interrupt 32-bit word) is laid out as:
- *   bit  [7]   = interrupt level (0-1)
- *   bits [6:5] = priority within that level (0-3)
- *
- * CLICINFO advertises three implemented control bits, but the live CLICCFG
- * value installed by firmware is 0x23: nmbits=1 and nlbits=1.  Treating all
- * three implemented bits as level bits encoded level 1 as 0x3f, whose bit 7
- * is clear.  Such interrupts remained at effective level 0 and could never
- * pass a zero threshold.  Put the configured level in bit 7 and priority in
- * the following two implemented bits.
+ * clicintctl[i], byte 3 of the per-interrupt word: bit 7 is the level, bits
+ * [6:5] the priority within it.  CLICINFO advertises three implemented control
+ * bits, but firmware installs CLICCFG 0x23 (nmbits=1, nlbits=1), so the level
+ * must land in bit 7.  Spreading it over all three bits encodes level 1 as
+ * 0x3f, which leaves bit 7 clear and never passes a zero threshold.
  */
 #define CLICCTL_MAKE(level, prio) \
 	(((level) << (8 - ESP32S31_CLICNLBITS)) | \
@@ -110,11 +97,11 @@
  *     X0 = level, 01 = rising edge, 11 = falling edge
  *   bits [7:6]: MODE, set to supervisor mode for Linux-owned inputs
  */
-#define CLIC_ATTR_TRIG_LEVEL 0x00 /* level-triggered           */
-#define CLIC_ATTR_TRIG_EDGE_RISE 0x02 /* rising-edge triggered     */
-#define CLIC_ATTR_TRIG_EDGE_FALL 0x06 /* falling-edge triggered    */
+#define CLIC_ATTR_TRIG_LEVEL 0x00
+#define CLIC_ATTR_TRIG_EDGE_RISE 0x02
+#define CLIC_ATTR_TRIG_EDGE_FALL 0x06
 #define CLIC_ATTR_TRIG_EDGE 0x02 /* bit 1: 1 = edge, 0 = level */
-#define CLIC_ATTR_MODE_S 0x40 /* S-mode on ESP32-S31 */
+#define CLIC_ATTR_MODE_S 0x40
 
 /*
  * The Interrupt Matrix maps SoC interrupt sources onto CLIC inputs, with one
@@ -139,13 +126,10 @@ static DEFINE_PER_CPU(struct esp32s31_clic *, clic_per_cpu);
 static DEFINE_PER_CPU(raw_spinlock_t, clic_lock);
 
 /*
- * Register access helpers.
- *
- * The ESP32-S31 CLIC uses per-core address virtualisation.  Every core
- * accesses its OWN per-interrupt registers at the same physical address
- * (ESP32S31_CLIC_CTRL_BASE + irq_id*4 + byte_offset).  The +0x10000
- * dual-core offset is ONLY used to access the OTHER core's registers from a
- * different core - never for the current core's own registers.
+ * Per-core address virtualisation: a core reaches its own per-interrupt
+ * registers at ESP32S31_CLIC_CTRL_BASE + irq_id*4 + byte_offset, whichever
+ * core it is.  The +0x10000 alias reaches the other core's copy and is only
+ * used for cross-core IPI.
  */
 static inline u8 clic_readb(struct esp32s31_clic *clic, unsigned int irq_id,
 			    unsigned int byte_off)
@@ -217,15 +201,7 @@ static int esp32s31_clic_set_type(struct irq_data *d, unsigned int flow_type)
 	unsigned long flags;
 	u8 attr;
 
-	/*
-	 * ESP32-S31 CLIC trigger encoding (ATTR byte bits [2:1]):
-	 *   0bX0 = level-triggered
-	 *   0b01 = rising-edge
-	 *   0b11 = falling-edge
-	 *
-	 * The CLIC does not distinguish level-high from level-low.
-	 * We map both Linux LEVEL_HIGH and LEVEL_LOW to level mode.
-	 */
+	/* The CLIC has no level-low mode, so both Linux levels map to level. */
 	switch (flow_type & IRQ_TYPE_SENSE_MASK) {
 	case IRQ_TYPE_LEVEL_HIGH:
 	case IRQ_TYPE_LEVEL_LOW:
@@ -484,14 +460,9 @@ static const struct irq_domain_ops esp32s31_clic_domain_ops = {
 	.translate = esp32s31_clic_domain_translate,
 };
 
-/* Interrupt handler */
-
 /*
- * This is called from the assembly trampoline with:
- *   a0 = struct pt_regs * (saved context)
- *
- * The trampoline has already filtered synchronous exceptions. Interrupts
- * arrive here with raw mcause in regs->cause.
+ * Entered from the assembly trampoline, which has already filtered synchronous
+ * exceptions.  regs->cause holds the raw CLIC-formatted cause.
  */
 static void (*fallback_handle_irq)(struct pt_regs *);
 
@@ -619,13 +590,7 @@ static int __init esp32s31_clic_probe(struct device_node *node,
 
 	esp32s31_clic_init_cpu(clic, 0);
 
-	/*
-	 * Take over as the top-level IRQ handler.  The riscv-intc has
-	 * already registered riscv_intc_irq() via set_handle_irq().
-	 * We capture it as fallback for local interrupts (IDs < 16)
-	 * and install our CLIC handler which dispatches both local
-	 * and external CLIC interrupts.
-	 */
+	/* Keep riscv_intc_irq() as the fallback for local causes (IDs < 16). */
 	fallback_handle_irq = handle_arch_irq;
 	handle_arch_irq = esp32s31_clic_handle_irq;
 

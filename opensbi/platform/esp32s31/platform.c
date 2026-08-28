@@ -210,11 +210,9 @@ static int esp32s31_final_init(bool cold_boot)
 		return 0;
 
 	/*
-	 * Guarantee SIE <- 1 on the mret into S-mode:
-	 * sbi_hart_switch_mode() preserves MSTATUS_SPIE. Without this an
-	 * S-mode kernel would otherwise start with
-	 * interrupts hard-disabled and CLIC S-mode inputs could never
-	 * be taken.
+	 * sbi_hart_switch_mode() preserves MSTATUS_SPIE, so set it to guarantee
+	 * SIE <- 1 on the mret into S-mode.  Without it the kernel starts with
+	 * interrupts hard-disabled and no CLIC S-mode input is ever taken.
 	 */
 	csr_set(CSR_MSTATUS, MSTATUS_SPIE);
 
