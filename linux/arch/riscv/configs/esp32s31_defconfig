@@ -32,12 +32,26 @@ CONFIG_CC_OPTIMIZE_FOR_SIZE=y
 # CONFIG_SIGNALFD is not set
 # CONFIG_AIO is not set
 # CONFIG_IO_URING is not set
-# CONFIG_ADVISE_SYSCALLS is not set
 # CONFIG_KALLSYMS is not set
 # CONFIG_VM_EVENT_COUNTERS is not set
 # CONFIG_COMPAT_BRK is not set
 
 CONFIG_SLUB_TINY=y
+
+# A real userspace needs terminals, locks and IPC.  Dropbear, screen and any
+# network login open a pty; sqlite, vim and lease files take fcntl locks.
+# Inotify lets programs watch for file changes; SysV IPC provides shared
+# memory, message queues and semaphores.  Memory advice lets allocators
+# return unused pages to the kernel on this 16 MiB board.
+CONFIG_UNIX98_PTYS=y
+CONFIG_FILE_LOCKING=y
+CONFIG_INOTIFY_USER=y
+CONFIG_SYSVIPC=y
+CONFIG_ADVISE_SYSCALLS=y
+
+# /run and /tmp need tmpfs today; musl's shared memory and named semaphores
+# will also need it mounted at /dev/shm in the SD userspace.
+CONFIG_TMPFS=y
 
 # RISC-V 32-bit
 CONFIG_ARCH_RV32I=y
@@ -155,7 +169,6 @@ CONFIG_FRAMEBUFFER_CONSOLE=y
 # CONFIG_SERIO is not set
 CONFIG_VT=y
 CONFIG_VT_CONSOLE=y
-# CONFIG_UNIX98_PTYS is not set
 # CONFIG_LEGACY_PTYS is not set
 # CONFIG_LDISC_AUTOLOAD is not set
 CONFIG_SERIAL_EARLYCON_RISCV_SBI=y
@@ -172,9 +185,7 @@ CONFIG_HW_RANDOM_ESP32S31=y
 # CONFIG_VHOST_MENU is not set
 
 # Filesystems
-# CONFIG_FILE_LOCKING is not set
 # CONFIG_DNOTIFY is not set
-# CONFIG_INOTIFY_USER is not set
 # CONFIG_MISC_FILESYSTEMS is not set
 CONFIG_EXT4_FS=y
 CONFIG_VFAT_FS=y

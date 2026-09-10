@@ -9,10 +9,10 @@ from pathlib import Path
 
 APPLETS = (
     "[", "ash", "blkid", "cat", "chmod", "clear", "cmp", "cp", "cttyhack",
-    "dd", "df", "dmesg", "echo", "false", "free", "grep", "head", "hexdump",
+    "dd", "df", "dmesg", "echo", "false", "flock", "free", "grep", "head", "hexdump",
     "kill", "ln", "ls", "mkdir", "mknod", "mount", "mountpoint", "od", "ps",
     "pwd", "rm", "rmdir", "setsid", "sh", "sha256sum", "sleep",
-    "stat", "sync", "tail", "test", "true", "umount", "uname",
+    "stat", "sync", "tail", "test", "touch", "true", "umount", "uname",
     "ifconfig", "ip", "nslookup", "ping", "route", "udhcpc",
 )
 
