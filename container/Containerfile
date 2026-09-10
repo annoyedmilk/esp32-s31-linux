@@ -1,7 +1,5 @@
-# Buildroot host environment for the ESP32-S31 rootfs.
-# Buildroot does not support building on macOS, so every invocation of it
-# runs in here.  arm64 Debian runs natively under Apple's container
-# framework; there is no emulation in this path.
+# Buildroot cannot build on macOS.  arm64 Debian runs natively here, so
+# nothing in this path is emulated.
 FROM debian:bookworm
 
 RUN apt-get update && apt-get install -y --no-install-recommends \

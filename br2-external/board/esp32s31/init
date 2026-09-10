@@ -1,0 +1,34 @@
+#!/bin/sh
+# SPDX-License-Identifier: MIT
+# Find the rootfs on the card and switch into it.  The fallback shell is the
+# point of this: the rootfs is on removable media now.
+
+mount -t devtmpfs devtmpfs /dev
+mount -t proc proc /proc
+mount -t sysfs sysfs /sys
+
+root=/dev/mmcblk0p2
+
+# The dw_mmc probe, card identification and partition scan all land after this.
+for _ in 1 2 3 4 5; do
+	[ -b "$root" ] && break
+	sleep 1
+done
+
+if [ -b "$root" ] && mount -t ext4 -o rw "$root" /mnt; then
+	echo "initramfs: root on $root"
+	# switch_root does not carry mounts over, and the kernel only mounts
+	# devtmpfs on the initial root, so the new /dev would come up empty.
+	for fs in dev proc sys; do
+		mount -o move "/$fs" "/mnt/$fs" || echo "initramfs: cannot move /$fs"
+	done
+	exec switch_root /mnt /sbin/init
+fi
+
+if [ -b "$root" ]; then
+	echo "initramfs: $root will not mount as ext4"
+else
+	echo "initramfs: no $root -- is the card inserted and partitioned?"
+fi
+
+exec /bin/sh -i

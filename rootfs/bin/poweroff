@@ -1,3 +1,0 @@
-#!/bin/sh
-# SPDX-License-Identifier: MIT
-exec /bin/busybox "${0##*/}" -f "$@"

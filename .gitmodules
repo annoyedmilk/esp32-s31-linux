@@ -7,7 +7,8 @@
 	url = https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git
 	shallow = true
 	branch = linux-7.1.y
-[submodule "external/busybox"]
-	path = external/busybox
-	url = https://git.busybox.net/busybox
+[submodule "external/buildroot"]
+	path = external/buildroot
+	url = https://gitlab.com/buildroot.org/buildroot.git
+	branch = 2026.08.x
 	shallow = true

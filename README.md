@@ -6,7 +6,7 @@ of octal PSRAM as Linux memory.
 The verified boot chain is:
 
 ```text
-ESP ROM -> ESP-IDF second stage -> loader -> OpenSBI -> Linux -> BusyBox initramfs
+ESP ROM -> ESP-IDF second stage -> loader -> OpenSBI -> Linux -> initramfs -> Buildroot rootfs (SD)
 ```
 
 The two harts are split. Hart 0 never leaves M-mode: it runs the ESP-IDF
@@ -67,8 +67,14 @@ out across the handoff. Linux reserves it as `fb_region` and describes it as a
 `simple-framebuffer` under `/chosen`, so it appears as `/dev/fb0` with `fbcon`
 on the virtual terminals. `console=tty0` puts the kernel log on the panel, at
 the cost of about a second of boot time spent scrolling PSRAM, and the
-initramfs runs a second shell on `/dev/tty1` that a USB keyboard drives
-directly.
+rootfs runs a second getty on `/dev/tty1` that a USB keyboard drives
+directly. Userspace boot output does not appear there: the last `console=`
+on the command line wins for `/dev/console`, so the service messages and the
+banner go to `ttyS0` alone and the panel shows the kernel log, then a shell
+prompt. It is a getty and not a bare shell because a shell needs tty1 as its
+controlling terminal or Ctrl-C does nothing there, and `cttyhack` cannot
+supply it: it reopens whatever `/sys/class/tty/console/active` names last,
+which is the serial port.
 
 The LCD data bus uses GPIO33 and GPIO34, which are also the native USB
 Serial/JTAG D-/D+ pins, so the loader initializes the display only when the
@@ -116,9 +122,10 @@ and takes the descriptor ring from `dma_alloc_noncoherent()` instead of
 hand-off. The ring is synced as a unit because descriptors are 16 bytes and
 several share a cache line.
 
-FAT (VFAT) and ext4 are enabled; the initramfs mounts the first partition, or
-a whole-card filesystem when there is no partition table, on `/mnt/sd` during
-boot. Cards can also be mounted manually:
+FAT (VFAT) and ext4 are enabled. The card carries both: an MBR whose first
+partition is FAT32 and whose second is the ext4 root. `/etc/init.d/S10sdcard`
+mounts the first on `/mnt/sd` when it is present, and never fails the boot
+when it is not. Cards can also be mounted manually:
 
 ```sh
 mount /dev/mmcblk0p1 /mnt/sd
@@ -127,6 +134,31 @@ mount /dev/mmcblk0p1 /mnt/sd
 A working card enumerates as `/dev/mmcblk0`, but enumeration alone proves
 only the command path: verify the data path by comparing a file's
 `sha256sum` on the board against the host.
+
+The write path was verified on 2026-09-10: a 1 MiB random file hashed
+identically on the board, on the Mac, and on the board again after
+reinsertion (`logs/20260910-203434-reset-uart.log`).
+
+Cards must use MBR. The kernel enables `CONFIG_MSDOS_PARTITION` and no GPT
+parsing, so a GPT card enumerates as a bare `mmcblk0` with no partitions at
+all. The first partition is FAT32 and as large as you like; the second is the
+roughly 192 MiB ext4 root. `make sdpart` lays out a card larger than the
+image, keeping most of it as FAT; `make sdwrite` writes the whole card image
+instead, which suits a card no bigger than it. Either erases everything.
+`make sdroot` then rewrites only the root partition, and is the loop to use
+once a card exists.
+
+## Userspace
+
+Buildroot 2026.08 builds the whole RV32 musl userspace, pinned as a submodule
+with its configuration in `br2-external/`. It does not build the kernel,
+OpenSBI or the loader, which keep their own paths.
+
+The root password is `korvo-bringup`; the serial and panel gettys log root in
+automatically, and Dropbear wants the password. `gdbserver` goes on the card
+while its cross-GDB stays in the container. The board has no RTC, so the clock
+starts at the epoch and TLS certificate checks fail until it is set --
+`busybox ntpd -q -p pool.ntp.org` after a DHCP lease, or `date -s`.
 
 ## Hardware connections
 
@@ -155,11 +187,13 @@ USB Serial/JTAG breakout as `/dev/cu.usbmodem*`.
 - macOS with Homebrew
 - ESP-IDF at `~/esp/esp-idf`
 - the ESP-IDF `riscv32-esp-elf` toolchain
-- `brew install make gnu-sed findutils zig`
+- `brew install make gnu-sed findutils`
+- Apple's `container` CLI, with `container system start` already run
 
-Zig supplies the RV32 musl userspace compiler for BusyBox. If
-`riscv32-linux-musl-gcc` is installed, the build uses it instead. You can also
-set `BUSYBOX_BIN=/path/to/static-rv32-busybox` to skip the BusyBox build.
+Buildroot does not support running on macOS, so it runs in the Debian image
+from `container/Containerfile`, as the invoking user so that files coming back
+are owned correctly. Its `output/` and `dl/` stay in the `esp32s31-br` volume;
+several gigabytes have no business on virtiofs.
 
 Initialize dependencies and verify the host:
 
@@ -186,9 +220,10 @@ Serial/JTAG (`/dev/cu.usbmodem*`) or the CP2102N UART bridge
 (`/dev/cu.usbserial-*`). `SERIAL_PORT` names the external UART that carries
 the Linux console. `make build` reuses the patched kernel tree under
 `build/` and regenerates it when the patch series changes; run `make clean`
-after updating the `external/` submodules.
+after updating the `external/` submodules. Flashing alone is not enough to
+boot: without a provisioned card the initramfs lands in its recovery shell.
 
-The monitor waits up to 300 seconds (`BOOT_TIMEOUT`) for the BusyBox banner
+The monitor waits up to 300 seconds (`BOOT_TIMEOUT`) for the boot banner
 and then stays attached as an interactive terminal. Press Enter if the shell
 prompt is not visible. Press `Ctrl-]` to disconnect. Every session is copied
 verbatim to `logs/`.
@@ -208,7 +243,7 @@ python scripts/reset-monitor.py --port /dev/cu.usbserial-XXXX \
 A successful boot displays:
 
 ```text
-=== ESP32-S31 Linux / BusyBox ===
+=== ESP32-S31 Linux / Buildroot ===
 ```
 
 and presents an interactive shell on the external UART.
@@ -226,7 +261,9 @@ The DWC2 root hub should be present before a device is connected. Plugging in
 a HID device should add a USB device and an `event*` input node, and its keys
 reach the `/dev/tty1` shell on the panel.
 
-Every script in `rootfs/bin` is installed into `/bin`.
+`wifi`, the udhcpc hook and the init scripts are installed from
+`br2-external/board/esp32s31/rootfs-overlay`. `S99banner` prints the line the
+monitor waits for, so that text is a contract with `--success-pattern`.
 
 To join a network and reach the internet, from either console:
 
@@ -248,7 +285,15 @@ carrier, then takes a DHCP lease with `udhcpc`. `wifi off` disconnects.
 | `0x00220000` | OpenSBI fw_jump |
 | `0x002a0000` | Linux Image |
 | `0x00a1fff4` | Linux size and CRC manifest |
-| `0x00a20000` | 2 MiB initramfs partition |
+| `0x00a20000` | 2 MiB initramfs |
+
+The flash slot no longer holds a userspace. It carries an initramfs of
+BusyBox, the musl it links against, and an init that waits for
+`/dev/mmcblk0p2`, mounts it and `switch_root`s into the Buildroot rootfs. When
+the card is missing or unreadable it drops to a shell there instead, which is
+the only reason it survives now that the rootfs is on removable media. Keeping
+it also means `CONFIG_CMDLINE_FORCE=y` and `rdinit=/init` never have to change
+to move the root filesystem.
 
 Internal SRAM is shared between the two harts. The firmware keeps the ESP-IDF
 heap out of `0x2f040000`-`0x2f060000`: the lower half is the kernel's coherent
@@ -313,4 +358,15 @@ compile it.
 - coherent DMA allocations all come from one 64 KiB SRAM pool, so a driver
   that wants a large coherent buffer will fail to allocate;
 - most board peripherals other than the panel, SD slot, USB host and WLAN
-  modem are not enabled yet.
+  modem are not enabled yet;
+- there is no audio. `mpg123` and `alsa-utils` are on the card because they
+  were asked for, but the kernel has no `SND_SOC`, no I2C, and there is no
+  ESP32-S31 ASoC driver, so the Korvo-1's ES8311 codec is unreachable and
+  `aplay -l` lists nothing. They decode to a file and no further;
+- `strace` is absent. Buildroot excludes it on RV32 in
+  `package/strace/Config.in`, and upstream strace has no `src/linux/riscv32`
+  on any branch, so this needs a port rather than a configuration change.
+  RV32 and RV64 share the `asm-generic` syscall table, so the port is mostly
+  a matter of adapting `src/linux/riscv64` to 32-bit registers and the
+  `__NR3264` name mapping. `gdbserver` is the debugger on the board
+  meanwhile.

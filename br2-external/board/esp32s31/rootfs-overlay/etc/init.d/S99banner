@@ -1,0 +1,12 @@
+#!/bin/sh
+# SPDX-License-Identifier: MIT
+# make monitor waits for this line, so the text is a contract with the
+# Makefile's --success-pattern.
+
+[ "$1" = start ] || exit 0
+
+echo
+echo "=== ESP32-S31 Linux / Buildroot ==="
+echo "Console: ttyS0        Panel: tty1"
+echo "Wi-Fi:   wifi <ssid> [passphrase]   then: ping 8.8.8.8"
+echo

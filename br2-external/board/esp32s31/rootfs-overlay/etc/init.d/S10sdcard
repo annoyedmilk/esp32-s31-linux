@@ -1,0 +1,21 @@
+#!/bin/sh
+# SPDX-License-Identifier: MIT
+# The card's p2 is the root, mounted by the initramfs.  p1 is the FAT area the
+# Mac also writes, and it is optional: never hold up the boot for it.
+
+case "$1" in
+start)
+	[ -b /dev/mmcblk0p1 ] || exit 0
+	mkdir -p /mnt/sd
+	if mount -t vfat -o rw,noatime /dev/mmcblk0p1 /mnt/sd 2>/dev/null; then
+		echo "sdcard: /dev/mmcblk0p1 on /mnt/sd"
+	else
+		echo "sdcard: /dev/mmcblk0p1 will not mount"
+	fi
+	;;
+stop)
+	mountpoint -q /mnt/sd && umount /mnt/sd
+	;;
+esac
+
+exit 0
