@@ -115,6 +115,14 @@
 			cache-level = <1>;
 		};
 
+		gpio: gpio@20583000 {
+			compatible = "esp,esp32s31-gpio";
+			reg = <0x20583000 0x1000>, <0x20582000 0x1000>;
+			reg-names = "gpio", "iomux";
+			gpio-controller;
+			#gpio-cells = <2>;
+		};
+
 		clic: interrupt-controller@10a00000 {
 			#interrupt-cells = <3>;
 			#address-cells = <0>;
