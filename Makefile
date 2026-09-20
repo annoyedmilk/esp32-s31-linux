@@ -21,10 +21,10 @@ OPENSBI_SRC := $(BUILD_DIR)/opensbi-src
 OPENSBI_OUT := $(CURDIR)/$(BUILD_DIR)/opensbi
 OPENSBI_PATCHES := $(sort $(wildcard opensbi/patches/*.patch))
 
-# Buildroot downloads and patches the kernel.  external/linux is only the
-# pristine tree the series is written against and checked on.
-LINUX_REF := external/linux
-LINUX_SOURCES := $(filter-out linux/patches,$(wildcard linux/*)) shared/esp32s31-wifi-ipc.h
+# Every file, not the directories: editing a source in place leaves the
+# directory mtime alone, and the patch would not be regenerated.
+LINUX_SOURCES := $(shell find linux -type f -not -path 'linux/patches/*') \
+	shared/esp32s31-wifi-ipc.h
 LINUX_GENERATED_PATCH := linux/patches/0000-esp32s31-add-source-files.patch
 
 # Buildroot cannot build on macOS, so it runs in a container.  Its output/ and
@@ -34,6 +34,9 @@ BR_IMAGE ?= esp32s31-buildroot:bookworm
 BR_VOLUME ?= esp32s31-br
 BR_VOLUME_SIZE ?= 60G
 BR_DEFCONFIG := esp32s31_defconfig
+# The release Buildroot builds, which is also what the series is checked on.
+LINUX_VERSION := $(shell sed -n 's/^BR2_LINUX_KERNEL_CUSTOM_VERSION_VALUE="\(.*\)"/\1/p' \
+	br2-external/configs/esp32s31_defconfig)
 BR_MEMORY ?= 8G
 BR_OUT := $(BUILD_DIR)/buildroot
 BR_MAKE := make O=/br/output BR2_EXTERNAL=/work/br2-external BR2_DL_DIR=/br/dl
@@ -99,7 +102,7 @@ help:
 		'' \
 		'  make kernel                        rebuild just the kernel' \
 		'  make kernel-patches                regenerate linux/patches from linux/' \
-		'  make kernel-check                  dry-run the series on external/linux' \
+		'  make kernel-check                  dry-run the series on a pristine tree' \
 		'  make kernel-clean                  re-extract the kernel after a patch change' \
 		'  make kernel-vmlinux                fetch vmlinux from the build volume for GDB' \
 		'  make kernel-menuconfig             configure the kernel' \
@@ -180,16 +183,24 @@ $(LINUX_GENERATED_PATCH): $(LINUX_SOURCES) scripts/mkkernelpatches.py
 
 kernel-patches: $(LINUX_GENERATED_PATCH)
 
-# In the container at zero fuzz, because that is what Buildroot does: the
-# patch macOS ships accepts stale context that GNU patch later rejects.
-# Also the test a kernel version bump has to pass.
-kernel-check: kernel-patches
-	@$(BR_TOOLS) sh -c 'cd /work/$(LINUX_REF); fail=0; \
+# Against a pristine extract of the release Buildroot builds, in the
+# container at zero fuzz, because that is what Buildroot does: the patch macOS
+# ships accepts stale context that GNU patch later rejects.  Also the test a
+# kernel version bump has to pass.
+kernel-check: kernel-patches br-volume
+	@$(BR_RUN) sh -c 'set -e; \
+		cd /work/$(BR_DIR); \
+		test -f /br/dl/linux/linux-$(LINUX_VERSION).tar.xz || \
+			$(BR_MAKE) $(BR_DEFCONFIG) linux-source >/dev/null; \
+		rm -rf /br/check && mkdir -p /br/check; \
+		tar -xf /br/dl/linux/linux-$(LINUX_VERSION).tar.xz \
+			--strip-components=1 -C /br/check; \
+		cd /br/check; fail=0; \
 		for p in /work/linux/patches/*.patch; do \
 			printf "%-50s " "$$(basename $$p)"; \
 			if patch -p1 -F0 --dry-run -s -f < "$$p" >/dev/null 2>&1; \
 				then echo applies; else echo FAILS; fail=1; fi; \
-		done; exit $$fail'
+		done; rm -rf /br/check; exit $$fail'
 
 kernel: kernel-patches br-volume
 	@$(BR_RUN) sh -c 'set -e; cd /work/$(BR_DIR); $(BR_MAKE) linux-rebuild all'

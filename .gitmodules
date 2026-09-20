@@ -2,11 +2,6 @@
 	path = external/opensbi
 	url = https://github.com/riscv-software-src/opensbi
 	shallow = true
-[submodule "external/linux"]
-	path = external/linux
-	url = https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git
-	shallow = true
-	branch = linux-7.1.y
 [submodule "external/buildroot"]
 	path = external/buildroot
 	url = https://gitlab.com/buildroot.org/buildroot.git
