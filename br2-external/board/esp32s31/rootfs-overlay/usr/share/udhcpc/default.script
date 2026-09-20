@@ -21,9 +21,10 @@ bound | renew)
 		echo "nameserver $server" >>/etc/resolv.conf
 	done
 
-	# One shot, and only while the clock is still implausible, so a renew
-	# on a running system costs nothing.
-	if [ "$(date -u +%Y)" -lt 2020 ]; then
+	# A fresh lease is the moment to fix a clock with no RTC behind it:
+	# S01clock only restores the last known time, which drifts.  Renewals
+	# are left alone, so a running board does not keep asking.
+	if [ "$1" = bound ]; then
 		(
 			ntpd -q -n -p pool.ntp.org >/dev/null 2>&1 &&
 				date -u +'%Y-%m-%d %H:%M:%S' >/etc/timestamp
