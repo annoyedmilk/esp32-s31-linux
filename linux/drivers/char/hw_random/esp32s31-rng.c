@@ -121,7 +121,7 @@ static int esp32s31_rng_probe(struct platform_device *pdev)
 }
 
 static const struct of_device_id esp32s31_rng_of_match[] = {
-	{ .compatible = "espressif,esp32s31-trng" },
+	{ .compatible = "esp,esp32s31-trng" },
 	{ }
 };
 MODULE_DEVICE_TABLE(of, esp32s31_rng_of_match);

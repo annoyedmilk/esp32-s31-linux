@@ -16,10 +16,8 @@ CONFIG_SPIRAM_BOOT_INIT=y
 CONFIG_SPIRAM_USE_MEMMAP=y
 CONFIG_SPIRAM_MEMTEST=y
 CONFIG_ESP_CONSOLE_UART_DEFAULT=y
-# The LCD data bus needs GPIO33/34, which are also the native USB
-# Serial/JTAG D-/D+ pins, and the loader initializes the display only when no
-# secondary console claims them.  Flashing and the Linux console run over the
-# CP2102N UART bridge, so the port is only given up for JTAG: select
-# CONFIG_ESP_CONSOLE_SECONDARY_USB_SERIAL_JTAG to get OpenOCD back and leave
-# the panel dark.
+# GPIO33/34 are both the LCD data bus and the native USB Serial/JTAG D-/D+,
+# and the loader skips display init when a secondary console claims them.
+# Select CONFIG_ESP_CONSOLE_SECONDARY_USB_SERIAL_JTAG for JTAG and a dark
+# panel; flashing and the Linux console use the CP2102N bridge either way.
 CONFIG_ESP_CONSOLE_SECONDARY_NONE=y

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
 %YAML 1.2
 ---
-$id: http://devicetree.org/schemas/net/wireless/espressif,esp32s31-wifi.yaml#
+$id: http://devicetree.org/schemas/net/wireless/esp,esp32s31-wifi.yaml#
 $schema: http://devicetree.org/meta-schemas/core.yaml#
 
 title: Espressif ESP32-S31 WLAN modem
@@ -23,7 +23,7 @@ allOf:
 
 properties:
   compatible:
-    const: espressif,esp32s31-wifi
+    const: esp,esp32s31-wifi
 
   reg:
     items:
@@ -50,7 +50,7 @@ unevaluatedProperties: false
 examples:
   - |
     wifi@2f050000 {
-        compatible = "espressif,esp32s31-wifi";
+        compatible = "esp,esp32s31-wifi";
         reg = <0x2f050000 0x10000>, <0x20586010 0x8>;
         reg-names = "ipc", "doorbell";
         interrupt-parent = <&clic>;

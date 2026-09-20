@@ -20,5 +20,14 @@ bound | renew)
 	for server in $dns; do
 		echo "nameserver $server" >>/etc/resolv.conf
 	done
+
+	# One shot, and only while the clock is still implausible, so a renew
+	# on a running system costs nothing.
+	if [ "$(date -u +%Y)" -lt 2020 ]; then
+		(
+			ntpd -q -n -p pool.ntp.org >/dev/null 2>&1 &&
+				date -u +'%Y-%m-%d %H:%M:%S' >/etc/timestamp
+		) &
+	fi
 	;;
 esac

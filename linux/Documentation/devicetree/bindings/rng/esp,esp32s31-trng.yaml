@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
 %YAML 1.2
 ---
-$id: http://devicetree.org/schemas/rng/espressif,esp32s31-trng.yaml#
+$id: http://devicetree.org/schemas/rng/esp,esp32s31-trng.yaml#
 $schema: http://devicetree.org/meta-schemas/core.yaml#
 
 title: Espressif ESP32-S31 true random number generator
@@ -17,7 +17,7 @@ description: >
 
 properties:
   compatible:
-    const: espressif,esp32s31-trng
+    const: esp,esp32s31-trng
 
   reg:
     items:
@@ -39,7 +39,7 @@ additionalProperties: false
 examples:
   - |
     rng@20814000 {
-        compatible = "espressif,esp32s31-trng";
+        compatible = "esp,esp32s31-trng";
         reg = <0x20814000 0x100>, <0x2071003c 0x4>;
         reg-names = "trng", "clkrst";
     };

@@ -15,7 +15,9 @@ for _ in 1 2 3 4 5; do
 	sleep 1
 done
 
-if [ -b "$root" ] && mount -t ext4 -o rw "$root" /mnt; then
+# No fsck fits in here, so a damaged root goes read-only rather than worse;
+# e2fsprogs on the card does the repair.
+if [ -b "$root" ] && mount -t ext4 -o rw,errors=remount-ro "$root" /mnt; then
 	echo "initramfs: root on $root"
 	# switch_root does not carry mounts over, and the kernel only mounts
 	# devtmpfs on the initial root, so the new /dev would come up empty.

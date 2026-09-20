@@ -7,6 +7,7 @@
 
 echo
 echo "=== ESP32-S31 Linux / Buildroot ==="
-echo "Console: ttyS0        Panel: tty1"
+echo "Console: ttyS0        Panel: tty1 (dark while the loader keeps JTAG)"
 echo "Wi-Fi:   wifi <ssid> [passphrase]   then: ping 8.8.8.8"
+echo "         saved on success and rejoined at every boot"
 echo

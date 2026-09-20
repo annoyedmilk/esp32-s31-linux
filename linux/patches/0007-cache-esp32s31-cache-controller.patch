@@ -1,8 +1,7 @@
 diff --git a/arch/riscv/kernel/setup.c b/arch/riscv/kernel/setup.c
 --- a/arch/riscv/kernel/setup.c
 +++ b/arch/riscv/kernel/setup.c
-@@ -28,7 +28,8 @@
- #include <asm/alternative.h>
+@@ -29,6 +29,7 @@
  #include <asm/cacheflush.h>
  #include <asm/cpufeature.h>
  #include <asm/early_ioremap.h>
@@ -10,10 +9,7 @@ diff --git a/arch/riscv/kernel/setup.c b/arch/riscv/kernel/setup.c
  #include <asm/pgtable.h>
  #include <asm/setup.h>
  #include <asm/set_memory.h>
-@@ -357,9 +358,21 @@
- 	apply_boot_alternatives();
- 	init_rt_signal_env();
- 
+@@ -360,6 +361,18 @@
  	if (IS_ENABLED(CONFIG_RISCV_ISA_ZICBOM) &&
  	    riscv_isa_extension_available(NULL, ZICBOM))
  		riscv_noncoherent_supported();

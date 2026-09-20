@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
 %YAML 1.2
 ---
-$id: http://devicetree.org/schemas/phy/espressif,esp32s31-usb-phy.yaml#
+$id: http://devicetree.org/schemas/phy/esp,esp32s31-usb-phy.yaml#
 $schema: http://devicetree.org/meta-schemas/core.yaml#
 
 title: Espressif ESP32-S31 USB 2.0 UTMI PHY
@@ -16,7 +16,7 @@ description:
 
 properties:
   compatible:
-    const: espressif,esp32s31-usb-phy
+    const: esp,esp32s31-usb-phy
 
   reg:
     minItems: 5
@@ -44,7 +44,7 @@ additionalProperties: false
 examples:
   - |
     phy@205870ac {
-        compatible = "espressif,esp32s31-usb-phy";
+        compatible = "esp,esp32s31-usb-phy";
         reg = <0x205870ac 0x4>, <0x20359030 0x4>,
               <0x20589024 0x4>, <0x205890b0 0x4>,
               <0x20380018 0x4>;

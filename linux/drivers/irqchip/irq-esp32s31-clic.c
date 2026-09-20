@@ -621,4 +621,4 @@ err_free:
 	return ret;
 }
 
-IRQCHIP_DECLARE(esp32s31_clic, "espressif,esp32s31-clic", esp32s31_clic_probe);
+IRQCHIP_DECLARE(esp32s31_clic, "esp,esp32s31-clic", esp32s31_clic_probe);

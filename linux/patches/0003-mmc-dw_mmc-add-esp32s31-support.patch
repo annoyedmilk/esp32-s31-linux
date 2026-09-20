@@ -127,7 +127,7 @@ diff --git a/drivers/mmc/host/dw_mmc-pltfm.c b/drivers/mmc/host/dw_mmc-pltfm.c
 +};
 +
  static const struct of_device_id dw_mci_pltfm_match[] = {
-+	{ .compatible = "espressif,esp32s31-dw-mshc", .data = &esp32s31_drv_data, },
++	{ .compatible = "esp,esp32s31-dw-mshc", .data = &esp32s31_drv_data, },
  	{ .compatible = "snps,dw-mshc", },
  	{ .compatible = "altr,socfpga-dw-mshc", .data = &socfpga_drv_data, },
  	{ .compatible = "img,pistachio-dw-mshc", },

@@ -1,0 +1,44 @@
+#!/bin/sh
+# SPDX-License-Identifier: MIT
+# 16 MiB of PSRAM is the whole machine.  A file, not a partition, so any card
+# layout works and "make sdroot" recreates it.
+
+SWAPFILE=/swapfile
+WANT=65536	# KiB
+KEEP=32768	# KiB left free on /
+MIN=16384	# KiB below which it is not worth the SD wear
+
+case "$1" in
+start)
+	if [ -f "$SWAPFILE" ]; then
+		swapon "$SWAPFILE" 2>/dev/null && echo "swap: $SWAPFILE active"
+		exit 0
+	fi
+
+	size=$(($(df -k / | awk 'NR == 2 { print $4 }') - KEEP))
+	[ "$size" -gt "$WANT" ] && size=$WANT
+	if [ "$size" -lt "$MIN" ]; then
+		echo "swap: too little space on / for a swap file"
+		exit 0
+	fi
+
+	# Half a minute of dd on this card, and the system runs without it.
+	echo "swap: creating $SWAPFILE ($((size / 1024))M) in the background"
+	(
+		# Holes are refused, so this cannot be sparse.
+		if dd if=/dev/zero of="$SWAPFILE" bs=1024 count="$size" 2>/dev/null; then
+			chmod 600 "$SWAPFILE"
+			mkswap "$SWAPFILE" >/dev/null
+			swapon "$SWAPFILE" && echo "swap: $SWAPFILE active"
+		else
+			rm -f "$SWAPFILE"
+			echo "swap: cannot create $SWAPFILE" >&2
+		fi
+	) &
+	;;
+stop)
+	swapoff "$SWAPFILE" 2>/dev/null
+	;;
+esac
+
+exit 0

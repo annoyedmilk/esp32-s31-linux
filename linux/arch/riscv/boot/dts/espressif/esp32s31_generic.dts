@@ -8,7 +8,7 @@
 
 / {
 	model = "Espressif ESP32-S31 S-mode (generic)";
-	compatible = "espressif,esp32s31";
+	compatible = "esp,esp32s31";
 
 	chosen {
 		linux,initrd-start = <0x50800000>;

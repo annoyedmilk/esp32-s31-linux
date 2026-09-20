@@ -170,7 +170,7 @@ static int esp32s31_usb_phy_probe(struct platform_device *pdev)
 }
 
 static const struct of_device_id esp32s31_usb_phy_of_match[] = {
-	{ .compatible = "espressif,esp32s31-usb-phy" },
+	{ .compatible = "esp,esp32s31-usb-phy" },
 	{ }
 };
 MODULE_DEVICE_TABLE(of, esp32s31_usb_phy_of_match);

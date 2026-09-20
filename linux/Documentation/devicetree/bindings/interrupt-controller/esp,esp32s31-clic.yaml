@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
 %YAML 1.2
 ---
-$id: http://devicetree.org/schemas/interrupt-controller/espressif,esp32s31-clic.yaml#
+$id: http://devicetree.org/schemas/interrupt-controller/esp,esp32s31-clic.yaml#
 $schema: http://devicetree.org/meta-schemas/core.yaml#
 
 title: Espressif ESP32-S31 Core-Local Interrupt Controller
@@ -23,7 +23,7 @@ description: >
 
 properties:
   compatible:
-    const: espressif,esp32s31-clic
+    const: esp,esp32s31-clic
 
   reg:
     items:
@@ -52,7 +52,7 @@ additionalProperties: false
 examples:
   - |
     interrupt-controller@10a00000 {
-        compatible = "espressif,esp32s31-clic";
+        compatible = "esp,esp32s31-clic";
         reg = <0x10a00000 0x20000>, <0x20585000 0x1000>;
         reg-names = "clic", "intmatrix";
         interrupt-controller;

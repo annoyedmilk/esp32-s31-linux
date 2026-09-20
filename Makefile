@@ -7,14 +7,14 @@ IDF_PATH ?= $(HOME)/esp/esp-idf
 IDF_TOOLS_PATH ?= $(HOME)/.espressif
 PYTHON ?= $(lastword $(sort $(wildcard $(IDF_TOOLS_PATH)/python_env/*/bin/python)))
 ESPTOOL := $(PYTHON) -m esptool
+# export.sh names its virtualenv after whatever python3 it finds, so a host
+# Python upgrade points it at one that was never installed.  Pin what exists.
+IDF_PYTHON_ENV := $(patsubst %/bin/python,%,$(PYTHON))
 ESP_RISCV_BIN := $(lastword $(sort $(wildcard $(IDF_TOOLS_PATH)/tools/riscv32-esp-elf/*/riscv32-esp-elf/bin)))
 CROSS_COMPILE ?= $(ESP_RISCV_BIN)/riscv32-esp-elf-
 
 BREW_PREFIX ?= $(shell brew --prefix 2>/dev/null)
 GMAKE ?= $(shell command -v gmake 2>/dev/null)
-GSED := $(BREW_PREFIX)/opt/gnu-sed/libexec/gnubin/sed
-GFIND := $(BREW_PREFIX)/opt/findutils/libexec/gnubin/find
-GNU_HOST_PATH := $(BREW_PREFIX)/opt/gnu-sed/libexec/gnubin:$(BREW_PREFIX)/opt/findutils/libexec/gnubin
 JOBS ?= $(shell sysctl -n hw.ncpu 2>/dev/null || echo 4)
 
 OPENSBI_DIR := external/opensbi
@@ -22,13 +22,12 @@ OPENSBI_SRC := $(BUILD_DIR)/opensbi-src
 OPENSBI_OUT := $(CURDIR)/$(BUILD_DIR)/opensbi
 OPENSBI_PATCHES := $(sort $(wildcard opensbi/patches/*.patch))
 
-LINUX_DIR := external/linux
-LINUX_SRC := $(BUILD_DIR)/linux-src
-LINUX_OUT := $(CURDIR)/$(BUILD_DIR)/linux
+# Buildroot downloads and patches the kernel.  external/linux is only the
+# pristine tree the series is written against and checked on.
+LINUX_REF := external/linux
 LINUX_PATCHES := $(sort $(wildcard linux/patches/*.patch))
-LINUX_OVERLAY_DIRS := $(filter-out linux/patches,$(wildcard linux/*))
-LINUX_PREP_STAMP := $(LINUX_SRC)/.patched
-LINUX_HOSTCFLAGS := -I$(CURDIR)/scripts/hostshim -include $(CURDIR)/scripts/hostshim/mac-compat.h -D_UUID_T -D__GETHOSTUUID_H
+LINUX_SOURCES := $(filter-out linux/patches,$(wildcard linux/*)) shared/esp32s31-wifi-ipc.h
+LINUX_GENERATED_PATCH := linux/patches/0000-esp32s31-add-source-files.patch
 
 # Buildroot cannot build on macOS, so it runs in a container.  Its output/ and
 # dl/ stay in a volume; several gigabytes have no business on virtiofs.
@@ -44,6 +43,9 @@ CONTAINER ?= $(shell command -v container 2>/dev/null)
 BR_RUN = "$(CONTAINER)" run --rm --cpus $(JOBS) --memory $(BR_MEMORY) \
 	--uid $(shell id -u) --gid $(shell id -g) -e HOME=/br/home \
 	-v $(BR_VOLUME):/br -v "$(CURDIR)":/work "$(BR_IMAGE)"
+# The same image without the build volume, for checks that only read the tree.
+BR_TOOLS = "$(CONTAINER)" run --rm --uid $(shell id -u) --gid $(shell id -g) \
+	-v "$(CURDIR)":/work "$(BR_IMAGE)"
 
 INITRAMFS_INIT := br2-external/board/esp32s31/init
 SD_DISK ?=
@@ -69,9 +71,11 @@ INITRAMFS_OFFSET := 0xa20000
 
 .DEFAULT_GOAL := help
 
-.PHONY: help check ports build bootloader opensbi linux container-image \
-	br-volume rootfs rootfs-menuconfig initramfs sdcard sdpart sdwrite sdroot \
-	flash monitor openocd clean
+.PHONY: help check ports build bootloader opensbi kernel kernel-patches \
+	kernel-check kernel-clean kernel-menuconfig kernel-saveconfig \
+	container-image \
+	br-volume br-artifacts rootfs rootfs-menuconfig initramfs sdcard sdpart \
+	sdwrite sdroot flash monitor openocd clean
 
 help:
 	@printf '%s\n' \
@@ -89,9 +93,17 @@ help:
 		'' \
 		'  make bootloader                    ESP-IDF loader application' \
 		'  make opensbi                       patched OpenSBI fw_jump' \
-		'  make linux                         patched kernel Image and manifest' \
-		'  make rootfs                        Buildroot RV32 userspace (ext4 image)' \
+		'  make rootfs                        Buildroot: kernel, userspace, images' \
 		'  make initramfs                     the flash slot'\''s early userspace' \
+		'' \
+		'Kernel, which Buildroot builds from a stock release:' \
+		'' \
+		'  make kernel                        rebuild just the kernel' \
+		'  make kernel-patches                regenerate linux/patches from linux/' \
+		'  make kernel-check                  dry-run the series on external/linux' \
+		'  make kernel-clean                  re-extract the kernel after a patch change' \
+		'  make kernel-menuconfig             configure the kernel' \
+		'  make kernel-saveconfig             write the configuration back' \
 		'' \
 		'SD card, once a card is in the Mac (see: diskutil list external):' \
 		'' \
@@ -121,8 +133,6 @@ check:
 	@test -n "$(PYTHON)" -a -x "$(PYTHON)" || { echo 'missing ESP-IDF Python environment'; exit 1; }
 	@test -n "$(ESP_RISCV_BIN)" -a -x "$(CROSS_COMPILE)gcc" || { echo 'missing Espressif RISC-V toolchain'; exit 1; }
 	@test -n "$(GMAKE)" -a -x "$(GMAKE)" || { echo 'missing GNU make'; exit 1; }
-	@test -n "$(GSED)" -a -x "$(GSED)" || { echo 'missing GNU sed'; exit 1; }
-	@test -n "$(GFIND)" -a -x "$(GFIND)" || { echo 'missing GNU find'; exit 1; }
 	@test -f "$(IDF_PATH)/export.sh" || { echo 'missing ESP-IDF at $(IDF_PATH)'; exit 1; }
 	@test -n "$(CONTAINER)" -a -x "$(CONTAINER)" || { echo 'missing the container CLI (Buildroot cannot build on macOS)'; exit 1; }
 	@"$(CONTAINER)" system status >/dev/null 2>&1 || { echo 'container services are not running: container system start'; exit 1; }
@@ -132,10 +142,25 @@ check:
 ports:
 	@"$(PYTHON)" -m serial.tools.list_ports -v
 
-build: bootloader opensbi linux rootfs initramfs
+build: bootloader opensbi rootfs initramfs
 
+# idf.py reads sdkconfig.defaults only when creating sdkconfig, then rewrites
+# sdkconfig every build, so edits to the defaults would never take effect.
+# The defaults win here, including over "idf.py menuconfig".
 bootloader:
-	@source "$(IDF_PATH)/export.sh" >/dev/null 2>&1 && cd bootloader && idf.py -B ../$(BUILD_DIR)/bootloader build
+	@if test -f bootloader/sdkconfig && \
+		test bootloader/sdkconfig.defaults -nt bootloader/sdkconfig; then \
+		echo 'sdkconfig.defaults changed; regenerating bootloader/sdkconfig'; \
+		rm -f bootloader/sdkconfig; \
+	fi
+	@mkdir -p "$(BUILD_DIR)"
+	@export IDF_PYTHON_ENV_PATH="$(IDF_PYTHON_ENV)"; \
+	if ! source "$(IDF_PATH)/export.sh" >"$(BUILD_DIR)/idf-export.log" 2>&1; then \
+		cat "$(BUILD_DIR)/idf-export.log"; \
+		echo 'ESP-IDF environment setup failed (run $(IDF_PATH)/install.sh)'; \
+		exit 1; \
+	fi; \
+	cd bootloader && idf.py -B ../$(BUILD_DIR)/bootloader build
 
 opensbi:
 	@rm -rf "$(OPENSBI_SRC)"
@@ -149,25 +174,39 @@ opensbi:
 	@cp "$(OPENSBI_OUT)/platform/esp32s31/firmware/fw_jump.elf" "$(BUILD_DIR)/opensbi.elf"
 	@cp "$(OPENSBI_OUT)/platform/esp32s31/firmware/fw_jump.bin" "$(BUILD_DIR)/opensbi.bin"
 
-# The patched kernel tree is rebuilt only when the patch series changes.
-# Overlay files (drivers, dts, defconfig) are copied fresh on every build;
-# run "make clean" after updating the external/linux submodule itself.
-$(LINUX_PREP_STAMP): $(LINUX_PATCHES)
-	@rm -rf "$(LINUX_SRC)"
-	@mkdir -p "$(LINUX_SRC)"
-	@cp -R "$(LINUX_DIR)"/* "$(LINUX_SRC)/"
-	@for patch_file in $(LINUX_PATCHES); do patch -d "$(LINUX_SRC)" -p1 -s < "$$patch_file"; done
-	@touch "$@"
+# Every file under linux/ is new to the kernel, so it ships as a generated
+# patch instead of a copy over the tree.  The rest modify existing files.
+$(LINUX_GENERATED_PATCH): $(LINUX_SOURCES) scripts/mkkernelpatches.py
+	@"$(PYTHON)" scripts/mkkernelpatches.py
 
-linux: $(LINUX_PREP_STAMP)
-	@cp -R $(LINUX_OVERLAY_DIRS) "$(LINUX_SRC)/"
-	@cp shared/esp32s31-wifi-ipc.h "$(LINUX_SRC)/drivers/net/wireless/espressif/"
-	@PATH="$(GNU_HOST_PATH):$$PATH" $(GMAKE) -C "$(LINUX_SRC)" O="$(LINUX_OUT)" \
-		ARCH=riscv CROSS_COMPILE="$(CROSS_COMPILE)" HOSTCFLAGS="$(LINUX_HOSTCFLAGS)" esp32s31_defconfig
-	@PATH="$(GNU_HOST_PATH):$$PATH" $(GMAKE) -C "$(LINUX_SRC)" O="$(LINUX_OUT)" \
-		ARCH=riscv CROSS_COMPILE="$(CROSS_COMPILE)" HOSTCFLAGS="$(LINUX_HOSTCFLAGS)" -j$(JOBS) Image
-	@cp "$(LINUX_OUT)/arch/riscv/boot/Image" "$(BUILD_DIR)/Image"
-	@"$(PYTHON)" -c 'import struct, zlib; p="$(BUILD_DIR)/Image"; data=open(p, "rb").read(); open("$(BUILD_DIR)/linux.size", "wb").write(struct.pack("<III", 0x455a4953, len(data), zlib.crc32(data)))'
+kernel-patches: $(LINUX_GENERATED_PATCH)
+
+# In the container at zero fuzz, because that is what Buildroot does: the
+# patch macOS ships accepts stale context that GNU patch later rejects.
+# Also the test a kernel version bump has to pass.
+kernel-check: kernel-patches
+	@$(BR_TOOLS) sh -c 'cd /work/$(LINUX_REF); fail=0; \
+		for p in /work/linux/patches/*.patch; do \
+			printf "%-50s " "$$(basename $$p)"; \
+			if patch -p1 -F0 --dry-run -s -f < "$$p" >/dev/null 2>&1; \
+				then echo applies; else echo FAILS; fail=1; fi; \
+		done; exit $$fail'
+
+kernel: kernel-patches br-volume
+	@$(BR_RUN) sh -c 'set -e; cd /work/$(BR_DIR); $(BR_MAKE) linux-rebuild all'
+	@$(MAKE) --no-print-directory br-artifacts
+
+# Buildroot records what it applied, so a changed series needs the extracted
+# trees thrown away first.
+kernel-clean: br-volume
+	@$(BR_RUN) sh -c 'cd /work/$(BR_DIR); $(BR_MAKE) linux-dirclean linux-headers-dirclean'
+
+kernel-menuconfig: br-volume
+	@$(BR_RUN) -i -t sh -c 'cd /work/$(BR_DIR) && $(BR_MAKE) linux-menuconfig'
+
+kernel-saveconfig: br-volume
+	@$(BR_RUN) sh -c 'cd /work/$(BR_DIR) && $(BR_MAKE) linux-update-defconfig'
+	@git diff --stat -- br2-external/board/esp32s31/linux.config
 
 container-image:
 	@test -n "$(CONTAINER)" || { echo 'missing the container CLI'; exit 1; }
@@ -183,13 +222,20 @@ br-volume:
 			chown -R $(shell id -u):$(shell id -g) /br; }
 
 # The checked-in defconfig is the source of truth and is reapplied every build.
-rootfs: br-volume
+rootfs: kernel-patches br-volume
 	@$(BR_RUN) sh -c 'set -e; \
 		cd /work/$(BR_DIR); \
 		$(BR_MAKE) $(BR_DEFCONFIG); \
-		$(BR_MAKE); \
-		mkdir -p /work/$(BR_OUT); \
+		$(BR_MAKE)'
+	@$(MAKE) --no-print-directory br-artifacts
+
+# The kernel and its manifest are flashed, so they come out of the volume
+# next to the loader and OpenSBI binaries.
+br-artifacts:
+	@$(BR_RUN) sh -c 'set -e; \
+		mkdir -p /work/$(BR_OUT) /work/$(BUILD_DIR); \
 		cp /br/output/images/rootfs.ext2 /work/$(BR_OUT)/; \
+		cp /br/output/images/Image /br/output/images/linux.size /work/$(BUILD_DIR)/; \
 		if test -f /br/output/images/sdcard.img; then \
 			cp /br/output/images/sdcard.img /work/$(BR_OUT)/; fi'
 

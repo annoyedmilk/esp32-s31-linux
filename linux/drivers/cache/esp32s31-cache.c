@@ -119,7 +119,7 @@ static const struct riscv_nonstd_cache_ops esp32s31_cache_ops __initconst = {
 };
 
 static const struct of_device_id esp32s31_cache_ids[] __initconst = {
-	{ .compatible = "espressif,esp32s31-cache" },
+	{ .compatible = "esp,esp32s31-cache" },
 	{ /* sentinel */ }
 };
 

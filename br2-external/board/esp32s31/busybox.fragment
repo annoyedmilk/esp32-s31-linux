@@ -1,0 +1,4 @@
+# No RTC: the one-shot client sets the clock after a lease.  Client only.
+CONFIG_NTPD=y
+# CONFIG_FEATURE_NTPD_SERVER is not set
+# CONFIG_FEATURE_NTPD_CONF is not set

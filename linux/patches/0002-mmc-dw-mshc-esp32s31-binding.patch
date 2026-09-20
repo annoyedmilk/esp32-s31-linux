@@ -15,7 +15,7 @@ diff --git a/Documentation/devicetree/bindings/mmc/synopsys-dw-mshc.yaml b/Docum
 +          - img,pistachio-dw-mshc
 +          - snps,dw-mshc
 +      - items:
-+          - const: espressif,esp32s31-dw-mshc
++          - const: esp,esp32s31-dw-mshc
 +          - const: snps,dw-mshc
  
    reg:

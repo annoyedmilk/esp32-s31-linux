@@ -329,7 +329,7 @@ static int esp32s31_wifi_probe(struct platform_device *pdev)
 }
 
 static const struct of_device_id esp32s31_wifi_of_match[] = {
-	{ .compatible = "espressif,esp32s31-wifi" },
+	{ .compatible = "esp,esp32s31-wifi" },
 	{ }
 };
 MODULE_DEVICE_TABLE(of, esp32s31_wifi_of_match);
