@@ -7,6 +7,9 @@ case "$1" in
 start)
 	[ -b /dev/mmcblk0p1 ] || exit 0
 	mkdir -p /mnt/sd
+	# Resets and card swaps leave the dirty bit set; repair before mounting
+	# so the kernel does not warn about it on every boot.
+	fsck.fat -a /dev/mmcblk0p1 >/dev/null 2>&1
 	if mount -t vfat -o rw,noatime /dev/mmcblk0p1 /mnt/sd 2>/dev/null; then
 		echo "sdcard: /dev/mmcblk0p1 on /mnt/sd"
 	else

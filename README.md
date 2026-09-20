@@ -95,13 +95,13 @@ foreground virtual terminal. The controller uses its internal (buffer) DMA,
 which GHWCFG2 advertises; descriptor DMA stays off. The boot log states which
 mode was chosen (`dwc2 20300000.usb: using internal DMA`).
 
-USB mass storage is deliberately **not** enabled. Selecting `CONFIG_SCSI`,
-`CONFIG_BLK_DEV_SD` and `CONFIG_USB_STORAGE` hangs the boot between
-`parse_args()` and `setup_log_buf()`, before any of their initcalls could
-run, and the hang moves with kernel layout: adding a few `pr_notice()` calls
-to `start_kernel()` makes the same configuration boot. It is not an image-size
-threshold; padding an otherwise identical kernel past the failing size boots
-fine. Root cause unknown.
+USB mass storage works: a stick enumerates as `/dev/sda`, its partitions are
+parsed, and a FAT filesystem on it mounts and reads correctly.
+
+`CONFIG_SCSI`, `CONFIG_BLK_DEV_SD` and `CONFIG_USB_STORAGE` together once hung
+the boot before `setup_log_buf()`, and nothing identified the trigger beyond
+its moving with kernel layout. Read an early silent hang after a layout change
+as that returning.
 
 ## Kernel
 
@@ -165,10 +165,9 @@ only the command path: verify the data path by comparing a file's
 The write path is verified: a 1 MiB random file hashes identically on the
 board, on the Mac, and on the board again after reinsertion.
 
-Cards must use MBR. The kernel enables `CONFIG_MSDOS_PARTITION` and no GPT
-parsing, so a GPT card enumerates as a bare `mmcblk0` with no partitions at
-all. The first partition is FAT32 and as large as you like; the second is the
-roughly 192 MiB ext4 root. `make sdpart` lays out a card larger than the
+The card tooling writes MBR, and the kernel parses MBR and GPT, so a card
+partitioned elsewhere enumerates too. The first partition is FAT32 and as
+large as you like; the second is the roughly 192 MiB ext4 root. `make sdpart` lays out a card larger than the
 image, keeping most of it as FAT; `make sdwrite` writes the whole card image
 instead, which suits a card no bigger than it. Either erases everything.
 `make sdroot` then rewrites only the root partition, and is the loop to use
@@ -373,7 +372,8 @@ make openocd
 ```
 
 Then connect the ESP RISC-V GDB to port 3333 using
-`build/opensbi.elf`, `build/linux/vmlinux`, or
+`build/opensbi.elf`, `build/vmlinux` (`make kernel-vmlinux` fetches it from
+the build volume), or
 `build/bootloader/s31-linux-loader.elf` as appropriate.
 
 Boot logs are written under `logs/` and ignored by Git.
@@ -413,8 +413,7 @@ compile it.
 - `poweroff` and `halt` park the hart rather than cutting power, because the
   part has no power switch and OpenSBI does not carry the PMU deep-sleep
   sequence;
-- USB host carries the HID class only; mass storage and USB networking are
-  not enabled;
+- USB host carries HID and mass storage; USB networking is not enabled;
 - coherent DMA allocations all come from one 64 KiB SRAM pool, so a driver
   that wants a large coherent buffer will fail to allocate;
 - most board peripherals other than the panel, SD slot, USB host and WLAN

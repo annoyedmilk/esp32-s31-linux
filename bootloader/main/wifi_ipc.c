@@ -124,6 +124,12 @@ static void ipc_run_command(void)
         memcpy(cfg.sta.ssid, ipc->cmd.ssid, sizeof(cfg.sta.ssid));
         memcpy(cfg.sta.password, ipc->cmd.psk, sizeof(cfg.sta.password));
 
+        /* Say what the passphrase already implies, which esp_wifi would
+         * otherwise infer and warn about.
+         */
+        cfg.sta.threshold.authmode = cfg.sta.password[0] ? WIFI_AUTH_WPA2_PSK
+                                                         : WIFI_AUTH_OPEN;
+
         /*
          * A station that is already associating rejects a new config, so
          * stand the old attempt down first and let it settle.

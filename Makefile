@@ -13,7 +13,6 @@ IDF_PYTHON_ENV := $(patsubst %/bin/python,%,$(PYTHON))
 ESP_RISCV_BIN := $(lastword $(sort $(wildcard $(IDF_TOOLS_PATH)/tools/riscv32-esp-elf/*/riscv32-esp-elf/bin)))
 CROSS_COMPILE ?= $(ESP_RISCV_BIN)/riscv32-esp-elf-
 
-BREW_PREFIX ?= $(shell brew --prefix 2>/dev/null)
 GMAKE ?= $(shell command -v gmake 2>/dev/null)
 JOBS ?= $(shell sysctl -n hw.ncpu 2>/dev/null || echo 4)
 
@@ -25,7 +24,6 @@ OPENSBI_PATCHES := $(sort $(wildcard opensbi/patches/*.patch))
 # Buildroot downloads and patches the kernel.  external/linux is only the
 # pristine tree the series is written against and checked on.
 LINUX_REF := external/linux
-LINUX_PATCHES := $(sort $(wildcard linux/patches/*.patch))
 LINUX_SOURCES := $(filter-out linux/patches,$(wildcard linux/*)) shared/esp32s31-wifi-ipc.h
 LINUX_GENERATED_PATCH := linux/patches/0000-esp32s31-add-source-files.patch
 
@@ -72,7 +70,8 @@ INITRAMFS_OFFSET := 0xa20000
 .DEFAULT_GOAL := help
 
 .PHONY: help check ports build bootloader opensbi kernel kernel-patches \
-	kernel-check kernel-clean kernel-menuconfig kernel-saveconfig \
+	kernel-check kernel-clean kernel-vmlinux kernel-menuconfig \
+	kernel-saveconfig \
 	container-image \
 	br-volume br-artifacts rootfs rootfs-menuconfig initramfs sdcard sdpart \
 	sdwrite sdroot flash monitor openocd clean
@@ -102,6 +101,7 @@ help:
 		'  make kernel-patches                regenerate linux/patches from linux/' \
 		'  make kernel-check                  dry-run the series on external/linux' \
 		'  make kernel-clean                  re-extract the kernel after a patch change' \
+		'  make kernel-vmlinux                fetch vmlinux from the build volume for GDB' \
 		'  make kernel-menuconfig             configure the kernel' \
 		'  make kernel-saveconfig             write the configuration back' \
 		'' \
@@ -129,7 +129,6 @@ help:
 
 check:
 	@test "$$(uname -s)" = Darwin || { echo 'this build is supported on macOS only'; exit 1; }
-	@test -n "$(BREW_PREFIX)" || { echo 'missing Homebrew'; exit 1; }
 	@test -n "$(PYTHON)" -a -x "$(PYTHON)" || { echo 'missing ESP-IDF Python environment'; exit 1; }
 	@test -n "$(ESP_RISCV_BIN)" -a -x "$(CROSS_COMPILE)gcc" || { echo 'missing Espressif RISC-V toolchain'; exit 1; }
 	@test -n "$(GMAKE)" -a -x "$(GMAKE)" || { echo 'missing GNU make'; exit 1; }
@@ -200,6 +199,12 @@ kernel: kernel-patches br-volume
 # trees thrown away first.
 kernel-clean: br-volume
 	@$(BR_RUN) sh -c 'cd /work/$(BR_DIR); $(BR_MAKE) linux-dirclean linux-headers-dirclean'
+
+# A hundred megabytes of DWARF, so GDB gets it on demand and no build pays
+# for it.
+kernel-vmlinux: br-volume
+	@$(BR_RUN) sh -c 'cp /br/output/build/linux-*/vmlinux /work/$(BUILD_DIR)/'
+	@ls -l "$(BUILD_DIR)/vmlinux"
 
 kernel-menuconfig: br-volume
 	@$(BR_RUN) -i -t sh -c 'cd /work/$(BR_DIR) && $(BR_MAKE) linux-menuconfig'
