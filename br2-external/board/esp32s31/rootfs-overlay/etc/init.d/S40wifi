@@ -5,7 +5,7 @@
 
 case "$1" in
 start)
-	[ -r /etc/wifi.conf ] || exit 0
+	[ -r /etc/wifi.conf ] || [ -r /mnt/sd/wifi.conf ] || exit 0
 	# Association and the lease take seconds and nothing waits on them.
 	/usr/bin/wifi --saved >/dev/null 2>&1 &
 	echo "wifi: joining the saved network in the background"

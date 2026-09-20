@@ -195,13 +195,20 @@ Four things happen at boot so the board is usable without a console:
   layout the card was given.
 - `S40wifi` joins the saved network in the background. `wifi <ssid>
   [passphrase]` saves the credentials once the firmware confirms the
-  association, so a typo is never stored; `wifi forget` drops them.
+  association, so a typo is never stored; `wifi forget` drops them. They live
+  in `/etc/wifi.conf`, which `make sdroot` replaces along with the rest of the
+  root; a `wifi.conf` placed on the card's data partition is used instead and
+  survives, which is how to provision a board without a console.
 - The udhcpc hook runs a one-shot `ntpd` when the year is still implausible,
   then records the result for the next boot.
 
 `e2fsprogs` is on the card because the root is on removable media: the
 initramfs mounts it `errors=remount-ro`, and a card that goes read-only is
 repaired with `e2fsck -f /dev/mmcblk0p2` from a console.
+
+`FAT-fs (mmcblk0p1): Volume was not properly unmounted` on the console means
+what it says: the board was reset with the data partition mounted. A clean
+`reboot` or `poweroff` unmounts it and the next boot is quiet.
 
 ## Hardware connections
 

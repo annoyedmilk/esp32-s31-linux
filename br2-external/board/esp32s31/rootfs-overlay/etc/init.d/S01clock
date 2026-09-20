@@ -16,7 +16,8 @@ start)
 	fi
 	;;
 stop)
-	date -u +"$FORMAT" >"$STAMP"
+	# Only a plausible clock is worth keeping.
+	[ "$(date -u +%Y)" -ge 2020 ] && date -u +"$FORMAT" >"$STAMP"
 	;;
 esac
 

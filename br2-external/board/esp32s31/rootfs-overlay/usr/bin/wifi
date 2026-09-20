@@ -7,6 +7,8 @@
 
 dev=/sys/class/net/eth0/device
 conf=/etc/wifi.conf
+# Survives "make sdroot", which replaces the root but not the data partition.
+[ -r "$conf" ] || [ ! -r /mnt/sd/wifi.conf ] || conf=/mnt/sd/wifi.conf
 
 if [ ! -d "$dev" ]; then
 	echo "wifi: no ESP32-S31 WLAN device" >&2
