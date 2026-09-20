@@ -5,7 +5,8 @@
 # wifi off                  -- disconnect
 # wifi forget               -- disconnect and drop the saved credentials
 
-dev=/sys/class/net/eth0/device
+iface=wlan0
+dev=/sys/class/net/$iface/device
 conf=/etc/wifi.conf
 # Survives "make sdroot", which replaces the root but not the data partition.
 [ -r "$conf" ] || [ ! -r /mnt/sd/wifi.conf ] || conf=/mnt/sd/wifi.conf
@@ -17,18 +18,27 @@ fi
 
 usage() {
 	echo "usage: wifi <ssid> [passphrase]"
-	echo "       wifi --saved | off | forget"
+	echo "       wifi scan | --saved | off | forget"
 	exit 1
 }
 
 disconnect() {
-	echo 0 >"$dev/connect"
-	ip addr flush dev eth0
+	iw dev "$iface" disconnect 2>/dev/null
+	ip addr flush dev "$iface"
 }
 
 case "$1" in
 "" | -h | --help)
 	usage
+	;;
+scan)
+	ip link set "$iface" up
+	iw dev "$iface" scan | awk '
+		/^BSS/ { bssid = $2 }
+		/SSID:/ { ssid = substr($0, index($0, ":") + 2) }
+		/signal:/ { sig = $2 }
+		/SSID:/ { printf "%-20s %6s dBm  %s\n", ssid, sig, bssid }'
+	exit 0
 	;;
 off)
 	disconnect
@@ -54,19 +64,21 @@ forget)
 	;;
 esac
 
-echo "$ssid" >"$dev/ssid"
 echo "$psk" >"$dev/psk"
 
-ip link set eth0 up
-echo 1 >"$dev/connect"
+ip link set "$iface" up
+iw dev "$iface" connect "$ssid" || {
+	echo "wifi: connect request rejected" >&2
+	exit 1
+}
 
 echo "wifi: associating with \"$ssid\""
 for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
-	ip link show eth0 | grep -q NO-CARRIER || break
+	ip link show "$iface" | grep -q NO-CARRIER || break
 	sleep 1
 done
 
-if ip link show eth0 | grep -q NO-CARRIER; then
+if ip link show "$iface" | grep -q NO-CARRIER; then
 	echo "wifi: no carrier -- check the name and passphrase" >&2
 	exit 1
 fi
@@ -77,4 +89,4 @@ if [ "$save" = yes ]; then
 fi
 
 echo "wifi: associated, requesting a lease"
-udhcpc -i eth0 -n -q
+udhcpc -i "$iface" -n -q

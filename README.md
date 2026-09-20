@@ -122,11 +122,10 @@ The configuration is not in the kernel tree either. It lives in
 `make kernel-menuconfig` to change it and `make kernel-saveconfig` to write it
 back. The DTB is built into the Image, so the loader has one blob to place.
 
-`external/linux` builds nothing. It is the pristine tree the series is written
-against, and `make kernel-check` dry-runs every patch on it -- which is also
-the test a version bump has to pass. Bumping means changing
-`BR2_LINUX_KERNEL_CUSTOM_VERSION_VALUE`, moving the submodule to the matching
-tag, and fixing whatever `make kernel-check` then reports.
+`make kernel-check` dry-runs every patch at zero fuzz on a pristine extract of
+the release Buildroot downloads, which is also the test a version bump has to
+pass. Bumping means changing `BR2_LINUX_KERNEL_CUSTOM_VERSION_VALUE` and
+fixing whatever the check then reports.
 
 ## SD card
 
@@ -393,10 +392,19 @@ transaction disables the cache the kernel executes from, so radio bring-up is
 ordered ahead of releasing hart 1. NVS is disabled for the same reason, at the
 cost of a full RF calibration on every boot.
 
-Linux sees an Ethernet-class `eth0` from `esp32s31-wifi`, which exchanges 802.3
-frames with that firmware through fixed-size slot rings and a pair of
-cross-core doorbell interrupts. Association is not implemented yet, so the
-interface has no carrier.
+Linux sees `wlan0` from `esp32s31-wifi`, a full-MAC cfg80211 device: the
+firmware owns 802.11 and runs its own supplicant, and the two exchange 802.3
+frames through fixed-size slot rings and a pair of cross-core doorbell
+interrupts. `iw dev wlan0 scan` reaches the firmware's scan through the same
+rings, and `iw dev wlan0 link` reports the association, because the firmware
+publishes the BSSID and channel it chose and the driver hands cfg80211 that
+BSS before reporting success.
+
+The one thing nl80211 cannot carry is a passphrase: `wpa_supplicant` derives a
+PMK and keeps the passphrase to itself, while the firmware's supplicant needs
+the passphrase. A secured network therefore takes its passphrase through the
+driver's `psk` attribute, and the association itself goes through cfg80211,
+which is what `wifi <ssid> [passphrase]` does.
 
 ## Licensing
 
@@ -409,10 +417,13 @@ compile it.
 
 ## Current limitations
 
-- Wi-Fi is an Ethernet-style netdev fed by the hart 0 firmware over shared
-  memory, so there is no cfg80211 and no scan: the IPC carries CONNECT and
-  DISCONNECT only, and `wifi <ssid> [passphrase]` pushes credentials through
-  sysfs;
+- Wi-Fi scans and associates through cfg80211, but the passphrase for a
+  secured network still goes through a sysfs attribute rather than
+  `wpa_supplicant`, which needs PSK or SAE offload in the driver;
+- ESP-Hosted cannot be used on this SoC: its firmware wants FullMAC hooks
+  (`esp_wifi_send_auth_internal`, `ieee80211_send_mgmt_internal` and others)
+  that Espressif ships in patched Wi-Fi libraries for other chips and not for
+  the ESP32-S31, so the host cannot drive 802.11 itself;
 - Linux is uniprocessor on hart 1, and hart 0 is not available to it;
 - the PMP entry OpenSBI installs is a locked global RWX grant, so its domain
   isolation is intentionally unavailable;

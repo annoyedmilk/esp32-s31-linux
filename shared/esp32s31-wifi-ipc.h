@@ -19,10 +19,11 @@
 #include <stdint.h>
 typedef uint32_t u32;
 typedef uint8_t u8;
+typedef int16_t s16;
 #endif
 
 #define ESP32S31_IPC_MAGIC		0x49313353	/* "S31I" */
-#define ESP32S31_IPC_VERSION		1
+#define ESP32S31_IPC_VERSION		3
 
 /*
  * Fixed location of the block in internal SRAM.  The loader places and
@@ -56,6 +57,13 @@ struct esp32s31_ipc_ring {
 #define ESP32S31_IPC_CMD_NONE		0
 #define ESP32S31_IPC_CMD_CONNECT	1
 #define ESP32S31_IPC_CMD_DISCONNECT	2
+#define ESP32S31_IPC_CMD_SCAN		3
+
+#define ESP32S31_IPC_SCAN_MAX		24
+
+/* Authentication modes, narrowed to what cfg80211 has to publish. */
+#define ESP32S31_IPC_AUTH_OPEN		0
+#define ESP32S31_IPC_AUTH_SECURED	1
 
 /*
  * Association is driven by the firmware, which runs the supplicant itself.
@@ -67,13 +75,46 @@ struct esp32s31_ipc_cmd {
 	u8 psk[ESP32S31_IPC_PSK_MAX];
 };
 
+/*
+ * One scan result.  The firmware reports what the host cannot know on its
+ * own; cfg80211 builds the rest of the BSS entry from it.
+ */
+struct esp32s31_ipc_bss {
+	u8 bssid[6];
+	u8 channel;
+	u8 ssid_len;
+	u8 authmode;
+	u8 reserved[1];
+	s16 rssi;
+	u8 ssid[ESP32S31_IPC_SSID_MAX];
+};
+
+/*
+ * The firmware fills the table, then publishes seq last.  Linux compares seq
+ * against the value it asked with, so a stale table is never mistaken for a
+ * fresh one.
+ */
+struct esp32s31_ipc_scan {
+	u32 seq;
+	u32 count;
+	struct esp32s31_ipc_bss bss[ESP32S31_IPC_SCAN_MAX];
+};
+
 struct esp32s31_ipc {
 	u32 magic;
 	u32 version;
 	u32 link_up;
 	u8 mac[6];
-	u8 reserved[ESP32S31_IPC_LINE - 18];
+	/*
+	 * The association the firmware made on its own.  cfg80211 will not
+	 * accept a connection it cannot tie to a BSS, so the host needs to
+	 * know which AP, on which channel, to publish one.
+	 */
+	u8 bssid[6];
+	u8 channel;
+	u8 reserved[ESP32S31_IPC_LINE - 25];
 	struct esp32s31_ipc_cmd cmd;
+	struct esp32s31_ipc_scan scan;
 	struct esp32s31_ipc_ring to_linux;
 	struct esp32s31_ipc_ring to_firmware;
 };

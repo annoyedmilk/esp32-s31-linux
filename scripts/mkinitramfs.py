@@ -23,7 +23,12 @@ APPLETS = (
     "cttyhack", "df", "free", "dd", "hexdump", "reboot", "poweroff",
 )
 
-DIRECTORIES = (".", "bin", "dev", "lib", "mnt", "proc", "run", "sys", "tmp")
+DIRECTORIES = (".", "bin", "dev", "lib", "lib/firmware", "mnt", "proc", "run",
+               "sys", "tmp")
+
+# cfg80211 asks for these while the initramfs is still the root, so the copy
+# on the card comes too late to answer.
+FIRMWARE = ("regulatory.db", "regulatory.db.p7s")
 
 PT_INTERP = 3
 
@@ -99,6 +104,12 @@ def build(target: Path, init: Path, size: int) -> bytes:
         else:
             add_entry(archive, name, stat.S_IFREG | 0o755, source.read_bytes(), ino)
         ino += 1
+
+    for name in FIRMWARE:
+        blob = target / "lib/firmware" / name
+        if blob.exists():
+            add_entry(archive, f"lib/firmware/{name}", stat.S_IFREG | 0o644,
+                      blob.read_bytes(), ino)
 
     add_entry(archive, "init", stat.S_IFREG | 0o755, init.read_bytes(), ino)
     add_entry(archive, "TRAILER!!!", 0, ino=ino + 1)

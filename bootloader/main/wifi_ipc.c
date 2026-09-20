@@ -110,6 +110,8 @@ static void ipc_from_linux_isr(void *arg)
 /* Retry association only while Linux still wants a connection. */
 static bool ipc_want_connection;
 
+static void ipc_publish_scan(uint32_t count);
+
 static void ipc_run_command(void)
 {
     wifi_config_t cfg = { 0 };
@@ -151,6 +153,19 @@ static void ipc_run_command(void)
         ipc_want_connection = false;
         esp_wifi_disconnect();
         break;
+    case ESP32S31_IPC_CMD_SCAN: {
+        /* Asynchronous: the results land in the scan-done event, so the
+         * transmit path is not held for the seconds a scan takes. */
+        wifi_scan_config_t scan = { .show_hidden = false };
+
+        err = esp_wifi_scan_start(&scan, false);
+        if (err != ESP_OK) {
+            ESP_LOGW(TAG, "scan start failed: %s", esp_err_to_name(err));
+            /* Publish an empty result rather than leave Linux waiting. */
+            ipc_publish_scan(0);
+        }
+        break;
+    }
     }
 }
 
@@ -175,6 +190,42 @@ static void ipc_tx_task(void *arg)
     }
 }
 
+/* Count last but seq after it: Linux reads seq to decide the table is real. */
+static void ipc_publish_scan(uint32_t count)
+{
+    ipc->scan.count = count;
+    __atomic_store_n(&ipc->scan.seq, ipc->scan.seq + 1, __ATOMIC_RELEASE);
+    REG_WRITE(IPC_DOORBELL_TO_LINUX_REG, 1);
+}
+
+static void ipc_collect_scan(void)
+{
+    static wifi_ap_record_t records[ESP32S31_IPC_SCAN_MAX];
+    uint16_t num = ESP32S31_IPC_SCAN_MAX;
+    uint16_t i;
+
+    if (esp_wifi_scan_get_ap_records(&num, records) != ESP_OK) {
+        num = 0;
+    }
+
+    for (i = 0; i < num; i++) {
+        struct esp32s31_ipc_bss *bss = &ipc->scan.bss[i];
+        size_t len = strnlen((const char *)records[i].ssid,
+                             ESP32S31_IPC_SSID_MAX);
+
+        memset(bss, 0, sizeof(*bss));
+        memcpy(bss->bssid, records[i].bssid, sizeof(bss->bssid));
+        memcpy(bss->ssid, records[i].ssid, len);
+        bss->ssid_len = len;
+        bss->channel = records[i].primary;
+        bss->rssi = records[i].rssi;
+        bss->authmode = records[i].authmode == WIFI_AUTH_OPEN ?
+                        ESP32S31_IPC_AUTH_OPEN : ESP32S31_IPC_AUTH_SECURED;
+    }
+
+    ipc_publish_scan(num);
+}
+
 static void ipc_set_link(uint32_t up)
 {
     __atomic_store_n(&ipc->link_up, up, __ATOMIC_RELEASE);
@@ -189,10 +240,18 @@ static void ipc_wifi_event(void *arg, esp_event_base_t base, int32_t id,
     }
 
     switch (id) {
-    case WIFI_EVENT_STA_CONNECTED:
+    case WIFI_EVENT_SCAN_DONE:
+        ipc_collect_scan();
+        break;
+    case WIFI_EVENT_STA_CONNECTED: {
+        const wifi_event_sta_connected_t *ev = data;
+
+        memcpy((void *)ipc->bssid, ev->bssid, sizeof(ipc->bssid));
+        ipc->channel = ev->channel;
         ESP_LOGI(TAG, "associated");
         ipc_set_link(1);
         break;
+    }
     case WIFI_EVENT_STA_DISCONNECTED:
         ipc_set_link(0);
         if (ipc_want_connection) {
