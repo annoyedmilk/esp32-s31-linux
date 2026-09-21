@@ -169,7 +169,12 @@ opensbi:
 	@mkdir -p "$(OPENSBI_SRC)"
 	@cp -R "$(OPENSBI_DIR)"/* "$(OPENSBI_SRC)/"
 	@rm -rf "$(OPENSBI_OUT)"
-	@for patch_file in $(OPENSBI_PATCHES); do patch -d "$(OPENSBI_SRC)" -p1 -s < "$$patch_file"; done
+	@# A for loop exits with the status of its last iteration, so a reject
+	@# anywhere but the end would build a silently unpatched OpenSBI.
+	@for patch_file in $(OPENSBI_PATCHES); do \
+		patch -d "$(OPENSBI_SRC)" -p1 -F0 -s < "$$patch_file" || \
+			{ echo "$$patch_file does not apply"; exit 1; }; \
+	done
 	@$(GMAKE) -C "$(OPENSBI_SRC)" \
 		PLATFORM_DIR="$(CURDIR)/opensbi/platform" PLATFORM=esp32s31 \
 		O="$(OPENSBI_OUT)" CROSS_COMPILE="$(CROSS_COMPILE)"

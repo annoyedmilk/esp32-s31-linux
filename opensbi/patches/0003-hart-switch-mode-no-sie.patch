@@ -1,8 +1,7 @@
 diff --git a/lib/sbi/sbi_hart.c b/lib/sbi/sbi_hart.c
-index aaaaaaaa..bbbbbbbb 100644
 --- a/lib/sbi/sbi_hart.c
 +++ b/lib/sbi/sbi_hart.c
-@@ -838,7 +838,9 @@ void sbi_hart_switch_mode(unsigned long arg0, unsigned long arg1,
+@@ -838,7 +838,9 @@
  		} else {
  			csr_write(CSR_STVEC, next_addr);
  			csr_write(CSR_SSCRATCH, 0);
@@ -11,4 +10,4 @@ index aaaaaaaa..bbbbbbbb 100644
 +#endif
  			csr_write(CSR_SATP, 0);
  		}
- 	}
+ 	} else if (next_mode == PRV_U) {
