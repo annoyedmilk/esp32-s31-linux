@@ -2,16 +2,18 @@
 /*
  * Author: Marco Müller <hello@annoyedmilk.ch>
  *
- * Network device for the ESP32-S31 WLAN modem, which is owned by ESP-IDF
- * firmware resident on hart 0.  Linux exchanges 802.3 frames with it through
- * fixed-size slot rings in internal SRAM and a pair of cross-core doorbell
- * interrupts; the firmware runs the 802.11 side itself.
+ * Full-MAC cfg80211 device for the ESP32-S31 WLAN modem, which is owned by
+ * ESP-IDF firmware resident on hart 0.  The firmware runs 802.11 and its own
+ * supplicant; Linux exchanges 802.3 frames, scan requests and association
+ * with it through fixed-size slot rings in internal SRAM and a pair of
+ * cross-core doorbell interrupts.
  *
  * The rings are reached without the data cache on either hart, so the io
  * accessors here are for their ordering barriers rather than for a device.
  */
 
 #include <linux/etherdevice.h>
+#include <linux/hex.h>
 #include <linux/interrupt.h>
 #include <linux/io.h>
 #include <linux/module.h>
@@ -71,6 +73,13 @@ static struct ieee80211_rate esp32s31_wifi_rates[] = {
 	{ .bitrate = 120, .hw_value = 5 },
 	{ .bitrate = 240, .hw_value = 6 },
 	{ .bitrate = 540, .hw_value = 7 },
+};
+
+/* What the firmware's supplicant negotiates. */
+static const u32 esp32s31_wifi_ciphers[] = {
+	WLAN_CIPHER_SUITE_CCMP,
+	WLAN_CIPHER_SUITE_TKIP,
+	WLAN_CIPHER_SUITE_AES_CMAC,
 };
 
 static struct ieee80211_supported_band esp32s31_wifi_band_2ghz = {
@@ -327,16 +336,11 @@ static ssize_t esp32s31_wifi_store_text(void __iomem *dst, size_t dst_len,
 	return count;
 }
 
-static ssize_t ssid_store(struct device *dev, struct device_attribute *attr,
-			  const char *buf, size_t count)
-{
-	struct esp32s31_wifi *priv = dev_get_drvdata(dev);
-
-	return esp32s31_wifi_store_text(priv->ipc->cmd.ssid,
-					ESP32S31_IPC_SSID_MAX, buf, count);
-}
-static DEVICE_ATTR_WO(ssid);
-
+/*
+ * The one key the offloads cannot carry: a passphrase, for a supplicant that
+ * wants one rather than the PMK nl80211 hands over.  Association itself goes
+ * through cfg80211.
+ */
 static ssize_t psk_store(struct device *dev, struct device_attribute *attr,
 			 const char *buf, size_t count)
 {
@@ -347,35 +351,12 @@ static ssize_t psk_store(struct device *dev, struct device_attribute *attr,
 }
 static DEVICE_ATTR_WO(psk);
 
-static ssize_t connect_store(struct device *dev, struct device_attribute *attr,
-			     const char *buf, size_t count)
-{
-	struct esp32s31_wifi *priv = dev_get_drvdata(dev);
-	bool connect;
-	int ret;
-
-	ret = kstrtobool(buf, &connect);
-	if (ret)
-		return ret;
-
-	iowrite32(connect ? ESP32S31_IPC_CMD_CONNECT :
-			    ESP32S31_IPC_CMD_DISCONNECT,
-		  &priv->ipc->cmd.code);
-	iowrite32(1, priv->doorbell + ESP32S31_WIFI_DOORBELL_TX);
-
-	return count;
-}
-static DEVICE_ATTR_WO(connect);
-
 static struct attribute *esp32s31_wifi_attrs[] = {
-	&dev_attr_ssid.attr,
 	&dev_attr_psk.attr,
-	&dev_attr_connect.attr,
 	NULL,
 };
 ATTRIBUTE_GROUPS(esp32s31_wifi);
 
-/* Publish the credentials the firmware's own supplicant will use. */
 static void esp32s31_wifi_send_cmd(struct esp32s31_wifi *priv, u32 code)
 {
 	/* The code is written last: it is what the firmware polls on. */
@@ -463,24 +444,60 @@ static int esp32s31_wifi_scan(struct wiphy *wiphy,
 	return 0;
 }
 
+/*
+ * The firmware's supplicant takes one string for every key type: a
+ * passphrase, or 64 hex characters it reads as the PMK itself, which is what
+ * the 4-way handshake offload hands us.  SAE needs the password, which the
+ * SAE offload carries.
+ */
+static int esp32s31_wifi_set_key(struct esp32s31_wifi *priv,
+				 struct cfg80211_connect_params *sme)
+{
+	char hex[2 * WLAN_PMK_LEN + 1];
+
+	if (sme->crypto.psk) {
+		memset_io(priv->ipc->cmd.psk, 0, ESP32S31_IPC_PSK_MAX);
+		bin2hex(hex, sme->crypto.psk, WLAN_PMK_LEN);
+		memcpy_toio(priv->ipc->cmd.psk, hex, 2 * WLAN_PMK_LEN);
+		return 0;
+	}
+
+	if (sme->crypto.sae_pwd) {
+		if (sme->crypto.sae_pwd_len > ESP32S31_IPC_PSK_MAX)
+			return -EINVAL;
+		memset_io(priv->ipc->cmd.psk, 0, ESP32S31_IPC_PSK_MAX);
+		memcpy_toio(priv->ipc->cmd.psk, sme->crypto.sae_pwd,
+			    sme->crypto.sae_pwd_len);
+		return 0;
+	}
+
+	/*
+	 * Neither offload carried a key, so this association is driven through
+	 * the psk attribute, the only way to reach a supplicant that wants a
+	 * passphrase rather than a PMK.  Whatever was written there stands:
+	 * nl80211 never says a network is open, only that it has no key for
+	 * us, and clearing on that wipes the passphrase a moment before the
+	 * firmware needs it.
+	 */
+	return 0;
+}
+
 static int esp32s31_wifi_connect(struct wiphy *wiphy, struct net_device *ndev,
 				 struct cfg80211_connect_params *sme)
 {
 	struct esp32s31_wifi *priv = wiphy_priv(wiphy);
+	int ret;
 
 	if (!sme->ssid_len || sme->ssid_len > ESP32S31_IPC_SSID_MAX)
 		return -EINVAL;
 
+	ret = esp32s31_wifi_set_key(priv, sme);
+	if (ret && ret != -ENOKEY)
+		return ret;
+
 	memset_io(priv->ipc->cmd.ssid, 0, ESP32S31_IPC_SSID_MAX);
 	memcpy_toio(priv->ipc->cmd.ssid, sme->ssid, sme->ssid_len);
 
-	/*
-	 * The firmware runs the supplicant, so it needs the passphrase, which
-	 * nl80211 does not carry: wpa_supplicant derives a PMK and keeps the
-	 * passphrase to itself.  A secured network therefore takes its
-	 * passphrase through the psk attribute first, and this call only
-	 * selects the network.
-	 */
 	esp32s31_wifi_send_cmd(priv, ESP32S31_IPC_CMD_CONNECT);
 
 	return 0;
@@ -553,6 +570,12 @@ static int esp32s31_wifi_probe(struct platform_device *pdev)
 	wiphy->max_scan_ssids = 1;
 	wiphy->max_scan_ie_len = 0;
 	wiphy->signal_type = CFG80211_SIGNAL_TYPE_MBM;
+	/* The firmware holds the keys and runs the handshakes. */
+	wiphy_ext_feature_set(wiphy,
+			      NL80211_EXT_FEATURE_4WAY_HANDSHAKE_STA_PSK);
+	wiphy_ext_feature_set(wiphy, NL80211_EXT_FEATURE_SAE_OFFLOAD);
+	wiphy->cipher_suites = esp32s31_wifi_ciphers;
+	wiphy->n_cipher_suites = ARRAY_SIZE(esp32s31_wifi_ciphers);
 
 	priv = wiphy_priv(wiphy);
 	priv->wiphy = wiphy;
