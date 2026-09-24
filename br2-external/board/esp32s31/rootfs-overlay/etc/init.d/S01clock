@@ -1,6 +1,6 @@
 #!/bin/sh
 # SPDX-License-Identifier: MIT
-# No RTC: restore the last known time so TLS works before NTP.
+# No RTC: set the last known time, so TLS works before NTP.
 
 STAMP=/etc/timestamp
 FORMAT='%Y-%m-%d %H:%M:%S'
@@ -9,14 +9,14 @@ case "$1" in
 start)
 	[ -r "$STAMP" ] || exit 0
 	saved=$(cat "$STAMP")
-	# Forwards only, so a restore cannot undo a real sync.
+	# Only move forward, so this cannot undo an NTP sync.
 	if [ "$(date -u +%s)" -lt "$(date -u -d "$saved" +%s 2>/dev/null || echo 0)" ]
 	then
 		date -u -s "$saved" >/dev/null && echo "clock: restored $saved UTC"
 	fi
 	;;
 stop)
-	# Only a plausible clock is worth keeping.
+	# Save only a correct clock.
 	[ "$(date -u +%Y)" -ge 2020 ] && date -u +"$FORMAT" >"$STAMP"
 	;;
 esac

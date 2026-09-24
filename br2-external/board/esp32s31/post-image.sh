@@ -8,12 +8,12 @@ BINARIES_DIR="$1"
 cat > "${BINARIES_DIR}/sd-readme.txt" <<'TXT'
 ESP32-S31 Linux SD card.
 
-This FAT32 partition is yours; the board mounts it on /mnt/sd. The second
-partition is the ext4 root and is not readable from macOS.
+The board mounts this FAT32 partition on /mnt/sd.  Use it for your files.
+The second partition is the ext4 root.  macOS cannot read it.
 TXT
 
-# The loader checks the Image against this manifest before copying it to
-# PSRAM.  Flashed at LINUX_SIZE_OFFSET.
+# The loader checks the Image with this manifest before it copies the Image
+# to PSRAM.  make flash writes it at LINUX_SIZE_OFFSET.
 python3 - "${BINARIES_DIR}" <<'PY'
 import struct, sys, zlib, pathlib
 

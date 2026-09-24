@@ -1,7 +1,7 @@
 #!/bin/sh
 # SPDX-License-Identifier: MIT
-# make monitor waits for this line, so the text is a contract with the
-# Makefile's --success-pattern.
+# make monitor waits for this line.  If you change the text, also change
+# --success-pattern in the Makefile.
 
 [ "$1" = start ] || exit 0
 

@@ -1,4 +1,4 @@
 #!/bin/sh
 # SPDX-License-Identifier: MIT
-# BusyBox getty's -l accepts a program, not login arguments.
+# The BusyBox getty -l option takes a program, not login arguments.
 exec /bin/login -f root

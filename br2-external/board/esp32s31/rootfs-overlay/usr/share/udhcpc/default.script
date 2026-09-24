@@ -1,7 +1,7 @@
 #!/bin/sh
 # SPDX-License-Identifier: MIT
-# udhcpc hook: BusyBox calls this with the lease state in $1 and the lease
-# itself in the environment.
+# udhcpc hook: BusyBox gives the lease state in $1 and the lease data in the
+# environment.
 
 case "$1" in
 deconfig)
@@ -21,9 +21,9 @@ bound | renew)
 		echo "nameserver $server" >>/etc/resolv.conf
 	done
 
-	# A fresh lease is the moment to fix a clock with no RTC behind it:
-	# S01clock only restores the last known time, which drifts.  Renewals
-	# are left alone, so a running board does not keep asking.
+	# There is no RTC.  S01clock sets only the last known time, which is
+	# late.  Thus set the clock at each new lease.  Do not do it at a
+	# renewal, so a running board does not ask again and again.
 	if [ "$1" = bound ]; then
 		(
 			ntpd -q -n -p pool.ntp.org >/dev/null 2>&1 &&

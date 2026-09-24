@@ -1,12 +1,12 @@
 #!/bin/sh
 # SPDX-License-Identifier: MIT
-# Rejoin the network "wifi <ssid> [passphrase]" saved, so the board comes up
-# reachable without a console.
+# Connect to the network that "wifi <ssid> [passphrase]" saved.  Then the
+# board is on the network without a console.
 
 case "$1" in
 start)
 	[ -r /etc/wifi.conf ] || [ -r /mnt/sd/wifi.conf ] || exit 0
-	# Association and the lease take seconds and nothing waits on them.
+	# The association and the lease take seconds.  Nothing waits for them.
 	/usr/bin/wifi --saved >/dev/null 2>&1 &
 	echo "wifi: joining the saved network in the background"
 	;;

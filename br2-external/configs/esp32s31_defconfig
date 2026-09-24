@@ -1,4 +1,4 @@
-# RV32 IMAC, Sv32, soft-float ilp32. Extra ISA extensions wait for boot tests.
+# RV32 IMAC, Sv32, soft-float ilp32.  Add ISA extensions only after boot tests.
 BR2_riscv=y
 BR2_riscv_custom=y
 BR2_RISCV_32=y
@@ -12,22 +12,22 @@ BR2_RISCV_ISA_RVC=y
 BR2_RISCV_ISA_EXTRA=""
 BR2_RISCV_ABI_ILP32=y
 BR2_TOOLCHAIN_BUILDROOT_MUSL=y
-# gdbserver requires the C++ runtime; the full debugger stays in the container.
+# gdbserver needs the C++ runtime.  The full debugger stays in the container.
 BR2_TOOLCHAIN_BUILDROOT_CXX=y
 BR2_PACKAGE_HOST_GDB=y
 
-# A stock release plus linux/patches/, applied to Buildroot's own download.
-# A version bump is this value plus a rebase of the series.
+# A stock release with linux/patches/ applied to the Buildroot download.  To
+# change the version, change this value and update the series.
 BR2_LINUX_KERNEL=y
 BR2_LINUX_KERNEL_CUSTOM_VERSION=y
 BR2_LINUX_KERNEL_CUSTOM_VERSION_VALUE="7.1.3"
 BR2_LINUX_KERNEL_PATCH="$(BR2_EXTERNAL_ESP32S31_PATH)/../linux/patches"
 BR2_LINUX_KERNEL_USE_CUSTOM_CONFIG=y
 BR2_LINUX_KERNEL_CUSTOM_CONFIG_FILE="$(BR2_EXTERNAL_ESP32S31_PATH)/board/esp32s31/linux.config"
-# CONFIG_BUILTIN_DTB, so the loader has one blob to place.
+# CONFIG_BUILTIN_DTB, so the loader copies only one file.
 BR2_LINUX_KERNEL_IMAGE=y
-# Headers from that same kernel.  The series must be named too: the default
-# is "really old", which claims 2.6 headers to every package.
+# Headers from the same kernel.  Also set the header series.  The default is
+# "really old", which tells all packages that the headers are 2.6.
 BR2_KERNEL_HEADERS_AS_KERNEL=y
 BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_7_1=y
 
@@ -51,7 +51,7 @@ BR2_TARGET_ROOTFS_EXT2_4=y
 BR2_TARGET_ROOTFS_EXT2_SIZE="192M"
 BR2_PACKAGE_HOST_GENIMAGE=y
 
-# The root is on removable media with no clean-shutdown guarantee.
+# The root is on a removable card, and a clean shutdown is not certain.
 BR2_PACKAGE_E2FSPROGS=y
 BR2_PACKAGE_IW=y
 BR2_PACKAGE_WIRELESS_REGDB=y
@@ -62,7 +62,7 @@ BR2_PACKAGE_BASH=y
 BR2_PACKAGE_COREUTILS=y
 BR2_PACKAGE_VIM=y
 BR2_PACKAGE_LESS=y
-# Deferred: Buildroot 2026.08 and upstream strace 7.1 do not support RV32.
+# Not available: Buildroot 2026.08 and strace 7.1 do not support RV32.
 # BR2_PACKAGE_STRACE is not set
 BR2_PACKAGE_GDB=y
 BR2_PACKAGE_GDB_SERVER=y
@@ -75,8 +75,8 @@ BR2_PACKAGE_LINKS_GRAPHICS=y
 BR2_PACKAGE_JPEG=y
 BR2_PACKAGE_LUA=y
 BR2_PACKAGE_MICROPYTHON=y
-# This release installs a small vital terminfo set by default.
+# This release installs a small set of necessary terminfo files.
 BR2_PACKAGE_NCURSES_ADDITIONAL_TERMINFO=""
-# Links needs these for HTTPS once the board's clock is set.
+# Links needs these for HTTPS after the board clock is set.
 BR2_PACKAGE_OPENSSL=y
 BR2_PACKAGE_CA_CERTIFICATES=y

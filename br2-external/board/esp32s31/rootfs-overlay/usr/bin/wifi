@@ -1,15 +1,15 @@
 #!/bin/sh
 # SPDX-License-Identifier: MIT
-# wifi <ssid> [passphrase]  -- associate, take a DHCP lease, remember both
+# wifi <ssid> [passphrase]  -- associate, get a DHCP lease, save the network
 # wifi scan                 -- list the networks in range
-# wifi --saved              -- associate with the remembered network
+# wifi --saved              -- associate with the saved network
 # wifi off                  -- disconnect
 # wifi forget               -- disconnect and drop the saved credentials
 
 iface=wlan0
 dev=/sys/class/net/$iface/device
 conf=/etc/wifi.conf
-# Survives "make sdroot", which replaces the root but not the data partition.
+# A file on p1 stays after "make sdroot", which replaces only the root.
 [ -r "$conf" ] || [ ! -r /mnt/sd/wifi.conf ] || conf=/mnt/sd/wifi.conf
 
 if [ ! -d "$dev" ]; then
@@ -53,7 +53,7 @@ forget)
 	exit 0
 	;;
 --saved)
-	# Two lines, not a sourced file: an SSID may contain anything.
+	# Two lines, not a shell file: an SSID can contain all characters.
 	[ -r "$conf" ] || { echo "wifi: no saved network" >&2; exit 1; }
 	{ read -r ssid; read -r psk; } <"$conf"
 	[ -n "$ssid" ] || { echo "wifi: $conf has no SSID" >&2; exit 1; }
@@ -84,7 +84,7 @@ if ip link show "$iface" | grep -q NO-CARRIER; then
 	exit 1
 fi
 
-# Saved only once associated, so a typo never sticks.
+# Save only after the association, so a typing error is not saved.
 if [ "$save" = yes ]; then
 	(umask 077; printf '%s\n%s\n' "$ssid" "$psk" >"$conf")
 fi

@@ -3,7 +3,7 @@ CONFIG_NTPD=y
 # CONFIG_FEATURE_NTPD_SERVER is not set
 # CONFIG_FEATURE_NTPD_CONF is not set
 
-# nc for socket tests during bring-up.
+# nc to test sockets.
 CONFIG_NC=y
 CONFIG_NC_SERVER=y
 CONFIG_NC_EXTRA=y

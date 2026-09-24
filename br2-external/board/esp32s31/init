@@ -1,7 +1,7 @@
 #!/bin/sh
 # SPDX-License-Identifier: MIT
-# Find the rootfs on the card and switch into it.  The fallback shell is the
-# point of this: the rootfs is on removable media now.
+# Find the rootfs on the card and switch to it.  If there is no card, start
+# a shell for recovery.
 
 mount -t devtmpfs devtmpfs /dev
 mount -t proc proc /proc
@@ -9,18 +9,18 @@ mount -t sysfs sysfs /sys
 
 root=/dev/mmcblk0p2
 
-# The dw_mmc probe, card identification and partition scan all land after this.
+# The dw_mmc probe, the card identification and the partition scan come later.
 for _ in 1 2 3 4 5; do
 	[ -b "$root" ] && break
 	sleep 1
 done
 
-# No fsck fits in here, so a damaged root goes read-only rather than worse;
-# e2fsprogs on the card does the repair.
+# There is no fsck here.  A damaged root becomes read-only and does not get
+# worse.  Use e2fsprogs on the card to repair it.
 if [ -b "$root" ] && mount -t ext4 -o rw,errors=remount-ro "$root" /mnt; then
 	echo "initramfs: root on $root"
-	# switch_root does not carry mounts over, and the kernel only mounts
-	# devtmpfs on the initial root, so the new /dev would come up empty.
+	# switch_root does not move mounts, and the kernel mounts devtmpfs only
+	# on the first root.  Without the move, the new /dev is empty.
 	for fs in dev proc sys; do
 		mount -o move "/$fs" "/mnt/$fs" || echo "initramfs: cannot move /$fs"
 	done
