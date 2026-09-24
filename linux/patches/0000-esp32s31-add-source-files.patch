@@ -3225,7 +3225,7 @@ diff --git a/drivers/tty/serial/esp32_uart.c b/drivers/tty/serial/esp32_uart.c
 new file mode 100644
 --- /dev/null
 +++ b/drivers/tty/serial/esp32_uart.c
-@@ -0,0 +1,747 @@
+@@ -0,0 +1,744 @@
 +// SPDX-License-Identifier: GPL-2.0-or-later
 +/*
 + * Author: Marco Müller <hello@annoyedmilk.ch>
@@ -3762,10 +3762,7 @@ new file mode 100644
 +	int flow = 'n';
 +	int ret;
 +
-+	/*
-+	 * If the UART number is not valid, use the first port that has
-+	 * console support.
-+	 */
++	/* If the UART number is not valid, use port 0. */
 +	if (co->index == -1 || co->index >= ARRAY_SIZE(esp32_uart_ports))
 +		co->index = 0;
 +

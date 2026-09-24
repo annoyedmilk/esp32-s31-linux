@@ -534,10 +534,7 @@ static int __init esp32_uart_console_setup(struct console *co, char *options)
 	int flow = 'n';
 	int ret;
 
-	/*
-	 * If the UART number is not valid, use the first port that has
-	 * console support.
-	 */
+	/* If the UART number is not valid, use port 0. */
 	if (co->index == -1 || co->index >= ARRAY_SIZE(esp32_uart_ports))
 		co->index = 0;
 
