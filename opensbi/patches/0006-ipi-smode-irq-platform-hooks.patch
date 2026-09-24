@@ -6,13 +6,13 @@ diff --git a/include/sbi/sbi_ipi.h b/include/sbi/sbi_ipi.h
  void sbi_ipi_event_destroy(u32 event);
  
 +/**
-+ * Platform hook to assert the S-mode software interrupt on the current HART.
-+ * The default (weak) implementation sets MIP.SSIP; CLIC-only platforms can
-+ * override it with their supervisor software-interrupt pending bit.
++ * Platform hook: set the S-mode software interrupt on the current HART.
++ * The weak default sets MIP.SSIP.  CLIC-only platforms can replace it with
++ * their supervisor software-interrupt pending bit.
 + */
 +void sbi_ipi_plat_sirq_set(void);
 +
-+/** Platform hook to clear the S-mode software interrupt (default MIP.SSIP). */
++/** Platform hook: clear the S-mode software interrupt (default MIP.SSIP). */
 +void sbi_ipi_plat_sirq_clear(void);
 +
  int sbi_ipi_send_smode(ulong hmask, ulong hbase);

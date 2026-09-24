@@ -6,13 +6,13 @@ diff --git a/include/sbi/sbi_timer.h b/include/sbi/sbi_timer.h
  void sbi_timer_smode_event_start(u64 next_event);
  
 +/**
-+ * Platform hook to assert the S-mode timer interrupt on the current HART.
-+ * The default (weak) implementation sets MIP.STIP; platforms without a
-+ * writable MIP (e.g. CLIC-only cores) override it.
++ * Platform hook: set the S-mode timer interrupt on the current HART.
++ * The weak default sets MIP.STIP.  Platforms without a writable MIP (for
++ * example CLIC-only cores) replace it.
 + */
 +void sbi_timer_plat_sirq_set(void);
 +
-+/** Platform hook to clear the S-mode timer interrupt (default MIP.STIP). */
++/** Platform hook: clear the S-mode timer interrupt (default MIP.STIP). */
 +void sbi_timer_plat_sirq_clear(void);
 +
  /** Process timer event for current HART */
@@ -68,7 +68,7 @@ diff --git a/lib/sbi/sbi_timer.c b/lib/sbi/sbi_timer.c
  
  	timer_dev = dev;
 -	if (!get_time_val && timer_dev->timer_value)
-+	/* Keep event comparisons and reported time in the device clock domain. */
++	/* Use the device clock for event comparisons and the reported time. */
 +	if (timer_dev->timer_value)
  		get_time_val = timer_dev->timer_value;
  }
