@@ -1,452 +1,189 @@
 # ESP32-S31 Linux
 
-Linux 7.1 and OpenSBI 1.9 bring-up for the ESP32-S31 Korvo-1, using 16 MiB
-of octal PSRAM as Linux memory.
-
-The verified boot chain is:
+Linux 7.1 and OpenSBI 1.9 on the ESP32-S31 Korvo-1 board. Linux uses the
+16 MiB octal PSRAM as its memory.
 
 ```text
-ESP ROM -> ESP-IDF second stage -> loader -> OpenSBI -> Linux -> initramfs -> Buildroot rootfs (SD)
+ESP ROM -> ESP-IDF 2nd stage -> loader -> OpenSBI -> Linux -> initramfs -> Buildroot rootfs (SD)
 ```
 
-The two harts are split. Hart 0 never leaves M-mode: it runs the ESP-IDF
-loader, which stays resident afterwards as the firmware that owns the WLAN
-modem. Linux gets hart 1 to itself.
+## What works
 
-The ESP-IDF second stage brings up PSRAM before `app_main` runs. The loader
-verifies that, copies the exact Linux image length through the cacheable
-aperture at `0x50000000` after checking the image's size and CRC manifest,
-zeroes its in-memory tail, copies the initramfs to `0x50800000` and OpenSBI to
-`0x50e00000`, brings up Wi-Fi, and then releases hart 1 into OpenSBI. OpenSBI
-provides SBI TIME through the machine timer and delivers supervisor interrupts
-through the S31 CLIC.
+- UART console (`ttyS0`) on the CP2102N bridge.
+- 800x480 LCD as `/dev/fb0` with `fbcon`, and a login on `tty1`.
+- USB host (DWC2): keyboards, mice and mass storage.
+- microSD (`dw_mmc` with internal DMA): FAT on p1, ext4 root on p2.
+- Wi-Fi as `wlan0` (cfg80211 full-MAC), through the firmware on hart 0.
+- Hardware RNG, GPIO, `reboot` and `poweroff`.
 
-OpenSBI runs from reserved PSRAM rather than internal SRAM because the resident
-firmware links its own data at the bottom of SRAM. Two pieces of per-hart state
-have to be established before hart 1 can get anywhere: the loader's entry stub
-grants it a PMA entry covering PSRAM, without which OpenSBI faults on the first
-write to its own BSS, and OpenSBI hands the CLIC's Interrupt Matrix inputs to
-S-mode. An input whose `clicintattr.MODE` is not supervisor is invisible
-through the supervisor register window -- it reads as zero and drops writes --
-so without that step Linux silently receives no external interrupt at all.
+## Design
 
-The verified cache geometry is a 32 KiB, two-way instruction cache and a
-64 KiB, two-way data cache, both with 64-byte lines. OpenSBI marks cached
-PSRAM write-through so Linux does not observe stale page-table or allocator
-state. Only the flash and PSRAM apertures are cached at all; internal SRAM
-and MMIO bypass the cache.
-
-No bus master is coherent with the data cache and the hart implements no
-Zicbom, so DMA relies on the cache controller's MMIO sync engine, driven by
-`drivers/cache/esp32s31-cache.c` through the RISC-V non-standard cache-ops
-hook. Two consequences shape every DMA path here. Streaming mappings work
-normally, but because there is no SWIOTLB to bounce a buffer that shares a
-cache line with an unrelated allocation, `setup_arch()` declares non-coherent
-support early enough that kmalloc keeps 64-byte alignment. Coherent
-allocations cannot come from PSRAM at all: it has no uncached alias, and Sv32
-page tables carry no cacheability attribute, so `dma_alloc_coherent()` is
-served from a 64 KiB `shared-dma-pool` in internal SRAM at `0x2f040000`,
-which is coherent by construction. Linux uses tickless idle at 100 Hz and enters native `wfi`; pending CLIC
-interrupts wake the hart while the generic idle loop has `sstatus.SIE` clear.
-Its SBI early console hands off to UART0 without retaining the boot console.
-
-UART0 RX is interrupt-driven through CLIC slot 32. The S-mode CLIC trampoline
-restores `scause.spil` immediately before `sret`; using `mret` leaves
-`mintstatus.SIL` stuck and masks all subsequent supervisor interrupts.
-OpenSBI initializes the supervisor timer slot once and only changes its pending
-bit for timer delivery. Linux masks local timer and software interrupts through
-the CLIC MMIO window because the standard S-mode interrupt CSRs are not
-implemented on this hart.
-
-The Korvo-1's 800x480 RGB LCD is a Linux frame buffer. The loader brings up
-the LCD_CAM RGB panel with a fixed RGB565 frame buffer at the top of PSRAM
-(`0x50F40000`), rebuilds the circular AXI DMA descriptor chain at `0x2F079000`
-in upper SRAM so the OpenSBI copy cannot clobber it, silences the LCD and DMA
-interrupt sources, and paints color bars; its DMA keeps scanning that buffer
-out across the handoff. Linux reserves it as `fb_region` and describes it as a
-`simple-framebuffer` under `/chosen`, so it appears as `/dev/fb0` with `fbcon`
-on the virtual terminals. `console=tty0` puts the kernel log on the panel, at
-the cost of about a second of boot time spent scrolling PSRAM, and the
-rootfs runs a second getty on `/dev/tty1` that a USB keyboard drives
-directly. Userspace boot output does not appear there: the last `console=`
-on the command line wins for `/dev/console`, so the service messages and the
-banner go to `ttyS0` alone and the panel shows the kernel log, then a shell
-prompt. It is a getty and not a bare shell because a shell needs tty1 as its
-controlling terminal or Ctrl-C does nothing there, and `cttyhack` cannot
-supply it: it reopens whatever `/sys/class/tty/console/active` names last,
-which is the serial port.
-
-The LCD data bus uses GPIO33 and GPIO34, which are also the native USB
-Serial/JTAG D-/D+ pins, so the loader initializes the display only when the
-ESP-IDF secondary console is off. `bootloader/sdkconfig.defaults` selects
-`CONFIG_ESP_CONSOLE_SECONDARY_NONE`, so the loader brings the panel up and
-`make openocd` has nothing to attach to. Select
-`CONFIG_ESP_CONSOLE_SECONDARY_USB_SERIAL_JTAG` instead to get JTAG back; the
-loader then logs `display disabled: GPIO33/34 reserved for USB Serial/JTAG`
-and `/dev/fb0` still registers from the DTB but drives nothing. Flashing and
-the Linux console run over the CP2102N bridge either way.
-
-The board's USB Type-A connector is exposed as a Linux high-speed USB host.
-An ESP32-S31 PHY driver performs the ESP-IDF clock, reset, UTMI, and host
-pull-down sequence, then the standard DWC2 host controller handles the bus.
-USB HID and evdev support are built in, so keyboards and mice appear under
-`/dev/input`, and the VT layer feeds their key events straight to the
-foreground virtual terminal. The controller uses its internal (buffer) DMA,
-which GHWCFG2 advertises; descriptor DMA stays off. The boot log states which
-mode was chosen (`dwc2 20300000.usb: using internal DMA`).
-
-USB mass storage works: a stick enumerates as `/dev/sda`, its partitions are
-parsed, and a FAT filesystem on it mounts and reads correctly.
-
-`CONFIG_SCSI`, `CONFIG_BLK_DEV_SD` and `CONFIG_USB_STORAGE` together once hung
-the boot before `setup_log_buf()`, and nothing identified the trigger beyond
-its moving with kernel layout. Read an early silent hang after a layout change
-as that returning.
-
-## Kernel
-
-The kernel is a stock upstream release. Nothing is copied over the extracted
-tree: `linux/patches/` is the complete delta, and Buildroot applies it to its
-own download through `BR2_LINUX_KERNEL_PATCH`.
-
-The series has two halves. `0000-esp32s31-add-source-files.patch` is
-generated by `scripts/mkkernelpatches.py` from the files under `linux/`, which
-are all new to the kernel -- the drivers, the device trees, the CLIC
-trampoline and the bindings. Edit those files, not the patch, and run
-`make kernel-patches`. The numbered patches after it are handwritten and
-modify files that already exist upstream; `0001` is the only one that touches
-generic architecture code.
-
-The configuration is not in the kernel tree either. It lives in
-`br2-external/board/esp32s31/linux.config`, which Buildroot reads directly:
-`make kernel-menuconfig` to change it and `make kernel-saveconfig` to write it
-back. The DTB is built into the Image, so the loader has one blob to place.
-
-`make kernel-check` dry-runs every patch at zero fuzz on a pristine extract of
-the release Buildroot downloads, which is also the test a version bump has to
-pass. Bumping means changing `BR2_LINUX_KERNEL_CUSTOM_VERSION_VALUE` and
-fixing whatever the check then reports.
-
-## SD card
-
-The Korvo-1 microSD slot sits on SDMMC slot 0 (dedicated pads GPIO20–25,
-routed via IO MUX; the board's unpopulated SPI NAND footprint shares these
-pins). The loader powers the slot through the board's active-low enable on
-GPIO39, derives the 50 MHz controller clock from the already-running MPLL,
-releases the module reset, hands the pads to the SD host, and reports
-card-present/not-write-protected through the GPIO matrix constant inputs,
-since the slot has no CD/WP contacts.
-
-Linux drives the controller with the stock `dw_mmc` driver (the S31 SDHOST
-is a Synopsys DesignWare MSHC). Transfers use the controller's internal DMA:
-the host's PIO FIFO port is non-functional in silicon (CPU reads never pop
-the FIFO, they return the same latched word, and ESP-IDF never touches that
-register either), so IDMAC is the only working data path. Patch
-`0003-mmc-dw_mmc-add-esp32s31-support.patch` identifies the SoC integration
-and takes the descriptor ring from `dma_alloc_noncoherent()` instead of
-`dma_alloc_coherent()`, syncing the whole ring around each ownership
-hand-off. The ring is synced as a unit because descriptors are 16 bytes and
-several share a cache line.
-
-FAT (VFAT) and ext4 are enabled. The card carries both: an MBR whose first
-partition is FAT32 and whose second is the ext4 root. `/etc/init.d/S10sdcard`
-mounts the first on `/mnt/sd` when it is present, and never fails the boot
-when it is not. Cards can also be mounted manually:
-
-```sh
-mount /dev/mmcblk0p1 /mnt/sd
-```
-
-A working card enumerates as `/dev/mmcblk0`, but enumeration alone proves
-only the command path: verify the data path by comparing a file's
-`sha256sum` on the board against the host.
-
-The write path is verified: a 1 MiB random file hashes identically on the
-board, on the Mac, and on the board again after reinsertion.
-
-The card tooling writes MBR, and the kernel parses MBR and GPT, so a card
-partitioned elsewhere enumerates too. The first partition is FAT32 and as
-large as you like; the second is the roughly 192 MiB ext4 root. `make sdpart` lays out a card larger than the
-image, keeping most of it as FAT; `make sdwrite` writes the whole card image
-instead, which suits a card no bigger than it. Either erases everything.
-`make sdroot` then rewrites only the root partition, and is the loop to use
-once a card exists.
-
-## Userspace
-
-Buildroot 2026.08 builds the whole RV32 musl userspace, pinned as a submodule
-with its configuration in `br2-external/`. It builds the kernel as well, from
-a stock release and the patch series; only OpenSBI and the loader keep their
-own paths, because both need the Espressif toolchain.
-
-The root password is `korvo-bringup`; the serial and panel gettys log root in
-automatically, and Dropbear wants the password. `gdbserver` goes on the card
-while its cross-GDB stays in the container.
-
-Four things happen at boot so the board is usable without a console:
-
-- `S01clock` restores the time of the last clean shutdown or NTP sync from
-  `/etc/timestamp`, and only ever moves the clock forwards. The board has no
-  RTC, so without it every boot starts at the epoch and TLS fails.
-- `S05swap` creates and enables a swap file on the root the first time it
-  runs, up to 64 MiB and never within 32 MiB of filling the partition. 16 MiB
-  of PSRAM is the whole machine; a file rather than a partition works whatever
-  layout the card was given.
-- `S40wifi` joins the saved network in the background. `wifi <ssid>
-  [passphrase]` saves the credentials once the firmware confirms the
-  association, so a typo is never stored; `wifi forget` drops them. They live
-  in `/etc/wifi.conf`, which `make sdroot` replaces along with the rest of the
-  root; a `wifi.conf` placed on the card's data partition is used instead and
-  survives, which is how to provision a board without a console.
-- The udhcpc hook runs a one-shot `ntpd` when the year is still implausible,
-  then records the result for the next boot.
-
-`e2fsprogs` is on the card because the root is on removable media: the
-initramfs mounts it `errors=remount-ro`, and a card that goes read-only is
-repaired with `e2fsck -f /dev/mmcblk0p2` from a console.
-
-`FAT-fs (mmcblk0p1): Volume was not properly unmounted` on the console means
-what it says: the board was reset with the data partition mounted. A clean
-`reboot` or `poweroff` unmounts it and the next boot is quiet.
+- **Harts.** Hart 0 stays in M-mode. It runs the ESP-IDF loader, which stays
+  resident as the Wi-Fi firmware. Linux runs on hart 1 only.
+- **Loader.** The loader checks the size and CRC of the kernel. It copies the
+  kernel to `0x50000000`, the initramfs to `0x50800000` and OpenSBI to
+  `0x50E00000`. It starts the LCD, the SD slot and Wi-Fi. Then it releases
+  hart 1 into OpenSBI.
+- **Interrupts.** OpenSBI gives the CLIC inputs to S-mode. If an input is not
+  in S-mode, Linux cannot see it. The S-mode trampoline must use `sret` and
+  restore `scause.spil`. `mret` locks `mintstatus.SIL` and masks all
+  supervisor interrupts.
+- **Cache.** PSRAM is write-through. No bus master is coherent with the data
+  cache, and the hart has no Zicbom. DMA uses the cache sync engine
+  (`drivers/cache/esp32s31-cache.c`). Coherent DMA memory comes from a 64 KiB
+  pool in SRAM at `0x2F040000`.
+- **Shared SRAM.** `0x2F040000`-`0x2F060000` is outside the ESP-IDF heap. The
+  lower half is the DMA pool. The upper half holds the Wi-Fi rings
+  (`shared/esp32s31-wifi-ipc.h`).
+- **Display.** The frame buffer is at `0x50F40000`. The loader DMA continues
+  to scan it out after the handoff. Linux uses it as a `simple-framebuffer`.
 
 ## Hardware connections
 
-The ESP32-S31 Korvo-1 has two Type-C connectors, a Type-A host connector, and
-native USB Serial/JTAG signals on the LCD expansion connector:
+| Connector | Use |
+| --- | --- |
+| Power Type-C | Power only. |
+| UART Type-C | CP2102N to UART0: flash and Linux console (`/dev/cu.usbserial-*`). |
+| USB Type-A | USB 2.0 host for Linux. |
+| GPIO33/34 breakout | Native USB Serial/JTAG (`/dev/cu.usbmodem*`): D- white to GPIO33, D+ green to GPIO34, GND black. Do not connect 5 V. |
 
-- **Power Type-C**: Supplies power only; it has no data connection.
-- **UART Type-C**: Connects through the on-board CP2102N bridge to UART0. It
-  can flash the board and provides the Linux `ttyS0` console.
-- **Native USB Serial/JTAG breakout**: The Korvo-1 has no dedicated native
-  USB Type-C connector. Connect USB white/D- to GPIO33, green/D+ to GPIO34,
-  and black/GND to board ground. Leave USB red/5 V disconnected when the
-  board is already powered through Type-C. This interface appears as
-  Espressif VID:PID `303a:1001`; it can flash the board and is used by
-  `make openocd`. These are the LCD data pins, so it is unavailable once the
-  loader has initialized the display.
-- **USB Type-A host**: This connector is wired to the ESP32-S31 USB 2.0 OTG
-  high-speed peripheral and supplies attached devices from the board's
-  current-limited 5 V VBUS path. It is independent of the two debug ports.
-
-On macOS, the CP2102N normally appears as `/dev/cu.usbserial-*` and the native
-USB Serial/JTAG breakout as `/dev/cu.usbmodem*`.
+GPIO33/34 are also LCD data pins. You can use the LCD or JTAG, not both. The
+default is the LCD (`CONFIG_ESP_CONSOLE_SECONDARY_NONE` in
+`bootloader/sdkconfig.defaults`).
 
 ## Host requirements
 
-- macOS with Homebrew
-- ESP-IDF at `~/esp/esp-idf`
-- the ESP-IDF `riscv32-esp-elf` toolchain
-- `brew install make`
-- Apple's `container` CLI, with `container system start` already run
+- macOS with Homebrew and GNU make (`brew install make`).
+- ESP-IDF `master` at `~/esp/esp-idf`, with the `riscv32-esp-elf` toolchain.
+- Apple `container` CLI. Run `container system start` first.
 
-Buildroot does not support running on macOS, so it runs in the Debian image
-from `container/Containerfile`, as the invoking user so that files coming back
-are owned correctly. Its `output/` and `dl/` stay in the `esp32s31-br` volume;
-several gigabytes have no business on virtiofs.
-
-Initialize dependencies and verify the host:
+Buildroot does not run on macOS. It runs in the Debian image from
+`container/Containerfile`. Its `output/` and `dl/` are in the `esp32s31-br`
+volume.
 
 ```sh
 git submodule update --init --recursive
+make container-image
 make check
 make ports
 ```
 
-`make ports` lists the serial devices and USB descriptions. The CP2102N UART
-is normally `/dev/cu.usbserial-*`; a wired native USB Serial/JTAG breakout is
-normally `/dev/cu.usbmodem*`.
-
-## Build and flash
+## Build, flash and monitor
 
 ```sh
 make build
-make flash FLASH_PORT=/dev/cu.usbserial-XXXX
+make flash   FLASH_PORT=/dev/cu.usbserial-XXXX
 make monitor SERIAL_PORT=/dev/cu.usbserial-XXXX
 ```
 
-`FLASH_PORT` names the esptool target and may be either the native USB
-Serial/JTAG (`/dev/cu.usbmodem*`) or the CP2102N UART bridge
-(`/dev/cu.usbserial-*`). `SERIAL_PORT` names the external UART that carries
-the Linux console.
+- `make build` builds the loader and OpenSBI on the Mac. Buildroot builds the
+  kernel, the rootfs and the card images in the container.
+- `make monitor` resets the board and waits for
+  `=== ESP32-S31 Linux / Buildroot ===`. Then it stays open as a terminal.
+  Push `Ctrl-]` to exit. It writes a log to `logs/`.
+- Set `RESET_PORT` if the RTS line of `SERIAL_PORT` cannot reset the board.
+- `make help` shows all targets.
 
-`make build` produces the loader and OpenSBI on the Mac and everything else in
-the container: Buildroot downloads the kernel, applies `linux/patches/`,
-builds the Image and its flash manifest, then the userspace and the card
-images. `make kernel` rebuilds only the kernel. Flashing alone is not enough
-to boot: without a provisioned card the initramfs lands in its recovery
-shell.
+Without a prepared SD card, the initramfs starts a recovery shell.
 
-The monitor waits up to 300 seconds (`BOOT_TIMEOUT`) for the boot banner
-and then stays attached as an interactive terminal. Press Enter if the shell
-prompt is not visible. Press `Ctrl-]` to disconnect. Every session is copied
-verbatim to `logs/`.
+## SD card
 
-The monitor pulses RTS on `SERIAL_PORT` to reset the board before capturing.
-If that adapter cannot reset the board, set `RESET_PORT=/dev/cu.X` to send
-the pulse through a second port, such as the native USB Serial/JTAG. To
-attach to a running system without resetting it, invoke the script directly
-with `--no-reset`:
+The card is MBR. p1 is FAT32 and is mounted on `/mnt/sd`. p2 is the ext4 root
+(192 MiB). All card targets erase data. They ask for confirmation and `sudo`.
 
-```sh
-source ~/esp/esp-idf/export.sh
-python scripts/reset-monitor.py --port /dev/cu.usbserial-XXXX \
-  --baud 115200 --no-reset --interactive
-```
+| Command | Use |
+| --- | --- |
+| `make sdpart SD_DISK=/dev/diskN` | Partition a large card. p1 gets `SD_DATA_SIZE` (28G). |
+| `make sdwrite SD_DISK=/dev/diskN` | Write the full card image. Use for a small card. |
+| `make sdroot SD_DISK=/dev/diskN` | Write only the root partition. Use for updates. |
 
-A successful boot displays:
+If the root goes read-only, run `e2fsck -f /dev/mmcblk0p2` from the console.
 
-```text
-=== ESP32-S31 Linux / Buildroot ===
-```
+## Userspace
 
-and presents an interactive shell on the external UART.
+The root password is `korvo-bringup`. The serial and panel consoles log in
+automatically. Dropbear SSH asks for the password.
 
-To verify a keyboard or mouse on the Type-A connector after boot:
+Boot scripts in `br2-external/board/esp32s31/rootfs-overlay`:
 
-```sh
-dmesg | tail -n 30
-ls -l /sys/bus/usb/devices
-cat /proc/bus/input/devices
-ls -l /dev/input
-```
+- `S01clock` sets the clock from `/etc/timestamp`. The board has no RTC.
+- `S05swap` makes a swap file of max. 64 MiB on the root.
+- `S10sdcard` mounts p1 on `/mnt/sd`.
+- `S40wifi` connects to the saved network.
+- The udhcpc hook sets the clock with NTP on each new lease.
+- `S99banner` prints the line that `make monitor` waits for.
 
-The DWC2 root hub should be present before a device is connected. Plugging in
-a HID device should add a USB device and an `event*` input node, and its keys
-reach the `/dev/tty1` shell on the panel.
-
-`wifi`, the udhcpc hook and the init scripts are installed from
-`br2-external/board/esp32s31/rootfs-overlay`. `S99banner` prints the line the
-monitor waits for, so that text is a contract with `--success-pattern`.
-
-To join a network and reach the internet, from either console:
+## Wi-Fi
 
 ```sh
-wifi <ssid> [passphrase]
-ping 8.8.8.8
+wifi <ssid> [passphrase]    # connect, get a lease, save on success
+wifi scan
+wifi off
+wifi --saved
+wifi forget
 ```
 
-`wifi` hands the credentials to the firmware through sysfs, waits for the
-carrier, then takes a DHCP lease with `udhcpc`. It saves them only once the
-association succeeds, and `S40wifi` replays them at every later boot, so this
-is a one-time step per network. `wifi off` disconnects, `wifi --saved`
-reconnects and `wifi forget` drops the credentials.
+The credentials are in `/etc/wifi.conf`. `make sdroot` replaces this file. A
+`wifi.conf` on p1 has priority and stays. Use it to set up a board without a
+console.
+
+The firmware on hart 0 runs 802.11 and its own supplicant. nl80211 cannot
+send a passphrase, so the `wifi` script writes it to the `psk` sysfs
+attribute. Then it connects through cfg80211.
+
+## Kernel
+
+Buildroot builds a stock kernel release (`BR2_LINUX_KERNEL_CUSTOM_VERSION_VALUE`
+in `br2-external/configs/esp32s31_defconfig`) with `linux/patches/`.
+
+- `0000-esp32s31-add-source-files.patch` is generated from the new files
+  under `linux/`. Edit those files, then run `make kernel-patches`.
+- `0001` and higher are manual patches to existing kernel files.
+- The kernel config is `br2-external/board/esp32s31/linux.config`. Use
+  `make kernel-menuconfig` and `make kernel-saveconfig`.
+- `make kernel-check` applies the series at zero fuzz with GNU patch.
+- After a patch change, run `make kernel-clean`, then `make kernel`.
 
 ## Flash layout
 
 | Offset | Contents |
 | ---: | --- |
-| `0x00002000` | ESP-IDF second-stage bootloader |
-| `0x00008000` | partition table |
-| `0x00020000` | ESP32-S31 Linux loader and Wi-Fi firmware |
-| `0x00220000` | OpenSBI fw_jump |
-| `0x002a0000` | Linux Image |
-| `0x00a1fff4` | Linux size and CRC manifest |
-| `0x00a20000` | 2 MiB initramfs |
+| `0x002000` | ESP-IDF second-stage bootloader |
+| `0x008000` | Partition table |
+| `0x020000` | Loader and Wi-Fi firmware |
+| `0x220000` | OpenSBI `fw_jump` |
+| `0x2A0000` | Linux Image (with built-in DTB) |
+| `0xA1FFF4` | Linux size and CRC manifest |
+| `0xA20000` | 2 MiB initramfs |
 
-The flash slot no longer holds a userspace. It carries an initramfs of
-BusyBox, the musl it links against, and an init that waits for
-`/dev/mmcblk0p2`, mounts it and `switch_root`s into the Buildroot rootfs. When
-the card is missing or unreadable it drops to a shell there instead, which is
-the only reason it survives now that the rootfs is on removable media. Keeping
-it also means `CONFIG_CMDLINE_FORCE=y` and `rdinit=/init` never have to change
-to move the root filesystem.
-
-Internal SRAM is shared between the two harts. The firmware keeps the ESP-IDF
-heap out of `0x2f040000`-`0x2f060000`: the lower half is the kernel's coherent
-DMA pool and the upper half carries the Wi-Fi rings. Both are reached without
-the data cache, which is what makes them usable from both harts at once.
+The initramfs holds BusyBox and an `init` that mounts `/dev/mmcblk0p2` and
+does `switch_root`. If the card is not there, it starts a shell.
 
 ## Debugging
 
-JTAG and the display are mutually exclusive: both need GPIO33/34. The
-checked-in `bootloader/sdkconfig.defaults` selects the panel, so switch it to
-`CONFIG_ESP_CONSOLE_SECONDARY_USB_SERIAL_JTAG` and rebuild the loader first.
-Editing that file is enough: the `bootloader` target discards an `sdkconfig`
-older than the defaults, because idf.py otherwise reads the defaults only when
-it first creates that file and silently keeps the old configuration.
+1. Set `CONFIG_ESP_CONSOLE_SECONDARY_USB_SERIAL_JTAG=y` in
+   `bootloader/sdkconfig.defaults`. The LCD stays dark.
+2. Run `make flash`, then `make openocd`.
+3. Connect `riscv32-esp-elf-gdb` to port 3333. Use `build/opensbi.elf`,
+   `build/bootloader/s31-linux-loader.elf` or `build/vmlinux`
+   (`make kernel-vmlinux`).
 
-The breakout is wired white/D- to GPIO33 and green/D+ to GPIO34. Reversed, it
-does not enumerate at all -- and neither does it while a loader built for the
-panel owns those pins, so confirm the loader logged that it skipped the
-display before blaming the wiring. macOS also asks once whether to allow the
-accessory.
+## Limits
 
-With the GPIO33/34 native USB breakout connected, start OpenOCD:
+- Linux is uniprocessor on hart 1.
+- The passphrase goes through sysfs, not `wpa_supplicant`.
+- ESP-Hosted cannot work: Espressif does not supply the FullMAC hooks for the
+  ESP32-S31 Wi-Fi libraries.
+- OpenSBI sets one locked RWX PMP entry. There is no domain isolation. APM
+  permissions are open.
+- `poweroff` stops the hart. It does not remove power.
+- The coherent DMA pool is 64 KiB.
+- No audio, I2C or USB networking yet.
+- No `strace`: Buildroot and upstream strace do not support RV32.
 
-```sh
-make openocd
-```
+## License
 
-Then connect the ESP RISC-V GDB to port 3333 using
-`build/opensbi.elf`, `build/vmlinux` (`make kernel-vmlinux` fetches it from
-the build volume), or
-`build/bootloader/s31-linux-loader.elf` as appropriate.
-
-Boot logs are written under `logs/` and ignored by Git.
-
-## Wi-Fi
-
-The WLAN modem belongs to the firmware on hart 0, which runs the 802.11 side
-with ESP-IDF and never touches the flash again once Linux is running: a flash
-transaction disables the cache the kernel executes from, so radio bring-up is
-ordered ahead of releasing hart 1. NVS is disabled for the same reason, at the
-cost of a full RF calibration on every boot.
-
-Linux sees `wlan0` from `esp32s31-wifi`, a full-MAC cfg80211 device: the
-firmware owns 802.11 and runs its own supplicant, and the two exchange 802.3
-frames through fixed-size slot rings and a pair of cross-core doorbell
-interrupts. `iw dev wlan0 scan` reaches the firmware's scan through the same
-rings, and `iw dev wlan0 link` reports the association, because the firmware
-publishes the BSSID and channel it chose and the driver hands cfg80211 that
-BSS before reporting success.
-
-The one thing nl80211 cannot carry is a passphrase: `wpa_supplicant` derives a
-PMK and keeps the passphrase to itself, while the firmware's supplicant needs
-the passphrase. A secured network therefore takes its passphrase through the
-driver's `psk` attribute, and the association itself goes through cfg80211,
-which is what `wifi <ssid> [passphrase]` does.
-
-## Licensing
-
-The repository `LICENSE` (MIT) covers the build system, scripts and rootfs
-pieces. Components carry their own licenses in their SPDX headers: the
-loader and firmware under `bootloader/` and the OpenSBI platform are
-BSD-2-Clause, the kernel drivers and patches under `linux/` are GPL-2.0, and
-`shared/esp32s31-wifi-ipc.h` is dual GPL-2.0/BSD-2-Clause because both worlds
-compile it.
-
-## Current limitations
-
-- Wi-Fi scans and associates through cfg80211, but the passphrase for a
-  secured network still goes through a sysfs attribute rather than
-  `wpa_supplicant`, which needs PSK or SAE offload in the driver;
-- ESP-Hosted cannot be used on this SoC: its firmware wants FullMAC hooks
-  (`esp_wifi_send_auth_internal`, `ieee80211_send_mgmt_internal` and others)
-  that Espressif ships in patched Wi-Fi libraries for other chips and not for
-  the ESP32-S31, so the host cannot drive 802.11 itself;
-- Linux is uniprocessor on hart 1, and hart 0 is not available to it;
-- the PMP entry OpenSBI installs is a locked global RWX grant, so its domain
-  isolation is intentionally unavailable;
-- APM/PMS permissions are broad bring-up grants;
-- `poweroff` and `halt` park the hart rather than cutting power, because the
-  part has no power switch and OpenSBI does not carry the PMU deep-sleep
-  sequence;
-- USB host carries HID and mass storage; USB networking is not enabled;
-- coherent DMA allocations all come from one 64 KiB SRAM pool, so a driver
-  that wants a large coherent buffer will fail to allocate;
-- most board peripherals other than the panel, SD slot, USB host and WLAN
-  modem are not enabled yet;
-- there is no audio. The kernel has no `SND_SOC`, no I2C and no ESP32-S31
-  ASoC driver, so the Korvo-1's codec is unreachable; `mpg123` and
-  `alsa-utils` were dropped from the card rather than ship players with
-  nothing to play through;
-- swap is a file on the SD card. It is what makes 16 MiB usable, and it wears
-  the card: `swapoff /swapfile && rm /swapfile` if that matters more than the
-  memory;
-- `strace` is absent. Buildroot excludes it on RV32 in
-  `package/strace/Config.in`, and upstream strace has no `src/linux/riscv32`
-  on any branch, so this needs a port rather than a configuration change.
-  RV32 and RV64 share the `asm-generic` syscall table, so the port is mostly
-  a matter of adapting `src/linux/riscv64` to 32-bit registers and the
-  `__NR3264` name mapping. `gdbserver` is the debugger on the board
-  meanwhile.
+`LICENSE` (MIT) applies to the build system, scripts and rootfs files. Other
+files have SPDX headers: `bootloader/` and the OpenSBI platform are
+BSD-2-Clause, `linux/` is GPL-2.0, `shared/esp32s31-wifi-ipc.h` is
+GPL-2.0 or BSD-2-Clause.
