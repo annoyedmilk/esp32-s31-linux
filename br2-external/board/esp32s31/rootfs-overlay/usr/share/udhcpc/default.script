@@ -9,7 +9,12 @@ deconfig)
 	ip link set "$interface" up
 	;;
 bound | renew)
-	ip addr add "$ip/$mask" dev "$interface"
+	# A renewal can give a different address.  Remove the old address
+	# only then, so the connections stay open on a usual renewal.
+	if ! ip -4 addr show dev "$interface" | grep -q "inet $ip/$mask "; then
+		ip -4 addr flush dev "$interface"
+		ip addr add "$ip/$mask" dev "$interface"
+	fi
 	ip link set "$interface" up
 
 	for gateway in $router; do
