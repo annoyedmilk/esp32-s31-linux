@@ -62,8 +62,8 @@ BR2_PACKAGE_BASH=y
 BR2_PACKAGE_COREUTILS=y
 BR2_PACKAGE_VIM=y
 BR2_PACKAGE_LESS=y
-# Not available: Buildroot 2026.08 and strace 7.1 do not support RV32.
-# BR2_PACKAGE_STRACE is not set
+# Buildroot and strace 7.1 do not support RV32, so br2-external has a port.
+BR2_PACKAGE_STRACE_RV32=y
 BR2_PACKAGE_GDB=y
 BR2_PACKAGE_GDB_SERVER=y
 # BR2_PACKAGE_GDB_DEBUGGER is not set

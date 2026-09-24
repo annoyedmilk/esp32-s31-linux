@@ -212,7 +212,6 @@ does `switch_root`. If the card is not there, it starts a shell.
 - `poweroff` stops the hart. It does not remove power.
 - The coherent DMA pool is 64 KiB.
 - No audio, I2C or USB networking yet.
-- No `strace`: Buildroot and upstream strace do not support RV32.
 
 ## License
 

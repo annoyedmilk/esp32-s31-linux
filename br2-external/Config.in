@@ -1,1 +1,1 @@
-# No custom packages.
+source "$BR2_EXTERNAL_ESP32S31_PATH/package/strace-rv32/Config.in"

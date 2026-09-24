@@ -1,0 +1,432 @@
+diff -urN a/configure.ac b/configure.ac
+--- a/configure.ac	2026-04-26 07:00:00.000000000 +0000
++++ b/configure.ac	2026-09-24 22:18:53.103614459 +0000
+@@ -173,6 +173,11 @@
+ 	karch=riscv
+ 	AC_DEFINE([RISCV64], 1, [Define for the RISC-V 64-bit architecture])
+ 	;;
++riscv32*)
++	arch=riscv32
++	karch=riscv
++	AC_DEFINE([RISCV32], 1, [Define for the RISC-V 32-bit architecture])
++	;;
+ s390)
+ 	arch=s390
+ 	AC_DEFINE([S390], 1, [Define for the S390 architecture.])
+diff -urN a/src/Makefile.am b/src/Makefile.am
+--- a/src/Makefile.am	2026-06-14 08:00:00.000000000 +0000
++++ b/src/Makefile.am	2026-09-24 22:18:53.103910084 +0000
+@@ -865,6 +865,19 @@
+ 	linux/riscv64/set_error.c		\
+ 	linux/riscv64/set_scno.c		\
+ 	linux/riscv64/syscallent.h	\
++	linux/riscv32/arch_defs_.h		\
++	linux/riscv32/arch_prstatus_regset.c \
++	linux/riscv32/arch_prstatus_regset.h \
++	linux/riscv32/arch_regs.c		\
++	linux/riscv32/get_error.c		\
++	linux/riscv32/get_scno.c		\
++	linux/riscv32/get_syscall_args.c	\
++	linux/riscv32/ioctls_arch0.h	\
++	linux/riscv32/ioctls_inc0.h	\
++	linux/riscv32/raw_syscall.h	\
++	linux/riscv32/set_error.c		\
++	linux/riscv32/set_scno.c		\
++	linux/riscv32/syscallent.h	\
+ 	linux/s390/arch_defs_.h		\
+ 	linux/s390/arch_prstatus_regset.c \
+ 	linux/s390/arch_prstatus_regset.h \
+diff -urN a/src/linux/riscv32/arch_defs_.h b/src/linux/riscv32/arch_defs_.h
+--- a/src/linux/riscv32/arch_defs_.h	1970-01-01 00:00:00.000000000 +0000
++++ b/src/linux/riscv32/arch_defs_.h	2026-09-24 22:18:53.079750292 +0000
+@@ -0,0 +1,17 @@
++/*
++ * Copyright (c) 2021-2024 The strace developers.
++ * All rights reserved.
++ *
++ * SPDX-License-Identifier: LGPL-2.1-or-later
++ */
++
++/*
++ * Linux kernel commit v6.5-rc7~13^2~5 introduced a regression:
++ * when tracer changes syscall number to -1, the kernel fails
++ * to initialize a0 with -ENOSYS and subsequently fails
++ * to return the error code of the failed syscall to userspace.
++ * Workaround this by initializing a0 ourselves.
++ */
++#define ARCH_NEEDS_SET_ERROR_FOR_SCNO_TAMPERING 1
++
++#define PERSONALITY0_AUDIT_ARCH { AUDIT_ARCH_RISCV32, 0 }
+diff -urN a/src/linux/riscv32/arch_prstatus_regset.c b/src/linux/riscv32/arch_prstatus_regset.c
+--- a/src/linux/riscv32/arch_prstatus_regset.c	1970-01-01 00:00:00.000000000 +0000
++++ b/src/linux/riscv32/arch_prstatus_regset.c	2026-09-24 22:18:53.076114084 +0000
+@@ -0,0 +1,151 @@
++/*
++ * Copyright (c) 2021 The strace developers.
++ * All rights reserved.
++ *
++ * SPDX-License-Identifier: LGPL-2.1-or-later
++ */
++
++static void
++arch_decode_prstatus_regset(struct tcb *const tcp,
++			    const kernel_ulong_t addr,
++			    const kernel_ulong_t size)
++{
++	struct_prstatus_regset regs;
++	const size_t fetch_size = MIN(sizeof(regs), size);
++
++	if (!size || size & 7) {
++		printaddr(addr);
++	} else if (!umoven_or_printaddr(tcp, addr, fetch_size, &regs)) {
++		tprint_struct_begin();
++		PRINT_FIELD_X(regs, pc);
++		if (fetch_size > offsetof(struct_prstatus_regset, ra)) {
++			tprint_struct_next();
++			PRINT_FIELD_X(regs, ra);
++		}
++		if (fetch_size > offsetof(struct_prstatus_regset, sp)) {
++			tprint_struct_next();
++			PRINT_FIELD_X(regs, sp);
++		}
++		if (fetch_size > offsetof(struct_prstatus_regset, gp)) {
++			tprint_struct_next();
++			PRINT_FIELD_X(regs, gp);
++		}
++		if (fetch_size > offsetof(struct_prstatus_regset, tp)) {
++			tprint_struct_next();
++			PRINT_FIELD_X(regs, tp);
++		}
++		if (fetch_size > offsetof(struct_prstatus_regset, t0)) {
++			tprint_struct_next();
++			PRINT_FIELD_X(regs, t0);
++		}
++		if (fetch_size > offsetof(struct_prstatus_regset, t1)) {
++			tprint_struct_next();
++			PRINT_FIELD_X(regs, t1);
++		}
++		if (fetch_size > offsetof(struct_prstatus_regset, t2)) {
++			tprint_struct_next();
++			PRINT_FIELD_X(regs, t2);
++		}
++		if (fetch_size > offsetof(struct_prstatus_regset, s0)) {
++			tprint_struct_next();
++			PRINT_FIELD_X(regs, s0);
++		}
++		if (fetch_size > offsetof(struct_prstatus_regset, s1)) {
++			tprint_struct_next();
++			PRINT_FIELD_X(regs, s1);
++		}
++		if (fetch_size > offsetof(struct_prstatus_regset, a0)) {
++			tprint_struct_next();
++			PRINT_FIELD_X(regs, a0);
++		}
++		if (fetch_size > offsetof(struct_prstatus_regset, a1)) {
++			tprint_struct_next();
++			PRINT_FIELD_X(regs, a1);
++		}
++		if (fetch_size > offsetof(struct_prstatus_regset, a2)) {
++			tprint_struct_next();
++			PRINT_FIELD_X(regs, a2);
++		}
++		if (fetch_size > offsetof(struct_prstatus_regset, a3)) {
++			tprint_struct_next();
++			PRINT_FIELD_X(regs, a3);
++		}
++		if (fetch_size > offsetof(struct_prstatus_regset, a4)) {
++			tprint_struct_next();
++			PRINT_FIELD_X(regs, a4);
++		}
++		if (fetch_size > offsetof(struct_prstatus_regset, a5)) {
++			tprint_struct_next();
++			PRINT_FIELD_X(regs, a5);
++		}
++		if (fetch_size > offsetof(struct_prstatus_regset, a6)) {
++			tprint_struct_next();
++			PRINT_FIELD_X(regs, a6);
++		}
++		if (fetch_size > offsetof(struct_prstatus_regset, a7)) {
++			tprint_struct_next();
++			PRINT_FIELD_X(regs, a7);
++		}
++		if (fetch_size > offsetof(struct_prstatus_regset, s2)) {
++			tprint_struct_next();
++			PRINT_FIELD_X(regs, s2);
++		}
++		if (fetch_size > offsetof(struct_prstatus_regset, s3)) {
++			tprint_struct_next();
++			PRINT_FIELD_X(regs, s3);
++		}
++		if (fetch_size > offsetof(struct_prstatus_regset, s4)) {
++			tprint_struct_next();
++			PRINT_FIELD_X(regs, s4);
++		}
++		if (fetch_size > offsetof(struct_prstatus_regset, s5)) {
++			tprint_struct_next();
++			PRINT_FIELD_X(regs, s5);
++		}
++		if (fetch_size > offsetof(struct_prstatus_regset, s6)) {
++			tprint_struct_next();
++			PRINT_FIELD_X(regs, s6);
++		}
++		if (fetch_size > offsetof(struct_prstatus_regset, s7)) {
++			tprint_struct_next();
++			PRINT_FIELD_X(regs, s7);
++		}
++		if (fetch_size > offsetof(struct_prstatus_regset, s8)) {
++			tprint_struct_next();
++			PRINT_FIELD_X(regs, s8);
++		}
++		if (fetch_size > offsetof(struct_prstatus_regset, s9)) {
++			tprint_struct_next();
++			PRINT_FIELD_X(regs, s9);
++		}
++		if (fetch_size > offsetof(struct_prstatus_regset, s10)) {
++			tprint_struct_next();
++			PRINT_FIELD_X(regs, s10);
++		}
++		if (fetch_size > offsetof(struct_prstatus_regset, s11)) {
++			tprint_struct_next();
++			PRINT_FIELD_X(regs, s11);
++		}
++		if (fetch_size > offsetof(struct_prstatus_regset, t3)) {
++			tprint_struct_next();
++			PRINT_FIELD_X(regs, t3);
++		}
++		if (fetch_size > offsetof(struct_prstatus_regset, t4)) {
++			tprint_struct_next();
++			PRINT_FIELD_X(regs, t4);
++		}
++		if (fetch_size > offsetof(struct_prstatus_regset, t5)) {
++			tprint_struct_next();
++			PRINT_FIELD_X(regs, t5);
++		}
++		if (fetch_size > offsetof(struct_prstatus_regset, t6)) {
++			tprint_struct_next();
++			PRINT_FIELD_X(regs, t6);
++		}
++		if (size > sizeof(regs)) {
++			tprint_struct_next();
++			tprint_more_data_follows();
++		}
++		tprint_struct_end();
++	}
++}
+diff -urN a/src/linux/riscv32/arch_prstatus_regset.h b/src/linux/riscv32/arch_prstatus_regset.h
+--- a/src/linux/riscv32/arch_prstatus_regset.h	1970-01-01 00:00:00.000000000 +0000
++++ b/src/linux/riscv32/arch_prstatus_regset.h	2026-09-24 22:18:53.076458084 +0000
+@@ -0,0 +1,15 @@
++/*
++ * Copyright (c) 2021 The strace developers.
++ * All rights reserved.
++ *
++ * SPDX-License-Identifier: LGPL-2.1-or-later
++ */
++
++#ifndef STRACE_ARCH_PRSTATUS_REGSET_H
++# define STRACE_ARCH_PRSTATUS_REGSET_H
++
++typedef struct user_regs_struct struct_prstatus_regset;
++
++# define HAVE_ARCH_PRSTATUS_REGSET 1
++
++#endif /* !STRACE_ARCH_PRSTATUS_REGSET_H */
+diff -urN a/src/linux/riscv32/arch_regs.c b/src/linux/riscv32/arch_regs.c
+--- a/src/linux/riscv32/arch_regs.c	1970-01-01 00:00:00.000000000 +0000
++++ b/src/linux/riscv32/arch_regs.c	2026-09-24 22:18:53.076760292 +0000
+@@ -0,0 +1,11 @@
++/*
++ * Copyright (c) 2016-2021 The strace developers.
++ * All rights reserved.
++ *
++ * SPDX-License-Identifier: LGPL-2.1-or-later
++ */
++
++static struct user_regs_struct riscv_regs;
++#define ARCH_REGS_FOR_GETREGSET riscv_regs
++#define ARCH_PC_REG riscv_regs.pc
++#define ARCH_SP_REG riscv_regs.sp
+diff -urN a/src/linux/riscv32/get_error.c b/src/linux/riscv32/get_error.c
+--- a/src/linux/riscv32/get_error.c	1970-01-01 00:00:00.000000000 +0000
++++ b/src/linux/riscv32/get_error.c	2026-09-24 22:18:53.077074292 +0000
+@@ -0,0 +1,19 @@
++/*
++ * Copyright (c) 2016-2021 The strace developers.
++ * All rights reserved.
++ *
++ * SPDX-License-Identifier: LGPL-2.1-or-later
++ */
++
++#include "negated_errno.h"
++
++static void
++arch_get_error(struct tcb *tcp, const bool check_errno)
++{
++	if (check_errno && is_negated_errno(riscv_regs.a0)) {
++		tcp->u_rval = -1;
++		tcp->u_error = -riscv_regs.a0;
++	} else {
++		tcp->u_rval = riscv_regs.a0;
++	}
++}
+diff -urN a/src/linux/riscv32/get_scno.c b/src/linux/riscv32/get_scno.c
+--- a/src/linux/riscv32/get_scno.c	1970-01-01 00:00:00.000000000 +0000
++++ b/src/linux/riscv32/get_scno.c	2026-09-24 22:18:53.077373709 +0000
+@@ -0,0 +1,14 @@
++/*
++ * Copyright (c) 2015-2021 The strace developers.
++ * All rights reserved.
++ *
++ * SPDX-License-Identifier: LGPL-2.1-or-later
++ */
++
++/* Return codes: 1 - ok, 0 - ignore, other - error. */
++static int
++arch_get_scno(struct tcb *tcp)
++{
++	tcp->scno = riscv_regs.a7;
++	return 1;
++}
+diff -urN a/src/linux/riscv32/get_syscall_args.c b/src/linux/riscv32/get_syscall_args.c
+--- a/src/linux/riscv32/get_syscall_args.c	1970-01-01 00:00:00.000000000 +0000
++++ b/src/linux/riscv32/get_syscall_args.c	2026-09-24 22:18:53.077679584 +0000
+@@ -0,0 +1,19 @@
++/*
++ * Copyright (c) 2016-2021 The strace developers.
++ * All rights reserved.
++ *
++ * SPDX-License-Identifier: LGPL-2.1-or-later
++ */
++
++/* Return -1 on error or 1 on success (never 0!). */
++static int
++arch_get_syscall_args(struct tcb *tcp)
++{
++	tcp->u_arg[0] = riscv_regs.a0;
++	tcp->u_arg[1] = riscv_regs.a1;
++	tcp->u_arg[2] = riscv_regs.a2;
++	tcp->u_arg[3] = riscv_regs.a3;
++	tcp->u_arg[4] = riscv_regs.a4;
++	tcp->u_arg[5] = riscv_regs.a5;
++	return 1;
++}
+diff -urN a/src/linux/riscv32/ioctls_arch0.h b/src/linux/riscv32/ioctls_arch0.h
+--- a/src/linux/riscv32/ioctls_arch0.h	1970-01-01 00:00:00.000000000 +0000
++++ b/src/linux/riscv32/ioctls_arch0.h	2026-09-24 22:18:53.077969667 +0000
+@@ -0,0 +1 @@
++/* Generated by ioctls_gen.sh from definitions found in $linux/arch/riscv/include/ tree. */
+diff -urN a/src/linux/riscv32/ioctls_inc0.h b/src/linux/riscv32/ioctls_inc0.h
+--- a/src/linux/riscv32/ioctls_inc0.h	1970-01-01 00:00:00.000000000 +0000
++++ b/src/linux/riscv32/ioctls_inc0.h	2026-09-24 22:18:53.080073125 +0000
+@@ -0,0 +1 @@
++#include "../32/ioctls_inc.h"
+diff -urN a/src/linux/riscv32/raw_syscall.h b/src/linux/riscv32/raw_syscall.h
+--- a/src/linux/riscv32/raw_syscall.h	1970-01-01 00:00:00.000000000 +0000
++++ b/src/linux/riscv32/raw_syscall.h	2026-09-24 22:18:53.078267792 +0000
+@@ -0,0 +1,29 @@
++/*
++ * Raw syscalls.
++ *
++ * Copyright (c) 2018-2021 The strace developers.
++ * All rights reserved.
++ *
++ * SPDX-License-Identifier: LGPL-2.1-or-later
++ */
++
++#ifndef STRACE_RAW_SYSCALL_H
++# define STRACE_RAW_SYSCALL_H
++
++# include "kernel_types.h"
++
++static inline kernel_ulong_t
++raw_syscall_0(const kernel_ulong_t nr, kernel_ulong_t *err)
++{
++	*err = 0;
++	register kernel_ulong_t a7 __asm__("a7") = nr;
++	register kernel_ulong_t a0 __asm__("a0");
++	__asm__ __volatile__("scall"
++			     : "=r"(a0)
++			     : "r"(a7)
++			     : "memory");
++	return a0;
++}
++# define raw_syscall_0 raw_syscall_0
++
++#endif /* !STRACE_RAW_SYSCALL_H */
+diff -urN a/src/linux/riscv32/set_error.c b/src/linux/riscv32/set_error.c
+--- a/src/linux/riscv32/set_error.c	1970-01-01 00:00:00.000000000 +0000
++++ b/src/linux/riscv32/set_error.c	2026-09-24 22:18:53.078594292 +0000
+@@ -0,0 +1,20 @@
++/*
++ * Copyright (c) 2016-2021 The strace developers.
++ * All rights reserved.
++ *
++ * SPDX-License-Identifier: LGPL-2.1-or-later
++ */
++
++static int
++arch_set_error(struct tcb *tcp)
++{
++	riscv_regs.a0 = -tcp->u_error;
++	return set_regs(tcp->pid);
++}
++
++static int
++arch_set_success(struct tcb *tcp)
++{
++	riscv_regs.a0 = tcp->u_rval;
++	return set_regs(tcp->pid);
++}
+diff -urN a/src/linux/riscv32/set_scno.c b/src/linux/riscv32/set_scno.c
+--- a/src/linux/riscv32/set_scno.c	1970-01-01 00:00:00.000000000 +0000
++++ b/src/linux/riscv32/set_scno.c	2026-09-24 22:18:53.078880167 +0000
+@@ -0,0 +1,15 @@
++/*
++ * Copyright (c) 2016-2021 The strace developers.
++ * All rights reserved.
++ *
++ * SPDX-License-Identifier: LGPL-2.1-or-later
++ */
++
++static int
++arch_set_scno(struct tcb *tcp, kernel_ulong_t scno)
++{
++	if (ptrace_syscall_info_is_valid() && get_regs(tcp) < 0)
++		return -1;
++	riscv_regs.a7 = scno;
++	return set_regs(tcp->pid);
++}
+diff -urN a/src/linux/riscv32/syscallent.h b/src/linux/riscv32/syscallent.h
+--- a/src/linux/riscv32/syscallent.h	1970-01-01 00:00:00.000000000 +0000
++++ b/src/linux/riscv32/syscallent.h	2026-09-24 22:28:41.011557875 +0000
+@@ -0,0 +1,12 @@
++/*
++ * Copyright (c) 2016-2021 The strace developers.
++ * All rights reserved.
++ *
++ * SPDX-License-Identifier: LGPL-2.1-or-later
++ */
++
++#include "../32/syscallent.h"
++
++/* #define __NR_riscv_flush_icache (__NR_arch_specific_syscall + 15) */
++[258] = { 5,	0,		SEN(printargs),			"riscv_hwprobe"		},
++[259] = { 3,	TM,		SEN(riscv_flush_icache),	"riscv_flush_icache"	},
+diff -urN a/src/riscv.c b/src/riscv.c
+--- a/src/riscv.c	2025-08-05 08:00:00.000000000 +0000
++++ b/src/riscv.c	2026-09-24 22:18:53.103998334 +0000
+@@ -9,7 +9,7 @@
+ 
+ #include "defs.h"
+ 
+-#ifdef RISCV64
++#if defined RISCV64 || defined RISCV32
+ 
+ # include "xlat/riscv_flush_icache_flags.h"
+ 
+@@ -31,4 +31,4 @@
+ 	return RVAL_DECODED;
+ }
+ 
+-#endif /* RISCV64 */
++#endif /* RISCV64 || RISCV32 */

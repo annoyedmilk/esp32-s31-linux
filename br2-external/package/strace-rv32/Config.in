@@ -1,0 +1,11 @@
+config BR2_PACKAGE_STRACE_RV32
+	bool "strace (RISC-V 32-bit port)"
+	depends on BR2_RISCV_32
+	depends on BR2_TOOLCHAIN_HEADERS_AT_LEAST_5_1 # time_types.h
+	help
+	  strace with a port to RISC-V 32-bit.  The strace package of
+	  Buildroot does not support RV32, and upstream strace has no
+	  riscv32 directory.  The port uses the riscv64 register code
+	  with the generic 32-bit syscall table.
+
+	  https://strace.io
