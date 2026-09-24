@@ -14,12 +14,12 @@ diff --git a/arch/riscv/kernel/setup.c b/arch/riscv/kernel/setup.c
  	    riscv_isa_extension_available(NULL, ZICBOM))
  		riscv_noncoherent_supported();
 +	/*
-+	 * The ESP32-S31 has no Zicbom; its cache controller driver supplies
-+	 * the maintenance operations from an early_initcall, once ioremap()
-+	 * is usable.  Declare the support here regardless: the slab allocator
-+	 * sizes kmalloc from dma_get_cache_alignment() long before initcalls
-+	 * run, and without SWIOTLB there is no bounce path for a DMA buffer
-+	 * that shares a cache line with another allocation.
++	 * The ESP32-S31 has no Zicbom.  Its cache controller driver gives the
++	 * maintenance operations from an early_initcall, when ioremap() is
++	 * available.  Enable the support here anyway: the slab allocator gets
++	 * the kmalloc alignment from dma_get_cache_alignment() before the
++	 * initcalls.  Without SWIOTLB, nothing can bounce a DMA buffer that
++	 * shares a cache line with a different allocation.
 +	 */
 +	if (IS_ENABLED(CONFIG_ESP32S31_CACHE)) {
 +		riscv_cbom_block_size = ESP32S31_CACHE_LINE_SIZE;

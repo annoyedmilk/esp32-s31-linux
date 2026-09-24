@@ -6,11 +6,11 @@ diff --git a/drivers/mmc/host/dw_mmc.c b/drivers/mmc/host/dw_mmc.c
  }
  
 +/*
-+ * The IDMAC ring is ordinary cached memory on platforms that cannot provide a
-+ * coherent alias, so ownership hand-offs need explicit maintenance.  Sync the
-+ * whole ring rather than individual descriptors: they are 16 bytes and several
-+ * share a cache line, so a per-descriptor invalidate could discard a
-+ * neighbour.
++ * On platforms without a coherent alias, the IDMAC ring is usual cached
++ * memory.  Thus each change of ownership needs cache maintenance.  Sync the
++ * full ring, not one descriptor: descriptors are 16 bytes, and one cache line
++ * holds more than one.  An invalidate for one descriptor could discard the
++ * next one.
 + */
 +static void dw_mci_desc_sync_for_cpu(struct dw_mci *host)
 +{
@@ -98,7 +98,7 @@ diff --git a/drivers/mmc/host/dw_mmc.h b/drivers/mmc/host/dw_mmc.h
  #define DW_MMC_QUIRK_EXTENDED_TMOUT            BIT(0)
  /* Force 32-bit access to the FIFO */
  #define DW_MMC_QUIRK_FIFO64_32                 BIT(1)
-+/* Descriptor ring needs explicit cache maintenance, no coherent alias exists */
++/* No coherent alias exists, so the descriptor ring needs cache maintenance */
 +#define DW_MMC_QUIRK_NONCOHERENT_DESC          BIT(2)
  
  #define DW_MMC_240A		0x240a
@@ -113,10 +113,10 @@ diff --git a/drivers/mmc/host/dw_mmc-pltfm.c b/drivers/mmc/host/dw_mmc-pltfm.c
 +static int dw_mci_esp32s31_init(struct dw_mci *host)
 +{
 +	/*
-+	 * PSRAM has no uncached alias on this SoC and RV32 cannot remap it,
-+	 * so dma_alloc_coherent() would hand back plain cached memory and the
-+	 * IDMAC ownership bits would go stale.  Take the descriptor ring from
-+	 * non-coherent DMA memory and maintain it explicitly instead.
++	 * PSRAM has no uncached alias on this SoC, and RV32 cannot remap it.
++	 * Thus dma_alloc_coherent() gives cached memory, and the IDMAC owner
++	 * bits become old.  Get the descriptor ring from non-coherent DMA
++	 * memory and do the cache maintenance in the driver.
 +	 */
 +	host->quirks |= DW_MMC_QUIRK_NONCOHERENT_DESC;
 +	return 0;

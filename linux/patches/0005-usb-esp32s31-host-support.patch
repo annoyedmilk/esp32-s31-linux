@@ -11,9 +11,9 @@ diff --git a/drivers/phy/Kconfig b/drivers/phy/Kconfig
 +	depends on OF && SOC_ESP32S31
 +	select GENERIC_PHY
 +	help
-+	  Enable support for the integrated high-speed UTMI PHY used by the
-+	  ESP32-S31 Synopsys DWC2 USB controller.  The driver programs the SoC
-+	  clock/reset controls and configures the data-line pull-downs for host
++	  Enable support for the high-speed UTMI PHY of the ESP32-S31
++	  Synopsys DWC2 USB controller.  The driver sets the SoC clock and
++	  reset controls.  It also sets the data-line pull-downs for host
 +	  mode.
 +
 +	  If unsure, say N.
@@ -42,11 +42,11 @@ diff --git a/drivers/usb/dwc2/params.c b/drivers/usb/dwc2/params.c
 +	struct dwc2_core_params *p = &hsotg->params;
 +
 +	/*
-+	 * Linux memory lives in cached external PSRAM, so the controller's
-+	 * internal DMA depends on the cache controller for maintenance and on
-+	 * the internal-SRAM pool for coherent allocations; both are in place,
-+	 * so follow whatever GHWCFG2 reports.  Descriptor DMA stays off:
-+	 * buffer DMA needs no controller-owned descriptor lists.
++	 * Linux memory is in cached external PSRAM.  Thus the internal DMA of
++	 * the controller uses the cache controller for maintenance, and the
++	 * SRAM pool for coherent memory.  The two are available, so use the
++	 * value of GHWCFG2.  Descriptor DMA stays off: buffer DMA does not
++	 * need descriptor lists.
 +	 */
 +	p->host_dma = hsotg->hw_params.arch != GHWCFG2_SLAVE_ONLY_ARCH;
 +	p->dma_desc_enable = false;
@@ -54,7 +54,7 @@ diff --git a/drivers/usb/dwc2/params.c b/drivers/usb/dwc2/params.c
 +	p->g_dma = false;
 +	dev_info(hsotg->dev, "using %s\n",
 +		 p->host_dma ? "internal DMA" : "slave mode (PIO)");
-+	/* The reset FIFO registers exceed the controller's 896-word RAM. */
++	/* The reset FIFO sizes are larger than the 896-word controller RAM. */
 +	p->host_rx_fifo_size = 512;
 +	p->host_nperio_tx_fifo_size = 256;
 +	p->host_perio_tx_fifo_size = 128;

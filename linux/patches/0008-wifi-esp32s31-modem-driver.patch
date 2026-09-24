@@ -1,9 +1,9 @@
 From: Marco Müller <hello@annoyedmilk.ch>
 Subject: [PATCH] wifi: esp32s31: hook up the ESP32-S31 WLAN modem driver
 
-The modem is owned by ESP-IDF firmware resident on the second hart, and
-Linux exchanges 802.3 frames with it through shared internal SRAM.  Add
-the vendor directory to the wireless Kconfig and Makefile.
+ESP-IDF firmware on hart 0 controls the modem.  Linux sends and receives
+802.3 frames through shared internal SRAM.  Add the vendor directory to
+the wireless Kconfig and Makefile.
 
 Signed-off-by: Marco Müller <hello@annoyedmilk.ch>
 ---

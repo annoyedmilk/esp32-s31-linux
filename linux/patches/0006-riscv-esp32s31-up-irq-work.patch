@@ -7,8 +7,8 @@ diff --git a/arch/riscv/include/asm/irq_work.h b/arch/riscv/include/asm/irq_work
  {
 -	return IS_ENABLED(CONFIG_SMP);
 +	/*
-+	 * ESP32-S31 supplies a CLIC supervisor-software self-interrupt for
-+	 * irq_work in UP builds; the generic RISC-V implementation uses IPIs.
++	 * The ESP32-S31 has a CLIC software interrupt for irq_work in UP
++	 * kernels.  The generic RISC-V implementation uses IPIs.
 +	 */
 +	return IS_ENABLED(CONFIG_SMP) || IS_ENABLED(CONFIG_ESP32S31_CLIC);
  }

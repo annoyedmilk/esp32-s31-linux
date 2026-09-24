@@ -13,10 +13,10 @@ index c174ac0ec..1276ced5a 100644
 +	bool "Espressif ESP32-S31 SoC"
 +	select ESP32S31_CLIC
 +	help
-+	  This enables support for the Espressif ESP32-S31 SoC. The kernel
-+	  runs in Supervisor mode behind OpenSBI with the Sv32 MMU enabled
-+	  and receives all interrupts through the ESP32-S31 CLIC rather
-+	  than the standard RISC-V local interrupt CSRs.
++	  This enables support for the Espressif ESP32-S31 SoC.  The kernel
++	  runs in Supervisor mode on OpenSBI, with the Sv32 MMU.  It gets
++	  all interrupts through the ESP32-S31 CLIC, not through the
++	  standard RISC-V local interrupt CSRs.
 +
  endmenu # "SoC selection"
 diff --git a/arch/riscv/boot/dts/Makefile b/arch/riscv/boot/dts/Makefile
@@ -53,9 +53,9 @@ index 6c14ed7a5..cd281a99d 100644
  
 +#ifdef CONFIG_SOC_ESP32S31
 +	/*
-+	 * ESP32-S31 runs with stvec forced to CLIC mode, whose BASE field is
-+	 * 64-byte aligned.  Keep the common Linux exception entry on that
-+	 * boundary so synchronous traps do not land before handle_exception.
++	 * On the ESP32-S31, stvec is always in CLIC mode, and its BASE field
++	 * is 64-byte aligned.  Align the exception entry to 64 bytes, so a
++	 * synchronous trap does not go to an address before it.
 +	 */
 +	.balign 64
 +#endif
@@ -67,7 +67,7 @@ index 6c14ed7a5..cd281a99d 100644
  1:
  	/* Handle other exceptions */
 +#ifdef CONFIG_SOC_ESP32S31
-+	/* Mask CLIC state bits so handlers see the architectural code */
++	/* Remove the CLIC state bits, so handlers get the standard code */
 +	li t0, 0xfff
 +	and s4, s4, t0
 +	REG_S s4, PT_CAUSE(sp)
@@ -88,7 +88,7 @@ index f6a8ca49e..9eb2d43a2 100644
  	la a0, handle_exception
 +#endif
 +#ifdef CONFIG_SOC_ESP32S31
-+	/* ESP32-S31 stvec is hardwired to CLIC mode (low bits 0b11). */
++	/* The ESP32-S31 stvec is always in CLIC mode (low bits 0b11). */
 +	ori a0, a0, 3
 +#endif
  	csrw CSR_TVEC, a0
@@ -100,9 +100,9 @@ index f6a8ca49e..9eb2d43a2 100644
  SYM_CODE_START(_start_kernel)
 +#ifdef CONFIG_SOC_ESP32S31
 +	/*
-+	 * The sie/sip CSRs are not implemented; interrupt routing is owned
-+	 * by the firmware-configured CLIC.  Keep S-mode interrupts globally
-+	 * off until the CLIC driver takes over.
++	 * The sie and sip CSRs do not exist.  The CLIC, which the firmware
++	 * sets up, sends the interrupts.  Keep all S-mode interrupts off
++	 * until the CLIC driver starts.
 +	 */
 +	li t0, 2
 +	csrc sstatus, t0
@@ -129,9 +129,9 @@ index e755a2a05..a0293261d 100644
 +	select IRQ_DOMAIN_HIERARCHY
 +	help
 +	  Support for the RISC-V Core-Local Interrupt Controller on the
-+	  Espressif ESP32-S31. Linux receives all supervisor interrupts
-+	  through the S-mode CLIC window; peripheral inputs reach it via
-+	  the SoC interrupt matrix.
++	  Espressif ESP32-S31.  Linux gets all supervisor interrupts
++	  through the S-mode CLIC window.  The SoC interrupt matrix
++	  connects the peripheral interrupts to it.
 +
  config EXYNOS_IRQ_COMBINER
  	bool "Samsung Exynos IRQ combiner support" if COMPILE_TEST
@@ -163,10 +163,10 @@ index ec284aceb..474b6dc6f 100644
 +	select SERIAL_CORE_CONSOLE
 +	select SERIAL_EARLYCON
 +	help
-+	  Driver for the UART controllers found in Espressif ESP32-family
-+	  SoCs, including the ESP32-S31. The driver provides the ttyS
-+	  serial console and an earlycon. If built as a module, the module
-+	  is called esp32_uart.
++	  Driver for the UART controllers of Espressif ESP32-family SoCs,
++	  for example the ESP32-S31.  The driver gives the ttyS serial
++	  console and an earlycon.  If you compile it as a module, the
++	  module name is esp32_uart.
 +
  config SERIAL_MCTRL_GPIO
  	tristate

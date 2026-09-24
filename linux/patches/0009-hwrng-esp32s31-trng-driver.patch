@@ -1,10 +1,10 @@
 From: Marco Müller <hello@annoyedmilk.ch>
 Subject: [PATCH] hwrng: esp32s31: hook up the ESP32-S31 TRNG driver
 
-Without a hardware entropy source the kernel takes about twenty seconds to
-seed its CRNG from interrupt timing alone, during which getrandom() blocks.
-The ESP32-S31 has a true random number generator, so add its driver to the
-hw_random Kconfig and Makefile.
+Without a hardware entropy source, the kernel needs approximately 20
+seconds to seed its CRNG from interrupt timing.  During that time,
+getrandom() blocks.  The ESP32-S31 has a true random number generator, so
+add its driver to the hw_random Kconfig and Makefile.
 
 Signed-off-by: Marco Müller <hello@annoyedmilk.ch>
 ---
@@ -23,8 +23,8 @@ Signed-off-by: Marco Müller <hello@annoyedmilk.ch>
 +	depends on HAS_IOMEM
 +	default HW_RANDOM if SOC_ESP32S31
 +	help
-+	  This driver provides support for the True Random Number Generator
-+	  available in the ESP32-S31 SoC.
++	  This driver supports the True Random Number Generator of the
++	  ESP32-S31 SoC.
 +
 +	  To compile this driver as a module, choose M here: the module
 +	  will be called esp32s31-rng.
