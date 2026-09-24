@@ -66,11 +66,10 @@ static void fill_color_bars(void)
 }
 
 /*
- * Build a self-refreshing descriptor ring covering the whole frame buffer.
- * The transfer is split into DMA_DESCRIPTOR_BUFFER_MAX_SIZE_64B_ALIGNED
- * chunks because one descriptor cannot span the full 768 KiB.  The last
- * descriptor links back to the first, so the DMA engine walks the frame
- * buffer forever without any CPU involvement after the handoff.
+ * Build a descriptor ring for the full frame buffer.  One descriptor cannot
+ * hold 750 KiB, so each one holds DMA_DESCRIPTOR_BUFFER_MAX_SIZE_64B_ALIGNED
+ * bytes.  The last descriptor points to the first.  Thus the DMA engine reads
+ * the frame buffer continuously, and the CPU does nothing after the handoff.
  */
 static void build_dma_link(void)
 {
@@ -84,7 +83,7 @@ static void build_dma_link(void)
         if (chunk > LCD_DMA_CHUNK_SIZE) {
             chunk = LCD_DMA_CHUNK_SIZE;
         }
-        /* Hand ownership to the DMA engine and flag end-of-frame on the last node. */
+        /* Give each node to the DMA engine.  Set end-of-frame on the last node. */
         link[i].dw0.size = chunk;
         link[i].dw0.length = chunk;
         link[i].dw0.suc_eof = (i == LCD_DMA_NODE_COUNT - 1U);
@@ -193,9 +192,9 @@ bool display_init(void)
     }
 
     /*
-     * Replace the driver's descriptor chain with the standalone ring in
-     * SRAM and restart the transfer from it.  Interrupts are silenced first
-     * because nothing services them once Linux takes over the CLIC.
+     * Replace the driver's descriptor chain with the ring in SRAM, and start
+     * the transfer again from it.  Disable the interrupts first, because
+     * nothing handles them after Linux controls the CLIC.
      */
     build_dma_link();
     silence_lcd_interrupts(channel);

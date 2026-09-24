@@ -46,8 +46,8 @@
 #define LINUX_HART                  1U
 
 /*
- * The kernel's coherent DMA pool, kept out of the ESP-IDF heap because this
- * firmware stays resident.  The dma-pool node in esp32s31.dtsi carries the
+ * Coherent DMA pool for the kernel.  It is outside the ESP-IDF heap because
+ * this firmware stays in memory.  The dma-pool node in esp32s31.dtsi has the
  * same range.
  */
 #define LINUX_DMA_POOL_ADDR         0x2F040000U
@@ -58,17 +58,16 @@ SOC_RESERVE_MEMORY_REGION(LINUX_DMA_POOL_ADDR,
                           linux_dma_pool);
 
 /*
- * APM region attribute word: one nibble per REE mode (R0 through R3), each
- * holding X at bit 0, W at bit 1 and R at bit 2.  0x7777 grants read, write
- * and execute to every mode, which is what bring-up needs before any real
- * privilege separation exists.
+ * APM region attribute word: one nibble for each REE mode (R0 to R3).  Each
+ * nibble has X at bit 0, W at bit 1 and R at bit 2.  0x7777 gives read, write
+ * and execute to all modes.  There is no privilege separation yet.
  */
 #define APM_REGION_ATTR_ALL_RWX     0x7777U
 
 /*
- * MSPI PMS section attribute: secure and non-secure read/write granted with
- * ECC left disabled.  The flash and PSRAM controllers share this bit layout,
- * so the SPI_FMEM_C names describe all four register banks written below.
+ * MSPI PMS section attribute: read and write for secure and non-secure
+ * access, ECC off.  The flash and PSRAM controllers use the same bit layout,
+ * so the SPI_FMEM_C names apply to all four register banks below.
  */
 #define MSPI_PMS_ATTR_RW \
     (SPI_FMEM_C_PMS0_RD_ATTR | SPI_FMEM_C_PMS0_WR_ATTR | \
@@ -134,7 +133,7 @@ static void log_cache_mode(void)
     Cache_Get_Mode(&icache);
     Cache_Get_Mode(&dcache);
     ESP_LOGI(TAG, "cache: I=%" PRIu32 "K/%u-way/%uB D=%" PRIu32
-                  "K/%u-way/%uB PSRAM-exec=%s",
+                  "K/%u-way/%uB PSRAM=%s",
              icache.cache_size / 1024, icache.cache_ways,
              icache.cache_line_size, dcache.cache_size / 1024,
              dcache.cache_ways, dcache.cache_line_size,
@@ -142,12 +141,10 @@ static void log_cache_mode(void)
 }
 
 /*
- * Grant unrestricted access through every Access Permission Manager on the
- * chip.  Each APM is programmed with a single region spanning the whole
- * 32-bit address space, marked RWX for all REE modes, and its filter is then
- * enabled so the (always-passing) check is actually applied.  FUNC_CTRL
- * enables the per-master filters; every bit is set so no bus master is left
- * unfiltered and therefore inconsistently permissive.
+ * Open all Access Permission Managers on the chip.  Each APM gets one region
+ * for the full 32-bit address space, with RWX for all REE modes.  Then its
+ * filter is enabled.  FUNC_CTRL enables the filter for each bus master.  All
+ * bits are set, so all masters get the same permissions.
  */
 static void open_apm(void)
 {
@@ -162,10 +159,10 @@ static void open_apm(void)
     }
 
     /*
-     * Open all four flash/external-memory PMS sections on both MSPI
-     * controllers.  The PSRAM controller mirrors the SPI_MEM_C register
-     * layout at DR_REG_PSRAM_MSPI0_BASE, so the same four section
-     * attributes are written again at that fixed offset.
+     * Open all four PMS sections on the two MSPI controllers.  The PSRAM
+     * controller has the SPI_MEM_C register layout at
+     * DR_REG_PSRAM_MSPI0_BASE, so the loop writes the attributes again at
+     * that offset.
      */
     for (int i = 0; i < 4; i++) {
         const uint32_t psram_off = DR_REG_PSRAM_MSPI0_BASE - DR_REG_FLASH_SPI0_BASE;
@@ -176,7 +173,7 @@ static void open_apm(void)
         REG_WRITE(SPI_SMEM_C_PMS0_ATTR_REG + psram_off + i * 4, MSPI_PMS_ATTR_RW);
     }
 
-    /* Discard any permission faults latched while the filters were opening. */
+    /* Clear the permission faults that the filters latched while they opened. */
     for (size_t i = 0;
          i < sizeof(apm_status_clr_regs) / sizeof(apm_status_clr_regs[0]); i++) {
         REG_WRITE(apm_status_clr_regs[i], 1);
@@ -200,8 +197,8 @@ static void disable_watchdogs(void)
 }
 
 /*
- * The stack-spill monitor of the hart that runs Linux would fire on kernel
- * stacks, so widen it away.  Hart 0 keeps its own monitor.
+ * The stack-spill monitor of the Linux hart would trigger on kernel stacks.
+ * Disable it and set its range to all memory.  Hart 0 keeps its monitor.
  */
 static void disable_linux_hart_stack_protector(void)
 {
@@ -212,11 +209,11 @@ static void disable_linux_hart_stack_protector(void)
 }
 
 /*
- * Reset entry for hart 1.  PMA is per-hart and this hart resets without an
- * entry covering PSRAM, so OpenSBI would fault on its first BSS write; use the
- * index esp32s31_pma_init() reprograms later.  Do not call
- * esp_cpu_configure_region_protection() here: it locks all sixteen PMP entries
- * and leaves PSRAM non-executable.  Entry ABI: hart ID in a0, DTB in a1.
+ * Reset entry for hart 1.  PMA is per hart, and this hart starts with no PMA
+ * entry for PSRAM.  Without it, OpenSBI faults on its first BSS write.  Use
+ * the index that esp32s31_pma_init() writes again later.  Do not call
+ * esp_cpu_configure_region_protection() here: it locks all 16 PMP entries and
+ * makes PSRAM non-executable.  Entry ABI: hart ID in a0, DTB in a1.
  */
 static void IRAM_ATTR linux_hart_entry(void)
 {
@@ -338,8 +335,8 @@ static bool load_opensbi_partition(void)
     }
 
     /*
-     * fw_jump carries no size manifest, so a fixed window is loaded and
-     * OpenSBI's own startup clears whatever follows the image as BSS.
+     * fw_jump has no size manifest.  Copy a fixed window.  OpenSBI clears
+     * the area after its image as BSS.
      */
     err = esp_partition_read(part, 0, (void *)OPENSBI_LOAD_ADDR,
                              OPENSBI_LOAD_SIZE);
@@ -412,7 +409,7 @@ void app_main(void)
     }
 
 #if CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG_ENABLED
-    /* GPIO33/34 are native USB Serial/JTAG D-/D+ and LCD RGB data pins. */
+    /* GPIO33/34 are the USB Serial/JTAG D-/D+ pins and also LCD data pins. */
     ESP_LOGI(TAG, "display disabled: GPIO33/34 reserved for USB Serial/JTAG");
 #else
     if (!display_init()) {

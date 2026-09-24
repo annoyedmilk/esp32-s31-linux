@@ -21,9 +21,9 @@
 #include "loader.h"
 
 /*
- * The ring window is kept out of the ESP-IDF heap because this firmware
- * stays resident, and SRAM is reached without the data cache, which is what
- * makes it usable from both harts at once.
+ * The ring window is outside the ESP-IDF heap because this firmware stays in
+ * memory.  The harts read SRAM without the data cache, so both harts can use
+ * it at the same time.
  */
 SOC_RESERVE_MEMORY_REGION(ESP32S31_IPC_SRAM_ADDR,
                           ESP32S31_IPC_SRAM_ADDR + ESP32S31_IPC_SRAM_SIZE,
@@ -81,7 +81,7 @@ static bool ipc_ring_push(struct esp32s31_ipc_ring *ring, const void *buf,
     return true;
 }
 
-/* Frames from the air: hand them to Linux and release the Wi-Fi buffer. */
+/* Received frames: give them to Linux and free the Wi-Fi buffer. */
 static esp_err_t ipc_wifi_rx(void *buffer, uint16_t len, void *eb)
 {
     bool queued = ipc_ring_push(&ipc->to_linux, buffer, len);
@@ -97,7 +97,7 @@ static esp_err_t ipc_wifi_rx(void *buffer, uint16_t len, void *eb)
 
 static TaskHandle_t ipc_tx_task_handle;
 
-/* esp_wifi_internal_tx() may block, so the doorbell only wakes the task. */
+/* esp_wifi_internal_tx() can block, so the doorbell only wakes the task. */
 static void ipc_from_linux_isr(void *arg)
 {
     BaseType_t higher_priority_woken = pdFALSE;
@@ -107,7 +107,7 @@ static void ipc_from_linux_isr(void *arg)
     portYIELD_FROM_ISR(higher_priority_woken);
 }
 
-/* Retry association only while Linux still wants a connection. */
+/* Try to associate again only while Linux wants a connection. */
 static bool ipc_want_connection;
 
 static void ipc_publish_scan(uint32_t count);
@@ -126,15 +126,15 @@ static void ipc_run_command(void)
         memcpy(cfg.sta.ssid, ipc->cmd.ssid, sizeof(cfg.sta.ssid));
         memcpy(cfg.sta.password, ipc->cmd.psk, sizeof(cfg.sta.password));
 
-        /* Say what the passphrase already implies, which esp_wifi would
-         * otherwise infer and warn about.
+        /* Set the auth mode that the passphrase shows.  Otherwise esp_wifi
+         * finds it and logs a warning.
          */
         cfg.sta.threshold.authmode = cfg.sta.password[0] ? WIFI_AUTH_WPA2_PSK
                                                          : WIFI_AUTH_OPEN;
 
         /*
-         * A station that is already associating rejects a new config, so
-         * stand the old attempt down first and let it settle.
+         * A station that associates does not accept a new config.  Stop the
+         * old attempt first and wait for it to stop.
          */
         ipc_want_connection = false;
         esp_wifi_disconnect();
@@ -154,14 +154,14 @@ static void ipc_run_command(void)
         esp_wifi_disconnect();
         break;
     case ESP32S31_IPC_CMD_SCAN: {
-        /* Asynchronous: the results land in the scan-done event, so the
-         * transmit path is not held for the seconds a scan takes. */
+        /* Asynchronous: the results come in the scan-done event.  Thus the
+         * transmit path does not wait for the seconds that a scan takes. */
         wifi_scan_config_t scan = { .show_hidden = false };
 
         err = esp_wifi_scan_start(&scan, false);
         if (err != ESP_OK) {
             ESP_LOGW(TAG, "scan start failed: %s", esp_err_to_name(err));
-            /* Publish an empty result rather than leave Linux waiting. */
+            /* Publish an empty result, so that Linux does not wait. */
             ipc_publish_scan(0);
         }
         break;
@@ -183,14 +183,14 @@ static void ipc_tx_task(void *arg)
             esp_wifi_internal_tx(WIFI_IF_STA, frame, len);
             drained = true;
         }
-        /* Freed slots are the transmit-completion signal Linux waits on. */
+        /* Free slots tell Linux that the transmission is complete. */
         if (drained) {
             REG_WRITE(IPC_DOORBELL_TO_LINUX_REG, 1);
         }
     }
 }
 
-/* Count last but seq after it: Linux reads seq to decide the table is real. */
+/* Write count, then seq: Linux reads seq to know that the table is valid. */
 static void ipc_publish_scan(uint32_t count)
 {
     ipc->scan.count = count;
@@ -300,11 +300,11 @@ static esp_err_t start_ipc(void)
 }
 
 /*
- * Bringing the radio up reads the flash, and a flash transaction disables the
- * cache Linux executes from, so this has to complete before hart 1 is
- * released.  NVS is switched off for the same reason: nothing may write flash
- * once the kernel is running.  The phy_init error and the full RF calibration
- * it forces at every boot are the accepted cost of that.
+ * The radio start reads the flash.  A flash transaction disables the cache
+ * that Linux executes from.  Thus this must be complete before hart 1 starts.
+ * NVS is off for the same reason: nothing must write the flash while the
+ * kernel runs.  The cost is a phy_init error and a full RF calibration at each
+ * boot.
  */
 void start_wifi(void)
 {

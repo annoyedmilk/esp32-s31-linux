@@ -112,12 +112,10 @@ void init_sd_card(void)
 
     /*
      * The Korvo-1 microSD slot has no card-detect, write-protect or SDIO
-     * interrupt contacts, so those host inputs are driven from the GPIO
-     * matrix constant sources rather than from a pad.  CARD_DETECT_N is
-     * active low and tied to 0 to report a card as always present,
-     * WRITE_PRT is tied to an inverted 1 so the card never reads as write
-     * protected, and CARD_INT_N is held at 1 to keep the SDIO interrupt
-     * deasserted.
+     * interrupt contacts.  Thus the GPIO matrix constant sources drive these
+     * host inputs.  CARD_DETECT_N is active low and set to 0: a card is
+     * always present.  WRITE_PRT is set to an inverted 1: the card is never
+     * write-protected.  CARD_INT_N is set to 1: the SDIO interrupt stays off.
      */
     err = gpio_matrix_input(GPIO_MATRIX_CONST_ZERO_INPUT,
                             SD_CARD_DETECT_N_1_PAD_IN_IDX, false);

@@ -16,11 +16,11 @@ CONFIG_SPIRAM_BOOT_INIT=y
 CONFIG_SPIRAM_USE_MEMMAP=y
 CONFIG_SPIRAM_MEMTEST=y
 CONFIG_ESP_CONSOLE_UART_DEFAULT=y
-# NVS is disabled here, so PHY calibration cannot be cached: ask for a full
-# calibration outright instead of failing the NVS lookup on every boot.
+# NVS is off, so the PHY calibration data cannot be kept.  Request a full
+# calibration at each boot, and do not fail the NVS lookup.
 # CONFIG_ESP_PHY_CALIBRATION_AND_DATA_STORAGE is not set
-# GPIO33/34 are both the LCD data bus and the native USB Serial/JTAG D-/D+,
-# and the loader skips display init when a secondary console claims them.
-# Select CONFIG_ESP_CONSOLE_SECONDARY_USB_SERIAL_JTAG for JTAG and a dark
-# panel; flashing and the Linux console use the CP2102N bridge either way.
+# GPIO33/34 are LCD data pins and also the USB Serial/JTAG D-/D+ pins.  The
+# loader does not start the display when a secondary console uses them.
+# Select CONFIG_ESP_CONSOLE_SECONDARY_USB_SERIAL_JTAG for JTAG and no display.
+# Flash and the Linux console use the CP2102N bridge in the two cases.
 CONFIG_ESP_CONSOLE_SECONDARY_NONE=y
