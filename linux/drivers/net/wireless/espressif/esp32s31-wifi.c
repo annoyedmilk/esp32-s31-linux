@@ -13,6 +13,7 @@
  */
 
 #include <linux/etherdevice.h>
+#include <linux/ctype.h>
 #include <linux/hex.h>
 #include <linux/interrupt.h>
 #include <linux/io.h>
@@ -344,17 +345,27 @@ static int esp32s31_wifi_stop(struct net_device *ndev)
 	return 0;
 }
 
-/* Copy a sysfs string into the ring without its trailing newline. */
+/*
+ * Copy a sysfs string into the ring without its trailing newline.  A
+ * passphrase has 8 to 63 characters.  64 characters must be hex: the
+ * firmware then uses them as the PMK, without a NUL at the end.
+ */
 static ssize_t esp32s31_wifi_store_text(void __iomem *dst, size_t dst_len,
 					const char *buf, size_t count)
 {
 	size_t len = strnlen(buf, count);
+	size_t i;
 
 	while (len && buf[len - 1] == '\n')
 		len--;
 
-	if (len >= dst_len)
+	if (len > dst_len)
 		return -EINVAL;
+
+	if (len == dst_len)
+		for (i = 0; i < len; i++)
+			if (!isxdigit(buf[i]))
+				return -EINVAL;
 
 	memset_io(dst, 0, dst_len);
 	memcpy_toio(dst, buf, len);
