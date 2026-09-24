@@ -123,9 +123,9 @@ wifi --saved
 wifi forget
 ```
 
-The credentials are in `/etc/wifi.conf`. `make sdroot` replaces this file. A
-`wifi.conf` on p1 has priority and stays. Use it to set up a board without a
-console.
+The credentials are in `/etc/wifi.conf`. `make sdroot` deletes this file.
+When `/etc/wifi.conf` does not exist, the script uses `wifi.conf` on p1. Put
+that file on the card to set up a board without a console.
 
 The firmware on hart 0 runs 802.11 and its own supplicant. nl80211 cannot
 send a passphrase, so the `wifi` script writes it to the `psk` sysfs
