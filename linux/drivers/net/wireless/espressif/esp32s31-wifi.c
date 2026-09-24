@@ -303,22 +303,48 @@ static int esp32s31_wifi_open(struct net_device *ndev)
 	return 0;
 }
 
+/*
+ * cfg80211 frees a pending scan request when the interface goes down, so
+ * finish it here first.
+ */
+static void esp32s31_wifi_abort_scan(struct esp32s31_wifi *priv)
+{
+	struct cfg80211_scan_info info = { .aborted = true };
+	struct cfg80211_scan_request *req;
+
+	cancel_work_sync(&priv->scan_work);
+
+	mutex_lock(&priv->scan_lock);
+	req = priv->scan_req;
+	priv->scan_req = NULL;
+	mutex_unlock(&priv->scan_lock);
+
+	if (req)
+		cfg80211_scan_done(req, &info);
+}
+
 static int esp32s31_wifi_stop(struct net_device *ndev)
 {
 	struct esp32s31_wifi *priv = esp32s31_wifi_priv(ndev);
 
 	netif_stop_queue(ndev);
-	netif_carrier_off(ndev);
 	napi_disable(&priv->napi);
+	netif_carrier_off(ndev);
+	esp32s31_wifi_abort_scan(priv);
+
+	/*
+	 * The link-down doorbell has no poll to run while NAPI is off.  Tell
+	 * cfg80211 now, or the next association never reports a result.
+	 */
+	if (priv->connected) {
+		cfg80211_disconnected(ndev, 0, NULL, 0, true, GFP_KERNEL);
+		priv->connected = false;
+	}
 
 	return 0;
 }
 
-/*
- * The firmware runs the supplicant, so association is driven by handing it
- * credentials rather than through cfg80211: there is no 802.11 state here for
- * nl80211 to describe.  Both credential attributes are write-only.
- */
+/* Copy a sysfs string into the ring without its trailing newline. */
 static ssize_t esp32s31_wifi_store_text(void __iomem *dst, size_t dst_len,
 					const char *buf, size_t count)
 {
