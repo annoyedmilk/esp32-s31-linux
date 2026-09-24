@@ -5,6 +5,7 @@
  */
 
 #include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/leds/common.h>
 
 / {
 	#address-cells = <1>;
@@ -154,6 +155,21 @@
 			interrupt-parent = <&clic>;
 			interrupts = <32 9 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&xtal>;
+		};
+
+		/*
+		 * RMT channel 0 drives a WS2812 LED.  The loader sets the RMT
+		 * clocks and the GPIO route, so a board sets only the status.
+		 */
+		rgb_led: led-controller@20355000 {
+			compatible = "esp,esp32s31-rmt-ws2812";
+			reg = <0x20355000 0x1000>;
+			status = "disabled";
+
+			led {
+				color = <LED_COLOR_ID_RGB>;
+				function = LED_FUNCTION_STATUS;
+			};
 		};
 
 		trng: rng@20814000 {

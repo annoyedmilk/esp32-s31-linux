@@ -1,0 +1,49 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/leds/esp,esp32s31-rmt-ws2812.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Espressif ESP32-S31 WS2812 RGB LED on the RMT
+
+maintainers:
+  - Marco Müller <hello@annoyedmilk.ch>
+
+description: >
+  One WS2812 RGB LED on RMT channel 0 of the ESP32-S31. The firmware sets
+  the RMT clocks, a 50 ns channel tick and the GPIO route before Linux
+  starts. The operating system writes only the channel registers and the
+  channel RAM.
+
+properties:
+  compatible:
+    const: esp,esp32s31-rmt-ws2812
+
+  reg:
+    maxItems: 1
+
+  led:
+    type: object
+    $ref: leds-class-multicolor.yaml#
+    unevaluatedProperties: false
+
+required:
+  - compatible
+  - reg
+  - led
+
+additionalProperties: false
+
+examples:
+  - |
+    #include <dt-bindings/leds/common.h>
+
+    led-controller@20355000 {
+        compatible = "esp,esp32s31-rmt-ws2812";
+        reg = <0x20355000 0x1000>;
+
+        led {
+            color = <LED_COLOR_ID_RGB>;
+            function = LED_FUNCTION_STATUS;
+        };
+    };

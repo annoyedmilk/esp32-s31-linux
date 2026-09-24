@@ -3,5 +3,6 @@
 
 #pragma once
 
+void init_rmt_led(void);
 void init_sd_card(void);
 void start_wifi(void);

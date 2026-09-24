@@ -1,0 +1,40 @@
+From: Marco Müller <hello@annoyedmilk.ch>
+Subject: [PATCH] leds: rgb: add the ESP32-S31 WS2812 LED driver
+
+The ESP32-S31-Korvo-1 has a WS2812 RGB LED on GPIO37.  Add the driver
+for RMT channel 0 to the RGB LED Kconfig and Makefile.
+
+Signed-off-by: Marco Müller <hello@annoyedmilk.ch>
+---
+diff --git a/drivers/leds/rgb/Kconfig b/drivers/leds/rgb/Kconfig
+--- a/drivers/leds/rgb/Kconfig
++++ b/drivers/leds/rgb/Kconfig
+@@ -2,6 +2,18 @@
+ 
+ if LEDS_CLASS_MULTICOLOR
+ 
++config LEDS_ESP32S31_WS2812
++	tristate "WS2812 RGB LED on the ESP32-S31 RMT"
++	depends on SOC_ESP32S31 || COMPILE_TEST
++	depends on OF && HAS_IOMEM
++	help
++	  Say Y to use a WS2812 RGB LED on RMT channel 0 of the ESP32-S31,
++	  for example the LED of the ESP32-S31-Korvo-1 board.  The firmware
++	  sets the RMT clocks and the GPIO route.
++
++	  To compile this driver as a module, choose M here: the module
++	  will be called leds-esp32s31-ws2812.
++
+ config LEDS_GROUP_MULTICOLOR
+ 	tristate "LEDs group multi-color support"
+ 	depends on OF
+diff --git a/drivers/leds/rgb/Makefile b/drivers/leds/rgb/Makefile
+--- a/drivers/leds/rgb/Makefile
++++ b/drivers/leds/rgb/Makefile
+@@ -1,5 +1,6 @@
+ # SPDX-License-Identifier: GPL-2.0
+ 
++obj-$(CONFIG_LEDS_ESP32S31_WS2812)	+= leds-esp32s31-ws2812.o
+ obj-$(CONFIG_LEDS_GROUP_MULTICOLOR)	+= leds-group-multicolor.o
+ obj-$(CONFIG_LEDS_KTD202X)		+= leds-ktd202x.o
+ obj-$(CONFIG_LEDS_LP5812)		+= leds-lp5812.o

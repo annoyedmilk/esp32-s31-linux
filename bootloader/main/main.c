@@ -402,6 +402,7 @@ void app_main(void)
     }
     log_cache_mode();
     init_sd_card();
+    init_rmt_led();
 
     if (!load_opensbi_partition() || !load_kernel_partition() ||
         !load_initramfs_partition()) {

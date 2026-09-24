@@ -36,3 +36,6 @@
 };
 
 &sdmmc0 { status = "okay"; };
+
+/* WS2812 RGB LED on GPIO37. */
+&rgb_led { status = "okay"; };
