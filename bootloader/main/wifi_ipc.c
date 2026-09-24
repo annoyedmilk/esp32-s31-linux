@@ -12,6 +12,7 @@
 #include "esp_intr_alloc.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/timers.h"
 #include "esp_private/wifi.h"
 #include "heap_memory_layout.h"
 #include "soc/soc.h"
@@ -110,6 +111,30 @@ static void ipc_from_linux_isr(void *arg)
 /* Try to associate again only while Linux wants a connection. */
 static bool ipc_want_connection;
 
+/*
+ * Wait longer after each failed attempt: 1 s, then twice as long each time,
+ * to a maximum of 30 s.  With a wrong password, the firmware must not send
+ * authentication frames continuously.
+ */
+#define IPC_RETRY_MIN_MS    1000U
+#define IPC_RETRY_MAX_MS    30000U
+
+static TimerHandle_t ipc_retry_timer;
+static uint32_t ipc_retry_ms;
+
+static void ipc_retry_cb(TimerHandle_t timer)
+{
+    if (ipc_want_connection) {
+        esp_wifi_connect();
+    }
+}
+
+static void ipc_retry_stop(void)
+{
+    xTimerStop(ipc_retry_timer, 0);
+    ipc_retry_ms = 0;
+}
+
 static void ipc_publish_scan(uint32_t count);
 
 static void ipc_run_command(void)
@@ -137,6 +162,7 @@ static void ipc_run_command(void)
          * old attempt first and wait for it to stop.
          */
         ipc_want_connection = false;
+        ipc_retry_stop();
         esp_wifi_disconnect();
         vTaskDelay(pdMS_TO_TICKS(100));
 
@@ -151,6 +177,7 @@ static void ipc_run_command(void)
         break;
     case ESP32S31_IPC_CMD_DISCONNECT:
         ipc_want_connection = false;
+        ipc_retry_stop();
         esp_wifi_disconnect();
         break;
     case ESP32S31_IPC_CMD_SCAN: {
@@ -249,15 +276,26 @@ static void ipc_wifi_event(void *arg, esp_event_base_t base, int32_t id,
         memcpy((void *)ipc->bssid, ev->bssid, sizeof(ipc->bssid));
         ipc->channel = ev->channel;
         ESP_LOGI(TAG, "associated");
+        ipc_retry_ms = 0;
         ipc_set_link(1);
         break;
     }
-    case WIFI_EVENT_STA_DISCONNECTED:
+    case WIFI_EVENT_STA_DISCONNECTED: {
+        const wifi_event_sta_disconnected_t *ev = data;
+
         ipc_set_link(0);
-        if (ipc_want_connection) {
-            esp_wifi_connect();
+        if (!ipc_want_connection) {
+            break;
         }
+        ipc_retry_ms = ipc_retry_ms ? ipc_retry_ms * 2 : IPC_RETRY_MIN_MS;
+        if (ipc_retry_ms > IPC_RETRY_MAX_MS) {
+            ipc_retry_ms = IPC_RETRY_MAX_MS;
+        }
+        ESP_LOGW(TAG, "disconnected, reason %u, retry in %" PRIu32 " ms",
+                 ev->reason, ipc_retry_ms);
+        xTimerChangePeriod(ipc_retry_timer, pdMS_TO_TICKS(ipc_retry_ms), 0);
         break;
+    }
     }
 }
 
@@ -269,6 +307,12 @@ static esp_err_t start_ipc(void)
     err = esp_wifi_get_mac(WIFI_IF_STA, ipc->mac);
     if (err != ESP_OK) {
         return err;
+    }
+
+    ipc_retry_timer = xTimerCreate("wifi_retry", pdMS_TO_TICKS(IPC_RETRY_MIN_MS),
+                                   pdFALSE, NULL, ipc_retry_cb);
+    if (!ipc_retry_timer) {
+        return ESP_ERR_NO_MEM;
     }
 
     if (xTaskCreate(ipc_tx_task, "wifi_ipc_tx", 4096, NULL, 5,
