@@ -16,6 +16,29 @@ ESP ROM -> ESP-IDF 2nd stage -> loader -> OpenSBI -> Linux -> initramfs -> Build
 - Wi-Fi as `wlan0` (cfg80211 full-MAC), through the firmware on hart 0.
 - Hardware RNG, GPIO, `reboot` and `poweroff`.
 
+## Tested hardware
+
+Espressif makes new chip revisions, and a different revision can change
+the behavior. This port is tested only on this board:
+
+| Item | Value |
+| --- | --- |
+| Board | ESP32-S31-Korvo-1 |
+| Chip | ESP32-S31, revision v0.0 (wafer major 0, minor 0) |
+| Package version (eFuse) | 0 |
+| eFuse block version | 0.0 |
+| PSRAM (eFuse vendor 1, capacity 1) | 16 MiB octal |
+| Flash | 16 MB NOR (JEDEC manufacturer 0x46, device 0x4018) |
+| Crystal | 40 MHz |
+
+To read these values from your board:
+
+```sh
+python -m esptool --chip esp32s31 -p PORT chip-id
+python -m esptool --chip esp32s31 -p PORT flash-id
+python -m espefuse --chip esp32s31 -p PORT summary
+```
+
 ## Design
 
 - **Harts.** Hart 0 stays in M-mode. It runs the ESP-IDF loader, which stays
