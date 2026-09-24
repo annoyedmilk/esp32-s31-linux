@@ -51,7 +51,8 @@ python -m espefuse --chip esp32s31 -p PORT summary
   in S-mode, Linux cannot see it. The S-mode trampoline must use `sret` and
   restore `scause.spil`. `mret` locks `mintstatus.SIL` and masks all
   supervisor interrupts.
-- **Cache.** PSRAM is write-through. No bus master is coherent with the data
+- **Cache.** PSRAM is write-back. With the LCD, the Makefile selects
+  write-through, because the panel DMA reads PSRAM without the cache. No bus master is coherent with the data
   cache, and the hart has no Zicbom. DMA uses the cache sync engine
   (`drivers/cache/esp32s31-cache.c`). Coherent DMA memory comes from a 64 KiB
   pool in SRAM at `0x2F040000`.

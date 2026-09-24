@@ -42,19 +42,28 @@
 #define ESP32S31_CPU_APM_FUNC_CTRL	(ESP32S31_CPU_APM_BASE + 0xc4UL)
 
 /*
- * PSRAM must be write-through.  The LCD DMA engine reads the frame buffer
- * directly from PSRAM, without the CPU cache or the DMA API.  With
- * write-back, dirty lines stay in L1, the panel does not see them, and the
- * text is corrupted.  SD and USB use the DMA API, and the esp32s31-cache
- * driver does their cache maintenance, so write-through does not affect them.
- * cfg bit [10] = 1 selects write-through.  The other bits set RWX and cached.
+ * PSRAM is write-back, which is much faster.  With the LCD, it must be
+ * write-through: the LCD DMA engine reads the frame buffer directly from
+ * PSRAM, without the CPU cache or the DMA API.  With write-back, dirty lines
+ * stay in L1, the panel does not see them, and the text is corrupted.  The
+ * Makefile sets ESP32S31_PSRAM_WRITE_THROUGH when the loader starts the LCD.
+ * SD and USB use the DMA API, and the esp32s31-cache driver does their cache
+ * maintenance in the two modes.  cfg bit [10] = 1 selects write-through.  The
+ * other bits set RWX and cached.
  */
 #define ESP32S31_PMAADDR0		0xbd0
 #define ESP32S31_PMACFG0		0xbc0
 #define ESP32S31_SRAM_PMA_NAPOT	0x0bc03fffUL
 #define ESP32S31_PSRAM_PMA_NAPOT	0x141fffffUL
 #define ESP32S31_SRAM_PMA_RWX		0xc000001dUL
+#define ESP32S31_PSRAM_PMA_RWX_WB	0xc000001dUL
 #define ESP32S31_PSRAM_PMA_RWX_WT	0xc400001dUL
+
+#if ESP32S31_PSRAM_WRITE_THROUGH
+#define ESP32S31_PSRAM_PMA_CFG		ESP32S31_PSRAM_PMA_RWX_WT
+#else
+#define ESP32S31_PSRAM_PMA_CFG		ESP32S31_PSRAM_PMA_RWX_WB
+#endif
 
 static inline void reg_write(unsigned long addr, unsigned long val)
 {
@@ -92,7 +101,7 @@ static void esp32s31_pma_init(void)
 	csr_write_num(ESP32S31_PMAADDR0, ESP32S31_SRAM_PMA_NAPOT);
 	csr_write_num(ESP32S31_PMACFG0, ESP32S31_SRAM_PMA_RWX);
 	csr_write_num(ESP32S31_PMAADDR0 + 1, ESP32S31_PSRAM_PMA_NAPOT);
-	csr_write_num(ESP32S31_PMACFG0 + 1, ESP32S31_PSRAM_PMA_RWX_WT);
+	csr_write_num(ESP32S31_PMACFG0 + 1, ESP32S31_PSRAM_PMA_CFG);
 }
 
 #if ESP32S31_USB_SERIAL_JTAG_CONSOLE
