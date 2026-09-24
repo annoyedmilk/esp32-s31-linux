@@ -2178,18 +2178,18 @@ diff --git a/drivers/net/wireless/espressif/esp32s31-wifi-ipc.h b/drivers/net/wi
 new file mode 100644
 --- /dev/null
 +++ b/drivers/net/wireless/espressif/esp32s31-wifi-ipc.h
-@@ -0,0 +1,122 @@
+@@ -0,0 +1,121 @@
 +/* SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause) */
 +/*
-+ * Shared-memory ABI between Linux on hart 1 and the ESP-IDF Wi-Fi firmware on
-+ * hart 0.  Both ends are the same little-endian SoC and reach this region
-+ * without the data cache, so neither byte swapping nor cache maintenance
-+ * applies.  Each ring is single-producer/single-consumer: the producer owns
-+ * head, the consumer owns tail, and a slot is fixed size so no ownership of
-+ * memory is ever handed across the privilege boundary.
++ * Shared-memory ABI between Linux on hart 1 and the ESP-IDF Wi-Fi firmware
++ * on hart 0.  The two sides are on the same little-endian SoC and access this
++ * region without the data cache.  Thus no byte swap and no cache maintenance
++ * is necessary.  Each ring has one producer and one consumer: the producer
++ * writes head, the consumer writes tail.  The slots have a fixed size, so no
++ * memory ownership goes across the privilege boundary.
 + *
-+ * This file is the single source of truth: the build stages it into the
-+ * kernel tree next to the driver, and the loader includes it directly.
++ * This is the only copy of the file.  The build puts it into the kernel tree
++ * next to the driver, and the loader includes it directly.
 + */
 +#ifndef _ESP32S31_WIFI_IPC_H
 +#define _ESP32S31_WIFI_IPC_H
@@ -2207,9 +2207,9 @@ new file mode 100644
 +#define ESP32S31_IPC_VERSION		3
 +
 +/*
-+ * Fixed location of the block in internal SRAM.  The loader places and
-+ * reserves it here; the wifi@ node in esp32s31.dtsi carries the same
-+ * address, which is where the Linux driver takes it from.
++ * Fixed address of the block in internal SRAM.  The loader puts it here and
++ * reserves it.  The wifi@ node in esp32s31.dtsi has the same address, and the
++ * Linux driver gets it from there.
 + */
 +#define ESP32S31_IPC_SRAM_ADDR		0x2f050000
 +#define ESP32S31_IPC_SRAM_SIZE		0x00010000
@@ -2242,13 +2242,13 @@ new file mode 100644
 +
 +#define ESP32S31_IPC_SCAN_MAX		24
 +
-+/* Authentication modes, narrowed to what cfg80211 has to publish. */
++/* Authentication modes: only the data that cfg80211 must publish. */
 +#define ESP32S31_IPC_AUTH_OPEN		0
 +#define ESP32S31_IPC_AUTH_SECURED	1
 +
 +/*
-+ * Association is driven by the firmware, which runs the supplicant itself.
-+ * Linux fills in the credentials, then publishes a command code last.
++ * The firmware runs the supplicant and does the association.  Linux writes
++ * the credentials first and the command code last.
 + */
 +struct esp32s31_ipc_cmd {
 +	u32 code;
@@ -2257,8 +2257,8 @@ new file mode 100644
 +};
 +
 +/*
-+ * One scan result.  The firmware reports what the host cannot know on its
-+ * own; cfg80211 builds the rest of the BSS entry from it.
++ * One scan result.  The firmware gives the data that the host cannot find
++ * itself.  cfg80211 makes the rest of the BSS entry from it.
 + */
 +struct esp32s31_ipc_bss {
 +	u8 bssid[6];
@@ -2271,9 +2271,8 @@ new file mode 100644
 +};
 +
 +/*
-+ * The firmware fills the table, then publishes seq last.  Linux compares seq
-+ * against the value it asked with, so a stale table is never mistaken for a
-+ * fresh one.
++ * The firmware fills the table and then writes seq.  Linux compares seq with
++ * the value at the time of its request, so it never uses an old table.
 + */
 +struct esp32s31_ipc_scan {
 +	u32 seq;
@@ -2287,9 +2286,9 @@ new file mode 100644
 +	u32 link_up;
 +	u8 mac[6];
 +	/*
-+	 * The association the firmware made on its own.  cfg80211 will not
-+	 * accept a connection it cannot tie to a BSS, so the host needs to
-+	 * know which AP, on which channel, to publish one.
++	 * The association that the firmware made.  cfg80211 does not accept
++	 * a connection without a BSS.  Thus the host must know the AP and its
++	 * channel to publish a BSS.
 +	 */
 +	u8 bssid[6];
 +	u8 channel;
