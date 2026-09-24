@@ -168,7 +168,7 @@ static u32 esp32_uart_rx_fifo_cnt(struct uart_port *port)
 	return (status & port_variant(port)->rxfifo_cnt_mask) >> UART_RXFIFO_CNT_SHIFT;
 }
 
-/* Return TIOCSER_TEMT when transmitter is not busy. */
+/* Return TIOCSER_TEMT when the transmitter is idle. */
 static unsigned int esp32_uart_tx_empty(struct uart_port *port)
 {
 	return esp32_uart_tx_fifo_cnt(port) ? 0 : TIOCSER_TEMT;
@@ -461,7 +461,7 @@ static const char *esp32_uart_type(struct uart_port *port)
 	return port_variant(port)->type;
 }
 
-/* Configure/auto-configure the port. */
+/* Configure the port. */
 static void esp32_uart_config_port(struct uart_port *port, int flags)
 {
 	if (flags & UART_CONFIG_TYPE)
@@ -535,8 +535,7 @@ static int __init esp32_uart_console_setup(struct console *co, char *options)
 	int ret;
 
 	/*
-	 * Check whether an invalid uart number has been specified, and
-	 * if so, search for the first available port that does have
+	 * If the UART number is not valid, use the first port that has
 	 * console support.
 	 */
 	if (co->index == -1 || co->index >= ARRAY_SIZE(esp32_uart_ports))

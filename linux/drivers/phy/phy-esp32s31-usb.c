@@ -2,9 +2,9 @@
 /*
  * ESP32-S31 integrated USB 2.0 UTMI PHY
  *
- * The register sequence mirrors ESP-IDF's usb_utmi_hal_init() and
+ * The register sequence is the same as ESP-IDF usb_utmi_hal_init() and
  * usb_phy_otg_set_mode(..., USB_OTG_MODE_HOST).  The PHY and the DWC2 core
- * share clock/reset controls, so they are kept together in this provider.
+ * use the same clock and reset controls, so this provider sets both.
  */
 
 #include <linux/bitops.h>
@@ -63,7 +63,7 @@ static int esp32s31_usb_phy_init(struct phy *phy)
 	struct esp32s31_usb_phy *priv = phy_get_drvdata(phy);
 	u32 val;
 
-	/* Enable the DWC2 APB/system clocks and the UTMI/reference clocks. */
+	/* Enable the DWC2 APB and system clocks, and the UTMI and reference clocks. */
 	esp32s31_usb_update_bits(priv->clkrst,
 				 ESP32S31_USB_APB_CLK_EN |
 				 ESP32S31_USB_SYS_CLK_EN,
@@ -75,12 +75,12 @@ static int esp32s31_usb_phy_init(struct phy *phy)
 				 ESP32S31_USB_UTMIFS_CLK_EN |
 				 ESP32S31_USB_PHYREF_CLK_EN);
 
-	/* Let DWC2 control PHY suspend and PLL state automatically. */
+	/* DWC2 controls the PHY suspend and the PLL state. */
 	esp32s31_usb_update_bits(priv->otghs_ctrl,
 				 ESP32S31_USB_PHY_PLL_FORCE_EN |
 				 ESP32S31_USB_PHY_SUSPEND_FORCE_EN, 0);
 
-	/* Assert all resets, then release the PHY before the AHB/APB core. */
+	/* Set all resets.  Then release the PHY before the AHB and APB core. */
 	val = readl(priv->cnnt) | ESP32S31_USB_ALL_RST_EN;
 	writel(val, priv->cnnt);
 	val &= ~ESP32S31_USB_PHY_RST_EN;
@@ -88,7 +88,7 @@ static int esp32s31_usb_phy_init(struct phy *phy)
 	val &= ~(ESP32S31_USB_AHB_RST_EN | ESP32S31_USB_APB_RST_EN);
 	writel(val, priv->cnnt);
 
-	/* Match the UTMI setup used by ESP-IDF on ESP32-S31. */
+	/* Use the same UTMI setup as ESP-IDF on the ESP32-S31. */
 	esp32s31_usb_update_bits(priv->otghs_ctrl,
 				 ESP32S31_USB_PHY_OTG_SUSPENDM,
 				 ESP32S31_USB_PHY_OTG_SUSPENDM);
@@ -98,7 +98,7 @@ static int esp32s31_usb_phy_init(struct phy *phy)
 				 ESP32S31_USB_LS_PARALLEL_EN |
 				 ESP32S31_USB_LS_KEEPALIVE_EN);
 
-	/* Host mode requires 15 kohm pull-downs on both data lines. */
+	/* Host mode needs 15 kohm pull-downs on the two data lines. */
 	esp32s31_usb_update_bits(priv->usb_ctrl,
 				 ESP32S31_USB_DM_PULLDOWN |
 				 ESP32S31_USB_DP_PULLDOWN,

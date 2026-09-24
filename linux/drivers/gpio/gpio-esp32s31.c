@@ -4,9 +4,9 @@
  *
  * ESP32-S31 GPIO controller
  *
- * A pin reaches the pad through two blocks.  IO_MUX picks which peripheral
- * owns it, and the GPIO matrix routes a signal to it; a plain GPIO is
- * IO_MUX function 1 with the matrix set to its constant GPIO output.
+ * Two blocks connect a pin to its pad.  IO_MUX selects the peripheral that
+ * uses the pin.  The GPIO matrix connects a signal to it.  A usual GPIO is
+ * IO_MUX function 1, with the matrix set to the constant GPIO output.
  */
 
 #include <linux/bitfield.h>
@@ -32,7 +32,7 @@
 #define ESP32S31_GPIO_IN1		0x68
 #define ESP32S31_GPIO_FUNC_OUT_SEL	0xaf4
 
-/* The matrix routes this constant instead of a peripheral signal. */
+/* The matrix sends this constant, not a peripheral signal. */
 #define ESP32S31_SIG_GPIO_OUT		256
 
 #define ESP32S31_IOMUX_FUN_IE		BIT(9)
@@ -40,7 +40,7 @@
 #define ESP32S31_IOMUX_FUNC_GPIO	1
 
 #define ESP32S31_GPIO_COUNT		62
-/* Not bonded out, so they must never be handed to a consumer. */
+/* These pins have no package pin, so never give them to a consumer. */
 #define ESP32S31_GPIO_RESERVED		(BIT_ULL(29) | BIT_ULL(41))
 
 struct esp32s31_gpio {
@@ -49,7 +49,7 @@ struct esp32s31_gpio {
 	void __iomem *iomux;
 };
 
-/* Bank 1 holds pins 32 and up, at a fixed offset from bank 0. */
+/* Bank 1 has pins 32 and higher, at a fixed offset from bank 0. */
 static unsigned int esp32s31_bank(unsigned int offset, unsigned int reg0,
 				  unsigned int reg1)
 {
@@ -69,7 +69,7 @@ static int esp32s31_gpio_set(struct gpio_chip *chip, unsigned int offset,
 		reg = esp32s31_bank(offset, ESP32S31_GPIO_OUT_W1TC,
 				    ESP32S31_GPIO_OUT1_W1TC);
 
-	/* Set and clear are separate registers, so this needs no lock. */
+	/* Set and clear are different registers, so no lock is necessary. */
 	writel(BIT(offset % 32), priv->base + reg);
 
 	return 0;
@@ -97,7 +97,7 @@ static int esp32s31_gpio_get_direction(struct gpio_chip *chip,
 	return GPIO_LINE_DIRECTION_IN;
 }
 
-/* Take the pad from whatever peripheral held it and read its level. */
+/* Take the pad from its peripheral and read its level. */
 static void esp32s31_gpio_claim(struct esp32s31_gpio *priv, unsigned int offset)
 {
 	void __iomem *iomux = priv->iomux + offset * 4;
@@ -130,7 +130,7 @@ static int esp32s31_gpio_direction_output(struct gpio_chip *chip,
 					 ESP32S31_GPIO_ENABLE1_W1TS);
 
 	esp32s31_gpio_claim(priv, offset);
-	/* Drive the requested level before the output driver comes on. */
+	/* Set the level before the output driver starts. */
 	esp32s31_gpio_set(chip, offset, value);
 	writel(ESP32S31_SIG_GPIO_OUT,
 	       priv->base + ESP32S31_GPIO_FUNC_OUT_SEL + offset * 4);

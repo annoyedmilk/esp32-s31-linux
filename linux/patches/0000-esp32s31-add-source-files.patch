@@ -1315,9 +1315,9 @@ new file mode 100644
 + *
 + * ESP32-S31 GPIO controller
 + *
-+ * A pin reaches the pad through two blocks.  IO_MUX picks which peripheral
-+ * owns it, and the GPIO matrix routes a signal to it; a plain GPIO is
-+ * IO_MUX function 1 with the matrix set to its constant GPIO output.
++ * Two blocks connect a pin to its pad.  IO_MUX selects the peripheral that
++ * uses the pin.  The GPIO matrix connects a signal to it.  A usual GPIO is
++ * IO_MUX function 1, with the matrix set to the constant GPIO output.
 + */
 +
 +#include <linux/bitfield.h>
@@ -1343,7 +1343,7 @@ new file mode 100644
 +#define ESP32S31_GPIO_IN1		0x68
 +#define ESP32S31_GPIO_FUNC_OUT_SEL	0xaf4
 +
-+/* The matrix routes this constant instead of a peripheral signal. */
++/* The matrix sends this constant, not a peripheral signal. */
 +#define ESP32S31_SIG_GPIO_OUT		256
 +
 +#define ESP32S31_IOMUX_FUN_IE		BIT(9)
@@ -1351,7 +1351,7 @@ new file mode 100644
 +#define ESP32S31_IOMUX_FUNC_GPIO	1
 +
 +#define ESP32S31_GPIO_COUNT		62
-+/* Not bonded out, so they must never be handed to a consumer. */
++/* These pins have no package pin, so never give them to a consumer. */
 +#define ESP32S31_GPIO_RESERVED		(BIT_ULL(29) | BIT_ULL(41))
 +
 +struct esp32s31_gpio {
@@ -1360,7 +1360,7 @@ new file mode 100644
 +	void __iomem *iomux;
 +};
 +
-+/* Bank 1 holds pins 32 and up, at a fixed offset from bank 0. */
++/* Bank 1 has pins 32 and higher, at a fixed offset from bank 0. */
 +static unsigned int esp32s31_bank(unsigned int offset, unsigned int reg0,
 +				  unsigned int reg1)
 +{
@@ -1380,7 +1380,7 @@ new file mode 100644
 +		reg = esp32s31_bank(offset, ESP32S31_GPIO_OUT_W1TC,
 +				    ESP32S31_GPIO_OUT1_W1TC);
 +
-+	/* Set and clear are separate registers, so this needs no lock. */
++	/* Set and clear are different registers, so no lock is necessary. */
 +	writel(BIT(offset % 32), priv->base + reg);
 +
 +	return 0;
@@ -1408,7 +1408,7 @@ new file mode 100644
 +	return GPIO_LINE_DIRECTION_IN;
 +}
 +
-+/* Take the pad from whatever peripheral held it and read its level. */
++/* Take the pad from its peripheral and read its level. */
 +static void esp32s31_gpio_claim(struct esp32s31_gpio *priv, unsigned int offset)
 +{
 +	void __iomem *iomux = priv->iomux + offset * 4;
@@ -1441,7 +1441,7 @@ new file mode 100644
 +					 ESP32S31_GPIO_ENABLE1_W1TS);
 +
 +	esp32s31_gpio_claim(priv, offset);
-+	/* Drive the requested level before the output driver comes on. */
++	/* Set the level before the output driver starts. */
 +	esp32s31_gpio_set(chip, offset, value);
 +	writel(ESP32S31_SIG_GPIO_OUT,
 +	       priv->base + ESP32S31_GPIO_FUNC_OUT_SEL + offset * 4);
@@ -3037,9 +3037,9 @@ new file mode 100644
 +/*
 + * ESP32-S31 integrated USB 2.0 UTMI PHY
 + *
-+ * The register sequence mirrors ESP-IDF's usb_utmi_hal_init() and
++ * The register sequence is the same as ESP-IDF usb_utmi_hal_init() and
 + * usb_phy_otg_set_mode(..., USB_OTG_MODE_HOST).  The PHY and the DWC2 core
-+ * share clock/reset controls, so they are kept together in this provider.
++ * use the same clock and reset controls, so this provider sets both.
 + */
 +
 +#include <linux/bitops.h>
@@ -3098,7 +3098,7 @@ new file mode 100644
 +	struct esp32s31_usb_phy *priv = phy_get_drvdata(phy);
 +	u32 val;
 +
-+	/* Enable the DWC2 APB/system clocks and the UTMI/reference clocks. */
++	/* Enable the DWC2 APB and system clocks, and the UTMI and reference clocks. */
 +	esp32s31_usb_update_bits(priv->clkrst,
 +				 ESP32S31_USB_APB_CLK_EN |
 +				 ESP32S31_USB_SYS_CLK_EN,
@@ -3110,12 +3110,12 @@ new file mode 100644
 +				 ESP32S31_USB_UTMIFS_CLK_EN |
 +				 ESP32S31_USB_PHYREF_CLK_EN);
 +
-+	/* Let DWC2 control PHY suspend and PLL state automatically. */
++	/* DWC2 controls the PHY suspend and the PLL state. */
 +	esp32s31_usb_update_bits(priv->otghs_ctrl,
 +				 ESP32S31_USB_PHY_PLL_FORCE_EN |
 +				 ESP32S31_USB_PHY_SUSPEND_FORCE_EN, 0);
 +
-+	/* Assert all resets, then release the PHY before the AHB/APB core. */
++	/* Set all resets.  Then release the PHY before the AHB and APB core. */
 +	val = readl(priv->cnnt) | ESP32S31_USB_ALL_RST_EN;
 +	writel(val, priv->cnnt);
 +	val &= ~ESP32S31_USB_PHY_RST_EN;
@@ -3123,7 +3123,7 @@ new file mode 100644
 +	val &= ~(ESP32S31_USB_AHB_RST_EN | ESP32S31_USB_APB_RST_EN);
 +	writel(val, priv->cnnt);
 +
-+	/* Match the UTMI setup used by ESP-IDF on ESP32-S31. */
++	/* Use the same UTMI setup as ESP-IDF on the ESP32-S31. */
 +	esp32s31_usb_update_bits(priv->otghs_ctrl,
 +				 ESP32S31_USB_PHY_OTG_SUSPENDM,
 +				 ESP32S31_USB_PHY_OTG_SUSPENDM);
@@ -3133,7 +3133,7 @@ new file mode 100644
 +				 ESP32S31_USB_LS_PARALLEL_EN |
 +				 ESP32S31_USB_LS_KEEPALIVE_EN);
 +
-+	/* Host mode requires 15 kohm pull-downs on both data lines. */
++	/* Host mode needs 15 kohm pull-downs on the two data lines. */
 +	esp32s31_usb_update_bits(priv->usb_ctrl,
 +				 ESP32S31_USB_DM_PULLDOWN |
 +				 ESP32S31_USB_DP_PULLDOWN,
@@ -3225,7 +3225,7 @@ diff --git a/drivers/tty/serial/esp32_uart.c b/drivers/tty/serial/esp32_uart.c
 new file mode 100644
 --- /dev/null
 +++ b/drivers/tty/serial/esp32_uart.c
-@@ -0,0 +1,748 @@
+@@ -0,0 +1,747 @@
 +// SPDX-License-Identifier: GPL-2.0-or-later
 +/*
 + * Author: Marco Müller <hello@annoyedmilk.ch>
@@ -3396,7 +3396,7 @@ new file mode 100644
 +	return (status & port_variant(port)->rxfifo_cnt_mask) >> UART_RXFIFO_CNT_SHIFT;
 +}
 +
-+/* Return TIOCSER_TEMT when transmitter is not busy. */
++/* Return TIOCSER_TEMT when the transmitter is idle. */
 +static unsigned int esp32_uart_tx_empty(struct uart_port *port)
 +{
 +	return esp32_uart_tx_fifo_cnt(port) ? 0 : TIOCSER_TEMT;
@@ -3689,7 +3689,7 @@ new file mode 100644
 +	return port_variant(port)->type;
 +}
 +
-+/* Configure/auto-configure the port. */
++/* Configure the port. */
 +static void esp32_uart_config_port(struct uart_port *port, int flags)
 +{
 +	if (flags & UART_CONFIG_TYPE)
@@ -3763,8 +3763,7 @@ new file mode 100644
 +	int ret;
 +
 +	/*
-+	 * Check whether an invalid uart number has been specified, and
-+	 * if so, search for the first available port that does have
++	 * If the UART number is not valid, use the first port that has
 +	 * console support.
 +	 */
 +	if (co->index == -1 || co->index >= ARRAY_SIZE(esp32_uart_ports))
