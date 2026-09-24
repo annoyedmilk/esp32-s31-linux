@@ -197,6 +197,8 @@ does `switch_root`. If the card is not there, it starts a shell.
 ## Limits
 
 - Linux is uniprocessor on hart 1.
+- No FPU: the hart has F but not D, and Linux RISC-V needs D. Userspace is
+  soft-float (ilp32).
 - The passphrase goes through sysfs, not `wpa_supplicant`.
 - ESP-Hosted cannot work: Espressif does not supply the FullMAC hooks for the
   ESP32-S31 Wi-Fi libraries.
