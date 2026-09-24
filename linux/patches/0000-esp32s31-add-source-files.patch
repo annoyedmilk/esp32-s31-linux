@@ -999,18 +999,18 @@ diff --git a/drivers/cache/esp32s31-cache.c b/drivers/cache/esp32s31-cache.c
 new file mode 100644
 --- /dev/null
 +++ b/drivers/cache/esp32s31-cache.c
-@@ -0,0 +1,165 @@
+@@ -0,0 +1,164 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * Author: Marco Müller <hello@annoyedmilk.ch>
 + *
 + * ESP32-S31 cache controller: non-standard cache maintenance for DMA
 + *
-+ * The hart implements no Zicbom, and the SoC exposes no uncached alias of
-+ * the PSRAM aperture, so the only way to make DMA buffers coherent is to
-+ * drive the cache controller's sync engine over MMIO.  A single set of
-+ * global SYNC_* registers describes one operation at a time, so every
-+ * request is serialised and polled to completion.
++ * The hart has no Zicbom, and the SoC has no uncached alias of the PSRAM
++ * aperture.  Thus the only way to make DMA buffers coherent is the sync
++ * engine of the cache controller, through MMIO.  One set of global SYNC_*
++ * registers holds one operation at a time.  Thus each request runs alone,
++ * and the driver polls until it is complete.
 + */
 +
 +#include <linux/align.h>
@@ -1035,7 +1035,7 @@ new file mode 100644
 +#define ESP32S31_CACHE_SYNC_ADDR		0xa4
 +#define ESP32S31_CACHE_SYNC_SIZE		0xa8
 +
-+/* Sync map selects which cache the operation applies to. */
++/* The sync map selects the cache for the operation. */
 +#define ESP32S31_CACHE_MAP_L1_DCACHE		BIT(4)
 +
 +#define ESP32S31_CACHE_SYNC_TIMEOUT_US		100000
@@ -1044,12 +1044,12 @@ new file mode 100644
 +static DEFINE_RAW_SPINLOCK(esp32s31_cache_lock);
 +
 +/*
-+ * Issue one sync operation over the requested range.  The controller latches
-+ * ADDR/SIZE and self-clears the start bit, so a repeat only has to rewrite
-+ * CTRL.  Erratum: on this SoC a writeback can lose part of the range unless
-+ * the operation runs twice, which is what ESP-IDF's ROM patch does for
-+ * ESP_ROM_CACHE_WRITEBACK_NEEDS_SYNC_TWICE_MAP.  A plain invalidate is not
-+ * affected and runs once.
++ * Do one sync operation on the range.  The controller latches ADDR and SIZE
++ * and clears the start bit itself, so a second pass writes only CTRL.
++ * Erratum: on this SoC, a writeback can lose part of the range if it runs
++ * only once.  The ESP-IDF ROM patch for
++ * ESP_ROM_CACHE_WRITEBACK_NEEDS_SYNC_TWICE_MAP also runs it twice.  An
++ * invalidate is not affected and runs once.
 + */
 +static void esp32s31_cache_sync(phys_addr_t paddr, size_t size, u32 op,
 +				unsigned int passes)
@@ -1062,10 +1062,10 @@ new file mode 100644
 +	size = ALIGN(end - paddr, ESP32S31_CACHE_LINE_SIZE);
 +
 +	/*
-+	 * Internal SRAM, which the coherent DMA pool is carved from, is
-+	 * reached without the data cache and is not a valid target for the
-+	 * sync engine.  A single buffer never straddles the two, so a range
-+	 * that is not entirely external needs no maintenance at all.
++	 * The coherent DMA pool is in internal SRAM.  The CPU accesses SRAM
++	 * without the data cache, and the sync engine cannot use it.  A buffer
++	 * is never in SRAM and PSRAM at the same time.  Thus a range that is
++	 * not fully in PSRAM needs no maintenance.
 +	 */
 +	if (paddr < ESP32S31_CACHE_EXTRAM_BASE ||
 +	    paddr + size > ESP32S31_CACHE_EXTRAM_BASE + ESP32S31_CACHE_EXTRAM_SIZE)
@@ -1147,17 +1147,16 @@ new file mode 100644
 +		return -ENOMEM;
 +
 +	/*
-+	 * setup_arch() has already published the line size and declared
-+	 * non-coherent DMA supported, because the slab allocator sizes its
-+	 * DMA alignment long before initcalls run.  Only the operations
-+	 * themselves have to wait for ioremap().
++	 * setup_arch() already set the line size and enabled non-coherent DMA,
++	 * because the slab allocator sets its DMA alignment before the
++	 * initcalls.  Only the operations must wait for ioremap().
 +	 */
 +	riscv_noncoherent_register_cache_ops(&esp32s31_cache_ops);
 +
 +	/*
-+	 * The reported alignment is what keeps a kmalloc'd DMA buffer from
-+	 * sharing a cache line with another allocation; anything below the
-+	 * line size means the setup_arch() declaration was missed.
++	 * This alignment prevents a kmalloc DMA buffer from sharing a cache
++	 * line with a different allocation.  A value below the line size means
++	 * that setup_arch() did not enable non-coherent DMA.
 +	 */
 +	pr_info("esp32s31-cache: non-coherent DMA cache ops registered (%u-byte lines, DMA alignment %d)\n",
 +		ESP32S31_CACHE_LINE_SIZE, dma_get_cache_alignment());
@@ -1175,9 +1174,9 @@ new file mode 100644
 + * Author: Marco Müller <hello@annoyedmilk.ch>
 + *
 + * ESP32-S31 true random number generator.  The block samples a noise source
-+ * and mixes it through a CRC, so unlike the generator on earlier Espressif
-+ * parts it needs neither the RF subsystem nor the SAR ADC to be running.
-+ * Its clock and reset live in the LP peripheral clock controller.
++ * and mixes it with a CRC.  Thus, different from earlier Espressif chips, it
++ * does not need the RF subsystem or the SAR ADC.  Its clock and reset are in
++ * the LP peripheral clock controller.
 + */
 +
 +#include <linux/delay.h>
@@ -1197,7 +1196,7 @@ new file mode 100644
 +#define ESP32S31_RNG_CTRL_CLK_EN	BIT(30)
 +#define ESP32S31_RNG_CTRL_RST_EN	BIT(31)
 +
-+/* Sampling interval the noise source needs to decorrelate consecutive words. */
++/* Time between two reads, so that two words from the noise source are not related. */
 +#define ESP32S31_TRNG_READ_DELAY_US	1
 +
 +struct esp32s31_rng {
@@ -2314,19 +2313,19 @@ diff --git a/drivers/net/wireless/espressif/esp32s31-wifi.c b/drivers/net/wirele
 new file mode 100644
 --- /dev/null
 +++ b/drivers/net/wireless/espressif/esp32s31-wifi.c
-@@ -0,0 +1,726 @@
+@@ -0,0 +1,722 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * Author: Marco Müller <hello@annoyedmilk.ch>
 + *
-+ * Full-MAC cfg80211 device for the ESP32-S31 WLAN modem, which is owned by
-+ * ESP-IDF firmware resident on hart 0.  The firmware runs 802.11 and its own
-+ * supplicant; Linux exchanges 802.3 frames, scan requests and association
-+ * with it through fixed-size slot rings in internal SRAM and a pair of
++ * Full-MAC cfg80211 device for the ESP32-S31 WLAN modem.  The ESP-IDF
++ * firmware on hart 0 controls the modem.  It runs 802.11 and its own
++ * supplicant.  Linux sends 802.3 frames, scan requests and association
++ * requests through rings of fixed-size slots in internal SRAM, with two
 + * cross-core doorbell interrupts.
 + *
-+ * The rings are reached without the data cache on either hart, so the io
-+ * accessors here are for their ordering barriers rather than for a device.
++ * The two harts access the rings without the data cache.  The io accessors
++ * are here for their ordering barriers, not for a device.
 + */
 +
 +#include <linux/etherdevice.h>
@@ -2353,8 +2352,8 @@ new file mode 100644
 +
 +	struct wiphy *wiphy;
 +	struct wireless_dev wdev;
-+	/* Scan results arrive from an interrupt; cfg80211 wants process
-+	 * context, so the doorbell only schedules this.
++	/* Scan results come with an interrupt, but cfg80211 needs process
++	 * context.  Thus the doorbell only schedules this work.
 +	 */
 +	struct work_struct scan_work;
 +	struct cfg80211_scan_request *scan_req;
@@ -2392,7 +2391,7 @@ new file mode 100644
 +	{ .bitrate = 540, .hw_value = 7 },
 +};
 +
-+/* What the firmware's supplicant negotiates. */
++/* The ciphers that the firmware supplicant uses. */
 +static const u32 esp32s31_wifi_ciphers[] = {
 +	WLAN_CIPHER_SUITE_CCMP,
 +	WLAN_CIPHER_SUITE_TKIP,
@@ -2450,9 +2449,9 @@ new file mode 100644
 +}
 +
 +/*
-+ * The firmware associates by itself, so the BSS it chose may never have been
-+ * scanned.  cfg80211 refuses a connection it cannot tie to a BSS, so publish
-+ * the one the firmware reports before claiming success.
++ * The firmware selects the BSS itself, so Linux possibly did not scan it.
++ * cfg80211 does not accept a connection without a BSS.  Thus publish the BSS
++ * from the firmware before the connection result.
 + */
 +static void esp32s31_wifi_inform_link(struct esp32s31_wifi *priv)
 +{
@@ -2511,7 +2510,7 @@ new file mode 100644
 +	}
 +}
 +
-+/* The firmware publishes seq after the table, so a change means it is whole. */
++/* The firmware writes seq after the table.  A new seq means a full table. */
 +static void esp32s31_wifi_check_scan(struct esp32s31_wifi *priv)
 +{
 +	if (!priv->scan_req)
@@ -2596,9 +2595,9 @@ new file mode 100644
 +	dev_kfree_skb_any(skb);
 +
 +	/*
-+	 * The firmware rings the doorbell back as it drains, which reopens
-+	 * the queue from the poll loop.  Re-check after stopping in case that
-+	 * drain won the race, since an empty ring produces no more doorbells.
++	 * The firmware rings the doorbell when it empties slots, and the poll
++	 * loop then starts the queue again.  Check again after the stop: the
++	 * firmware can empty the ring first, and then no doorbell comes.
 +	 */
 +	if (esp32s31_wifi_tx_full(ring)) {
 +		netif_stop_queue(ndev);
@@ -2680,9 +2679,8 @@ new file mode 100644
 +}
 +
 +/*
-+ * The one key the offloads cannot carry: a passphrase, for a supplicant that
-+ * wants one rather than the PMK nl80211 hands over.  Association itself goes
-+ * through cfg80211.
++ * The offloads cannot send a passphrase, but the firmware supplicant needs
++ * one, not the PMK from nl80211.  The association goes through cfg80211.
 + */
 +static ssize_t psk_store(struct device *dev, struct device_attribute *attr,
 +			 const char *buf, size_t count)
@@ -2702,7 +2700,7 @@ new file mode 100644
 +
 +static void esp32s31_wifi_send_cmd(struct esp32s31_wifi *priv, u32 code)
 +{
-+	/* The code is written last: it is what the firmware polls on. */
++	/* Write the code last: the firmware reads it to find a command. */
 +	wmb();
 +	iowrite32(code, &priv->ipc->cmd.code);
 +	iowrite32(1, priv->doorbell + ESP32S31_WIFI_DOORBELL_TX);
@@ -2749,8 +2747,8 @@ new file mode 100644
 +		if (bss.authmode != ESP32S31_IPC_AUTH_OPEN)
 +			caps |= WLAN_CAPABILITY_PRIVACY;
 +
-+		/* cfg80211 builds the BSS from the one element we can
-+		 * honestly supply; the firmware keeps the rest to itself.
++		/* cfg80211 makes the BSS from the SSID element only.  The
++		 * firmware does not give the other elements.
 +		 */
 +		ie[0] = WLAN_EID_SSID;
 +		ie[1] = bss.ssid_len;
@@ -2788,10 +2786,9 @@ new file mode 100644
 +}
 +
 +/*
-+ * The firmware's supplicant takes one string for every key type: a
-+ * passphrase, or 64 hex characters it reads as the PMK itself, which is what
-+ * the 4-way handshake offload hands us.  SAE needs the password, which the
-+ * SAE offload carries.
++ * The firmware supplicant takes one string for all key types: a passphrase,
++ * or 64 hex characters that it uses as the PMK.  The 4-way handshake offload
++ * gives a PMK.  SAE needs the password, which the SAE offload gives.
 + */
 +static int esp32s31_wifi_set_key(struct esp32s31_wifi *priv,
 +				 struct cfg80211_connect_params *sme)
@@ -2815,12 +2812,10 @@ new file mode 100644
 +	}
 +
 +	/*
-+	 * Neither offload carried a key, so this association is driven through
-+	 * the psk attribute, the only way to reach a supplicant that wants a
-+	 * passphrase rather than a PMK.  Whatever was written there stands:
-+	 * nl80211 never says a network is open, only that it has no key for
-+	 * us, and clearing on that wipes the passphrase a moment before the
-+	 * firmware needs it.
++	 * No offload gave a key, so the passphrase comes from the psk
++	 * attribute.  Keep the value that is there.  nl80211 does not say that
++	 * a network is open, only that it has no key.  If this clears the
++	 * value, the firmware does not get the passphrase.
 +	 */
 +	return 0;
 +}
@@ -2856,7 +2851,7 @@ new file mode 100644
 +	return 0;
 +}
 +
-+/* Without this "iw link" reports the association and an error beside it. */
++/* Without this, "iw link" shows the association and also an error. */
 +static int esp32s31_wifi_get_station(struct wiphy *wiphy,
 +				     struct wireless_dev *wdev, const u8 *mac,
 +				     struct station_info *sinfo)
@@ -2913,7 +2908,7 @@ new file mode 100644
 +	wiphy->max_scan_ssids = 1;
 +	wiphy->max_scan_ie_len = 0;
 +	wiphy->signal_type = CFG80211_SIGNAL_TYPE_MBM;
-+	/* The firmware holds the keys and runs the handshakes. */
++	/* The firmware keeps the keys and does the handshakes. */
 +	wiphy_ext_feature_set(wiphy,
 +			      NL80211_EXT_FEATURE_4WAY_HANDSHAKE_STA_PSK);
 +	wiphy_ext_feature_set(wiphy, NL80211_EXT_FEATURE_SAE_OFFLOAD);

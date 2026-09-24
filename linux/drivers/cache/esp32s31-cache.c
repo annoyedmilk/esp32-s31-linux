@@ -4,11 +4,11 @@
  *
  * ESP32-S31 cache controller: non-standard cache maintenance for DMA
  *
- * The hart implements no Zicbom, and the SoC exposes no uncached alias of
- * the PSRAM aperture, so the only way to make DMA buffers coherent is to
- * drive the cache controller's sync engine over MMIO.  A single set of
- * global SYNC_* registers describes one operation at a time, so every
- * request is serialised and polled to completion.
+ * The hart has no Zicbom, and the SoC has no uncached alias of the PSRAM
+ * aperture.  Thus the only way to make DMA buffers coherent is the sync
+ * engine of the cache controller, through MMIO.  One set of global SYNC_*
+ * registers holds one operation at a time.  Thus each request runs alone,
+ * and the driver polls until it is complete.
  */
 
 #include <linux/align.h>
@@ -33,7 +33,7 @@
 #define ESP32S31_CACHE_SYNC_ADDR		0xa4
 #define ESP32S31_CACHE_SYNC_SIZE		0xa8
 
-/* Sync map selects which cache the operation applies to. */
+/* The sync map selects the cache for the operation. */
 #define ESP32S31_CACHE_MAP_L1_DCACHE		BIT(4)
 
 #define ESP32S31_CACHE_SYNC_TIMEOUT_US		100000
@@ -42,12 +42,12 @@ static void __iomem *esp32s31_cache_base;
 static DEFINE_RAW_SPINLOCK(esp32s31_cache_lock);
 
 /*
- * Issue one sync operation over the requested range.  The controller latches
- * ADDR/SIZE and self-clears the start bit, so a repeat only has to rewrite
- * CTRL.  Erratum: on this SoC a writeback can lose part of the range unless
- * the operation runs twice, which is what ESP-IDF's ROM patch does for
- * ESP_ROM_CACHE_WRITEBACK_NEEDS_SYNC_TWICE_MAP.  A plain invalidate is not
- * affected and runs once.
+ * Do one sync operation on the range.  The controller latches ADDR and SIZE
+ * and clears the start bit itself, so a second pass writes only CTRL.
+ * Erratum: on this SoC, a writeback can lose part of the range if it runs
+ * only once.  The ESP-IDF ROM patch for
+ * ESP_ROM_CACHE_WRITEBACK_NEEDS_SYNC_TWICE_MAP also runs it twice.  An
+ * invalidate is not affected and runs once.
  */
 static void esp32s31_cache_sync(phys_addr_t paddr, size_t size, u32 op,
 				unsigned int passes)
@@ -60,10 +60,10 @@ static void esp32s31_cache_sync(phys_addr_t paddr, size_t size, u32 op,
 	size = ALIGN(end - paddr, ESP32S31_CACHE_LINE_SIZE);
 
 	/*
-	 * Internal SRAM, which the coherent DMA pool is carved from, is
-	 * reached without the data cache and is not a valid target for the
-	 * sync engine.  A single buffer never straddles the two, so a range
-	 * that is not entirely external needs no maintenance at all.
+	 * The coherent DMA pool is in internal SRAM.  The CPU accesses SRAM
+	 * without the data cache, and the sync engine cannot use it.  A buffer
+	 * is never in SRAM and PSRAM at the same time.  Thus a range that is
+	 * not fully in PSRAM needs no maintenance.
 	 */
 	if (paddr < ESP32S31_CACHE_EXTRAM_BASE ||
 	    paddr + size > ESP32S31_CACHE_EXTRAM_BASE + ESP32S31_CACHE_EXTRAM_SIZE)
@@ -145,17 +145,16 @@ static int __init esp32s31_cache_init(void)
 		return -ENOMEM;
 
 	/*
-	 * setup_arch() has already published the line size and declared
-	 * non-coherent DMA supported, because the slab allocator sizes its
-	 * DMA alignment long before initcalls run.  Only the operations
-	 * themselves have to wait for ioremap().
+	 * setup_arch() already set the line size and enabled non-coherent DMA,
+	 * because the slab allocator sets its DMA alignment before the
+	 * initcalls.  Only the operations must wait for ioremap().
 	 */
 	riscv_noncoherent_register_cache_ops(&esp32s31_cache_ops);
 
 	/*
-	 * The reported alignment is what keeps a kmalloc'd DMA buffer from
-	 * sharing a cache line with another allocation; anything below the
-	 * line size means the setup_arch() declaration was missed.
+	 * This alignment prevents a kmalloc DMA buffer from sharing a cache
+	 * line with a different allocation.  A value below the line size means
+	 * that setup_arch() did not enable non-coherent DMA.
 	 */
 	pr_info("esp32s31-cache: non-coherent DMA cache ops registered (%u-byte lines, DMA alignment %d)\n",
 		ESP32S31_CACHE_LINE_SIZE, dma_get_cache_alignment());

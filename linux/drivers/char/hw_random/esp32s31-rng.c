@@ -3,9 +3,9 @@
  * Author: Marco Müller <hello@annoyedmilk.ch>
  *
  * ESP32-S31 true random number generator.  The block samples a noise source
- * and mixes it through a CRC, so unlike the generator on earlier Espressif
- * parts it needs neither the RF subsystem nor the SAR ADC to be running.
- * Its clock and reset live in the LP peripheral clock controller.
+ * and mixes it with a CRC.  Thus, different from earlier Espressif chips, it
+ * does not need the RF subsystem or the SAR ADC.  Its clock and reset are in
+ * the LP peripheral clock controller.
  */
 
 #include <linux/delay.h>
@@ -25,7 +25,7 @@
 #define ESP32S31_RNG_CTRL_CLK_EN	BIT(30)
 #define ESP32S31_RNG_CTRL_RST_EN	BIT(31)
 
-/* Sampling interval the noise source needs to decorrelate consecutive words. */
+/* Time between two reads, so that two words from the noise source are not related. */
 #define ESP32S31_TRNG_READ_DELAY_US	1
 
 struct esp32s31_rng {

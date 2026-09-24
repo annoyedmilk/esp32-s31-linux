@@ -2,14 +2,14 @@
 /*
  * Author: Marco Müller <hello@annoyedmilk.ch>
  *
- * Full-MAC cfg80211 device for the ESP32-S31 WLAN modem, which is owned by
- * ESP-IDF firmware resident on hart 0.  The firmware runs 802.11 and its own
- * supplicant; Linux exchanges 802.3 frames, scan requests and association
- * with it through fixed-size slot rings in internal SRAM and a pair of
+ * Full-MAC cfg80211 device for the ESP32-S31 WLAN modem.  The ESP-IDF
+ * firmware on hart 0 controls the modem.  It runs 802.11 and its own
+ * supplicant.  Linux sends 802.3 frames, scan requests and association
+ * requests through rings of fixed-size slots in internal SRAM, with two
  * cross-core doorbell interrupts.
  *
- * The rings are reached without the data cache on either hart, so the io
- * accessors here are for their ordering barriers rather than for a device.
+ * The two harts access the rings without the data cache.  The io accessors
+ * are here for their ordering barriers, not for a device.
  */
 
 #include <linux/etherdevice.h>
@@ -36,8 +36,8 @@ struct esp32s31_wifi {
 
 	struct wiphy *wiphy;
 	struct wireless_dev wdev;
-	/* Scan results arrive from an interrupt; cfg80211 wants process
-	 * context, so the doorbell only schedules this.
+	/* Scan results come with an interrupt, but cfg80211 needs process
+	 * context.  Thus the doorbell only schedules this work.
 	 */
 	struct work_struct scan_work;
 	struct cfg80211_scan_request *scan_req;
@@ -75,7 +75,7 @@ static struct ieee80211_rate esp32s31_wifi_rates[] = {
 	{ .bitrate = 540, .hw_value = 7 },
 };
 
-/* What the firmware's supplicant negotiates. */
+/* The ciphers that the firmware supplicant uses. */
 static const u32 esp32s31_wifi_ciphers[] = {
 	WLAN_CIPHER_SUITE_CCMP,
 	WLAN_CIPHER_SUITE_TKIP,
@@ -133,9 +133,9 @@ static void esp32s31_wifi_rx_one(struct esp32s31_wifi *priv,
 }
 
 /*
- * The firmware associates by itself, so the BSS it chose may never have been
- * scanned.  cfg80211 refuses a connection it cannot tie to a BSS, so publish
- * the one the firmware reports before claiming success.
+ * The firmware selects the BSS itself, so Linux possibly did not scan it.
+ * cfg80211 does not accept a connection without a BSS.  Thus publish the BSS
+ * from the firmware before the connection result.
  */
 static void esp32s31_wifi_inform_link(struct esp32s31_wifi *priv)
 {
@@ -194,7 +194,7 @@ static void esp32s31_wifi_sync_carrier(struct esp32s31_wifi *priv)
 	}
 }
 
-/* The firmware publishes seq after the table, so a change means it is whole. */
+/* The firmware writes seq after the table.  A new seq means a full table. */
 static void esp32s31_wifi_check_scan(struct esp32s31_wifi *priv)
 {
 	if (!priv->scan_req)
@@ -279,9 +279,9 @@ static netdev_tx_t esp32s31_wifi_xmit(struct sk_buff *skb,
 	dev_kfree_skb_any(skb);
 
 	/*
-	 * The firmware rings the doorbell back as it drains, which reopens
-	 * the queue from the poll loop.  Re-check after stopping in case that
-	 * drain won the race, since an empty ring produces no more doorbells.
+	 * The firmware rings the doorbell when it empties slots, and the poll
+	 * loop then starts the queue again.  Check again after the stop: the
+	 * firmware can empty the ring first, and then no doorbell comes.
 	 */
 	if (esp32s31_wifi_tx_full(ring)) {
 		netif_stop_queue(ndev);
@@ -363,9 +363,8 @@ static ssize_t esp32s31_wifi_store_text(void __iomem *dst, size_t dst_len,
 }
 
 /*
- * The one key the offloads cannot carry: a passphrase, for a supplicant that
- * wants one rather than the PMK nl80211 hands over.  Association itself goes
- * through cfg80211.
+ * The offloads cannot send a passphrase, but the firmware supplicant needs
+ * one, not the PMK from nl80211.  The association goes through cfg80211.
  */
 static ssize_t psk_store(struct device *dev, struct device_attribute *attr,
 			 const char *buf, size_t count)
@@ -385,7 +384,7 @@ ATTRIBUTE_GROUPS(esp32s31_wifi);
 
 static void esp32s31_wifi_send_cmd(struct esp32s31_wifi *priv, u32 code)
 {
-	/* The code is written last: it is what the firmware polls on. */
+	/* Write the code last: the firmware reads it to find a command. */
 	wmb();
 	iowrite32(code, &priv->ipc->cmd.code);
 	iowrite32(1, priv->doorbell + ESP32S31_WIFI_DOORBELL_TX);
@@ -432,8 +431,8 @@ static void esp32s31_wifi_scan_work(struct work_struct *work)
 		if (bss.authmode != ESP32S31_IPC_AUTH_OPEN)
 			caps |= WLAN_CAPABILITY_PRIVACY;
 
-		/* cfg80211 builds the BSS from the one element we can
-		 * honestly supply; the firmware keeps the rest to itself.
+		/* cfg80211 makes the BSS from the SSID element only.  The
+		 * firmware does not give the other elements.
 		 */
 		ie[0] = WLAN_EID_SSID;
 		ie[1] = bss.ssid_len;
@@ -471,10 +470,9 @@ static int esp32s31_wifi_scan(struct wiphy *wiphy,
 }
 
 /*
- * The firmware's supplicant takes one string for every key type: a
- * passphrase, or 64 hex characters it reads as the PMK itself, which is what
- * the 4-way handshake offload hands us.  SAE needs the password, which the
- * SAE offload carries.
+ * The firmware supplicant takes one string for all key types: a passphrase,
+ * or 64 hex characters that it uses as the PMK.  The 4-way handshake offload
+ * gives a PMK.  SAE needs the password, which the SAE offload gives.
  */
 static int esp32s31_wifi_set_key(struct esp32s31_wifi *priv,
 				 struct cfg80211_connect_params *sme)
@@ -498,12 +496,10 @@ static int esp32s31_wifi_set_key(struct esp32s31_wifi *priv,
 	}
 
 	/*
-	 * Neither offload carried a key, so this association is driven through
-	 * the psk attribute, the only way to reach a supplicant that wants a
-	 * passphrase rather than a PMK.  Whatever was written there stands:
-	 * nl80211 never says a network is open, only that it has no key for
-	 * us, and clearing on that wipes the passphrase a moment before the
-	 * firmware needs it.
+	 * No offload gave a key, so the passphrase comes from the psk
+	 * attribute.  Keep the value that is there.  nl80211 does not say that
+	 * a network is open, only that it has no key.  If this clears the
+	 * value, the firmware does not get the passphrase.
 	 */
 	return 0;
 }
@@ -539,7 +535,7 @@ static int esp32s31_wifi_disconnect(struct wiphy *wiphy,
 	return 0;
 }
 
-/* Without this "iw link" reports the association and an error beside it. */
+/* Without this, "iw link" shows the association and also an error. */
 static int esp32s31_wifi_get_station(struct wiphy *wiphy,
 				     struct wireless_dev *wdev, const u8 *mac,
 				     struct station_info *sinfo)
@@ -596,7 +592,7 @@ static int esp32s31_wifi_probe(struct platform_device *pdev)
 	wiphy->max_scan_ssids = 1;
 	wiphy->max_scan_ie_len = 0;
 	wiphy->signal_type = CFG80211_SIGNAL_TYPE_MBM;
-	/* The firmware holds the keys and runs the handshakes. */
+	/* The firmware keeps the keys and does the handshakes. */
 	wiphy_ext_feature_set(wiphy,
 			      NL80211_EXT_FEATURE_4WAY_HANDSHAKE_STA_PSK);
 	wiphy_ext_feature_set(wiphy, NL80211_EXT_FEATURE_SAE_OFFLOAD);
