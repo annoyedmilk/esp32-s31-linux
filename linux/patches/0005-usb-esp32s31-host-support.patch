@@ -1,11 +1,10 @@
 diff --git a/drivers/phy/Kconfig b/drivers/phy/Kconfig
 --- a/drivers/phy/Kconfig
 +++ b/drivers/phy/Kconfig
-@@ -61,6 +61,18 @@ config PHY_CAN_TRANSCEIVER
- 	  driver provides function for putting the transceivers in various
+@@ -66,6 +66,18 @@
  	  functional modes using gpios and sets the attribute max link
  	  rate, for CAN drivers.
-+
+ 
 +config PHY_ESP32S31_USB
 +	bool "Espressif ESP32-S31 USB PHY driver"
 +	depends on OF && SOC_ESP32S31
@@ -17,23 +16,25 @@ diff --git a/drivers/phy/Kconfig b/drivers/phy/Kconfig
 +	  mode.
 +
 +	  If unsure, say N.
- 
- config PHY_GOOGLE_USB
- 	tristate "Google Tensor SoC USB PHY driver"
++
+ config PHY_EYEQ5_ETH
+ 	tristate "Ethernet PHY Driver on EyeQ5"
+ 	depends on OF
 diff --git a/drivers/phy/Makefile b/drivers/phy/Makefile
 --- a/drivers/phy/Makefile
 +++ b/drivers/phy/Makefile
-@@ -11,5 +11,6 @@ obj-$(CONFIG_GENERIC_PHY_MIPI_DPHY)	+= phy-core-mipi-dphy.o
+@@ -9,6 +9,7 @@
+ obj-$(CONFIG_GENERIC_PHY_MIPI_DPHY)	+= phy-core-mipi-dphy.o
  obj-$(CONFIG_PHY_AIROHA_PCIE)		+= phy-airoha-pcie.o
  obj-$(CONFIG_PHY_CAN_TRANSCEIVER)	+= phy-can-transceiver.o
 +obj-$(CONFIG_PHY_ESP32S31_USB)		+= phy-esp32s31-usb.o
+ obj-$(CONFIG_PHY_ECONET_PCIE)		+= phy-econet-pcie.o
+ obj-$(CONFIG_PHY_EYEQ5_ETH)		+= phy-eyeq5-eth.o
  obj-$(CONFIG_PHY_GOOGLE_USB)		+= phy-google-usb.o
- obj-$(CONFIG_USB_LGM_PHY)		+= phy-lgm-usb.o
- obj-$(CONFIG_PHY_LPC18XX_USB_OTG)	+= phy-lpc18xx-usb-otg.o
 diff --git a/drivers/usb/dwc2/params.c b/drivers/usb/dwc2/params.c
 --- a/drivers/usb/dwc2/params.c
 +++ b/drivers/usb/dwc2/params.c
-@@ -36,6 +36,40 @@ static void dwc2_set_bcm_params(struct dwc2_hsotg *hsotg)
+@@ -25,6 +25,40 @@
  	p->ahbcfg = 0x10;
  }
  
@@ -74,7 +75,7 @@ diff --git a/drivers/usb/dwc2/params.c b/drivers/usb/dwc2/params.c
  static void dwc2_set_his_params(struct dwc2_hsotg *hsotg)
  {
  	struct dwc2_core_params *p = &hsotg->params;
-@@ -305,6 +333,8 @@ static void dwc2_set_stm32mp15_hsotg_params(struct dwc2_hsotg *hsotg)
+@@ -305,6 +339,8 @@
  
  const struct of_device_id dwc2_of_match_table[] = {
  	{ .compatible = "brcm,bcm2835-usb", .data = dwc2_set_bcm_params },

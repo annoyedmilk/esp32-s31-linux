@@ -1,6 +1,6 @@
 # ESP32-S31 Linux
 
-Linux 7.1 and OpenSBI 1.9 on the ESP32-S31 Korvo-1 board. Linux uses the
+Linux 7.2 and OpenSBI 1.9 on the ESP32-S31 Korvo-1 board. Linux uses the
 16 MiB octal PSRAM as its memory.
 
 ```text
