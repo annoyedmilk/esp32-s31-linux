@@ -70,7 +70,7 @@ void init_sd_card(void)
         return;
     }
 
-    err = esp_clk_tree_enable_src(SDMMC_CLK_SRC_DEFAULT, true);
+    err = esp_clk_tree_acquire_src(SDMMC_CLK_SRC_DEFAULT);
     if (err == ESP_OK) {
         err = esp_clk_tree_src_get_freq_hz(SDMMC_CLK_SRC_DEFAULT,
                                            ESP_CLK_TREE_SRC_FREQ_PRECISION_CACHED,
@@ -89,7 +89,7 @@ void init_sd_card(void)
     }
 
     PERIPH_RCC_ATOMIC() {
-        sdmmc_ll_pad_set_pin_dedicated_ctrl(&SDMMC, true);
+        sdmmc_ll_pad_set_pin_dedicated_ctrl(&SDMMC, 0, true);
         sdmmc_ll_enable_bus_clock(0, true);
         sdmmc_ll_select_clk_source(&SDMMC, SDMMC_CLK_SRC_DEFAULT);
         sdmmc_ll_set_clock_div(&SDMMC, div);
