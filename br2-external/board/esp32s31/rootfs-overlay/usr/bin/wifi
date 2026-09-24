@@ -68,6 +68,17 @@ esac
 echo "$psk" >"$dev/psk"
 
 ip link set "$iface" up
+
+# cfg80211 rejects a connect while the station is connected.  Disconnect
+# first and wait until the firmware reports the link down.
+if iw dev "$iface" link | grep -q '^Connected'; then
+	disconnect
+	for _ in 1 2 3 4 5; do
+		iw dev "$iface" link | grep -q '^Connected' || break
+		sleep 1
+	done
+fi
+
 iw dev "$iface" connect "$ssid" || {
 	echo "wifi: connect request rejected" >&2
 	exit 1
