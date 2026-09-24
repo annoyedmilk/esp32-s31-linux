@@ -1,9 +1,9 @@
-# No RTC: the one-shot client sets the clock after a lease.  Client only.
+# No RTC: the udhcpc hook sets the clock with a one-shot ntpd client.
 CONFIG_NTPD=y
+# CONFIG_FEATURE_NTPD_SERVER is not set
+# CONFIG_FEATURE_NTPD_CONF is not set
 
-# Poking a socket by hand is basic bring-up work.
+# nc for socket tests during bring-up.
 CONFIG_NC=y
 CONFIG_NC_SERVER=y
 CONFIG_NC_EXTRA=y
-# CONFIG_FEATURE_NTPD_SERVER is not set
-# CONFIG_FEATURE_NTPD_CONF is not set

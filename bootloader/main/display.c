@@ -22,9 +22,8 @@
 #include "display.h"
 
 /*
- * Frame buffer placement: RGB565 at 800x480 needs 768 KiB, carved out of the
- * top of the 16 MiB PSRAM aperture so it stays clear of the kernel image at
- * 0x50000000 and the initramfs at 0x50800000.
+ * Frame buffer: RGB565 at 800x480 is 750 KiB at the top of PSRAM, above the
+ * kernel (0x50000000), the initramfs (0x50800000) and OpenSBI (0x50E00000).
  */
 #define LCD_FB_ADDR            0x50F40000U
 #define LCD_H_RES              800U
@@ -33,9 +32,9 @@
 #define LCD_PCLK_HZ            18000000U
 
 /*
- * The AXI DMA descriptor ring lives in upper SRAM, above the 256 KiB that the
- * loader relocates OpenSBI into at 0x2F000000.  The DMA engine keeps walking
- * this ring after the handoff, so it must not be clobbered by that copy.
+ * The AXI DMA descriptor ring is in upper SRAM, outside the ESP-IDF heap.
+ * The DMA engine reads this ring after the handoff, so nothing must use
+ * that memory again.
  */
 #define LCD_DMA_LINK_ADDR      0x2F079000U
 #define LCD_DMA_LINK_SIZE      0x1000U

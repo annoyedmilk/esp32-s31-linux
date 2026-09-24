@@ -1,6 +1,7 @@
 #!/bin/sh
 # SPDX-License-Identifier: MIT
 # wifi <ssid> [passphrase]  -- associate, take a DHCP lease, remember both
+# wifi scan                 -- list the networks in range
 # wifi --saved              -- associate with the remembered network
 # wifi off                  -- disconnect
 # wifi forget               -- disconnect and drop the saved credentials
