@@ -21,6 +21,6 @@ CONFIG_ESP_CONSOLE_UART_DEFAULT=y
 # CONFIG_ESP_PHY_CALIBRATION_AND_DATA_STORAGE is not set
 # GPIO33/34 are LCD data pins and also the USB Serial/JTAG D-/D+ pins.  The
 # loader does not start the display when a secondary console uses them.
-# Select CONFIG_ESP_CONSOLE_SECONDARY_USB_SERIAL_JTAG for JTAG and no display.
+# Select CONFIG_ESP_CONSOLE_SECONDARY_NONE for the display and no JTAG.
 # Flash and the Linux console use the CP2102N bridge in the two cases.
-CONFIG_ESP_CONSOLE_SECONDARY_NONE=y
+CONFIG_ESP_CONSOLE_SECONDARY_USB_SERIAL_JTAG=y
