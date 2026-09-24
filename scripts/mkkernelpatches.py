@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-"""Turn the linux/ source overlay into a patch Buildroot can apply.
+"""Make one patch from the linux/ source files, for Buildroot.
 
-Every file under linux/ (outside linux/patches/) is new to the kernel tree, so
-each one becomes a /dev/null hunk in a single generated patch.  The handwritten
-patches next to it modify files that already exist upstream.  Together they are
-the complete delta: nothing is copied over the extracted tree any more, which
-is what lets BR2_LINUX_KERNEL_PATCH build a stock kernel release.
+All files under linux/ (not linux/patches/) are new to the kernel.  Each file
+becomes a /dev/null hunk in one generated patch.  The manual patches next to
+it change existing kernel files.  Together they are the full change set, so
+BR2_LINUX_KERNEL_PATCH can build a stock kernel release.
 """
 import pathlib
 import sys
@@ -17,7 +16,7 @@ OUTPUT = OVERLAY / "patches" / "0000-esp32s31-add-source-files.patch"
 
 EXCLUDED = {"patches"}
 
-# Both worlds compile the Wi-Fi ABI header; the loader's copy is the authority.
+# The loader and the kernel both use the Wi-Fi ABI header.  shared/ has the master copy.
 EXTRA = {
     REPO / "shared" / "esp32s31-wifi-ipc.h":
         "drivers/net/wireless/espressif/esp32s31-wifi-ipc.h",

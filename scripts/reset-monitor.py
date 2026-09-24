@@ -16,8 +16,8 @@ def now_name():
 
 
 def pulse_reset(ser):
-    # ESP USB-Serial/JTAG follows esptool-style active-low EN on RTS.
-    # DTR controls GPIO0 on common boards; keep it inactive for normal boot.
+    # RTS drives the active-low EN pin, as esptool does.  DTR drives GPIO0 on
+    # most boards.  Keep DTR inactive for a normal boot.
     ser.dtr = False
     ser.rts = True
     time.sleep(0.1)
@@ -38,7 +38,7 @@ def main():
     parser.add_argument("--baud", type=int, default=115200)
     parser.add_argument("--log-dir", default="logs")
     parser.add_argument("--timeout", type=float, default=30.0)
-    parser.add_argument("--success-pattern", default="ESP32-S31 Linux / BusyBox")
+    parser.add_argument("--success-pattern", default="ESP32-S31 Linux / Buildroot")
     parser.add_argument("--no-reset", action="store_true")
     parser.add_argument(
         "--interactive",

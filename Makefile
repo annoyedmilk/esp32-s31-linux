@@ -7,8 +7,8 @@ IDF_PATH ?= $(HOME)/esp/esp-idf
 IDF_TOOLS_PATH ?= $(HOME)/.espressif
 PYTHON ?= $(lastword $(sort $(wildcard $(IDF_TOOLS_PATH)/python_env/*/bin/python)))
 ESPTOOL := $(PYTHON) -m esptool
-# export.sh names its virtualenv after whatever python3 it finds, so a host
-# Python upgrade points it at one that was never installed.  Pin what exists.
+# export.sh names its virtualenv after the python3 that it finds.  After a
+# host Python upgrade, that virtualenv does not exist.  Use the one that does.
 IDF_PYTHON_ENV := $(patsubst %/bin/python,%,$(PYTHON))
 ESP_RISCV_BIN := $(lastword $(sort $(wildcard $(IDF_TOOLS_PATH)/tools/riscv32-esp-elf/*/riscv32-esp-elf/bin)))
 CROSS_COMPILE ?= $(ESP_RISCV_BIN)/riscv32-esp-elf-
@@ -21,20 +21,20 @@ OPENSBI_SRC := $(BUILD_DIR)/opensbi-src
 OPENSBI_OUT := $(CURDIR)/$(BUILD_DIR)/opensbi
 OPENSBI_PATCHES := $(sort $(wildcard opensbi/patches/*.patch))
 
-# Every file, not the directories: editing a source in place leaves the
-# directory mtime alone, and the patch would not be regenerated.
+# List files, not directories.  An edit does not change the directory mtime,
+# and then make would not generate the patch again.
 LINUX_SOURCES := $(shell find linux -type f -not -name '.*' -not -path 'linux/patches/*') \
 	shared/esp32s31-wifi-ipc.h
 LINUX_GENERATED_PATCH := linux/patches/0000-esp32s31-add-source-files.patch
 
-# Buildroot cannot build on macOS, so it runs in a container.  Its output/ and
-# dl/ stay in a volume; several gigabytes have no business on virtiofs.
+# Buildroot cannot build on macOS, so it runs in a container.  Its output/
+# and dl/ are in a volume, because virtiofs is slow for many gigabytes.
 BR_DIR := external/buildroot
 BR_IMAGE ?= esp32s31-buildroot:bookworm
 BR_VOLUME ?= esp32s31-br
 BR_VOLUME_SIZE ?= 60G
 BR_DEFCONFIG := esp32s31_defconfig
-# The release Buildroot builds, which is also what the series is checked on.
+# The kernel release that Buildroot builds and that kernel-check uses.
 LINUX_VERSION := $(shell sed -n 's/^BR2_LINUX_KERNEL_CUSTOM_VERSION_VALUE="\(.*\)"/\1/p' \
 	br2-external/configs/esp32s31_defconfig)
 BR_MEMORY ?= 8G
@@ -44,15 +44,15 @@ CONTAINER ?= $(shell command -v container 2>/dev/null)
 BR_RUN = "$(CONTAINER)" run --rm --cpus $(JOBS) --memory $(BR_MEMORY) \
 	--uid $(shell id -u) --gid $(shell id -g) -e HOME=/br/home \
 	-v $(BR_VOLUME):/br -v "$(CURDIR)":/work "$(BR_IMAGE)"
-# The same image without the build volume, for checks that only read the tree.
+# The same image without the build volume, for checks that only read files.
 BR_TOOLS = "$(CONTAINER)" run --rm --uid $(shell id -u) --gid $(shell id -g) \
 	-v "$(CURDIR)":/work "$(BR_IMAGE)"
 
 INITRAMFS_INIT := br2-external/board/esp32s31/init
 SD_DISK ?=
 SD_RAW = $(subst /dev/disk,/dev/rdisk,$(SD_DISK))
-# FAT area; the rest of the card becomes the root partition.  Shrink this
-# for a smaller card -- diskutil fails loudly if it does not fit.
+# Size of the FAT partition.  The rest of the card is the root partition.
+# Make it smaller for a small card.  diskutil stops if it does not fit.
 SD_DATA_SIZE ?= 28G
 
 FLASH_PORT ?=
@@ -147,9 +147,9 @@ ports:
 
 build: bootloader opensbi rootfs initramfs
 
-# idf.py reads sdkconfig.defaults only when creating sdkconfig, then rewrites
-# sdkconfig every build, so edits to the defaults would never take effect.
-# The defaults win here, including over "idf.py menuconfig".
+# idf.py reads sdkconfig.defaults only when it creates sdkconfig.  Then it
+# writes sdkconfig at each build, so it ignores changes to the defaults.
+# Here the defaults have priority, also over "idf.py menuconfig".
 bootloader:
 	@if test -f bootloader/sdkconfig && \
 		test bootloader/sdkconfig.defaults -nt bootloader/sdkconfig; then \
@@ -170,8 +170,8 @@ opensbi:
 	@mkdir -p "$(OPENSBI_SRC)"
 	@cp -R "$(OPENSBI_DIR)"/* "$(OPENSBI_SRC)/"
 	@rm -rf "$(OPENSBI_OUT)"
-	@# A for loop exits with the status of its last iteration, so a reject
-	@# anywhere but the end would build a silently unpatched OpenSBI.
+	@# A for loop returns the status of its last iteration.  Without the exit,
+	@# a failed patch before the last one gives an unpatched OpenSBI.
 	@for patch_file in $(OPENSBI_PATCHES); do \
 		patch -d "$(OPENSBI_SRC)" -p1 -F0 -s < "$$patch_file" || \
 			{ echo "$$patch_file does not apply"; exit 1; }; \
@@ -182,17 +182,16 @@ opensbi:
 	@cp "$(OPENSBI_OUT)/platform/esp32s31/firmware/fw_jump.elf" "$(BUILD_DIR)/opensbi.elf"
 	@cp "$(OPENSBI_OUT)/platform/esp32s31/firmware/fw_jump.bin" "$(BUILD_DIR)/opensbi.bin"
 
-# Every file under linux/ is new to the kernel, so it ships as a generated
-# patch instead of a copy over the tree.  The rest modify existing files.
+# All files under linux/ are new to the kernel, so a generated patch adds
+# them.  The other patches change existing files.
 $(LINUX_GENERATED_PATCH): $(LINUX_SOURCES) scripts/mkkernelpatches.py
 	@"$(PYTHON)" scripts/mkkernelpatches.py
 
 kernel-patches: $(LINUX_GENERATED_PATCH)
 
-# Against a pristine extract of the release Buildroot builds, in the
-# container at zero fuzz, because that is what Buildroot does: the patch macOS
-# ships accepts stale context that GNU patch later rejects.  Also the test a
-# kernel version bump has to pass.
+# Apply the series to a clean extract of the kernel release, in the container
+# at zero fuzz, as Buildroot does.  The macOS patch accepts old context that
+# GNU patch rejects.  A kernel version change must also pass this test.
 kernel-check: kernel-patches br-volume
 	@$(BR_RUN) sh -c 'set -e; \
 		cd /work/$(BR_DIR); \
@@ -212,13 +211,12 @@ kernel: kernel-patches br-volume
 	@$(BR_RUN) sh -c 'set -e; cd /work/$(BR_DIR); $(BR_MAKE) linux-rebuild all'
 	@$(MAKE) --no-print-directory br-artifacts
 
-# Buildroot records what it applied, so a changed series needs the extracted
-# trees thrown away first.
+# Buildroot records the patches that it applied.  After a series change,
+# delete the extracted trees first.
 kernel-clean: br-volume
 	@$(BR_RUN) sh -c 'cd /work/$(BR_DIR); $(BR_MAKE) linux-dirclean linux-headers-dirclean'
 
-# A hundred megabytes of DWARF, so GDB gets it on demand and no build pays
-# for it.
+# vmlinux has 100 MB of DWARF, so copy it only when GDB needs it.
 kernel-vmlinux: br-volume
 	@$(BR_RUN) sh -c 'cp /br/output/build/linux-*/vmlinux /work/$(BUILD_DIR)/'
 	@ls -l "$(BUILD_DIR)/vmlinux"
@@ -234,7 +232,7 @@ container-image:
 	@test -n "$(CONTAINER)" || { echo 'missing the container CLI'; exit 1; }
 	@"$(CONTAINER)" build -t "$(BR_IMAGE)" container
 
-# Buildroot must not run as root, so the volume is handed to the caller once.
+# Buildroot must not run as root, so give the volume to the user one time.
 br-volume:
 	@test -n "$(CONTAINER)" || { echo 'missing the container CLI'; exit 1; }
 	@"$(CONTAINER)" volume inspect "$(BR_VOLUME)" >/dev/null 2>&1 || { \
@@ -243,7 +241,7 @@ br-volume:
 		"$(CONTAINER)" run --rm --uid 0 --gid 0 -v $(BR_VOLUME):/br "$(BR_IMAGE)" \
 			chown -R $(shell id -u):$(shell id -g) /br; }
 
-# The checked-in defconfig is the source of truth and is reapplied every build.
+# The defconfig in git is the reference.  Each build applies it again.
 rootfs: kernel-patches br-volume
 	@$(BR_RUN) sh -c 'set -e; \
 		cd /work/$(BR_DIR); \
@@ -251,8 +249,8 @@ rootfs: kernel-patches br-volume
 		$(BR_MAKE)'
 	@$(MAKE) --no-print-directory br-artifacts
 
-# The kernel and its manifest are flashed, so they come out of the volume
-# next to the loader and OpenSBI binaries.
+# Copy the kernel and its manifest from the volume for flashing, next to the
+# loader and OpenSBI binaries.
 br-artifacts:
 	@$(BR_RUN) sh -c 'set -e; \
 		mkdir -p /work/$(BR_OUT) /work/$(BUILD_DIR); \
@@ -264,7 +262,7 @@ br-artifacts:
 rootfs-menuconfig: br-volume
 	@$(BR_RUN) -i -t sh -c 'cd /work/$(BR_DIR) && $(BR_MAKE) $(BR_DEFCONFIG) && $(BR_MAKE) menuconfig'
 
-# Runs in the container because the target tree lives in the volume.
+# Runs in the container, because the target tree is in the volume.
 initramfs: rootfs
 	@$(BR_RUN) sh -c 'cd /work && python3 scripts/mkinitramfs.py \
 		--target /br/output/target --init "$(INITRAMFS_INIT)" \
@@ -275,8 +273,8 @@ sdcard: rootfs
 		echo 'Buildroot produced no sdcard.img; check post-image.sh'; exit 1; }
 	@ls -l "$(BR_OUT)/sdcard.img"
 
-# Lay out a large card: most of it FAT for the Mac, a small ext4 root.  Use
-# this instead of sdwrite when the card is bigger than the image.
+# Partition a large card: a large FAT partition for the Mac and a small ext4
+# root.  Use this and not sdwrite when the card is larger than the image.
 sdpart:
 	@test -n "$(SD_DISK)" || { echo 'set SD_DISK=/dev/diskN (see: diskutil list external)'; exit 1; }
 	@diskutil info "$(SD_DISK)" | grep -E 'Device Node|Media Name|Disk Size|Removable Media'
@@ -287,8 +285,8 @@ sdpart:
 	@diskutil partitionDisk "$(SD_DISK)" MBR \
 		"MS-DOS FAT32" KORVO_SD $(SD_DATA_SIZE) "MS-DOS FAT32" ROOTFS R
 	@diskutil unmountDisk "$(SD_DISK)"
-# Linux creates the node whatever the type byte says, but 0x83 stops macOS
-# trying to mount an ext4 partition as FAT on every insert.
+# Linux ignores the type byte.  With 0x83, macOS does not try to mount the
+# ext4 partition as FAT at each insertion.
 	@sudo sh -c 'dd if="$(SD_RAW)" of="$(BUILD_DIR)/mbr.bin" bs=512 count=1 && \
 		printf "\\x83" | dd of="$(BUILD_DIR)/mbr.bin" bs=1 seek=466 conv=notrunc && \
 		dd if="$(BUILD_DIR)/mbr.bin" of="$(SD_RAW)" bs=512 count=1' \
@@ -297,7 +295,7 @@ sdpart:
 	@diskutil list "$(SD_DISK)"
 	@echo 'now: make sdroot SD_DISK=$(SD_DISK)'
 
-# Erases the card, and drops everything past the last partition on a big one.
+# Erases the card.  On a large card, the space after p2 is not used.
 sdwrite:
 	@test -n "$(SD_DISK)" || { echo 'set SD_DISK=/dev/diskN (see: diskutil list external)'; exit 1; }
 	@test -f "$(BR_OUT)/sdcard.img" || { echo 'no $(BR_OUT)/sdcard.img; run make sdcard'; exit 1; }
@@ -310,7 +308,7 @@ sdwrite:
 	@sync
 	@diskutil eject "$(SD_DISK)"
 
-# The day-to-day loop: leaves the data partition and the card's size alone.
+# For updates: does not change the data partition or the partition sizes.
 sdroot:
 	@test -n "$(SD_DISK)" || { echo 'set SD_DISK=/dev/diskN (see: diskutil list external)'; exit 1; }
 	@test -f "$(BR_OUT)/rootfs.ext2" || { echo 'no $(BR_OUT)/rootfs.ext2; run make rootfs'; exit 1; }

@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-"""Pack the initramfs that lives in the flash partition.
+"""Pack the initramfs for the flash partition.
 
-Just enough of Buildroot's target to reach the rootfs on the card. The loader
-reads the whole partition and checks for newc magic at offset 0, so the output
-is always padded to the full partition size.
+It has only the parts of the Buildroot target that are necessary to mount the
+rootfs on the card.  The loader reads the full partition and checks for the
+newc magic at offset 0.  Thus the output always fills the full partition.
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ import struct
 from pathlib import Path
 
 
-# Recovery toolkit, not a userspace: each of these costs ~120 bytes of header.
+# Recovery tools only.  Each link adds approximately 120 bytes of header.
 APPLETS = (
     "sh", "ash", "mount", "umount", "switch_root", "sleep", "echo", "cat",
     "ls", "mkdir", "dmesg", "blkid", "fdisk", "sync", "uname", "setsid",
@@ -26,8 +26,8 @@ APPLETS = (
 DIRECTORIES = (".", "bin", "dev", "lib", "lib/firmware", "mnt", "proc", "run",
                "sys", "tmp")
 
-# cfg80211 asks for these while the initramfs is still the root, so the copy
-# on the card comes too late to answer.
+# cfg80211 loads these while the initramfs is the root.  The copy on the
+# card is not available yet.
 FIRMWARE = ("regulatory.db", "regulatory.db.p7s")
 
 PT_INTERP = 3
@@ -52,10 +52,10 @@ def add_entry(archive: bytearray, name: str, mode: int, data: bytes = b"",
 
 
 def elf_interpreter(path: Path) -> str | None:
-    """The binary's PT_INTERP, or None when it is static.
+    """Return the PT_INTERP of the binary, or None for a static binary.
 
-    Read rather than guessed: musl's loader name carries the float ABI, which
-    is -sf on this target.
+    Read it from the file.  The name of the musl loader includes the float
+    ABI, which is -sf on this target.
     """
     blob = path.read_bytes()
     if blob[:4] != b"\x7fELF" or blob[4] != 1:
@@ -93,7 +93,7 @@ def build(target: Path, init: Path, size: int) -> bytes:
         source = target / name
         if not source.exists():
             raise SystemExit(f"BusyBox wants {interp}, which the target lacks")
-        # Buildroot ships the loader as a symlink; exec needs both halves.
+        # The loader is a symlink in Buildroot.  exec needs the link and the file.
         if source.is_symlink():
             link = os.readlink(source)
             real = (source.parent / link).resolve()
