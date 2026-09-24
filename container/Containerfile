@@ -1,10 +1,12 @@
-# Buildroot cannot build on macOS.  arm64 Debian runs natively here, so
-# nothing in this path is emulated.
+# Buildroot does not build on macOS.  arm64 Debian runs natively on Apple
+# silicon, so there is no emulation.
 FROM debian:bookworm
 
+# Buildroot host dependencies, plus dosfstools/mtools for genimage and
+# python3 for post-image.sh and mkinitramfs.py.
 RUN apt-get update && apt-get install -y --no-install-recommends \
         bc binutils build-essential bzip2 ca-certificates cpio diffutils \
-        dosfstools file findutils git gzip libncurses-dev locales make \
+        dosfstools file findutils git gzip libncurses-dev make \
         mtools patch perl python3 rsync sed tar unzip wget which xz-utils \
     && rm -rf /var/lib/apt/lists/*
 

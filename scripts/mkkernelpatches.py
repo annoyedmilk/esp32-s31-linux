@@ -15,8 +15,7 @@ REPO = pathlib.Path(__file__).resolve().parent.parent
 OVERLAY = REPO / "linux"
 OUTPUT = OVERLAY / "patches" / "0000-esp32s31-add-source-files.patch"
 
-# The kernel configuration lives in br2-external/ instead.
-EXCLUDED = {"patches", "arch/riscv/configs"}
+EXCLUDED = {"patches"}
 
 # Both worlds compile the Wi-Fi ABI header; the loader's copy is the authority.
 EXTRA = {
@@ -60,7 +59,8 @@ def hunk(rel, text):
 def main():
     sources = {}
     for path in sorted(OVERLAY.rglob("*")):
-        if not path.is_file():
+        # Skip macOS metadata such as .DS_Store and ._* files.
+        if not path.is_file() or path.name.startswith("."):
             continue
         rel = path.relative_to(OVERLAY).as_posix()
         if excluded(rel):

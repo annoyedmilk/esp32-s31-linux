@@ -110,6 +110,7 @@ def build(target: Path, init: Path, size: int) -> bytes:
         if blob.exists():
             add_entry(archive, f"lib/firmware/{name}", stat.S_IFREG | 0o644,
                       blob.read_bytes(), ino)
+            ino += 1
 
     add_entry(archive, "init", stat.S_IFREG | 0o755, init.read_bytes(), ino)
     add_entry(archive, "TRAILER!!!", 0, ino=ino + 1)

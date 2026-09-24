@@ -23,7 +23,7 @@ OPENSBI_PATCHES := $(sort $(wildcard opensbi/patches/*.patch))
 
 # Every file, not the directories: editing a source in place leaves the
 # directory mtime alone, and the patch would not be regenerated.
-LINUX_SOURCES := $(shell find linux -type f -not -path 'linux/patches/*') \
+LINUX_SOURCES := $(shell find linux -type f -not -name '.*' -not -path 'linux/patches/*') \
 	shared/esp32s31-wifi-ipc.h
 LINUX_GENERATED_PATCH := linux/patches/0000-esp32s31-add-source-files.patch
 
@@ -138,6 +138,7 @@ check:
 	@test -f "$(IDF_PATH)/export.sh" || { echo 'missing ESP-IDF at $(IDF_PATH)'; exit 1; }
 	@test -n "$(CONTAINER)" -a -x "$(CONTAINER)" || { echo 'missing the container CLI (Buildroot cannot build on macOS)'; exit 1; }
 	@"$(CONTAINER)" system status >/dev/null 2>&1 || { echo 'container services are not running: container system start'; exit 1; }
+	@"$(CONTAINER)" image inspect "$(BR_IMAGE)" >/dev/null 2>&1 || { echo 'missing the $(BR_IMAGE) image: make container-image'; exit 1; }
 	@"$(PYTHON)" -c 'import serial' || { echo 'missing pyserial in ESP-IDF Python environment'; exit 1; }
 	@git submodule status --recursive
 
