@@ -10,10 +10,10 @@ maintainers:
   - Marco Müller <hello@annoyedmilk.ch>
 
 description: >
-  The ESP32-S31 samples a noise source and mixes it through a CRC, so unlike
-  the generator on earlier Espressif parts it needs neither the RF subsystem
-  nor the SAR ADC to be running. Its clock and reset are one register in the
-  LP peripheral clock controller rather than a clock provider.
+  The ESP32-S31 samples a noise source and mixes it with a CRC. Thus,
+  different from earlier Espressif chips, it does not need the RF subsystem
+  or the SAR ADC. Its clock and reset are one register in the LP peripheral
+  clock controller, not a clock provider.
 
 properties:
   compatible:

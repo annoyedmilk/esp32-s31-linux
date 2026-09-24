@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0+
 /*
- * Espressif ESP32-S31 minimal Device Tree Source.
+ * Espressif ESP32-S31 minimal device tree.
  * Author: Marco Müller <hello@annoyedmilk.ch>
  */
 
@@ -13,7 +13,7 @@
 
 	memory@50000000 {
 		device_type = "memory";
-		/* 16MB RAM */
+		/* 16 MiB PSRAM */
 		reg = <0x50000000 0x01000000>;
 	};
 
@@ -22,22 +22,22 @@
 		#size-cells = <1>;
 		ranges;
 
-		/* Scanned out by the loader's DMA across the handoff. */
+		/* The loader DMA reads this buffer also after the handoff. */
 		fb_region: framebuffer@50f40000 {
 			reg = <0x50f40000 0xbc000>;
 			no-map;
 		};
 
-		/* M-mode firmware; Linux must never map or allocate it. */
+		/* M-mode firmware.  Linux must never map or allocate it. */
 		opensbi_region: opensbi@50e00000 {
 			reg = <0x50e00000 0x40000>;
 			no-map;
 		};
 
 		/*
-		 * PSRAM has no uncached alias and Sv32 carries no
-		 * cacheability attribute, so coherent allocations come from
-		 * internal SRAM, which bypasses the data cache.
+		 * PSRAM has no uncached alias, and Sv32 has no cacheability
+		 * attribute.  Thus coherent allocations come from internal
+		 * SRAM, which the data cache does not hold.
 		 */
 		dma_pool: dma-pool@2f040000 {
 			compatible = "shared-dma-pool";
@@ -57,8 +57,8 @@
 		timebase-frequency = <320000000>;
 
 		/*
-		 * Hart 0 stays in M-mode running the resident ESP-IDF
-		 * firmware that owns the WLAN modem; Linux is given hart 1.
+		 * Hart 0 stays in M-mode and runs the ESP-IDF firmware for
+		 * the WLAN modem.  Linux uses hart 1.
 		 */
 		cpu1: cpu@1 {
 			device_type = "cpu";
@@ -83,7 +83,7 @@
 		clock-frequency = <40000000>;
 	};
 
-	/* The PHY driver gates the generated 12 MHz USB reference clock. */
+	/* The PHY driver switches the 12 MHz USB reference clock on and off. */
 	usb_ref_clk: usb-ref-clock {
 		compatible = "fixed-clock";
 		#clock-cells = <0>;
@@ -103,8 +103,8 @@
 		ranges;
 		/*
 		 * No bus master on this SoC is coherent with the data cache,
-		 * and the hart implements no Zicbom, so every DMA-capable
-		 * device below relies on the cache controller's sync engine.
+		 * and the hart has no Zicbom.  Thus all DMA devices below use
+		 * the sync engine of the cache controller.
 		 */
 		dma-noncoherent;
 
@@ -163,9 +163,9 @@
 		};
 
 		/*
-		 * The rings live in internal SRAM and the doorbells are the
-		 * cross-core interrupt registers: FROM_CPU_0 is raised by the
-		 * firmware and acknowledged here, FROM_CPU_1 is raised here.
+		 * The rings are in internal SRAM.  The doorbells are the
+		 * cross-core interrupt registers.  The firmware sets
+		 * FROM_CPU_0 and Linux clears it.  Linux sets FROM_CPU_1.
 		 */
 		wifi: wifi@2f050000 {
 			compatible = "esp,esp32s31-wifi";
@@ -188,8 +188,8 @@
 		usb0: usb@20300000 {
 			compatible = "esp,esp32s31-usb", "snps,dwc2";
 			/*
-			 * Whole aperture up to the PAU block: the per-channel
-			 * FIFO windows sit at 0x1000 * (channel + 1).
+			 * The full aperture up to the PAU block.  The FIFO
+			 * window of each channel is at 0x1000 * (channel + 1).
 			 */
 			reg = <0x20300000 0x40000>;
 			interrupt-parent = <&clic>;

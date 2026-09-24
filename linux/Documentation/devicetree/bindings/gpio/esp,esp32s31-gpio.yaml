@@ -10,10 +10,9 @@ maintainers:
   - Marco Mueller <hello@annoyedmilk.ch>
 
 description:
-  The SoC drives each pad through two blocks. IO MUX selects which peripheral
-  owns the pad and the GPIO matrix routes a signal to it, so owning a pin as
-  GPIO needs both windows. Of the 62 pads, GPIO29 and GPIO41 are not bonded
-  out.
+  Two blocks control each pad. IO MUX selects the peripheral that uses the
+  pad. The GPIO matrix connects a signal to it. Thus a GPIO needs the two
+  register windows. Of the 62 pads, GPIO29 and GPIO41 have no package pin.
 
 properties:
   compatible:

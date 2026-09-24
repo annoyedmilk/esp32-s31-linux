@@ -10,10 +10,11 @@ maintainers:
   - Marco Müller <hello@annoyedmilk.ch>
 
 description:
-  The ESP32-S31 cache controller fronts the external PSRAM aperture. Its sync
-  engine performs address-ranged invalidate, writeback and writeback-invalidate
-  operations, which the kernel uses for DMA cache maintenance because the hart
-  implements no Zicbom and the SoC exposes no uncached alias of that aperture.
+  The ESP32-S31 cache controller is in front of the external PSRAM aperture.
+  Its sync engine does invalidate, writeback and writeback-invalidate
+  operations on an address range. The kernel uses them for DMA cache
+  maintenance, because the hart has no Zicbom and the SoC has no uncached
+  alias of that aperture.
 
 properties:
   compatible:

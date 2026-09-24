@@ -10,16 +10,17 @@ maintainers:
   - Marco Müller <hello@annoyedmilk.ch>
 
 description: >
-  Each ESP32-S31 core has a CLIC with 48 inputs, 16 architectural local causes
-  followed by 32 inputs fed from a per-core Interrupt Matrix that routes SoC
-  interrupt sources onto them. The register window is per-core virtualised at
-  a single physical address, and machine-mode firmware must delegate an input
-  before the supervisor window shows it at all, so this binding describes the
-  supervisor view only.
+  Each ESP32-S31 core has a CLIC with 48 inputs: 16 architectural local
+  causes, then 32 inputs from the Interrupt Matrix of that core. The matrix
+  connects SoC interrupt sources to these inputs. All cores use the same
+  physical address for the register window, and each core sees its own
+  registers. The supervisor window shows an input only after the
+  machine-mode firmware gives it to S-mode. Thus this binding describes only
+  the supervisor view.
 
-  Because a peripheral interrupt exists as a SoC source number until the
-  matrix routes it, an interrupt specifier carries three cells, the CLIC input
-  to deliver on, the SoC interrupt source to route there, and the trigger type.
+  A peripheral interrupt is only a SoC source number until the matrix
+  connects it. Thus an interrupt specifier has three cells: the CLIC input,
+  the SoC interrupt source for that input, and the trigger type.
 
 properties:
   compatible:

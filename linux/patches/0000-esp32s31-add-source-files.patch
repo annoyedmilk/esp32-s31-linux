@@ -9,7 +9,7 @@ diff --git a/Documentation/devicetree/bindings/cache/esp,esp32s31-cache.yaml b/D
 new file mode 100644
 --- /dev/null
 +++ b/Documentation/devicetree/bindings/cache/esp,esp32s31-cache.yaml
-@@ -0,0 +1,44 @@
+@@ -0,0 +1,45 @@
 +# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
 +%YAML 1.2
 +---
@@ -22,10 +22,11 @@ new file mode 100644
 +  - Marco Müller <hello@annoyedmilk.ch>
 +
 +description:
-+  The ESP32-S31 cache controller fronts the external PSRAM aperture. Its sync
-+  engine performs address-ranged invalidate, writeback and writeback-invalidate
-+  operations, which the kernel uses for DMA cache maintenance because the hart
-+  implements no Zicbom and the SoC exposes no uncached alias of that aperture.
++  The ESP32-S31 cache controller is in front of the external PSRAM aperture.
++  Its sync engine does invalidate, writeback and writeback-invalidate
++  operations on an address range. The kernel uses them for DMA cache
++  maintenance, because the hart has no Zicbom and the SoC has no uncached
++  alias of that aperture.
 +
 +properties:
 +  compatible:
@@ -58,7 +59,7 @@ diff --git a/Documentation/devicetree/bindings/gpio/esp,esp32s31-gpio.yaml b/Doc
 new file mode 100644
 --- /dev/null
 +++ b/Documentation/devicetree/bindings/gpio/esp,esp32s31-gpio.yaml
-@@ -0,0 +1,54 @@
+@@ -0,0 +1,53 @@
 +# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
 +%YAML 1.2
 +---
@@ -71,10 +72,9 @@ new file mode 100644
 +  - Marco Mueller <hello@annoyedmilk.ch>
 +
 +description:
-+  The SoC drives each pad through two blocks. IO MUX selects which peripheral
-+  owns the pad and the GPIO matrix routes a signal to it, so owning a pin as
-+  GPIO needs both windows. Of the 62 pads, GPIO29 and GPIO41 are not bonded
-+  out.
++  Two blocks control each pad. IO MUX selects the peripheral that uses the
++  pad. The GPIO matrix connects a signal to it. Thus a GPIO needs the two
++  register windows. Of the 62 pads, GPIO29 and GPIO41 have no package pin.
 +
 +properties:
 +  compatible:
@@ -117,7 +117,7 @@ diff --git a/Documentation/devicetree/bindings/interrupt-controller/esp,esp32s31
 new file mode 100644
 --- /dev/null
 +++ b/Documentation/devicetree/bindings/interrupt-controller/esp,esp32s31-clic.yaml
-@@ -0,0 +1,60 @@
+@@ -0,0 +1,61 @@
 +# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
 +%YAML 1.2
 +---
@@ -130,16 +130,17 @@ new file mode 100644
 +  - Marco Müller <hello@annoyedmilk.ch>
 +
 +description: >
-+  Each ESP32-S31 core has a CLIC with 48 inputs, 16 architectural local causes
-+  followed by 32 inputs fed from a per-core Interrupt Matrix that routes SoC
-+  interrupt sources onto them. The register window is per-core virtualised at
-+  a single physical address, and machine-mode firmware must delegate an input
-+  before the supervisor window shows it at all, so this binding describes the
-+  supervisor view only.
++  Each ESP32-S31 core has a CLIC with 48 inputs: 16 architectural local
++  causes, then 32 inputs from the Interrupt Matrix of that core. The matrix
++  connects SoC interrupt sources to these inputs. All cores use the same
++  physical address for the register window, and each core sees its own
++  registers. The supervisor window shows an input only after the
++  machine-mode firmware gives it to S-mode. Thus this binding describes only
++  the supervisor view.
 +
-+  Because a peripheral interrupt exists as a SoC source number until the
-+  matrix routes it, an interrupt specifier carries three cells, the CLIC input
-+  to deliver on, the SoC interrupt source to route there, and the trigger type.
++  A peripheral interrupt is only a SoC source number until the matrix
++  connects it. Thus an interrupt specifier has three cells: the CLIC input,
++  the SoC interrupt source for that input, and the trigger type.
 +
 +properties:
 +  compatible:
@@ -182,7 +183,7 @@ diff --git a/Documentation/devicetree/bindings/net/wireless/esp,esp32s31-wifi.ya
 new file mode 100644
 --- /dev/null
 +++ b/Documentation/devicetree/bindings/net/wireless/esp,esp32s31-wifi.yaml
-@@ -0,0 +1,59 @@
+@@ -0,0 +1,58 @@
 +# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
 +%YAML 1.2
 +---
@@ -195,14 +196,13 @@ new file mode 100644
 +  - Marco Müller <hello@annoyedmilk.ch>
 +
 +description: >
-+  The WLAN modem of the ESP32-S31 is owned by ESP-IDF firmware resident on the
-+  hart that does not run Linux, which keeps the 802.11 side and its supplicant
-+  to itself and exchanges 802.3 frames, scan results and association state
-+  through fixed-size slot rings in internal SRAM. The firmware publishes its
-+  ring layout, protocol version, station MAC address and the association it
-+  made at the start of that region. Each direction is signalled by one of the
-+  cross-core interrupt registers, the first raised by the firmware and
-+  acknowledged by Linux, the second raised by Linux.
++  ESP-IDF firmware on the hart that does not run Linux controls the WLAN
++  modem of the ESP32-S31. The firmware runs 802.11 and its supplicant. It
++  sends 802.3 frames, scan results and the association state through rings
++  of fixed-size slots in internal SRAM. At the start of that region, the
++  firmware writes its ring layout, protocol version, station MAC address and
++  association. One cross-core interrupt register signals each direction. The
++  firmware sets the first and Linux clears it. Linux sets the second.
 +
 +allOf:
 +  - $ref: /schemas/net/network-class.yaml#
@@ -223,7 +223,7 @@ new file mode 100644
 +
 +  interrupts:
 +    maxItems: 1
-+    description: doorbell raised by the firmware when frames are queued
++    description: doorbell that the firmware sets when it adds frames
 +
 +required:
 +  - compatible
@@ -259,9 +259,9 @@ new file mode 100644
 +  - Marco Mueller <hello@annoyedmilk.ch>
 +
 +description:
-+  The ESP32-S31 integrates a high-speed UTMI PHY connected to its Synopsys
-+  DWC2 controller.  Its clock, reset, host pull-down, and low-speed mode
-+  controls reside in several SoC system register blocks.
++  The ESP32-S31 has a high-speed UTMI PHY for its Synopsys DWC2 controller.
++  Its clock, reset, host pull-down and low-speed mode controls are in
++  different SoC system register blocks.
 +
 +properties:
 +  compatible:
@@ -319,10 +319,10 @@ new file mode 100644
 +  - Marco Müller <hello@annoyedmilk.ch>
 +
 +description: >
-+  The ESP32-S31 samples a noise source and mixes it through a CRC, so unlike
-+  the generator on earlier Espressif parts it needs neither the RF subsystem
-+  nor the SAR ADC to be running. Its clock and reset are one register in the
-+  LP peripheral clock controller rather than a clock provider.
++  The ESP32-S31 samples a noise source and mixes it with a CRC. Thus,
++  different from earlier Espressif chips, it does not need the RF subsystem
++  or the SAR ADC. Its clock and reset are one register in the LP peripheral
++  clock controller, not a clock provider.
 +
 +properties:
 +  compatible:
@@ -366,7 +366,7 @@ new file mode 100644
 @@ -0,0 +1,206 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
-+ * Espressif ESP32-S31 minimal Device Tree Source.
++ * Espressif ESP32-S31 minimal device tree.
 + * Author: Marco Müller <hello@annoyedmilk.ch>
 + */
 +
@@ -379,7 +379,7 @@ new file mode 100644
 +
 +	memory@50000000 {
 +		device_type = "memory";
-+		/* 16MB RAM */
++		/* 16 MiB PSRAM */
 +		reg = <0x50000000 0x01000000>;
 +	};
 +
@@ -388,22 +388,22 @@ new file mode 100644
 +		#size-cells = <1>;
 +		ranges;
 +
-+		/* Scanned out by the loader's DMA across the handoff. */
++		/* The loader DMA reads this buffer also after the handoff. */
 +		fb_region: framebuffer@50f40000 {
 +			reg = <0x50f40000 0xbc000>;
 +			no-map;
 +		};
 +
-+		/* M-mode firmware; Linux must never map or allocate it. */
++		/* M-mode firmware.  Linux must never map or allocate it. */
 +		opensbi_region: opensbi@50e00000 {
 +			reg = <0x50e00000 0x40000>;
 +			no-map;
 +		};
 +
 +		/*
-+		 * PSRAM has no uncached alias and Sv32 carries no
-+		 * cacheability attribute, so coherent allocations come from
-+		 * internal SRAM, which bypasses the data cache.
++		 * PSRAM has no uncached alias, and Sv32 has no cacheability
++		 * attribute.  Thus coherent allocations come from internal
++		 * SRAM, which the data cache does not hold.
 +		 */
 +		dma_pool: dma-pool@2f040000 {
 +			compatible = "shared-dma-pool";
@@ -423,8 +423,8 @@ new file mode 100644
 +		timebase-frequency = <320000000>;
 +
 +		/*
-+		 * Hart 0 stays in M-mode running the resident ESP-IDF
-+		 * firmware that owns the WLAN modem; Linux is given hart 1.
++		 * Hart 0 stays in M-mode and runs the ESP-IDF firmware for
++		 * the WLAN modem.  Linux uses hart 1.
 +		 */
 +		cpu1: cpu@1 {
 +			device_type = "cpu";
@@ -449,7 +449,7 @@ new file mode 100644
 +		clock-frequency = <40000000>;
 +	};
 +
-+	/* The PHY driver gates the generated 12 MHz USB reference clock. */
++	/* The PHY driver switches the 12 MHz USB reference clock on and off. */
 +	usb_ref_clk: usb-ref-clock {
 +		compatible = "fixed-clock";
 +		#clock-cells = <0>;
@@ -469,8 +469,8 @@ new file mode 100644
 +		ranges;
 +		/*
 +		 * No bus master on this SoC is coherent with the data cache,
-+		 * and the hart implements no Zicbom, so every DMA-capable
-+		 * device below relies on the cache controller's sync engine.
++		 * and the hart has no Zicbom.  Thus all DMA devices below use
++		 * the sync engine of the cache controller.
 +		 */
 +		dma-noncoherent;
 +
@@ -529,9 +529,9 @@ new file mode 100644
 +		};
 +
 +		/*
-+		 * The rings live in internal SRAM and the doorbells are the
-+		 * cross-core interrupt registers: FROM_CPU_0 is raised by the
-+		 * firmware and acknowledged here, FROM_CPU_1 is raised here.
++		 * The rings are in internal SRAM.  The doorbells are the
++		 * cross-core interrupt registers.  The firmware sets
++		 * FROM_CPU_0 and Linux clears it.  Linux sets FROM_CPU_1.
 +		 */
 +		wifi: wifi@2f050000 {
 +			compatible = "esp,esp32s31-wifi";
@@ -554,8 +554,8 @@ new file mode 100644
 +		usb0: usb@20300000 {
 +			compatible = "esp,esp32s31-usb", "snps,dwc2";
 +			/*
-+			 * Whole aperture up to the PAU block: the per-channel
-+			 * FIFO windows sit at 0x1000 * (channel + 1).
++			 * The full aperture up to the PAU block.  The FIFO
++			 * window of each channel is at 0x1000 * (channel + 1).
 +			 */
 +			reg = <0x20300000 0x40000>;
 +			interrupt-parent = <&clic>;
@@ -2159,9 +2159,9 @@ new file mode 100644
 +	depends on SOC_ESP32S31 || COMPILE_TEST
 +	depends on OF
 +	help
-+	  Network device for the WLAN modem of the ESP32-S31, which is driven
-+	  by ESP-IDF firmware resident on the second hart. Linux exchanges
-+	  802.3 frames with that firmware through shared internal SRAM.
++	  Network device for the WLAN modem of the ESP32-S31.  ESP-IDF
++	  firmware on hart 0 controls the modem.  Linux sends and receives
++	  802.3 frames through shared internal SRAM.
 +
 +	  To compile this driver as a module, choose M here: the module will
 +	  be called esp32s31-wifi.

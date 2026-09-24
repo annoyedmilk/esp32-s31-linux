@@ -10,9 +10,9 @@ maintainers:
   - Marco Mueller <hello@annoyedmilk.ch>
 
 description:
-  The ESP32-S31 integrates a high-speed UTMI PHY connected to its Synopsys
-  DWC2 controller.  Its clock, reset, host pull-down, and low-speed mode
-  controls reside in several SoC system register blocks.
+  The ESP32-S31 has a high-speed UTMI PHY for its Synopsys DWC2 controller.
+  Its clock, reset, host pull-down and low-speed mode controls are in
+  different SoC system register blocks.
 
 properties:
   compatible:

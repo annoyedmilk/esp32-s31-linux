@@ -10,14 +10,13 @@ maintainers:
   - Marco Müller <hello@annoyedmilk.ch>
 
 description: >
-  The WLAN modem of the ESP32-S31 is owned by ESP-IDF firmware resident on the
-  hart that does not run Linux, which keeps the 802.11 side and its supplicant
-  to itself and exchanges 802.3 frames, scan results and association state
-  through fixed-size slot rings in internal SRAM. The firmware publishes its
-  ring layout, protocol version, station MAC address and the association it
-  made at the start of that region. Each direction is signalled by one of the
-  cross-core interrupt registers, the first raised by the firmware and
-  acknowledged by Linux, the second raised by Linux.
+  ESP-IDF firmware on the hart that does not run Linux controls the WLAN
+  modem of the ESP32-S31. The firmware runs 802.11 and its supplicant. It
+  sends 802.3 frames, scan results and the association state through rings
+  of fixed-size slots in internal SRAM. At the start of that region, the
+  firmware writes its ring layout, protocol version, station MAC address and
+  association. One cross-core interrupt register signals each direction. The
+  firmware sets the first and Linux clears it. Linux sets the second.
 
 allOf:
   - $ref: /schemas/net/network-class.yaml#
@@ -38,7 +37,7 @@ properties:
 
   interrupts:
     maxItems: 1
-    description: doorbell raised by the firmware when frames are queued
+    description: doorbell that the firmware sets when it adds frames
 
 required:
   - compatible
