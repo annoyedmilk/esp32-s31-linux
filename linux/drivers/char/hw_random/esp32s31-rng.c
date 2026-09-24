@@ -6,6 +6,11 @@
  * and mixes it with a CRC.  Thus, different from earlier Espressif chips, it
  * does not need the RF subsystem or the SAR ADC.  Its clock and reset are in
  * the LP peripheral clock controller.
+ *
+ * The ESP-IDF firmware on hart 0 also reads the TRNG, and it starts the block
+ * with noise source, health test and output mode settings.  A reset or a new
+ * setup from Linux would erase them for the two harts.  Thus Linux only makes
+ * sure that the block is on, and reads it.
  */
 
 #include <linux/delay.h>
@@ -16,11 +21,8 @@
 #include <linux/platform_device.h>
 
 #define ESP32S31_TRNG_CONF		0x00
-#define ESP32S31_TRNG_NOISE_CRC_EN	BIT(30)
 #define ESP32S31_TRNG_SAMPLE_ENABLE	BIT(31)
 #define ESP32S31_TRNG_DATA		0x48
-#define ESP32S31_TRNG_DATE		0xfc
-#define ESP32S31_TRNG_CLK_EN		BIT(28)
 
 #define ESP32S31_RNG_CTRL_CLK_EN	BIT(30)
 #define ESP32S31_RNG_CTRL_RST_EN	BIT(31)
@@ -34,40 +36,19 @@ struct esp32s31_rng {
 	void __iomem *clkrst;
 };
 
-static void esp32s31_rng_update(void __iomem *reg, u32 mask, bool set)
+/*
+ * The same test as ESP-IDF rng_ll_is_enabled(), plus the sample bit.  Do not
+ * test DATE.clk_en: it only forces the register clock on, and the firmware
+ * block works with it at 0.
+ */
+static bool esp32s31_rng_is_on(struct esp32s31_rng *priv)
 {
-	u32 val = readl(reg);
+	u32 ctrl = readl(priv->clkrst);
+	u32 conf = readl(priv->trng + ESP32S31_TRNG_CONF);
 
-	if (set)
-		val |= mask;
-	else
-		val &= ~mask;
-	writel(val, reg);
-}
-
-static void esp32s31_rng_enable(struct esp32s31_rng *priv)
-{
-	esp32s31_rng_update(priv->clkrst, ESP32S31_RNG_CTRL_CLK_EN, true);
-	esp32s31_rng_update(priv->clkrst, ESP32S31_RNG_CTRL_RST_EN, true);
-	esp32s31_rng_update(priv->clkrst, ESP32S31_RNG_CTRL_RST_EN, false);
-
-	esp32s31_rng_update(priv->trng + ESP32S31_TRNG_DATE,
-			    ESP32S31_TRNG_CLK_EN, true);
-	esp32s31_rng_update(priv->trng + ESP32S31_TRNG_CONF,
-			    ESP32S31_TRNG_SAMPLE_ENABLE |
-			    ESP32S31_TRNG_NOISE_CRC_EN, true);
-}
-
-static void esp32s31_rng_disable(void *data)
-{
-	struct esp32s31_rng *priv = data;
-
-	esp32s31_rng_update(priv->trng + ESP32S31_TRNG_CONF,
-			    ESP32S31_TRNG_SAMPLE_ENABLE |
-			    ESP32S31_TRNG_NOISE_CRC_EN, false);
-	esp32s31_rng_update(priv->trng + ESP32S31_TRNG_DATE,
-			    ESP32S31_TRNG_CLK_EN, false);
-	esp32s31_rng_update(priv->clkrst, ESP32S31_RNG_CTRL_CLK_EN, false);
+	return (ctrl & ESP32S31_RNG_CTRL_CLK_EN) &&
+	       !(ctrl & ESP32S31_RNG_CTRL_RST_EN) &&
+	       (conf & ESP32S31_TRNG_SAMPLE_ENABLE);
 }
 
 static int esp32s31_rng_read(struct hwrng *rng, void *buf, size_t max,
@@ -93,7 +74,6 @@ static int esp32s31_rng_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct esp32s31_rng *priv;
-	int ret;
 
 	priv = devm_kzalloc(dev, sizeof(*priv), GFP_KERNEL);
 	if (!priv)
@@ -107,11 +87,9 @@ static int esp32s31_rng_probe(struct platform_device *pdev)
 	if (IS_ERR(priv->clkrst))
 		return PTR_ERR(priv->clkrst);
 
-	esp32s31_rng_enable(priv);
-
-	ret = devm_add_action_or_reset(dev, esp32s31_rng_disable, priv);
-	if (ret)
-		return ret;
+	if (!esp32s31_rng_is_on(priv))
+		return dev_err_probe(dev, -ENODEV,
+				     "the firmware did not start the TRNG\n");
 
 	priv->rng.name = pdev->name;
 	priv->rng.read = esp32s31_rng_read;
