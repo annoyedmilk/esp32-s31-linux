@@ -143,7 +143,9 @@ in `br2-external/configs/esp32s31_defconfig`) with `linux/patches/`.
 - The kernel config is `br2-external/board/esp32s31/linux.config`. Use
   `make kernel-menuconfig` and `make kernel-saveconfig`.
 - `make kernel-check` applies the series at zero fuzz with GNU patch.
-- After a patch change, run `make kernel-clean`, then `make kernel`.
+- `make kernel` and `make rootfs` find a changed series or config. Then
+  they extract and patch the kernel again. `make kernel-clean` does this by
+  hand.
 
 ## Flash layout
 

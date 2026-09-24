@@ -207,12 +207,29 @@ kernel-check: kernel-patches br-volume
 				then echo applies; else echo FAILS; fail=1; fi; \
 		done; rm -rf /br/check; exit $$fail'
 
+# Buildroot applies the patches only when it extracts the kernel, and it
+# ignores changes to the custom config.  Thus keep a hash of the two in the
+# volume.  When the hash changes, delete the extracted kernel and headers, so
+# Buildroot extracts, patches and configures them again.  Runs in the
+# container, in the Buildroot directory.
+KERNEL_SYNC = sum=$$(cat /work/linux/patches/*.patch \
+		/work/br2-external/board/esp32s31/linux.config \
+		/work/br2-external/configs/$(BR_DEFCONFIG) | sha256sum | cut -d" " -f1); \
+	stamp=/br/output/.esp32s31-kernel-inputs; \
+	if test -f /br/output/.config && \
+		test "$$(cat $$stamp 2>/dev/null)" != "$$sum"; then \
+		echo "kernel patches or config changed: extracting the kernel again"; \
+		$(BR_MAKE) linux-dirclean linux-headers-dirclean; \
+	fi; \
+	mkdir -p /br/output; echo "$$sum" > $$stamp
+
 kernel: kernel-patches br-volume
-	@$(BR_RUN) sh -c 'set -e; cd /work/$(BR_DIR); $(BR_MAKE) linux-rebuild all'
+	@$(BR_RUN) sh -c 'set -e; cd /work/$(BR_DIR); $(KERNEL_SYNC); \
+		$(BR_MAKE) linux-rebuild all'
 	@$(MAKE) --no-print-directory br-artifacts
 
-# Buildroot records the patches that it applied.  After a series change,
-# delete the extracted trees first.
+# Delete the extracted kernel and headers by hand.  "make kernel" and
+# "make rootfs" do this themselves when the patches or the config change.
 kernel-clean: br-volume
 	@$(BR_RUN) sh -c 'cd /work/$(BR_DIR); $(BR_MAKE) linux-dirclean linux-headers-dirclean'
 
@@ -246,6 +263,7 @@ rootfs: kernel-patches br-volume
 	@$(BR_RUN) sh -c 'set -e; \
 		cd /work/$(BR_DIR); \
 		$(BR_MAKE) $(BR_DEFCONFIG); \
+		$(KERNEL_SYNC); \
 		$(BR_MAKE)'
 	@$(MAKE) --no-print-directory br-artifacts
 
