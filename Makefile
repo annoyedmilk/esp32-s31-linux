@@ -25,12 +25,6 @@ OPENSBI_PATCHES := $(sort $(wildcard opensbi/patches/*.patch))
 PSRAM_WRITE_THROUGH := $(shell grep -q '^CONFIG_ESP_CONSOLE_SECONDARY_NONE=y' \
 	bootloader/sdkconfig.defaults && echo 1 || echo 0)
 
-# List files, not directories.  An edit does not change the directory mtime,
-# and then make would not generate the patch again.
-LINUX_SOURCES := $(shell find linux -type f -not -name '.*' -not -path 'linux/patches/*') \
-	shared/esp32s31-wifi-ipc.h
-LINUX_GENERATED_PATCH := linux/patches/0000-esp32s31-add-source-files.patch
-
 # Buildroot cannot build on macOS, so it runs in a container.  Its output/
 # and dl/ are in a volume, because virtiofs is slow for many gigabytes.
 BR_DIR := external/buildroot
@@ -187,12 +181,11 @@ opensbi:
 	@cp "$(OPENSBI_OUT)/platform/esp32s31/firmware/fw_jump.elf" "$(BUILD_DIR)/opensbi.elf"
 	@cp "$(OPENSBI_OUT)/platform/esp32s31/firmware/fw_jump.bin" "$(BUILD_DIR)/opensbi.bin"
 
-# All files under linux/ are new to the kernel, so a generated patch adds
-# them.  The other patches change existing files.
-$(LINUX_GENERATED_PATCH): $(LINUX_SOURCES) scripts/mkkernelpatches.py
+# All files under linux/ are new to the kernel, so a generated patch (0000)
+# adds them.  The other patches change existing files.  Each kernel build
+# makes 0000 again, so an edit of 0000 itself is always lost.
+kernel-patches:
 	@"$(PYTHON)" scripts/mkkernelpatches.py
-
-kernel-patches: $(LINUX_GENERATED_PATCH)
 
 # Apply the series to a clean extract of the kernel release, in the container
 # at zero fuzz, as Buildroot does.  The macOS patch accepts old context that
@@ -297,14 +290,21 @@ sdcard: rootfs
 		echo 'Buildroot produced no sdcard.img; check post-image.sh'; exit 1; }
 	@ls -l "$(BR_OUT)/sdcard.img"
 
+# Stop if SD_DISK is not set.
+SD_DISK_REQUIRED = @test -n "$(SD_DISK)" || { \
+	echo 'set SD_DISK=/dev/diskN (see: diskutil list external)'; exit 1; }
+# Stop if the user does not type $(1).
+SD_CONFIRM = @read -r -p 'Type $(1) to continue: ' reply; \
+	test "$$reply" = $(1) || { echo aborted; exit 1; }
+SD_SHOW = @diskutil info "$(SD_DISK)" | grep -E 'Device Node|Media Name|Disk Size|Removable Media'
+
 # Partition a large card: a large FAT partition for the Mac and a small ext4
 # root.  Use this and not sdwrite when the card is larger than the image.
 sdpart:
-	@test -n "$(SD_DISK)" || { echo 'set SD_DISK=/dev/diskN (see: diskutil list external)'; exit 1; }
-	@diskutil info "$(SD_DISK)" | grep -E 'Device Node|Media Name|Disk Size|Removable Media'
-	@echo
+	$(SD_DISK_REQUIRED)
+	$(SD_SHOW)
 	@echo "This ERASES $(SD_DISK) and everything on it."
-	@read -r -p 'Type ERASE to continue: ' reply; test "$$reply" = ERASE || { echo aborted; exit 1; }
+	$(call SD_CONFIRM,ERASE)
 	@diskutil unmountDisk "$(SD_DISK)"
 	@diskutil partitionDisk "$(SD_DISK)" MBR \
 		"MS-DOS FAT32" KORVO_SD $(SD_DATA_SIZE) "MS-DOS FAT32" ROOTFS R
@@ -321,12 +321,11 @@ sdpart:
 
 # Erases the card.  On a large card, the space after p2 is not used.
 sdwrite:
-	@test -n "$(SD_DISK)" || { echo 'set SD_DISK=/dev/diskN (see: diskutil list external)'; exit 1; }
+	$(SD_DISK_REQUIRED)
 	@test -f "$(BR_OUT)/sdcard.img" || { echo 'no $(BR_OUT)/sdcard.img; run make sdcard'; exit 1; }
-	@diskutil info "$(SD_DISK)" | grep -E 'Device Node|Media Name|Disk Size|Removable Media'
-	@echo
+	$(SD_SHOW)
 	@echo "This ERASES $(SD_DISK) and everything on it."
-	@read -r -p 'Type ERASE to continue: ' reply; test "$$reply" = ERASE || { echo aborted; exit 1; }
+	$(call SD_CONFIRM,ERASE)
 	@diskutil unmountDisk "$(SD_DISK)"
 	@sudo dd if="$(BR_OUT)/sdcard.img" of="$(SD_RAW)" bs=4m
 	@sync
@@ -334,12 +333,12 @@ sdwrite:
 
 # For updates: does not change the data partition or the partition sizes.
 sdroot:
-	@test -n "$(SD_DISK)" || { echo 'set SD_DISK=/dev/diskN (see: diskutil list external)'; exit 1; }
+	$(SD_DISK_REQUIRED)
 	@test -f "$(BR_OUT)/rootfs.ext2" || { echo 'no $(BR_OUT)/rootfs.ext2; run make rootfs'; exit 1; }
 	@test -e "$(SD_DISK)s2" || { \
 		echo '$(SD_DISK)s2 does not exist; run make sdpart first'; exit 1; }
 	@echo "This overwrites the root partition $(SD_DISK)s2."
-	@read -r -p 'Type WRITE to continue: ' reply; test "$$reply" = WRITE || { echo aborted; exit 1; }
+	$(call SD_CONFIRM,WRITE)
 	@diskutil unmountDisk "$(SD_DISK)"
 	@sudo dd if="$(BR_OUT)/rootfs.ext2" of="$(SD_RAW)s2" bs=4m
 	@sync

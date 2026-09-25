@@ -172,7 +172,9 @@ Buildroot builds a stock kernel release (`BR2_LINUX_KERNEL_CUSTOM_VERSION_VALUE`
 in `br2-external/configs/esp32s31_defconfig`) with `linux/patches/`.
 
 - `0000-esp32s31-add-source-files.patch` is generated from the new files
-  under `linux/`. Edit those files, then run `make kernel-patches`.
+  under `linux/` and `shared/`. Edit those files, not the patch. Each
+  `make kernel`, `make rootfs` and `make kernel-patches` makes the patch
+  again, and an edit of the patch is lost.
 - `0001` and higher are manual patches to existing kernel files.
 - The kernel config is `br2-external/board/esp32s31/linux.config`. Use
   `make kernel-menuconfig` and `make kernel-saveconfig`.
@@ -215,7 +217,7 @@ does `switch_root`. If the card is not there, it starts a shell.
   permissions are open.
 - `poweroff` stops the hart. It does not remove power.
 - The coherent DMA pool is 64 KiB.
-- No audio, I2C or USB networking yet.
+- There is no I2C, audio or camera driver.
 
 ## License
 

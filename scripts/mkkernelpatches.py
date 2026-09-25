@@ -74,8 +74,13 @@ def main():
     body = HEADER
     for rel in sorted(sources):
         body += hunk(rel, sources[rel].read_text())
-    OUTPUT.write_text(body)
-    print("%s: %d files" % (OUTPUT.relative_to(REPO), len(sources)))
+    # Write only a change, so that the file time stays the same otherwise.
+    # A hand edit of the output is always replaced.
+    old = OUTPUT.read_text() if OUTPUT.exists() else None
+    if body != old:
+        OUTPUT.write_text(body)
+    print("%s: %d files%s" % (OUTPUT.relative_to(REPO), len(sources),
+                              "" if body == old else ", updated"))
 
 
 if __name__ == "__main__":
