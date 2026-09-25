@@ -26,25 +26,21 @@ static const char *TAG = "s31-linux-sd";
 
 static esp_err_t configure_sd_pin(gpio_num_t gpio, bool pull_up)
 {
-    esp_err_t err;
+    esp_err_t err = gpio_pulldown_dis(gpio);
 
-    err = gpio_pulldown_dis(gpio);
-    if (err != ESP_OK) {
-        return err;
+    if (err == ESP_OK) {
+        err = pull_up ? gpio_pullup_en(gpio) : gpio_pullup_dis(gpio);
     }
-    err = pull_up ? gpio_pullup_en(gpio) : gpio_pullup_dis(gpio);
-    if (err != ESP_OK) {
-        return err;
+    if (err == ESP_OK) {
+        err = gpio_input_enable(gpio);
     }
-    err = gpio_input_enable(gpio);
-    if (err != ESP_OK) {
-        return err;
+    if (err == ESP_OK) {
+        err = gpio_iomux_output(gpio, SDMMC_LL_IOMUX_FUNC);
     }
-    err = gpio_iomux_output(gpio, SDMMC_LL_IOMUX_FUNC);
-    if (err != ESP_OK) {
-        return err;
+    if (err == ESP_OK) {
+        err = gpio_set_drive_capability(gpio, GPIO_DRIVE_CAP_3);
     }
-    return gpio_set_drive_capability(gpio, GPIO_DRIVE_CAP_3);
+    return err;
 }
 
 void init_sd_card(void)
@@ -81,10 +77,9 @@ void init_sd_card(void)
         return;
     }
 
+    /* source_hz is not 0, so div is 1 or more.  The maximum is 16. */
     div = (source_hz + SD_TARGET_CCLK_HZ - 1) / SD_TARGET_CCLK_HZ;
-    if (div < 1) {
-        div = 1;
-    } else if (div > 16) {
+    if (div > 16) {
         div = 16;
     }
 

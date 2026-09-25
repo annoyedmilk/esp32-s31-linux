@@ -247,6 +247,19 @@ static const esp_partition_t *find_partition(const char *name)
     return part;
 }
 
+/* Copy the start of a partition to PSRAM. */
+static bool read_partition(const esp_partition_t *part, uint32_t addr,
+                           size_t size)
+{
+    esp_err_t err = esp_partition_read(part, 0, (void *)addr, size);
+
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "reading %s partition failed: %s", part->label,
+                 esp_err_to_name(err));
+    }
+    return err == ESP_OK;
+}
+
 static bool load_kernel_partition(void)
 {
     const esp_partition_t *part = find_partition("linux");
@@ -278,10 +291,7 @@ static bool load_kernel_partition(void)
         return false;
     }
 
-    err = esp_partition_read(part, 0, (void *)KERNEL_LOAD_ADDR, image_size);
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG, "reading linux partition failed: %s",
-                 esp_err_to_name(err));
+    if (!read_partition(part, KERNEL_LOAD_ADDR, image_size)) {
         return false;
     }
 
@@ -321,7 +331,6 @@ static bool load_kernel_partition(void)
 static bool load_opensbi_partition(void)
 {
     const esp_partition_t *part = find_partition("opensbi");
-    esp_err_t err;
 
     if (!part) {
         return false;
@@ -338,11 +347,7 @@ static bool load_opensbi_partition(void)
      * fw_jump has no size manifest.  Copy a fixed window.  OpenSBI clears
      * the area after its image as BSS.
      */
-    err = esp_partition_read(part, 0, (void *)OPENSBI_LOAD_ADDR,
-                             OPENSBI_LOAD_SIZE);
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG, "reading opensbi partition failed: %s",
-                 esp_err_to_name(err));
+    if (!read_partition(part, OPENSBI_LOAD_ADDR, OPENSBI_LOAD_SIZE)) {
         return false;
     }
 
@@ -356,7 +361,6 @@ static bool load_opensbi_partition(void)
 static bool load_initramfs_partition(void)
 {
     const esp_partition_t *part = find_partition("initramfs");
-    esp_err_t err;
     uint32_t magic0;
 
     if (!part) {
@@ -370,10 +374,7 @@ static bool load_initramfs_partition(void)
         return false;
     }
 
-    err = esp_partition_read(part, 0, (void *)INITRAMFS_LOAD_ADDR, part->size);
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG, "reading initramfs partition failed: %s",
-                 esp_err_to_name(err));
+    if (!read_partition(part, INITRAMFS_LOAD_ADDR, part->size)) {
         return false;
     }
 

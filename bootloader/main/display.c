@@ -132,10 +132,6 @@ bool display_init(void)
     int channel;
     esp_err_t err;
 
-    if (panel) {
-        return true;
-    }
-
     fill_color_bars();
 
     const esp_lcd_rgb_panel_config_t config = {
