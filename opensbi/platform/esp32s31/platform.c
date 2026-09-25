@@ -3,6 +3,7 @@
 
 #include <sbi/riscv_asm.h>
 #include <sbi/sbi_console.h>
+#include <sbi/sbi_domain.h>
 #include <sbi/sbi_ecall_interface.h>
 #include <sbi/sbi_error.h>
 #include <sbi/sbi_ipi.h>
@@ -28,9 +29,32 @@
 #define ESP32S31_USB_SERIAL_JTAG_TX_FREE	(1UL << 1)
 #endif
 
-#define ESP32S31_HP_APM_ATTR0		0x2050440cUL
 #define ESP32S31_HP_MEM_APM_ATTR0	0x2050480cUL
 #define ESP32S31_APM_REE_TEE_RWX	0x7777UL
+#define ESP32S31_APM_TEE_RWX		0x7000UL
+#define ESP32S31_APM_LOCK		(1UL << 16)
+
+/*
+ * HP_APM checks the accesses of the bus masters, also DMA to PSRAM.  M-mode
+ * is TEE mode, and the DMA masters are REE mode.  Region 1 gives the OpenSBI
+ * area (the reserved-memory node in esp32s31.dtsi) to TEE mode only.  Thus no
+ * DMA master can read or write it.  Regions 0 and 2 are all other addresses.
+ * A lock keeps each region until the next reset.
+ */
+#define ESP32S31_HP_APM_BASE		0x20504400UL
+#define ESP32S31_HP_APM_FILTER_EN	ESP32S31_HP_APM_BASE
+#define ESP32S31_HP_APM_START(n)	(ESP32S31_HP_APM_BASE + 0x04UL + 0x0cUL * (n))
+#define ESP32S31_HP_APM_END(n)		(ESP32S31_HP_APM_BASE + 0x08UL + 0x0cUL * (n))
+#define ESP32S31_HP_APM_ATTR(n)		(ESP32S31_HP_APM_BASE + 0x0cUL + 0x0cUL * (n))
+#define ESP32S31_FW_BASE		0x50e00000UL
+#define ESP32S31_FW_SIZE		0x00040000UL
+
+/*
+ * The TEE mode and APM registers.  S-mode must not change them, so a domain
+ * region gives this page to M-mode only.
+ */
+#define ESP32S31_TEE_APM_BASE		0x20504000UL
+#define ESP32S31_TEE_APM_SIZE		0x1000UL
 
 /*
  * CPU_APM controls the CPU-local bus.  Open one region for all addresses, so
@@ -89,7 +113,24 @@ static inline void reg_write8(unsigned long addr, unsigned char val)
 
 static void esp32s31_apm_init(void)
 {
-	reg_write(ESP32S31_HP_APM_ATTR0, ESP32S31_APM_REE_TEE_RWX);
+	unsigned long fw_end = ESP32S31_FW_BASE + ESP32S31_FW_SIZE;
+
+	/*
+	 * The loader opened region 0 for all addresses.  Set regions 2 and 1
+	 * first, and make region 0 smaller last.  Thus no access is outside a
+	 * region in between.
+	 */
+	reg_write(ESP32S31_HP_APM_START(2), fw_end);
+	reg_write(ESP32S31_HP_APM_END(2), 0xffffffffUL);
+	reg_write(ESP32S31_HP_APM_START(1), ESP32S31_FW_BASE);
+	reg_write(ESP32S31_HP_APM_END(1), fw_end - 1);
+	reg_write(ESP32S31_HP_APM_ATTR(1), ESP32S31_APM_TEE_RWX | ESP32S31_APM_LOCK);
+	reg_write(ESP32S31_HP_APM_FILTER_EN, 0x7);
+	reg_write(ESP32S31_HP_APM_START(0), 0);
+	reg_write(ESP32S31_HP_APM_END(0), ESP32S31_FW_BASE - 1);
+	reg_write(ESP32S31_HP_APM_ATTR(0), ESP32S31_APM_REE_TEE_RWX | ESP32S31_APM_LOCK);
+	reg_write(ESP32S31_HP_APM_ATTR(2), ESP32S31_APM_REE_TEE_RWX | ESP32S31_APM_LOCK);
+
 	reg_write(ESP32S31_HP_MEM_APM_ATTR0, ESP32S31_APM_REE_TEE_RWX);
 	reg_write(ESP32S31_CPU_APM_REGION0_START, 0x00000000UL);
 	reg_write(ESP32S31_CPU_APM_REGION0_END, 0xffffffffUL);
@@ -207,12 +248,18 @@ static int esp32s31_early_init(bool cold_boot)
 	esp32s31_apm_init();
 	esp32s31_pma_init();
 
-	if (cold_boot) {
-		sbi_system_reset_add_device(&esp32s31_reset);
-		sbi_console_set_device(&esp32s31_console);
-	}
+	if (!cold_boot)
+		return 0;
 
-	return 0;
+	sbi_system_reset_add_device(&esp32s31_reset);
+	sbi_console_set_device(&esp32s31_console);
+
+	return sbi_domain_root_add_memrange(ESP32S31_TEE_APM_BASE,
+					    ESP32S31_TEE_APM_SIZE,
+					    ESP32S31_TEE_APM_SIZE,
+					    SBI_DOMAIN_MEMREGION_MMIO |
+					    SBI_DOMAIN_MEMREGION_M_READABLE |
+					    SBI_DOMAIN_MEMREGION_M_WRITABLE);
 }
 
 static int esp32s31_final_init(bool cold_boot)

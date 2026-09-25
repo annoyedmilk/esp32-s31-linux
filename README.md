@@ -213,8 +213,9 @@ does `switch_root`. If the card is not there, it starts a shell.
   soft-float (ilp32).
 - ESP-Hosted cannot work: Espressif does not supply the FullMAC hooks for the
   ESP32-S31 Wi-Fi libraries.
-- OpenSBI sets one locked RWX PMP entry. There is no domain isolation. APM
-  permissions are open.
+- OpenSBI protects its memory and the TEE/APM registers from S-mode with
+  PMP, and its memory from DMA with HP_APM. The Wi-Fi firmware on hart 0
+  runs in M-mode, so nothing protects OpenSBI from hart 0.
 - `poweroff` stops the hart. It does not remove power.
 - The coherent DMA pool is 64 KiB.
 - There is no I2C, audio or camera driver.
