@@ -15,7 +15,7 @@ if WLAN_VENDOR_ESPRESSIF
 config ESP32S31_WIFI
 	tristate "ESP32-S31 WLAN modem"
 	depends on SOC_ESP32S31 || COMPILE_TEST
-	depends on OF
+	depends on CFG80211 && OF
 	help
 	  Network device for the WLAN modem of the ESP32-S31.  ESP-IDF
 	  firmware on hart 0 controls the modem.  Linux sends and receives

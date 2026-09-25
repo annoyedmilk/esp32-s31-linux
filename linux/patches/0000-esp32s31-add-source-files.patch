@@ -728,7 +728,7 @@ diff --git a/arch/riscv/kernel/esp32s31-clic-trampoline.S b/arch/riscv/kernel/es
 new file mode 100644
 --- /dev/null
 +++ b/arch/riscv/kernel/esp32s31-clic-trampoline.S
-@@ -0,0 +1,336 @@
+@@ -0,0 +1,329 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +/*
 + * Author: Marco Müller <hello@annoyedmilk.ch>
@@ -745,7 +745,8 @@ new file mode 100644
 + *
 + * The trampoline:
 + *   1. Saves all registers in pt_regs on the stack
-+ *   2. Calls do_irq(regs) with SIE disabled
++ *   2. Sends a synchronous exception to its trap handler, or calls
++ *      do_irq(regs) with SIE disabled
 + *   3. Restores the registers and executes sret
 + *
 + * The Linux IRQ core runs hard IRQ handlers with CPU interrupts disabled.
@@ -964,29 +965,21 @@ new file mode 100644
 +.Lclic_restore_csrs:
 +
 +	/*
-+	 * Restore the context and return.
-+	 *
-+	 * xIE is clear.  Restore xepc first, because it has no side effects.
-+	 * Then restore xstatus with xIE clear, so interrupts stay disabled
-+	 * while the GPRs are restored.  xret at the end sets the correct
-+	 * interrupt-enable state in one step.
++	 * Restore the context and return.  xIE is clear.  Restore xepc first,
++	 * because it does not change the interrupt state.  Then restore
++	 * xstatus with xIE clear, so interrupts stay disabled while the GPRs
++	 * are restored.  sret at the end sets the interrupt-enable state.
 +	 */
-+
-+	/* Restore xepc first.  It does not change the interrupt state. */
 +	REG_L	t0, PT_EPC(sp)
 +	csrw	CSR_EPC, t0
 +
-+	/* Restore xstatus with xIE clear */
 +	REG_L	t0, PT_STATUS(sp)
 +	li	t1, SR_IE
 +	not	t1, t1
 +	and	t0, t0, t1
 +	csrw	CSR_STATUS, t0
 +
-+	/*
-+	 * Restore the GPRs: xIE is off, so there is no preemption.  Restore sp
-+	 * last.
-+	 */
++	/* Restore the GPRs.  Restore sp last. */
 +	REG_L	ra,  PT_RA(sp)
 +	REG_L	gp,  PT_GP(sp)
 +	REG_L	tp,  PT_TP(sp)
@@ -1320,7 +1313,7 @@ diff --git a/drivers/gpio/gpio-esp32s31.c b/drivers/gpio/gpio-esp32s31.c
 new file mode 100644
 --- /dev/null
 +++ b/drivers/gpio/gpio-esp32s31.c
-@@ -0,0 +1,200 @@
+@@ -0,0 +1,198 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * Author: Marco Mueller <hello@annoyedmilk.ch>
@@ -1339,10 +1332,8 @@ new file mode 100644
 +#include <linux/mod_devicetable.h>
 +#include <linux/platform_device.h>
 +
-+#define ESP32S31_GPIO_OUT		0x04
 +#define ESP32S31_GPIO_OUT_W1TS		0x08
 +#define ESP32S31_GPIO_OUT_W1TC		0x0c
-+#define ESP32S31_GPIO_OUT1		0x10
 +#define ESP32S31_GPIO_OUT1_W1TS		0x14
 +#define ESP32S31_GPIO_OUT1_W1TC		0x18
 +#define ESP32S31_GPIO_ENABLE		0x34
@@ -1420,7 +1411,7 @@ new file mode 100644
 +	return GPIO_LINE_DIRECTION_IN;
 +}
 +
-+/* Take the pad from its peripheral and read its level. */
++/* Take the pad from its peripheral and enable its input. */
 +static void esp32s31_gpio_claim(struct esp32s31_gpio *priv, unsigned int offset)
 +{
 +	void __iomem *iomux = priv->iomux + offset * 4;
@@ -1525,7 +1516,7 @@ diff --git a/drivers/irqchip/irq-esp32s31-clic.c b/drivers/irqchip/irq-esp32s31-
 new file mode 100644
 --- /dev/null
 +++ b/drivers/irqchip/irq-esp32s31-clic.c
-@@ -0,0 +1,621 @@
+@@ -0,0 +1,617 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * Author: Marco Müller <hello@annoyedmilk.ch>
@@ -1673,26 +1664,25 @@ new file mode 100644
 +
 +/* irq_chip callbacks */
 +
-+static void esp32s31_clic_irq_mask(struct irq_data *d)
++static void esp32s31_clic_irq_enable(struct irq_data *d, u8 enable)
 +{
 +	struct esp32s31_clic *clic = irq_data_get_irq_chip_data(d);
 +	raw_spinlock_t *lock = this_cpu_ptr(&clic_lock);
 +	unsigned long flags;
 +
 +	raw_spin_lock_irqsave(lock, flags);
-+	clic_writeb(clic, d->hwirq, ESP32S31_CLIC_INT_IE, 0);
++	clic_writeb(clic, d->hwirq, ESP32S31_CLIC_INT_IE, enable);
 +	raw_spin_unlock_irqrestore(lock, flags);
++}
++
++static void esp32s31_clic_irq_mask(struct irq_data *d)
++{
++	esp32s31_clic_irq_enable(d, 0);
 +}
 +
 +static void esp32s31_clic_irq_unmask(struct irq_data *d)
 +{
-+	struct esp32s31_clic *clic = irq_data_get_irq_chip_data(d);
-+	raw_spinlock_t *lock = this_cpu_ptr(&clic_lock);
-+	unsigned long flags;
-+
-+	raw_spin_lock_irqsave(lock, flags);
-+	clic_writeb(clic, d->hwirq, ESP32S31_CLIC_INT_IE, 1);
-+	raw_spin_unlock_irqrestore(lock, flags);
++	esp32s31_clic_irq_enable(d, 1);
 +}
 +
 +static void esp32s31_clic_irq_eoi(struct irq_data *d)
@@ -1878,9 +1868,6 @@ new file mode 100644
 +{
 +	void __iomem *reg;
 +	u32 val;
-+
-+	if (!clic->intmatrix_regs)
-+		return;
 +
 +	if (source >= ESP32S31_INTMATRIX_CORE_STRIDE / sizeof(u32)) {
 +		pr_warn("CLIC: S31 interrupt source %u out of matrix range\n",
@@ -2356,7 +2343,7 @@ new file mode 100644
 +config ESP32S31_WIFI
 +	tristate "ESP32-S31 WLAN modem"
 +	depends on SOC_ESP32S31 || COMPILE_TEST
-+	depends on OF
++	depends on CFG80211 && OF
 +	help
 +	  Network device for the WLAN modem of the ESP32-S31.  ESP-IDF
 +	  firmware on hart 0 controls the modem.  Linux sends and receives
@@ -2532,7 +2519,7 @@ diff --git a/drivers/net/wireless/espressif/esp32s31-wifi.c b/drivers/net/wirele
 new file mode 100644
 --- /dev/null
 +++ b/drivers/net/wireless/espressif/esp32s31-wifi.c
-@@ -0,0 +1,890 @@
+@@ -0,0 +1,879 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * Author: Marco Müller <hello@annoyedmilk.ch>
@@ -2940,40 +2927,51 @@ new file mode 100644
 + */
 +#define ESP32S31_WIFI_IE_MAX		160
 +
-+/* A count (le16) and one suite for each cipher bit. */
-+static u8 *esp32s31_wifi_put_ciphers(u8 *p, const u8 *oui, u8 ciphers)
-+{
-+	static const struct {
-+		u8 bit;
-+		u8 type;
-+	} map[] = {
-+		{ ESP32S31_IPC_CIPHER_CCMP, 4 },
-+		{ ESP32S31_IPC_CIPHER_TKIP, 2 },
-+		{ ESP32S31_IPC_CIPHER_GCMP, 8 },
-+		{ ESP32S31_IPC_CIPHER_GCMP256, 9 },
-+	};
-+	u8 *count = p;
-+	unsigned int i;
++struct esp32s31_wifi_suite {
++	u8 bit;
++	u8 type;
++};
 +
-+	p += 2;
-+	count[0] = 0;
-+	count[1] = 0;
-+	for (i = 0; i < ARRAY_SIZE(map); i++) {
-+		if (!(ciphers & map[i].bit))
-+			continue;
-+		memcpy(p, oui, 3);
-+		p[3] = map[i].type;
-+		p += 4;
-+		count[0]++;
-+	}
-+	return p;
-+}
++static const struct esp32s31_wifi_suite esp32s31_wifi_cipher_suites[] = {
++	{ ESP32S31_IPC_CIPHER_CCMP, 4 },
++	{ ESP32S31_IPC_CIPHER_TKIP, 2 },
++	{ ESP32S31_IPC_CIPHER_GCMP, 8 },
++	{ ESP32S31_IPC_CIPHER_GCMP256, 9 },
++	{ }
++};
++
++/* WPA uses the same AKM types, with EAP (1) and PSK (2) only. */
++static const struct esp32s31_wifi_suite esp32s31_wifi_akm_suites[] = {
++	{ ESP32S31_IPC_AKM_EAP, 1 },
++	{ ESP32S31_IPC_AKM_PSK, 2 },
++	{ ESP32S31_IPC_AKM_SAE, 8 },
++	{ ESP32S31_IPC_AKM_OWE, 18 },
++	{ }
++};
 +
 +static u8 *esp32s31_wifi_put_suite(u8 *p, const u8 *oui, u8 type)
 +{
 +	memcpy(p, oui, 3);
 +	p[3] = type;
 +	return p + 4;
++}
++
++/* A count (le16), then one suite for each bit in the table. */
++static u8 *esp32s31_wifi_put_suites(u8 *p, const u8 *oui, u8 bits,
++				    const struct esp32s31_wifi_suite *map)
++{
++	u8 *count = p;
++
++	p += 2;
++	count[0] = 0;
++	count[1] = 0;
++	for (; map->bit; map++) {
++		if (bits & map->bit) {
++			p = esp32s31_wifi_put_suite(p, oui, map->type);
++			count[0]++;
++		}
++	}
++	return p;
 +}
 +
 +static u8 esp32s31_wifi_cipher_type(u8 ciphers)
@@ -3000,7 +2998,7 @@ new file mode 100644
 +	u8 group = bss->group ?: pairwise;
 +	u8 rates[sizeof(cck) + sizeof(ofdm)];
 +	unsigned int n = 0, first;
-+	u8 *p = ie, *len, *count;
++	u8 *p = ie, *len;
 +
 +	*p++ = WLAN_EID_SSID;
 +	*p++ = bss->ssid_len;
@@ -3040,14 +3038,14 @@ new file mode 100644
 +		*p++ = 0;
 +		p = esp32s31_wifi_put_suite(p, wpa_oui,
 +					    esp32s31_wifi_cipher_type(group));
-+		p = esp32s31_wifi_put_ciphers(p, wpa_oui, pairwise &
-+					      (ESP32S31_IPC_CIPHER_TKIP |
-+					       ESP32S31_IPC_CIPHER_CCMP));
-+		*p++ = 1;					/* one AKM */
-+		*p++ = 0;
-+		p = esp32s31_wifi_put_suite(p, wpa_oui,
-+					    bss->akm & ESP32S31_IPC_AKM_EAP ?
-+					    1 : 2);
++		p = esp32s31_wifi_put_suites(p, wpa_oui, pairwise &
++					     (ESP32S31_IPC_CIPHER_TKIP |
++					      ESP32S31_IPC_CIPHER_CCMP),
++					     esp32s31_wifi_cipher_suites);
++		p = esp32s31_wifi_put_suites(p, wpa_oui,
++					     bss->akm & ESP32S31_IPC_AKM_EAP ?:
++					     ESP32S31_IPC_AKM_PSK,
++					     esp32s31_wifi_akm_suites);
 +		*len = p - len - 1;
 +	} else if (bss->akm & (ESP32S31_IPC_AKM_PSK | ESP32S31_IPC_AKM_SAE |
 +			       ESP32S31_IPC_AKM_EAP | ESP32S31_IPC_AKM_OWE)) {
@@ -3063,27 +3061,10 @@ new file mode 100644
 +		*p++ = 0;
 +		p = esp32s31_wifi_put_suite(p, rsn_oui,
 +					    esp32s31_wifi_cipher_type(group));
-+		p = esp32s31_wifi_put_ciphers(p, rsn_oui, pairwise);
-+		count = p;
-+		p += 2;
-+		count[0] = 0;
-+		count[1] = 0;
-+		if (bss->akm & ESP32S31_IPC_AKM_EAP) {
-+			p = esp32s31_wifi_put_suite(p, rsn_oui, 1);
-+			count[0]++;
-+		}
-+		if (bss->akm & ESP32S31_IPC_AKM_PSK) {
-+			p = esp32s31_wifi_put_suite(p, rsn_oui, 2);
-+			count[0]++;
-+		}
-+		if (bss->akm & ESP32S31_IPC_AKM_SAE) {
-+			p = esp32s31_wifi_put_suite(p, rsn_oui, 8);
-+			count[0]++;
-+		}
-+		if (bss->akm & ESP32S31_IPC_AKM_OWE) {
-+			p = esp32s31_wifi_put_suite(p, rsn_oui, 18);
-+			count[0]++;
-+		}
++		p = esp32s31_wifi_put_suites(p, rsn_oui, pairwise,
++					     esp32s31_wifi_cipher_suites);
++		p = esp32s31_wifi_put_suites(p, rsn_oui, bss->akm,
++					     esp32s31_wifi_akm_suites);
 +		/* RSN capabilities: bit 6 MFP required, bit 7 MFP capable. */
 +		*p++ = (mfpc ? BIT(7) : 0) | (mfpr ? BIT(6) : 0);
 +		*p++ = 0;
@@ -3178,29 +3159,24 @@ new file mode 100644
 +{
 +	char hex[2 * WLAN_PMK_LEN + 1];
 +
++	if (sme->crypto.sae_pwd_len > ESP32S31_IPC_PSK_MAX)
++		return -EINVAL;
++
++	/* Clear the old key.  Without a new key, the network is open. */
++	memset_io(priv->ipc->cmd.psk, 0, ESP32S31_IPC_PSK_MAX);
++
 +	/*
 +	 * The password first: the firmware can use it for SAE and for
 +	 * WPA2-PSK.  A PMK does not work for SAE, and a supplicant can give
 +	 * both for a WPA2/WPA3 transition network.
 +	 */
 +	if (sme->crypto.sae_pwd) {
-+		if (sme->crypto.sae_pwd_len > ESP32S31_IPC_PSK_MAX)
-+			return -EINVAL;
-+		memset_io(priv->ipc->cmd.psk, 0, ESP32S31_IPC_PSK_MAX);
 +		memcpy_toio(priv->ipc->cmd.psk, sme->crypto.sae_pwd,
 +			    sme->crypto.sae_pwd_len);
-+		return 0;
-+	}
-+
-+	if (sme->crypto.psk) {
-+		memset_io(priv->ipc->cmd.psk, 0, ESP32S31_IPC_PSK_MAX);
++	} else if (sme->crypto.psk) {
 +		bin2hex(hex, sme->crypto.psk, WLAN_PMK_LEN);
 +		memcpy_toio(priv->ipc->cmd.psk, hex, 2 * WLAN_PMK_LEN);
-+		return 0;
 +	}
-+
-+	/* No key: an open network. */
-+	memset_io(priv->ipc->cmd.psk, 0, ESP32S31_IPC_PSK_MAX);
 +	return 0;
 +}
 +
@@ -3427,7 +3403,7 @@ diff --git a/drivers/phy/phy-esp32s31-usb.c b/drivers/phy/phy-esp32s31-usb.c
 new file mode 100644
 --- /dev/null
 +++ b/drivers/phy/phy-esp32s31-usb.c
-@@ -0,0 +1,188 @@
+@@ -0,0 +1,177 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +/*
 + * ESP32-S31 integrated USB 2.0 UTMI PHY
@@ -3479,13 +3455,11 @@ new file mode 100644
 +	void __iomem *utmi_fc06;
 +};
 +
-+static void esp32s31_usb_update_bits(void __iomem *reg, u32 mask, u32 val)
++static void esp32s31_usb_set_bits(void __iomem *reg, u32 bits, bool on)
 +{
-+	u32 tmp = readl(reg);
++	u32 val = readl(reg);
 +
-+	tmp &= ~mask;
-+	tmp |= val & mask;
-+	writel(tmp, reg);
++	writel(on ? val | bits : val & ~bits, reg);
 +}
 +
 +static int esp32s31_usb_phy_init(struct phy *phy)
@@ -3494,21 +3468,17 @@ new file mode 100644
 +	u32 val;
 +
 +	/* Enable the DWC2 APB and system clocks, and the UTMI and reference clocks. */
-+	esp32s31_usb_update_bits(priv->clkrst,
-+				 ESP32S31_USB_APB_CLK_EN |
-+				 ESP32S31_USB_SYS_CLK_EN,
-+				 ESP32S31_USB_APB_CLK_EN |
-+				 ESP32S31_USB_SYS_CLK_EN);
-+	esp32s31_usb_update_bits(priv->cnnt,
-+				 ESP32S31_USB_UTMIFS_CLK_EN |
-+				 ESP32S31_USB_PHYREF_CLK_EN,
-+				 ESP32S31_USB_UTMIFS_CLK_EN |
-+				 ESP32S31_USB_PHYREF_CLK_EN);
++	esp32s31_usb_set_bits(priv->clkrst,
++			      ESP32S31_USB_APB_CLK_EN |
++			      ESP32S31_USB_SYS_CLK_EN, true);
++	esp32s31_usb_set_bits(priv->cnnt,
++			      ESP32S31_USB_UTMIFS_CLK_EN |
++			      ESP32S31_USB_PHYREF_CLK_EN, true);
 +
 +	/* DWC2 controls the PHY suspend and the PLL state. */
-+	esp32s31_usb_update_bits(priv->otghs_ctrl,
-+				 ESP32S31_USB_PHY_PLL_FORCE_EN |
-+				 ESP32S31_USB_PHY_SUSPEND_FORCE_EN, 0);
++	esp32s31_usb_set_bits(priv->otghs_ctrl,
++			      ESP32S31_USB_PHY_PLL_FORCE_EN |
++			      ESP32S31_USB_PHY_SUSPEND_FORCE_EN, false);
 +
 +	/* Set all resets.  Then release the PHY before the AHB and APB core. */
 +	val = readl(priv->cnnt) | ESP32S31_USB_ALL_RST_EN;
@@ -3519,21 +3489,16 @@ new file mode 100644
 +	writel(val, priv->cnnt);
 +
 +	/* Use the same UTMI setup as ESP-IDF on the ESP32-S31. */
-+	esp32s31_usb_update_bits(priv->otghs_ctrl,
-+				 ESP32S31_USB_PHY_OTG_SUSPENDM,
-+				 ESP32S31_USB_PHY_OTG_SUSPENDM);
-+	esp32s31_usb_update_bits(priv->utmi_fc06,
-+				 ESP32S31_USB_LS_PARALLEL_EN |
-+				 ESP32S31_USB_LS_KEEPALIVE_EN,
-+				 ESP32S31_USB_LS_PARALLEL_EN |
-+				 ESP32S31_USB_LS_KEEPALIVE_EN);
++	esp32s31_usb_set_bits(priv->otghs_ctrl,
++			      ESP32S31_USB_PHY_OTG_SUSPENDM, true);
++	esp32s31_usb_set_bits(priv->utmi_fc06,
++			      ESP32S31_USB_LS_PARALLEL_EN |
++			      ESP32S31_USB_LS_KEEPALIVE_EN, true);
 +
 +	/* Host mode needs 15 kohm pull-downs on the two data lines. */
-+	esp32s31_usb_update_bits(priv->usb_ctrl,
-+				 ESP32S31_USB_DM_PULLDOWN |
-+				 ESP32S31_USB_DP_PULLDOWN,
-+				 ESP32S31_USB_DM_PULLDOWN |
-+				 ESP32S31_USB_DP_PULLDOWN);
++	esp32s31_usb_set_bits(priv->usb_ctrl,
++			      ESP32S31_USB_DM_PULLDOWN |
++			      ESP32S31_USB_DP_PULLDOWN, true);
 +
 +	return 0;
 +}
@@ -3542,15 +3507,15 @@ new file mode 100644
 +{
 +	struct esp32s31_usb_phy *priv = phy_get_drvdata(phy);
 +
-+	esp32s31_usb_update_bits(priv->usb_ctrl,
-+				 ESP32S31_USB_DM_PULLDOWN |
-+				 ESP32S31_USB_DP_PULLDOWN, 0);
-+	esp32s31_usb_update_bits(priv->cnnt,
-+				 ESP32S31_USB_UTMIFS_CLK_EN |
-+				 ESP32S31_USB_PHYREF_CLK_EN, 0);
-+	esp32s31_usb_update_bits(priv->clkrst,
-+				 ESP32S31_USB_APB_CLK_EN |
-+				 ESP32S31_USB_SYS_CLK_EN, 0);
++	esp32s31_usb_set_bits(priv->usb_ctrl,
++			      ESP32S31_USB_DM_PULLDOWN |
++			      ESP32S31_USB_DP_PULLDOWN, false);
++	esp32s31_usb_set_bits(priv->cnnt,
++			      ESP32S31_USB_UTMIFS_CLK_EN |
++			      ESP32S31_USB_PHYREF_CLK_EN, false);
++	esp32s31_usb_set_bits(priv->clkrst,
++			      ESP32S31_USB_APB_CLK_EN |
++			      ESP32S31_USB_SYS_CLK_EN, false);
 +
 +	return 0;
 +}
@@ -3620,12 +3585,13 @@ diff --git a/drivers/tty/serial/esp32_uart.c b/drivers/tty/serial/esp32_uart.c
 new file mode 100644
 --- /dev/null
 +++ b/drivers/tty/serial/esp32_uart.c
-@@ -0,0 +1,744 @@
+@@ -0,0 +1,670 @@
 +// SPDX-License-Identifier: GPL-2.0-or-later
 +/*
 + * Author: Marco Müller <hello@annoyedmilk.ch>
 + *
-+ * Espressif ESP32 UART support
++ * UART of the Espressif ESP32-S31.  It is the same block as on the
++ * ESP32-S3.  Based on the ESP32 UART driver by Max Filippov.
 + */
 +
 +#include <linux/bitfield.h>
@@ -3638,7 +3604,6 @@ new file mode 100644
 +#include <linux/module.h>
 +#include <linux/of.h>
 +#include <linux/platform_device.h>
-+#include <linux/property.h>
 +#include <linux/serial_core.h>
 +#include <linux/slab.h>
 +#include <linux/tty_flip.h>
@@ -3659,18 +3624,13 @@ new file mode 100644
 +#define UART_TXFIFO_EMPTY_INT			BIT(1)
 +#define UART_BRK_DET_INT			BIT(7)
 +#define UART_CLKDIV_REG			0x14
-+#define ESP32_UART_CLKDIV			GENMASK(19, 0)
-+#define ESP32S3_UART_CLKDIV			GENMASK(11, 0)
++#define UART_CLKDIV				GENMASK(11, 0)
 +#define UART_CLKDIV_FRAG			GENMASK(23, 20)
 +#define UART_STATUS_REG			0x1c
-+#define ESP32_UART_RXFIFO_CNT			GENMASK(7, 0)
-+#define ESP32S3_UART_RXFIFO_CNT			GENMASK(9, 0)
-+#define UART_RXFIFO_CNT_SHIFT			0
++#define UART_RXFIFO_CNT				GENMASK(9, 0)
 +#define UART_DSRN				BIT(13)
 +#define UART_CTSN				BIT(14)
-+#define ESP32_UART_TXFIFO_CNT			GENMASK(23, 16)
-+#define ESP32S3_UART_TXFIFO_CNT			GENMASK(25, 16)
-+#define UART_TXFIFO_CNT_SHIFT			16
++#define UART_TXFIFO_CNT				GENMASK(25, 16)
 +#define UART_CONF0_REG			0x20
 +#define UART_PARITY				BIT(0)
 +#define UART_PARITY_EN				BIT(1)
@@ -3690,10 +3650,8 @@ new file mode 100644
 +#define UART_DTR_INV				BIT(24)
 +#define UART_CONF1_REG			0x24
 +#define UART_RXFIFO_FULL_THRHD_SHIFT		0
-+#define ESP32_UART_TXFIFO_EMPTY_THRHD_SHIFT	8
-+#define ESP32S3_UART_TXFIFO_EMPTY_THRHD_SHIFT	10
-+#define ESP32_UART_RX_FLOW_EN			BIT(23)
-+#define ESP32S3_UART_RX_FLOW_EN			BIT(22)
++#define UART_TXFIFO_EMPTY_THRHD_SHIFT		10
++#define UART_RX_FLOW_EN				BIT(22)
 +#define ESP32S3_UART_CLK_CONF_REG	0x78
 +#define ESP32S3_UART_SCLK_DIV_B			GENMASK(5, 0)
 +#define ESP32S3_UART_SCLK_DIV_A			GENMASK(11, 6)
@@ -3720,52 +3678,13 @@ new file mode 100644
 +	struct clk *clk;
 +};
 +
-+struct esp32_uart_variant {
-+	u32 clkdiv_mask;
-+	u32 rxfifo_cnt_mask;
-+	u32 txfifo_cnt_mask;
-+	u32 txfifo_empty_thrhd_shift;
-+	u32 rx_flow_en;
-+	const char *type;
-+	bool has_clkconf;
-+};
-+
-+static const struct esp32_uart_variant esp32_variant = {
-+	.clkdiv_mask = ESP32_UART_CLKDIV,
-+	.rxfifo_cnt_mask = ESP32_UART_RXFIFO_CNT,
-+	.txfifo_cnt_mask = ESP32_UART_TXFIFO_CNT,
-+	.txfifo_empty_thrhd_shift = ESP32_UART_TXFIFO_EMPTY_THRHD_SHIFT,
-+	.rx_flow_en = ESP32_UART_RX_FLOW_EN,
-+	.type = "ESP32 UART",
-+};
-+
-+static const struct esp32_uart_variant esp32s3_variant = {
-+	.clkdiv_mask = ESP32S3_UART_CLKDIV,
-+	.rxfifo_cnt_mask = ESP32S3_UART_RXFIFO_CNT,
-+	.txfifo_cnt_mask = ESP32S3_UART_TXFIFO_CNT,
-+	.txfifo_empty_thrhd_shift = ESP32S3_UART_TXFIFO_EMPTY_THRHD_SHIFT,
-+	.rx_flow_en = ESP32S3_UART_RX_FLOW_EN,
-+	.type = "ESP32S3 UART",
-+	.has_clkconf = true,
-+};
-+
 +static const struct of_device_id esp32_uart_dt_ids[] = {
-+	{
-+		.compatible = "esp,esp32-uart",
-+		.data = &esp32_variant,
-+	}, {
-+		.compatible = "esp,esp32s3-uart",
-+		.data = &esp32s3_variant,
-+	}, { /* sentinel */ }
++	{ .compatible = "esp,esp32s3-uart" },
++	{ /* sentinel */ }
 +};
 +MODULE_DEVICE_TABLE(of, esp32_uart_dt_ids);
 +
 +static struct esp32_port *esp32_uart_ports[UART_NR];
-+
-+static const struct esp32_uart_variant *port_variant(struct uart_port *port)
-+{
-+	return port->private_data;
-+}
 +
 +static void esp32_uart_write(struct uart_port *port, unsigned long reg, u32 v)
 +{
@@ -3781,14 +3700,14 @@ new file mode 100644
 +{
 +	u32 status = esp32_uart_read(port, UART_STATUS_REG);
 +
-+	return (status & port_variant(port)->txfifo_cnt_mask) >> UART_TXFIFO_CNT_SHIFT;
++	return FIELD_GET(UART_TXFIFO_CNT, status);
 +}
 +
 +static u32 esp32_uart_rx_fifo_cnt(struct uart_port *port)
 +{
 +	u32 status = esp32_uart_read(port, UART_STATUS_REG);
 +
-+	return (status & port_variant(port)->rxfifo_cnt_mask) >> UART_RXFIFO_CNT_SHIFT;
++	return FIELD_GET(UART_RXFIFO_CNT, status);
 +}
 +
 +/* Return TIOCSER_TEMT when the transmitter is idle. */
@@ -3953,12 +3872,11 @@ new file mode 100644
 +	}
 +
 +	spin_lock_irqsave(&port->lock, flags);
-+	if (port_variant(port)->has_clkconf)
-+		esp32_uart_write(port, ESP32S3_UART_CLK_CONF_REG,
-+				 ESP32S3_UART_CLK_CONF_DEFAULT);
++	esp32_uart_write(port, ESP32S3_UART_CLK_CONF_REG,
++			 ESP32S3_UART_CLK_CONF_DEFAULT);
 +	esp32_uart_write(port, UART_CONF1_REG,
 +			 (1 << UART_RXFIFO_FULL_THRHD_SHIFT) |
-+			 (1 << port_variant(port)->txfifo_empty_thrhd_shift));
++			 (1 << UART_TXFIFO_EMPTY_THRHD_SHIFT));
 +	esp32_uart_write(port, UART_INT_CLR_REG, UART_RXFIFO_FULL_INT | UART_BRK_DET_INT);
 +	esp32_uart_write(port, UART_INT_ENA_REG, UART_RXFIFO_FULL_INT | UART_BRK_DET_INT);
 +	spin_unlock_irqrestore(&port->lock, flags);
@@ -3979,20 +3897,17 @@ new file mode 100644
 +{
 +	u32 sclk = port->uartclk;
 +	u32 div = sclk / baud;
++	u32 sclk_div = div / UART_CLKDIV;
 +
-+	if (port_variant(port)->has_clkconf) {
-+		u32 sclk_div = div / port_variant(port)->clkdiv_mask;
-+
-+		if (div > port_variant(port)->clkdiv_mask) {
-+			sclk /= (sclk_div + 1);
-+			div = sclk / baud;
-+		}
-+		esp32_uart_write(port, ESP32S3_UART_CLK_CONF_REG,
-+				 FIELD_PREP(ESP32S3_UART_SCLK_DIV_NUM, sclk_div) |
-+				 ESP32S3_UART_CLK_CONF_DEFAULT);
++	if (div > UART_CLKDIV) {
++		sclk /= (sclk_div + 1);
++		div = sclk / baud;
 +	}
++	esp32_uart_write(port, ESP32S3_UART_CLK_CONF_REG,
++			 FIELD_PREP(ESP32S3_UART_SCLK_DIV_NUM, sclk_div) |
++			 ESP32S3_UART_CLK_CONF_DEFAULT);
 +
-+	if (div <= port_variant(port)->clkdiv_mask) {
++	if (div <= UART_CLKDIV) {
 +		u32 frag = (sclk * 16) / baud - div * 16;
 +
 +		esp32_uart_write(port, UART_CLKDIV_REG,
@@ -4009,14 +3924,10 @@ new file mode 100644
 +{
 +	unsigned long flags;
 +	u32 conf0, conf1;
++	u32 max_div = UART_CLKDIV * FIELD_MAX(ESP32S3_UART_SCLK_DIV_NUM);
 +	u32 baud;
-+	const u32 rx_flow_en = port_variant(port)->rx_flow_en;
-+	u32 max_div = port_variant(port)->clkdiv_mask;
 +
 +	termios->c_cflag &= ~CMSPAR;
-+
-+	if (port_variant(port)->has_clkconf)
-+		max_div *= FIELD_MAX(ESP32S3_UART_SCLK_DIV_NUM);
 +
 +	baud = uart_get_baud_rate(port, termios, old,
 +				  port->uartclk / max_div,
@@ -4028,7 +3939,7 @@ new file mode 100644
 +	conf0 &= ~(UART_PARITY_EN | UART_PARITY | UART_BIT_NUM | UART_STOP_BIT_NUM);
 +
 +	conf1 = esp32_uart_read(port, UART_CONF1_REG);
-+	conf1 &= ~rx_flow_en;
++	conf1 &= ~UART_RX_FLOW_EN;
 +
 +	if (termios->c_cflag & PARENB) {
 +		conf0 |= UART_PARITY_EN;
@@ -4057,7 +3968,7 @@ new file mode 100644
 +		conf0 |= FIELD_PREP(UART_STOP_BIT_NUM, UART_STOP_BIT_NUM_1);
 +
 +	if (termios->c_cflag & CRTSCTS)
-+		conf1 |= rx_flow_en;
++		conf1 |= UART_RX_FLOW_EN;
 +
 +	esp32_uart_write(port, UART_CONF0_REG, conf0);
 +	esp32_uart_write(port, UART_CONF1_REG, conf1);
@@ -4081,7 +3992,7 @@ new file mode 100644
 +
 +static const char *esp32_uart_type(struct uart_port *port)
 +{
-+	return port_variant(port)->type;
++	return "ESP32S3 UART";
 +}
 +
 +/* Configure the port. */
@@ -4220,7 +4131,7 @@ new file mode 100644
 +}
 +#endif
 +
-+static int __init esp32xx_uart_early_console_setup(struct earlycon_device *device,
++static int __init esp32s3_uart_early_console_setup(struct earlycon_device *device,
 +						   const char *options)
 +{
 +	if (!device->port.membase)
@@ -4234,25 +4145,6 @@ new file mode 100644
 +		esp32_uart_set_baud(&device->port, device->baud);
 +
 +	return 0;
-+}
-+
-+static int __init esp32_uart_early_console_setup(struct earlycon_device *device,
-+						 const char *options)
-+{
-+	device->port.private_data = (void *)&esp32_variant;
-+
-+	return esp32xx_uart_early_console_setup(device, options);
-+}
-+
-+OF_EARLYCON_DECLARE(esp32uart, "esp,esp32-uart",
-+		    esp32_uart_early_console_setup);
-+
-+static int __init esp32s3_uart_early_console_setup(struct earlycon_device *device,
-+						   const char *options)
-+{
-+	device->port.private_data = (void *)&esp32s3_variant;
-+
-+	return esp32xx_uart_early_console_setup(device, options);
 +}
 +
 +OF_EARLYCON_DECLARE(esp32s3uart, "esp,esp32s3-uart",
@@ -4314,7 +4206,6 @@ new file mode 100644
 +	port->flags = UPF_BOOT_AUTOCONF;
 +	port->has_sysrq = 1;
 +	port->fifosize = ESP32_UART_TX_FIFO_SIZE;
-+	port->private_data = (void *)device_get_match_data(&pdev->dev);
 +	esp32_uart_ports[port->line] = sport;
 +
 +	platform_set_drvdata(pdev, port);

@@ -405,40 +405,51 @@ static void esp32s31_wifi_send_cmd(struct esp32s31_wifi *priv, u32 code)
  */
 #define ESP32S31_WIFI_IE_MAX		160
 
-/* A count (le16) and one suite for each cipher bit. */
-static u8 *esp32s31_wifi_put_ciphers(u8 *p, const u8 *oui, u8 ciphers)
-{
-	static const struct {
-		u8 bit;
-		u8 type;
-	} map[] = {
-		{ ESP32S31_IPC_CIPHER_CCMP, 4 },
-		{ ESP32S31_IPC_CIPHER_TKIP, 2 },
-		{ ESP32S31_IPC_CIPHER_GCMP, 8 },
-		{ ESP32S31_IPC_CIPHER_GCMP256, 9 },
-	};
-	u8 *count = p;
-	unsigned int i;
+struct esp32s31_wifi_suite {
+	u8 bit;
+	u8 type;
+};
 
-	p += 2;
-	count[0] = 0;
-	count[1] = 0;
-	for (i = 0; i < ARRAY_SIZE(map); i++) {
-		if (!(ciphers & map[i].bit))
-			continue;
-		memcpy(p, oui, 3);
-		p[3] = map[i].type;
-		p += 4;
-		count[0]++;
-	}
-	return p;
-}
+static const struct esp32s31_wifi_suite esp32s31_wifi_cipher_suites[] = {
+	{ ESP32S31_IPC_CIPHER_CCMP, 4 },
+	{ ESP32S31_IPC_CIPHER_TKIP, 2 },
+	{ ESP32S31_IPC_CIPHER_GCMP, 8 },
+	{ ESP32S31_IPC_CIPHER_GCMP256, 9 },
+	{ }
+};
+
+/* WPA uses the same AKM types, with EAP (1) and PSK (2) only. */
+static const struct esp32s31_wifi_suite esp32s31_wifi_akm_suites[] = {
+	{ ESP32S31_IPC_AKM_EAP, 1 },
+	{ ESP32S31_IPC_AKM_PSK, 2 },
+	{ ESP32S31_IPC_AKM_SAE, 8 },
+	{ ESP32S31_IPC_AKM_OWE, 18 },
+	{ }
+};
 
 static u8 *esp32s31_wifi_put_suite(u8 *p, const u8 *oui, u8 type)
 {
 	memcpy(p, oui, 3);
 	p[3] = type;
 	return p + 4;
+}
+
+/* A count (le16), then one suite for each bit in the table. */
+static u8 *esp32s31_wifi_put_suites(u8 *p, const u8 *oui, u8 bits,
+				    const struct esp32s31_wifi_suite *map)
+{
+	u8 *count = p;
+
+	p += 2;
+	count[0] = 0;
+	count[1] = 0;
+	for (; map->bit; map++) {
+		if (bits & map->bit) {
+			p = esp32s31_wifi_put_suite(p, oui, map->type);
+			count[0]++;
+		}
+	}
+	return p;
 }
 
 static u8 esp32s31_wifi_cipher_type(u8 ciphers)
@@ -465,7 +476,7 @@ static size_t esp32s31_wifi_build_ies(const struct esp32s31_ipc_bss *bss,
 	u8 group = bss->group ?: pairwise;
 	u8 rates[sizeof(cck) + sizeof(ofdm)];
 	unsigned int n = 0, first;
-	u8 *p = ie, *len, *count;
+	u8 *p = ie, *len;
 
 	*p++ = WLAN_EID_SSID;
 	*p++ = bss->ssid_len;
@@ -505,14 +516,14 @@ static size_t esp32s31_wifi_build_ies(const struct esp32s31_ipc_bss *bss,
 		*p++ = 0;
 		p = esp32s31_wifi_put_suite(p, wpa_oui,
 					    esp32s31_wifi_cipher_type(group));
-		p = esp32s31_wifi_put_ciphers(p, wpa_oui, pairwise &
-					      (ESP32S31_IPC_CIPHER_TKIP |
-					       ESP32S31_IPC_CIPHER_CCMP));
-		*p++ = 1;					/* one AKM */
-		*p++ = 0;
-		p = esp32s31_wifi_put_suite(p, wpa_oui,
-					    bss->akm & ESP32S31_IPC_AKM_EAP ?
-					    1 : 2);
+		p = esp32s31_wifi_put_suites(p, wpa_oui, pairwise &
+					     (ESP32S31_IPC_CIPHER_TKIP |
+					      ESP32S31_IPC_CIPHER_CCMP),
+					     esp32s31_wifi_cipher_suites);
+		p = esp32s31_wifi_put_suites(p, wpa_oui,
+					     bss->akm & ESP32S31_IPC_AKM_EAP ?:
+					     ESP32S31_IPC_AKM_PSK,
+					     esp32s31_wifi_akm_suites);
 		*len = p - len - 1;
 	} else if (bss->akm & (ESP32S31_IPC_AKM_PSK | ESP32S31_IPC_AKM_SAE |
 			       ESP32S31_IPC_AKM_EAP | ESP32S31_IPC_AKM_OWE)) {
@@ -528,27 +539,10 @@ static size_t esp32s31_wifi_build_ies(const struct esp32s31_ipc_bss *bss,
 		*p++ = 0;
 		p = esp32s31_wifi_put_suite(p, rsn_oui,
 					    esp32s31_wifi_cipher_type(group));
-		p = esp32s31_wifi_put_ciphers(p, rsn_oui, pairwise);
-		count = p;
-		p += 2;
-		count[0] = 0;
-		count[1] = 0;
-		if (bss->akm & ESP32S31_IPC_AKM_EAP) {
-			p = esp32s31_wifi_put_suite(p, rsn_oui, 1);
-			count[0]++;
-		}
-		if (bss->akm & ESP32S31_IPC_AKM_PSK) {
-			p = esp32s31_wifi_put_suite(p, rsn_oui, 2);
-			count[0]++;
-		}
-		if (bss->akm & ESP32S31_IPC_AKM_SAE) {
-			p = esp32s31_wifi_put_suite(p, rsn_oui, 8);
-			count[0]++;
-		}
-		if (bss->akm & ESP32S31_IPC_AKM_OWE) {
-			p = esp32s31_wifi_put_suite(p, rsn_oui, 18);
-			count[0]++;
-		}
+		p = esp32s31_wifi_put_suites(p, rsn_oui, pairwise,
+					     esp32s31_wifi_cipher_suites);
+		p = esp32s31_wifi_put_suites(p, rsn_oui, bss->akm,
+					     esp32s31_wifi_akm_suites);
 		/* RSN capabilities: bit 6 MFP required, bit 7 MFP capable. */
 		*p++ = (mfpc ? BIT(7) : 0) | (mfpr ? BIT(6) : 0);
 		*p++ = 0;
@@ -643,29 +637,24 @@ static int esp32s31_wifi_set_key(struct esp32s31_wifi *priv,
 {
 	char hex[2 * WLAN_PMK_LEN + 1];
 
+	if (sme->crypto.sae_pwd_len > ESP32S31_IPC_PSK_MAX)
+		return -EINVAL;
+
+	/* Clear the old key.  Without a new key, the network is open. */
+	memset_io(priv->ipc->cmd.psk, 0, ESP32S31_IPC_PSK_MAX);
+
 	/*
 	 * The password first: the firmware can use it for SAE and for
 	 * WPA2-PSK.  A PMK does not work for SAE, and a supplicant can give
 	 * both for a WPA2/WPA3 transition network.
 	 */
 	if (sme->crypto.sae_pwd) {
-		if (sme->crypto.sae_pwd_len > ESP32S31_IPC_PSK_MAX)
-			return -EINVAL;
-		memset_io(priv->ipc->cmd.psk, 0, ESP32S31_IPC_PSK_MAX);
 		memcpy_toio(priv->ipc->cmd.psk, sme->crypto.sae_pwd,
 			    sme->crypto.sae_pwd_len);
-		return 0;
-	}
-
-	if (sme->crypto.psk) {
-		memset_io(priv->ipc->cmd.psk, 0, ESP32S31_IPC_PSK_MAX);
+	} else if (sme->crypto.psk) {
 		bin2hex(hex, sme->crypto.psk, WLAN_PMK_LEN);
 		memcpy_toio(priv->ipc->cmd.psk, hex, 2 * WLAN_PMK_LEN);
-		return 0;
 	}
-
-	/* No key: an open network. */
-	memset_io(priv->ipc->cmd.psk, 0, ESP32S31_IPC_PSK_MAX);
 	return 0;
 }
 
