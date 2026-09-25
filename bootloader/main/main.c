@@ -430,4 +430,11 @@ void app_main(void)
 
     start_linux_hart();
     ESP_LOGI(TAG, "hart 0 resident");
+
+    /*
+     * Linux now uses the same UART.  From here, the firmware prints only
+     * errors, so that its lines do not mix with the Linux console.  Linux
+     * reports the Wi-Fi events itself.
+     */
+    esp_log_level_set("*", ESP_LOG_ERROR);
 }
