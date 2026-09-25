@@ -1,11 +1,56 @@
 # ESP32-S31 Linux
 
-Linux 7.2 and OpenSBI 1.9 on the ESP32-S31 Korvo-1 board. Linux uses the
+Linux 7.2 and OpenSBI 1.9 on the ESP32-S31-Korvo-1 board. Linux uses the
 16 MiB octal PSRAM as its memory.
 
 ```text
 ESP ROM -> ESP-IDF 2nd stage -> loader -> OpenSBI -> Linux -> initramfs -> Buildroot rootfs (SD)
 ```
+
+## About
+
+The ESP32-S31 is a microcontroller: two RV32 harts at 320 MHz, 512 KiB of
+SRAM, Wi-Fi 6 and Bluetooth. It was not made for Linux. This project runs a
+stock Linux 7.2 kernel with a small patch set on it, with a real userspace:
+a shell on the LCD, Wi-Fi with `wpa_supplicant`, SSH, USB keyboards and
+sticks, `vim`, `gdb`, `strace`, MicroPython and a web browser (`links`).
+
+You can use it in two ways:
+
+- **To try it.** Flash a release, write the card image, and log in. It
+  takes about ten minutes.
+- **To learn from it.** The SoC has no PLIC, no Zicbom, no coherent DMA and
+  no uncached alias of its RAM. Each of these has a solution here that you
+  can read in a few hundred lines. [docs/internals.md](docs/internals.md)
+  tells the full story for kernel developers.
+
+## Try it
+
+1. Get the files of the newest release from the
+   [releases page](https://github.com/annoyedmilk/esp32-s31-linux/releases).
+2. Flash: `pip install "esptool>=5.4"`, connect the UART Type-C port, then
+   `esptool --chip esp32s31 -p PORT -b 921600 write-flash 0x0 flash.bin`.
+3. Write `*-sdcard.img.xz` to a microSD card (for example with
+   balenaEtcher), and put the card into the board.
+4. Open the console on the UART port at 115200 baud. Push reset. After
+   about 30 seconds you are root.
+5. Connect to Wi-Fi (see [Wi-Fi](#wi-fi)), then try `ssh`, `links`,
+   `micropython` or `iperf3`.
+
+The root password is `korvo-bringup`. Change it before you connect the board
+to a network that you do not control.
+
+## Releases
+
+A tag `v*` starts `.github/workflows/release.yml`. It builds everything on
+a Linux runner (`scripts/ci-build.sh`), packages the files
+(`scripts/package-release.sh`) and publishes a GitHub release. A tag with
+a `-` (for example `v0.2.0-rc1`) makes a pre-release. Usual commits do not
+start a build. To test the workflow without a release, run it by hand from
+the Actions tab: the files are then workflow artifacts only.
+
+The ESP-IDF commit is pinned in `bootloader/esp-idf.version`. Use the same
+commit for a local build.
 
 ## What works
 
@@ -83,8 +128,11 @@ default is the LCD (`CONFIG_ESP_CONSOLE_SECONDARY_NONE` in
 ## Host requirements
 
 - macOS with Homebrew and GNU make (`brew install make`).
-- ESP-IDF `master` at `~/esp/esp-idf`, with the `riscv32-esp-elf` toolchain.
+- ESP-IDF at `~/esp/esp-idf`, at the commit in `bootloader/esp-idf.version`,
+  with the `riscv32-esp-elf` toolchain.
 - Apple `container` CLI. Run `container system start` first.
+
+On Linux, `scripts/ci-build.sh` builds everything without a container.
 
 Buildroot does not run on macOS. It runs in the Debian image from
 `container/Containerfile`. Its `output/` and `dl/` are in the `esp32s31-br`

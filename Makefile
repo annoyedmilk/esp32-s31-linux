@@ -13,8 +13,9 @@ IDF_PYTHON_ENV := $(patsubst %/bin/python,%,$(PYTHON))
 ESP_RISCV_BIN := $(lastword $(sort $(wildcard $(IDF_TOOLS_PATH)/tools/riscv32-esp-elf/*/riscv32-esp-elf/bin)))
 CROSS_COMPILE ?= $(ESP_RISCV_BIN)/riscv32-esp-elf-
 
-GMAKE ?= $(shell command -v gmake 2>/dev/null)
-JOBS ?= $(shell sysctl -n hw.ncpu 2>/dev/null || echo 4)
+# macOS has GNU make as gmake.  On Linux, make is GNU make.
+GMAKE ?= $(shell command -v gmake 2>/dev/null || command -v make)
+JOBS ?= $(shell sysctl -n hw.ncpu 2>/dev/null || nproc 2>/dev/null || echo 4)
 
 OPENSBI_DIR := external/opensbi
 OPENSBI_SRC := $(BUILD_DIR)/opensbi-src
@@ -75,7 +76,7 @@ INITRAMFS_OFFSET := 0xa20000
 	kernel-saveconfig \
 	container-image \
 	br-volume br-artifacts rootfs rootfs-menuconfig initramfs sdcard sdpart \
-	sdwrite sdroot flash monitor openocd clean
+	sdwrite sdroot flash flash-args monitor openocd clean
 
 help:
 	@printf '%s\n' \
@@ -344,17 +345,24 @@ sdroot:
 	@sync
 	@diskutil eject "$(SD_DISK)"
 
+# Offset and file of each flash region.  The release package uses the same
+# list (make flash-args).
+FLASH_IMAGES = \
+	$(BOOTLOADER_OFFSET) $(BUILD_DIR)/bootloader/bootloader/bootloader.bin \
+	$(PARTITION_TABLE_OFFSET) $(BUILD_DIR)/bootloader/partition_table/partition-table.bin \
+	$(APP_OFFSET) $(BUILD_DIR)/bootloader/s31-linux-loader.bin \
+	$(OPENSBI_OFFSET) $(BUILD_DIR)/opensbi.bin \
+	$(LINUX_OFFSET) $(BUILD_DIR)/Image \
+	$(LINUX_SIZE_OFFSET) $(BUILD_DIR)/linux.size \
+	$(INITRAMFS_OFFSET) $(BUILD_DIR)/initramfs.cpio
+
 flash: build
 	@test -n "$(FLASH_PORT)" || { echo 'set FLASH_PORT=/dev/cu.<flash-port>'; exit 1; }
 	@$(ESPTOOL) --chip esp32s31 -p "$(FLASH_PORT)" -b 921600 \
-		--before default-reset --after hard-reset write-flash \
-		$(BOOTLOADER_OFFSET) "$(BUILD_DIR)/bootloader/bootloader/bootloader.bin" \
-		$(PARTITION_TABLE_OFFSET) "$(BUILD_DIR)/bootloader/partition_table/partition-table.bin" \
-		$(APP_OFFSET) "$(BUILD_DIR)/bootloader/s31-linux-loader.bin" \
-		$(OPENSBI_OFFSET) "$(BUILD_DIR)/opensbi.bin" \
-		$(LINUX_OFFSET) "$(BUILD_DIR)/Image" \
-		$(LINUX_SIZE_OFFSET) "$(BUILD_DIR)/linux.size" \
-		$(INITRAMFS_OFFSET) "$(BUILD_DIR)/initramfs.cpio"
+		--before default-reset --after hard-reset write-flash $(FLASH_IMAGES)
+
+flash-args:
+	@printf '%s %s\n' $(FLASH_IMAGES)
 
 monitor:
 	@test -n "$(SERIAL_PORT)" || { echo 'set SERIAL_PORT=/dev/cu.<external-uart>'; exit 1; }

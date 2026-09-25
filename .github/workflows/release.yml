@@ -1,0 +1,92 @@
+# Build the flash images and the SD card image, and publish them.
+#
+# A push of a tag v* makes a GitHub release with the files.  A manual run
+# (Actions > release > Run workflow) builds the same files and keeps them as
+# workflow artifacts only.  Usual commits do not start a build.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    # Buildroot builds a toolchain, the kernel and the userspace: about 2 to 3
+    # hours on a hosted runner.  The limit for a job is 6 hours.
+    timeout-minutes: 350
+    steps:
+      - name: Free disk space
+        # Buildroot needs approximately 15 GB.
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+            /opt/hostedtoolcache/CodeQL /usr/local/share/boost
+          df -h /
+
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install the host packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            bc build-essential cpio dosfstools file libncurses-dev mtools \
+            rsync unzip wget xz-utils zip \
+            git python3 python3-venv python3-pip cmake ninja-build \
+            flex bison gperf ccache libffi-dev libssl-dev dfu-util libusb-1.0-0
+
+      - name: Read the ESP-IDF version
+        id: idf
+        run: echo "commit=$(cat bootloader/esp-idf.version)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache ESP-IDF and its tools
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/esp/esp-idf
+            ~/.espressif
+          key: esp-idf-${{ steps.idf.outputs.commit }}
+
+      - name: Install ESP-IDF
+        run: |
+          if [ ! -d ~/esp/esp-idf/.git ]; then
+            git clone --filter=blob:none https://github.com/espressif/esp-idf.git ~/esp/esp-idf
+            git -C ~/esp/esp-idf checkout ${{ steps.idf.outputs.commit }}
+            git -C ~/esp/esp-idf submodule update --init --recursive --filter=blob:none
+          fi
+          ~/esp/esp-idf/install.sh esp32s31
+
+      - name: Cache the Buildroot downloads
+        uses: actions/cache@v4
+        with:
+          path: build/br-dl
+          key: br-dl-${{ hashFiles('br2-external/configs/esp32s31_defconfig', '.gitmodules') }}
+          restore-keys: br-dl-
+
+      - name: Build
+        run: scripts/ci-build.sh
+
+      - name: Package
+        run: |
+          python=$(ls -d ~/.espressif/python_env/*/bin/python | tail -1)
+          version=${GITHUB_REF_NAME}
+          [ "$GITHUB_REF_TYPE" = tag ] || version=$(git describe --always --dirty)
+          ESPTOOL="$python -m esptool" scripts/package-release.sh "$version"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: esp32s31-linux
+          path: build/release/*
+
+      - name: Publish the release
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/release/*
+          body_path: docs/release-notes.md
+          prerelease: ${{ contains(github.ref_name, '-') }}
