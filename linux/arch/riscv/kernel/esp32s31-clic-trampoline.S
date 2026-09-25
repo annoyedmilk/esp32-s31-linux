@@ -14,7 +14,8 @@
  *
  * The trampoline:
  *   1. Saves all registers in pt_regs on the stack
- *   2. Calls do_irq(regs) with SIE disabled
+ *   2. Sends a synchronous exception to its trap handler, or calls
+ *      do_irq(regs) with SIE disabled
  *   3. Restores the registers and executes sret
  *
  * The Linux IRQ core runs hard IRQ handlers with CPU interrupts disabled.
@@ -233,29 +234,21 @@ SYM_CODE_START(esp32s31_clic_trampoline)
 .Lclic_restore_csrs:
 
 	/*
-	 * Restore the context and return.
-	 *
-	 * xIE is clear.  Restore xepc first, because it has no side effects.
-	 * Then restore xstatus with xIE clear, so interrupts stay disabled
-	 * while the GPRs are restored.  xret at the end sets the correct
-	 * interrupt-enable state in one step.
+	 * Restore the context and return.  xIE is clear.  Restore xepc first,
+	 * because it does not change the interrupt state.  Then restore
+	 * xstatus with xIE clear, so interrupts stay disabled while the GPRs
+	 * are restored.  sret at the end sets the interrupt-enable state.
 	 */
-
-	/* Restore xepc first.  It does not change the interrupt state. */
 	REG_L	t0, PT_EPC(sp)
 	csrw	CSR_EPC, t0
 
-	/* Restore xstatus with xIE clear */
 	REG_L	t0, PT_STATUS(sp)
 	li	t1, SR_IE
 	not	t1, t1
 	and	t0, t0, t1
 	csrw	CSR_STATUS, t0
 
-	/*
-	 * Restore the GPRs: xIE is off, so there is no preemption.  Restore sp
-	 * last.
-	 */
+	/* Restore the GPRs.  Restore sp last. */
 	REG_L	ra,  PT_RA(sp)
 	REG_L	gp,  PT_GP(sp)
 	REG_L	tp,  PT_TP(sp)

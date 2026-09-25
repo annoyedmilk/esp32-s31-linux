@@ -15,9 +15,9 @@ diff --git a/arch/riscv/kernel/setup.c b/arch/riscv/kernel/setup.c
  		riscv_noncoherent_supported();
 +	/*
 +	 * The ESP32-S31 has no Zicbom.  Its cache controller driver gives the
-+	 * maintenance operations from an early_initcall, when ioremap() is
-+	 * available.  Enable the support here anyway: the slab allocator gets
-+	 * the kmalloc alignment from dma_get_cache_alignment() before the
++	 * maintenance operations through SBI calls from an early_initcall.
++	 * Enable the support here anyway: the slab allocator gets the
++	 * kmalloc alignment from dma_get_cache_alignment() before the
 +	 * initcalls.  Without SWIOTLB, nothing can bounce a DMA buffer that
 +	 * shares a cache line with a different allocation.
 +	 */
@@ -42,12 +42,12 @@ diff --git a/drivers/cache/Kconfig b/drivers/cache/Kconfig
 +	select RISCV_NONSTANDARD_CACHE_OPS
 +	select DMA_GLOBAL_POOL if !DMA_DIRECT_REMAP
 +	help
-+	  Support cache maintenance for DMA on the Espressif ESP32-S31.  The
-+	  hart implements no Zicbom and the SoC has no uncached alias of its
-+	  PSRAM aperture, so DMA coherency relies on the cache controller's
-+	  MMIO sync engine.  That aperture cannot back coherent allocations at
-+	  all, so those come from a shared-dma-pool in internal SRAM, which is
-+	  reached without the data cache.
++	  Cache maintenance for DMA on the Espressif ESP32-S31.  The hart has
++	  no Zicbom, and the SoC has no uncached alias of PSRAM.  Thus the
++	  sync engine of the cache controller keeps DMA buffers coherent.
++	  OpenSBI operates it for Linux through a vendor SBI extension.
++	  Coherent allocations come from a shared-dma-pool in internal SRAM,
++	  which the CPU accesses without the data cache.
 +
  config SIFIVE_CCACHE
  	bool "Sifive Composable Cache controller"

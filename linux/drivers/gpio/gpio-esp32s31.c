@@ -16,10 +16,8 @@
 #include <linux/mod_devicetable.h>
 #include <linux/platform_device.h>
 
-#define ESP32S31_GPIO_OUT		0x04
 #define ESP32S31_GPIO_OUT_W1TS		0x08
 #define ESP32S31_GPIO_OUT_W1TC		0x0c
-#define ESP32S31_GPIO_OUT1		0x10
 #define ESP32S31_GPIO_OUT1_W1TS		0x14
 #define ESP32S31_GPIO_OUT1_W1TC		0x18
 #define ESP32S31_GPIO_ENABLE		0x34
@@ -97,7 +95,7 @@ static int esp32s31_gpio_get_direction(struct gpio_chip *chip,
 	return GPIO_LINE_DIRECTION_IN;
 }
 
-/* Take the pad from its peripheral and read its level. */
+/* Take the pad from its peripheral and enable its input. */
 static void esp32s31_gpio_claim(struct esp32s31_gpio *priv, unsigned int offset)
 {
 	void __iomem *iomux = priv->iomux + offset * 4;

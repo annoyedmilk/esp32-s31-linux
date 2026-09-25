@@ -27,7 +27,8 @@ BR2_LINUX_KERNEL_CUSTOM_CONFIG_FILE="$(BR2_EXTERNAL_ESP32S31_PATH)/board/esp32s3
 # CONFIG_BUILTIN_DTB, so the loader copies only one file.
 BR2_LINUX_KERNEL_IMAGE=y
 # Headers from the same kernel.  Also set the header series.  The default is
-# "really old", which tells all packages that the headers are 2.6.
+# "really old", which tells all packages that the headers are 2.6.  7.1 is
+# the newest series that this Buildroot knows, and it also covers 7.2.
 BR2_KERNEL_HEADERS_AS_KERNEL=y
 BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_7_1=y
 

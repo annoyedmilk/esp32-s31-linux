@@ -145,26 +145,25 @@ static inline void clic_writeb(struct esp32s31_clic *clic, unsigned int irq_id,
 
 /* irq_chip callbacks */
 
-static void esp32s31_clic_irq_mask(struct irq_data *d)
+static void esp32s31_clic_irq_enable(struct irq_data *d, u8 enable)
 {
 	struct esp32s31_clic *clic = irq_data_get_irq_chip_data(d);
 	raw_spinlock_t *lock = this_cpu_ptr(&clic_lock);
 	unsigned long flags;
 
 	raw_spin_lock_irqsave(lock, flags);
-	clic_writeb(clic, d->hwirq, ESP32S31_CLIC_INT_IE, 0);
+	clic_writeb(clic, d->hwirq, ESP32S31_CLIC_INT_IE, enable);
 	raw_spin_unlock_irqrestore(lock, flags);
+}
+
+static void esp32s31_clic_irq_mask(struct irq_data *d)
+{
+	esp32s31_clic_irq_enable(d, 0);
 }
 
 static void esp32s31_clic_irq_unmask(struct irq_data *d)
 {
-	struct esp32s31_clic *clic = irq_data_get_irq_chip_data(d);
-	raw_spinlock_t *lock = this_cpu_ptr(&clic_lock);
-	unsigned long flags;
-
-	raw_spin_lock_irqsave(lock, flags);
-	clic_writeb(clic, d->hwirq, ESP32S31_CLIC_INT_IE, 1);
-	raw_spin_unlock_irqrestore(lock, flags);
+	esp32s31_clic_irq_enable(d, 1);
 }
 
 static void esp32s31_clic_irq_eoi(struct irq_data *d)
@@ -350,9 +349,6 @@ static void esp32s31_intmatrix_route(struct esp32s31_clic *clic,
 {
 	void __iomem *reg;
 	u32 val;
-
-	if (!clic->intmatrix_regs)
-		return;
 
 	if (source >= ESP32S31_INTMATRIX_CORE_STRIDE / sizeof(u32)) {
 		pr_warn("CLIC: S31 interrupt source %u out of matrix range\n",

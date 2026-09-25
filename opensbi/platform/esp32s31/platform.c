@@ -379,6 +379,15 @@ void sbi_ipi_plat_sirq_clear(void)
 	reg_write8(ESP32S31_CLIC_IP(ESP32S31_CLIC_SSOFT_ID), 0);
 }
 
+/* Set up one local input at the maximum level, and enable it. */
+static void esp32s31_clic_setup(int id, unsigned char attr)
+{
+	reg_write8(ESP32S31_CLIC_IP(id), 0);
+	reg_write8(ESP32S31_CLIC_ATTR(id), attr);
+	reg_write8(ESP32S31_CLIC_CTL(id), ESP32S31_CLIC_CTL_MAX);
+	reg_write8(ESP32S31_CLIC_IE(id), 1);
+}
+
 static int esp32s31_timer_init(void)
 {
 	int i;
@@ -398,32 +407,15 @@ static int esp32s31_timer_init(void)
 		reg_write8(ESP32S31_CLIC_ATTR(i), ESP32S31_CLIC_ATTR_S_LEVEL);
 	}
 
-	/* Machine timer input: M-mode, edge, max level, enabled. */
-	reg_write8(ESP32S31_CLIC_IP(ESP32S31_CLIC_MTIMER_ID), 0);
-	reg_write8(ESP32S31_CLIC_ATTR(ESP32S31_CLIC_MTIMER_ID),
-		   ESP32S31_CLIC_ATTR_M_EDGE);
-	reg_write8(ESP32S31_CLIC_CTL(ESP32S31_CLIC_MTIMER_ID),
-		   ESP32S31_CLIC_CTL_MAX);
-	reg_write8(ESP32S31_CLIC_IE(ESP32S31_CLIC_MTIMER_ID), 1);
-
 	/*
-	 * S-mode timer input: enable it here, so a payload without a CLIC driver
-	 * gets it.  An S-mode kernel can control IE itself.
+	 * The machine timer, the S-mode timer and the S-mode software
+	 * interrupt (for the SBI IPI extension).  Enable the S-mode timer
+	 * here, so a payload without a CLIC driver gets it.  An S-mode kernel
+	 * can control IE itself.
 	 */
-	reg_write8(ESP32S31_CLIC_IP(ESP32S31_CLIC_STIMER_ID), 0);
-	reg_write8(ESP32S31_CLIC_ATTR(ESP32S31_CLIC_STIMER_ID),
-		   ESP32S31_CLIC_ATTR_S_EDGE);
-	reg_write8(ESP32S31_CLIC_CTL(ESP32S31_CLIC_STIMER_ID),
-		   ESP32S31_CLIC_CTL_MAX);
-	reg_write8(ESP32S31_CLIC_IE(ESP32S31_CLIC_STIMER_ID), 1);
-
-	/* Supervisor software interrupt for the SBI IPI extension. */
-	reg_write8(ESP32S31_CLIC_IP(ESP32S31_CLIC_SSOFT_ID), 0);
-	reg_write8(ESP32S31_CLIC_ATTR(ESP32S31_CLIC_SSOFT_ID),
-		   ESP32S31_CLIC_ATTR_S_EDGE);
-	reg_write8(ESP32S31_CLIC_CTL(ESP32S31_CLIC_SSOFT_ID),
-		   ESP32S31_CLIC_CTL_MAX);
-	reg_write8(ESP32S31_CLIC_IE(ESP32S31_CLIC_SSOFT_ID), 1);
+	esp32s31_clic_setup(ESP32S31_CLIC_MTIMER_ID, ESP32S31_CLIC_ATTR_M_EDGE);
+	esp32s31_clic_setup(ESP32S31_CLIC_STIMER_ID, ESP32S31_CLIC_ATTR_S_EDGE);
+	esp32s31_clic_setup(ESP32S31_CLIC_SSOFT_ID, ESP32S31_CLIC_ATTR_S_EDGE);
 
 	reg_write(ESP32S31_MTIMECTL, 1);
 	esp32s31_timer_event_stop();
@@ -483,28 +475,25 @@ static void esp32s31_cache_sync(unsigned long op, unsigned long addr,
 	spin_unlock(&esp32s31_cache_lock);
 }
 
+/* The sync operation for each vendor SBI function ID. */
+static const unsigned long esp32s31_cache_ops[] = {
+	[ESP32S31_SBI_CACHE_WBACK_ALL] = ESP32S31_CACHE_WRITEBACK,
+	[ESP32S31_SBI_CACHE_INV] = ESP32S31_CACHE_INVALIDATE,
+	[ESP32S31_SBI_CACHE_WBACK] = ESP32S31_CACHE_WRITEBACK,
+	[ESP32S31_SBI_CACHE_WBACK_INV] = ESP32S31_CACHE_WRITEBACK_INV,
+};
+
 static int esp32s31_vendor_ext(long funcid, struct sbi_trap_regs *regs,
 			       struct sbi_ecall_return *out)
 {
-	switch (funcid) {
-	case ESP32S31_SBI_CACHE_WBACK_ALL:
-		esp32s31_cache_sync(ESP32S31_CACHE_WRITEBACK, 0, 0);
-		return 0;
-	case ESP32S31_SBI_CACHE_INV:
-		esp32s31_cache_sync(ESP32S31_CACHE_INVALIDATE,
-				    regs->a0, regs->a1);
-		return 0;
-	case ESP32S31_SBI_CACHE_WBACK:
-		esp32s31_cache_sync(ESP32S31_CACHE_WRITEBACK,
-				    regs->a0, regs->a1);
-		return 0;
-	case ESP32S31_SBI_CACHE_WBACK_INV:
-		esp32s31_cache_sync(ESP32S31_CACHE_WRITEBACK_INV,
-				    regs->a0, regs->a1);
-		return 0;
-	default:
+	bool all = funcid == ESP32S31_SBI_CACHE_WBACK_ALL;
+
+	if (funcid < 0 || funcid >= array_size(esp32s31_cache_ops))
 		return SBI_ENOTSUPP;
-	}
+
+	esp32s31_cache_sync(esp32s31_cache_ops[funcid], all ? 0 : regs->a0,
+			    all ? 0 : regs->a1);
+	return 0;
 }
 
 const struct sbi_platform_operations platform_ops = {

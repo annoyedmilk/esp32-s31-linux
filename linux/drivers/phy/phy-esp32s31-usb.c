@@ -49,13 +49,11 @@ struct esp32s31_usb_phy {
 	void __iomem *utmi_fc06;
 };
 
-static void esp32s31_usb_update_bits(void __iomem *reg, u32 mask, u32 val)
+static void esp32s31_usb_set_bits(void __iomem *reg, u32 bits, bool on)
 {
-	u32 tmp = readl(reg);
+	u32 val = readl(reg);
 
-	tmp &= ~mask;
-	tmp |= val & mask;
-	writel(tmp, reg);
+	writel(on ? val | bits : val & ~bits, reg);
 }
 
 static int esp32s31_usb_phy_init(struct phy *phy)
@@ -64,21 +62,17 @@ static int esp32s31_usb_phy_init(struct phy *phy)
 	u32 val;
 
 	/* Enable the DWC2 APB and system clocks, and the UTMI and reference clocks. */
-	esp32s31_usb_update_bits(priv->clkrst,
-				 ESP32S31_USB_APB_CLK_EN |
-				 ESP32S31_USB_SYS_CLK_EN,
-				 ESP32S31_USB_APB_CLK_EN |
-				 ESP32S31_USB_SYS_CLK_EN);
-	esp32s31_usb_update_bits(priv->cnnt,
-				 ESP32S31_USB_UTMIFS_CLK_EN |
-				 ESP32S31_USB_PHYREF_CLK_EN,
-				 ESP32S31_USB_UTMIFS_CLK_EN |
-				 ESP32S31_USB_PHYREF_CLK_EN);
+	esp32s31_usb_set_bits(priv->clkrst,
+			      ESP32S31_USB_APB_CLK_EN |
+			      ESP32S31_USB_SYS_CLK_EN, true);
+	esp32s31_usb_set_bits(priv->cnnt,
+			      ESP32S31_USB_UTMIFS_CLK_EN |
+			      ESP32S31_USB_PHYREF_CLK_EN, true);
 
 	/* DWC2 controls the PHY suspend and the PLL state. */
-	esp32s31_usb_update_bits(priv->otghs_ctrl,
-				 ESP32S31_USB_PHY_PLL_FORCE_EN |
-				 ESP32S31_USB_PHY_SUSPEND_FORCE_EN, 0);
+	esp32s31_usb_set_bits(priv->otghs_ctrl,
+			      ESP32S31_USB_PHY_PLL_FORCE_EN |
+			      ESP32S31_USB_PHY_SUSPEND_FORCE_EN, false);
 
 	/* Set all resets.  Then release the PHY before the AHB and APB core. */
 	val = readl(priv->cnnt) | ESP32S31_USB_ALL_RST_EN;
@@ -89,21 +83,16 @@ static int esp32s31_usb_phy_init(struct phy *phy)
 	writel(val, priv->cnnt);
 
 	/* Use the same UTMI setup as ESP-IDF on the ESP32-S31. */
-	esp32s31_usb_update_bits(priv->otghs_ctrl,
-				 ESP32S31_USB_PHY_OTG_SUSPENDM,
-				 ESP32S31_USB_PHY_OTG_SUSPENDM);
-	esp32s31_usb_update_bits(priv->utmi_fc06,
-				 ESP32S31_USB_LS_PARALLEL_EN |
-				 ESP32S31_USB_LS_KEEPALIVE_EN,
-				 ESP32S31_USB_LS_PARALLEL_EN |
-				 ESP32S31_USB_LS_KEEPALIVE_EN);
+	esp32s31_usb_set_bits(priv->otghs_ctrl,
+			      ESP32S31_USB_PHY_OTG_SUSPENDM, true);
+	esp32s31_usb_set_bits(priv->utmi_fc06,
+			      ESP32S31_USB_LS_PARALLEL_EN |
+			      ESP32S31_USB_LS_KEEPALIVE_EN, true);
 
 	/* Host mode needs 15 kohm pull-downs on the two data lines. */
-	esp32s31_usb_update_bits(priv->usb_ctrl,
-				 ESP32S31_USB_DM_PULLDOWN |
-				 ESP32S31_USB_DP_PULLDOWN,
-				 ESP32S31_USB_DM_PULLDOWN |
-				 ESP32S31_USB_DP_PULLDOWN);
+	esp32s31_usb_set_bits(priv->usb_ctrl,
+			      ESP32S31_USB_DM_PULLDOWN |
+			      ESP32S31_USB_DP_PULLDOWN, true);
 
 	return 0;
 }
@@ -112,15 +101,15 @@ static int esp32s31_usb_phy_exit(struct phy *phy)
 {
 	struct esp32s31_usb_phy *priv = phy_get_drvdata(phy);
 
-	esp32s31_usb_update_bits(priv->usb_ctrl,
-				 ESP32S31_USB_DM_PULLDOWN |
-				 ESP32S31_USB_DP_PULLDOWN, 0);
-	esp32s31_usb_update_bits(priv->cnnt,
-				 ESP32S31_USB_UTMIFS_CLK_EN |
-				 ESP32S31_USB_PHYREF_CLK_EN, 0);
-	esp32s31_usb_update_bits(priv->clkrst,
-				 ESP32S31_USB_APB_CLK_EN |
-				 ESP32S31_USB_SYS_CLK_EN, 0);
+	esp32s31_usb_set_bits(priv->usb_ctrl,
+			      ESP32S31_USB_DM_PULLDOWN |
+			      ESP32S31_USB_DP_PULLDOWN, false);
+	esp32s31_usb_set_bits(priv->cnnt,
+			      ESP32S31_USB_UTMIFS_CLK_EN |
+			      ESP32S31_USB_PHYREF_CLK_EN, false);
+	esp32s31_usb_set_bits(priv->clkrst,
+			      ESP32S31_USB_APB_CLK_EN |
+			      ESP32S31_USB_SYS_CLK_EN, false);
 
 	return 0;
 }
