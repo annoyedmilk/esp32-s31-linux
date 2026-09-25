@@ -76,9 +76,9 @@ python -m espefuse --chip esp32s31 -p PORT summary
 | GPIO33/34 breakout | Native USB Serial/JTAG (`/dev/cu.usbmodem*`): D- white to GPIO33, D+ green to GPIO34, GND black. Do not connect 5 V. |
 
 GPIO33/34 are also LCD data pins. You can use the LCD or JTAG, not both. The
-default is JTAG (`CONFIG_ESP_CONSOLE_SECONDARY_USB_SERIAL_JTAG` in
-`bootloader/sdkconfig.defaults`). For the LCD, set
-`CONFIG_ESP_CONSOLE_SECONDARY_NONE=y` instead.
+default is the LCD (`CONFIG_ESP_CONSOLE_SECONDARY_NONE` in
+`bootloader/sdkconfig.defaults`). For JTAG, set
+`CONFIG_ESP_CONSOLE_SECONDARY_USB_SERIAL_JTAG=y` instead.
 
 ## Host requirements
 
@@ -200,7 +200,7 @@ does `switch_root`. If the card is not there, it starts a shell.
 
 ## Debugging
 
-1. Make sure that the loader uses JTAG (the default, see above).
+1. Set the loader to JTAG (see above). The LCD then stays dark.
 2. Run `make flash`, then `make openocd`.
 3. Connect `riscv32-esp-elf-gdb` to port 3333. Use `build/opensbi.elf`,
    `build/bootloader/s31-linux-loader.elf` or `build/vmlinux`
