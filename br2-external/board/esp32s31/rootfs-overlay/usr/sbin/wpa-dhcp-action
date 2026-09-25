@@ -1,0 +1,19 @@
+#!/bin/sh
+# SPDX-License-Identifier: MIT
+# wpa_cli action script: wpa-dhcp-action <iface> CONNECTED|DISCONNECTED
+# Start a DHCP client at the first connection.  At each later connection,
+# renew the lease: the network can be a different one.
+
+pid=/var/run/udhcpc.$1.pid
+
+case "$2" in
+CONNECTED)
+	if [ -r $pid ] && kill -0 "$(cat $pid)" 2>/dev/null; then
+		kill -USR1 "$(cat $pid)"
+	else
+		udhcpc -b -i "$1" -p $pid
+	fi
+	;;
+esac
+
+exit 0

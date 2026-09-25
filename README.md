@@ -134,27 +134,33 @@ Boot scripts in `br2-external/board/esp32s31/rootfs-overlay`:
 - `S01clock` sets the clock from `/etc/timestamp`. The board has no RTC.
 - `S05swap` makes a swap file of max. 64 MiB on the root.
 - `S10sdcard` mounts p1 on `/mnt/sd`.
-- `S40wifi` connects to the saved network.
+- `S40wifi` starts `wpa_supplicant` on `wlan0`.
 - The udhcpc hook sets the clock with NTP on each new lease.
 - `S99banner` prints the line that `make monitor` waits for.
 
 ## Wi-Fi
 
+`wlan0` works with the standard `wpa_supplicant`. `S40wifi` starts it with
+`/etc/wpa_supplicant.conf`, or with `wpa_supplicant.conf` on p1 when that
+file exists. `make sdroot` does not delete p1, and a board without a console
+can get its network from that file. At each connection, the `wpa_cli` action
+script starts or renews the DHCP lease.
+
 ```sh
-wifi <ssid> [passphrase]    # connect, get a lease, save on success
-wifi scan
-wifi off
-wifi --saved
-wifi forget
+wpa_passphrase "<ssid>" "<passphrase>" >> /etc/wpa_supplicant.conf
+/etc/init.d/S40wifi restart
+wpa_cli status
+wpa_cli scan; wpa_cli scan_results
 ```
 
-The credentials are in `/etc/wifi.conf`. `make sdroot` deletes this file.
-When `/etc/wifi.conf` does not exist, the script uses `wifi.conf` on p1. Put
-that file on the card to set up a board without a console.
+For WPA3 and WPA2/WPA3 networks, the network block needs
+`key_mgmt=WPA-PSK SAE`, `ieee80211w=1` and the passphrase as `psk="..."`.
+The hex PSK from `wpa_passphrase` is not sufficient for SAE.
 
-The firmware on hart 0 runs 802.11 and its own supplicant. nl80211 cannot
-send a passphrase, so the `wifi` script writes it to the `psk` sysfs
-attribute. Then it connects through cfg80211.
+The firmware on hart 0 runs 802.11 and the key handshakes.
+`wpa_supplicant` gives it the key through the nl80211 4-way handshake
+offload (the PMK) or the SAE offload (the password). The firmware stops
+after 3 attempts that do not associate and reports the failure.
 
 ## Kernel
 
@@ -199,7 +205,6 @@ does `switch_root`. If the card is not there, it starts a shell.
 - Linux is uniprocessor on hart 1.
 - No FPU: the hart has F but not D, and Linux RISC-V needs D. Userspace is
   soft-float (ilp32).
-- The passphrase goes through sysfs, not `wpa_supplicant`.
 - ESP-Hosted cannot work: Espressif does not supply the FullMAC hooks for the
   ESP32-S31 Wi-Fi libraries.
 - OpenSBI sets one locked RWX PMP entry. There is no domain isolation. APM

@@ -1,17 +1,35 @@
 #!/bin/sh
 # SPDX-License-Identifier: MIT
-# Connect to the network that "wifi <ssid> [passphrase]" saved.  Then the
-# board is on the network without a console.
+# Start wpa_supplicant on wlan0.  wpa_cli runs /usr/sbin/wpa-dhcp-action
+# at each connection, which starts or renews the DHCP lease.
+# The config is /etc/wpa_supplicant.conf, or wpa_supplicant.conf on p1 when
+# it exists: that file stays after "make sdroot", which replaces the root.
+
+IFACE=wlan0
+CONF=/etc/wpa_supplicant.conf
+[ -r /mnt/sd/wpa_supplicant.conf ] && CONF=/mnt/sd/wpa_supplicant.conf
 
 case "$1" in
 start)
-	[ -r /etc/wifi.conf ] || [ -r /mnt/sd/wifi.conf ] || exit 0
-	# The association and the lease take seconds.  Nothing waits for them.
-	/usr/bin/wifi --saved >/dev/null 2>&1 &
-	echo "wifi: joining the saved network in the background"
+	[ -d /sys/class/net/$IFACE ] || exit 0
+	wpa_supplicant -B -D nl80211 -i $IFACE -c "$CONF" \
+		-P /var/run/wpa_supplicant.$IFACE.pid || exit 1
+	wpa_cli -B -i $IFACE -a /usr/sbin/wpa-dhcp-action \
+		-P /var/run/wpa_cli.$IFACE.pid
+	echo "wifi: wpa_supplicant on $IFACE with $CONF"
 	;;
 stop)
-	/usr/bin/wifi off >/dev/null 2>&1
+	for p in wpa_cli wpa_supplicant udhcpc; do
+		f=/var/run/$p.$IFACE.pid
+		[ -r $f ] && kill "$(cat $f)" 2>/dev/null
+		rm -f $f
+	done
+	ip addr flush dev $IFACE 2>/dev/null
+	;;
+restart)
+	"$0" stop
+	sleep 1
+	"$0" start
 	;;
 esac
 
