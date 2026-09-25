@@ -679,7 +679,7 @@ static int esp32s31_wifi_connect(struct wiphy *wiphy, struct net_device *ndev,
 		return -EINVAL;
 
 	ret = esp32s31_wifi_set_key(priv, sme);
-	if (ret && ret != -ENOKEY)
+	if (ret)
 		return ret;
 
 	memset_io(priv->ipc->cmd.ssid, 0, ESP32S31_IPC_SSID_MAX);

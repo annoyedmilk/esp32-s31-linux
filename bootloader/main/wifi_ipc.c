@@ -128,9 +128,9 @@ static bool ipc_associated;
 static uint32_t ipc_connect_tries;
 
 /*
- * Wait longer after each failed attempt: 1 s, then twice as long each time,
- * to a maximum of 30 s.  With a wrong password, the firmware must not send
- * authentication frames continuously.
+ * After a lost link, wait longer after each failed attempt: 1 s, then twice
+ * as long each time, to a maximum of 30 s.  Then the firmware does not send
+ * authentication frames continuously while the access point is away.
  */
 #define IPC_RETRY_MIN_MS    1000U
 #define IPC_RETRY_MAX_MS    30000U

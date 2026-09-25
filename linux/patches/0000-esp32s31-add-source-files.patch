@@ -9,7 +9,7 @@ diff --git a/Documentation/devicetree/bindings/cache/esp,esp32s31-cache.yaml b/D
 new file mode 100644
 --- /dev/null
 +++ b/Documentation/devicetree/bindings/cache/esp,esp32s31-cache.yaml
-@@ -0,0 +1,45 @@
+@@ -0,0 +1,46 @@
 +# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
 +%YAML 1.2
 +---
@@ -26,7 +26,8 @@ new file mode 100644
 +  Its sync engine does invalidate, writeback and writeback-invalidate
 +  operations on an address range. The kernel uses them for DMA cache
 +  maintenance, because the hart has no Zicbom and the SoC has no uncached
-+  alias of that aperture.
++  alias of that aperture. The engine registers are global, so the M-mode
++  firmware programs them and the kernel asks it for each operation.
 +
 +properties:
 +  compatible:
@@ -255,8 +256,8 @@ new file mode 100644
 +  sends 802.3 frames, scan results and the association state through rings
 +  of fixed-size slots in internal SRAM. At the start of that region, the
 +  firmware writes its ring layout, protocol version, station MAC address and
-+  association. One cross-core interrupt register signals each direction. The
-+  firmware sets the first and Linux clears it. Linux sets the second.
++  association. One cross-core interrupt register signals each direction.
++  Linux sets the first. The firmware sets the second and Linux clears it.
 +
 +allOf:
 +  - $ref: /schemas/net/network-class.yaml#
@@ -3213,7 +3214,7 @@ new file mode 100644
 +		return -EINVAL;
 +
 +	ret = esp32s31_wifi_set_key(priv, sme);
-+	if (ret && ret != -ENOKEY)
++	if (ret)
 +		return ret;
 +
 +	memset_io(priv->ipc->cmd.ssid, 0, ESP32S31_IPC_SSID_MAX);

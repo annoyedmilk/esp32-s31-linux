@@ -15,8 +15,8 @@ description: >
   sends 802.3 frames, scan results and the association state through rings
   of fixed-size slots in internal SRAM. At the start of that region, the
   firmware writes its ring layout, protocol version, station MAC address and
-  association. One cross-core interrupt register signals each direction. The
-  firmware sets the first and Linux clears it. Linux sets the second.
+  association. One cross-core interrupt register signals each direction.
+  Linux sets the first. The firmware sets the second and Linux clears it.
 
 allOf:
   - $ref: /schemas/net/network-class.yaml#
