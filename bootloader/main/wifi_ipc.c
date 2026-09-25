@@ -118,25 +118,17 @@ static void ipc_from_linux_isr(void *arg)
 static bool ipc_want_connection;
 
 /*
- * A new connect command gets IPC_CONNECT_TRIES attempts.  When none of them
- * associates, the firmware stops and reports the failure to Linux, so that
- * cfg80211 and the supplicant get a result.  After an association, a lost
- * link starts the retries with backoff below.
+ * A new connect command gets IPC_CONNECT_TRIES attempts, IPC_RETRY_MS apart.
+ * When none of them associates, the firmware stops and reports the failure
+ * to Linux, so that cfg80211 and the supplicant get a result.  After a lost
+ * link, the firmware does not connect again: the supplicant does that.
+ * cfg80211 does not accept an association that it did not request.
  */
 #define IPC_CONNECT_TRIES   3U
+#define IPC_RETRY_MS        1000U
 static bool ipc_associated;
 static uint32_t ipc_connect_tries;
-
-/*
- * After a lost link, wait longer after each failed attempt: 1 s, then twice
- * as long each time, to a maximum of 30 s.  Then the firmware does not send
- * authentication frames continuously while the access point is away.
- */
-#define IPC_RETRY_MIN_MS    1000U
-#define IPC_RETRY_MAX_MS    30000U
-
 static TimerHandle_t ipc_retry_timer;
-static uint32_t ipc_retry_ms;
 
 static void ipc_retry_cb(TimerHandle_t timer)
 {
@@ -148,7 +140,6 @@ static void ipc_retry_cb(TimerHandle_t timer)
 static void ipc_retry_stop(void)
 {
     xTimerStop(ipc_retry_timer, 0);
-    ipc_retry_ms = 0;
 }
 
 static void ipc_publish_scan(uint32_t count);
@@ -344,7 +335,6 @@ static void ipc_wifi_event(void *arg, esp_event_base_t base, int32_t id,
         ipc->channel = ev->channel;
         ESP_LOGI(TAG, "associated");
         ipc_associated = true;
-        ipc_retry_ms = 0;
         ipc_set_link(1);
         break;
     }
@@ -355,30 +345,23 @@ static void ipc_wifi_event(void *arg, esp_event_base_t base, int32_t id,
         if (!ipc_want_connection) {
             break;
         }
-        if (!ipc_associated) {
-            if (ipc_connect_tries < IPC_CONNECT_TRIES) {
-                ipc_connect_tries++;
-                ESP_LOGW(TAG, "no association, reason %u, try %" PRIu32,
-                         ev->reason, ipc_connect_tries);
-                xTimerChangePeriod(ipc_retry_timer,
-                                   pdMS_TO_TICKS(IPC_RETRY_MIN_MS), 0);
-                break;
-            }
-            ESP_LOGW(TAG, "no association, reason %u, stop", ev->reason);
+        if (ipc_associated) {
+            ESP_LOGW(TAG, "link lost, reason %u", ev->reason);
             ipc_want_connection = false;
-            ipc->fail_reason = ev->reason;
-            __atomic_store_n(&ipc->fail_seq, ipc->fail_seq + 1,
-                             __ATOMIC_RELEASE);
-            REG_WRITE(IPC_DOORBELL_TO_LINUX_REG, 1);
             break;
         }
-        ipc_retry_ms = ipc_retry_ms ? ipc_retry_ms * 2 : IPC_RETRY_MIN_MS;
-        if (ipc_retry_ms > IPC_RETRY_MAX_MS) {
-            ipc_retry_ms = IPC_RETRY_MAX_MS;
+        if (ipc_connect_tries < IPC_CONNECT_TRIES) {
+            ipc_connect_tries++;
+            ESP_LOGW(TAG, "no association, reason %u, try %" PRIu32,
+                     ev->reason, ipc_connect_tries);
+            xTimerChangePeriod(ipc_retry_timer, pdMS_TO_TICKS(IPC_RETRY_MS), 0);
+            break;
         }
-        ESP_LOGW(TAG, "disconnected, reason %u, retry in %" PRIu32 " ms",
-                 ev->reason, ipc_retry_ms);
-        xTimerChangePeriod(ipc_retry_timer, pdMS_TO_TICKS(ipc_retry_ms), 0);
+        ESP_LOGW(TAG, "no association, reason %u, stop", ev->reason);
+        ipc_want_connection = false;
+        ipc->fail_reason = ev->reason;
+        __atomic_store_n(&ipc->fail_seq, ipc->fail_seq + 1, __ATOMIC_RELEASE);
+        REG_WRITE(IPC_DOORBELL_TO_LINUX_REG, 1);
         break;
     }
     }
@@ -394,7 +377,7 @@ static esp_err_t start_ipc(void)
         return err;
     }
 
-    ipc_retry_timer = xTimerCreate("wifi_retry", pdMS_TO_TICKS(IPC_RETRY_MIN_MS),
+    ipc_retry_timer = xTimerCreate("wifi_retry", pdMS_TO_TICKS(IPC_RETRY_MS),
                                    pdFALSE, NULL, ipc_retry_cb);
     if (!ipc_retry_timer) {
         return ESP_ERR_NO_MEM;

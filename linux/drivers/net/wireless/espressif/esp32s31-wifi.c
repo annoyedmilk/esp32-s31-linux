@@ -175,12 +175,24 @@ static void esp32s31_wifi_inform_link(struct esp32s31_wifi *priv)
 		cfg80211_put_bss(priv->wiphy, bss);
 }
 
+static void esp32s31_wifi_send_cmd(struct esp32s31_wifi *priv, u32 code);
+
 static void esp32s31_wifi_sync_carrier(struct esp32s31_wifi *priv)
 {
 	bool up = ioread32(&priv->ipc->link_up);
 
 	if (up == netif_carrier_ok(priv->ndev))
 		return;
+
+	/*
+	 * cfg80211 does not accept an association that it did not request.
+	 * Tell the firmware to end it.  The supplicant then connects again.
+	 */
+	if (up && !priv->connected && !priv->connecting) {
+		netdev_warn(priv->ndev, "association without a request, ending it\n");
+		esp32s31_wifi_send_cmd(priv, ESP32S31_IPC_CMD_DISCONNECT);
+		return;
+	}
 
 	if (up) {
 		netif_carrier_on(priv->ndev);
