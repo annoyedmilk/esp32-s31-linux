@@ -257,8 +257,9 @@ does `switch_root`. If the card is not there, it starts a shell.
 ## Limits
 
 - Linux is uniprocessor on hart 1.
-- No FPU: the hart has F but not D, and Linux RISC-V needs D. Userspace is
-  soft-float (ilp32).
+- The hardware FPU is not used: the hart has F but not D, and Linux supports
+  an FPU only with D. Floating point works, because userspace is built
+  soft-float (ilp32), but it is slower.
 - ESP-Hosted cannot work: Espressif does not supply the FullMAC hooks for the
   ESP32-S31 Wi-Fi libraries.
 - OpenSBI protects its memory and the TEE/APM registers from S-mode with

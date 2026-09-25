@@ -15,7 +15,7 @@ the best public reference for addresses and fields.
 | --- | --- |
 | Harts | 2 × RV32 at 320 MHz: `rv32imafc` + Zba/Zbb/Zbs, Zc*, vendor extensions |
 | Privilege modes | M, S, U. Sv32 MMU. |
-| FPU | F only, no D. Linux RISC-V needs D, so the kernel uses no FPU. |
+| FPU | F only, no D. Linux supports an FPU only with D, so the FPU stays off. Floating point works in software (soft-float userspace), only slower. |
 | Cache | I-cache per hart, one 64 KiB D-cache for the two harts, 64-byte lines |
 | Cache maintenance | No Zicbom. A cache controller with a "sync engine" (MMIO). |
 | Interrupts | CLIC only. The standard `sie`/`sip` CSRs do not exist. |

@@ -26,7 +26,8 @@ The LCD shows the kernel log and a login. A USB keyboard works on it.
 
 - The board and chip revision v0.0 are the only tested hardware.
 - One hart runs Linux. The other runs the Wi-Fi firmware.
-- No FPU in Linux, and no I2C, audio or camera driver.
+- Floating point works in software; the hardware FPU is not used.
+- No I2C, audio or camera driver.
 - `poweroff` stops the CPU. It does not remove power.
 
 See the README for the full list, and `docs/internals.md` for the details.

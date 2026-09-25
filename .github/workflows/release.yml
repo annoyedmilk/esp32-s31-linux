@@ -31,15 +31,6 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Install the host packages
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            bc build-essential cpio dosfstools file libncurses-dev mtools \
-            rsync unzip wget xz-utils zip \
-            git python3 python3-venv python3-pip cmake ninja-build \
-            flex bison gperf ccache libffi-dev libssl-dev dfu-util libusb-1.0-0
-
       - name: Read the ESP-IDF version
         id: idf
         run: echo "commit=$(cat bootloader/esp-idf.version)" >> "$GITHUB_OUTPUT"
@@ -52,14 +43,8 @@ jobs:
             ~/.espressif
           key: esp-idf-${{ steps.idf.outputs.commit }}
 
-      - name: Install ESP-IDF
-        run: |
-          if [ ! -d ~/esp/esp-idf/.git ]; then
-            git clone --filter=blob:none https://github.com/espressif/esp-idf.git ~/esp/esp-idf
-            git -C ~/esp/esp-idf checkout ${{ steps.idf.outputs.commit }}
-            git -C ~/esp/esp-idf submodule update --init --recursive --filter=blob:none
-          fi
-          ~/esp/esp-idf/install.sh esp32s31
+      - name: Install the host packages and ESP-IDF
+        run: scripts/ci-setup.sh
 
       - name: Cache the Buildroot downloads
         uses: actions/cache@v4
