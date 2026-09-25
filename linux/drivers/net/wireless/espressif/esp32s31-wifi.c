@@ -6,14 +6,15 @@
  * firmware on hart 0 controls the modem.  It runs 802.11 and its own
  * supplicant.  Linux sends 802.3 frames, scan requests and association
  * requests through rings of fixed-size slots in internal SRAM, with two
- * cross-core doorbell interrupts.
+ * cross-core doorbell interrupts.  A supplicant on Linux gives the key
+ * through the 4-way handshake offload (a PMK) or the SAE offload (the
+ * password).
  *
  * The two harts access the rings without the data cache.  The io accessors
  * are here for their ordering barriers, not for a device.
  */
 
 #include <linux/etherdevice.h>
-#include <linux/ctype.h>
 #include <linux/hex.h>
 #include <linux/interrupt.h>
 #include <linux/io.h>
@@ -26,8 +27,9 @@
 #include "esp32s31-wifi-ipc.h"
 
 #define ESP32S31_WIFI_NAPI_BUDGET	16
-#define ESP32S31_WIFI_DOORBELL_RX	0x0
-#define ESP32S31_WIFI_DOORBELL_TX	0x4
+/* Offsets from FROM_CPU_1: Linux sets TX, the firmware sets RX. */
+#define ESP32S31_WIFI_DOORBELL_TX	0x0
+#define ESP32S31_WIFI_DOORBELL_RX	0x4
 
 struct esp32s31_wifi {
 	struct net_device *ndev;
@@ -45,6 +47,11 @@ struct esp32s31_wifi {
 	struct mutex scan_lock;
 	u32 scan_seq;
 	bool connected;
+	/* A connect request that has no result yet. */
+	bool connecting;
+	/* The firmware does the 4-way handshake with a key from cfg80211. */
+	bool key_offload;
+	u32 fail_seq;
 	u8 bssid[ETH_ALEN];
 };
 
@@ -183,7 +190,16 @@ static void esp32s31_wifi_sync_carrier(struct esp32s31_wifi *priv)
 						0, NULL, 0,
 						WLAN_STATUS_SUCCESS,
 						GFP_ATOMIC);
+			/*
+			 * The firmware did the handshake, so the supplicant
+			 * must not wait for EAPOL frames.
+			 */
+			if (priv->key_offload)
+				cfg80211_port_authorized(priv->ndev,
+							 priv->bssid, NULL, 0,
+							 GFP_ATOMIC);
 			priv->connected = true;
+			priv->connecting = false;
 		}
 	} else {
 		netif_carrier_off(priv->ndev);
@@ -193,6 +209,34 @@ static void esp32s31_wifi_sync_carrier(struct esp32s31_wifi *priv)
 			priv->connected = false;
 		}
 	}
+}
+
+/*
+ * The firmware gives up after some attempts that did not associate.  Give
+ * the result to cfg80211, so that the supplicant does not wait.
+ */
+static void esp32s31_wifi_check_fail(struct esp32s31_wifi *priv)
+{
+	u32 seq = ioread32(&priv->ipc->fail_seq);
+	u16 reason;
+
+	if (seq == priv->fail_seq)
+		return;
+	priv->fail_seq = seq;
+	if (!priv->connecting || priv->connected)
+		return;
+	priv->connecting = false;
+
+	reason = ioread16(&priv->ipc->fail_reason);
+	netdev_info(priv->ndev, "connection failed, reason %u\n", reason);
+	/* ESP-IDF reasons 201 and 211: no AP with this SSID was found. */
+	if (reason == 201 || reason == 211)
+		cfg80211_connect_timeout(priv->ndev, NULL, NULL, 0, GFP_ATOMIC,
+					 NL80211_TIMEOUT_SCAN);
+	else
+		cfg80211_connect_result(priv->ndev, NULL, NULL, 0, NULL, 0,
+					WLAN_STATUS_UNSPECIFIED_FAILURE,
+					GFP_ATOMIC);
 }
 
 /* The firmware writes seq after the table.  A new seq means a full table. */
@@ -215,6 +259,7 @@ static int esp32s31_wifi_poll(struct napi_struct *napi, int budget)
 	int done = 0;
 
 	esp32s31_wifi_sync_carrier(priv);
+	esp32s31_wifi_check_fail(priv);
 
 	while (done < budget) {
 		u32 tail = ioread32(&ring->tail);
@@ -345,60 +390,172 @@ static int esp32s31_wifi_stop(struct net_device *ndev)
 	return 0;
 }
 
-/*
- * Copy a sysfs string into the ring without its trailing newline.  A
- * passphrase has 8 to 63 characters.  64 characters must be hex: the
- * firmware then uses them as the PMK, without a NUL at the end.
- */
-static ssize_t esp32s31_wifi_store_text(void __iomem *dst, size_t dst_len,
-					const char *buf, size_t count)
-{
-	size_t len = strnlen(buf, count);
-	size_t i;
-
-	while (len && buf[len - 1] == '\n')
-		len--;
-
-	if (len > dst_len)
-		return -EINVAL;
-
-	if (len == dst_len)
-		for (i = 0; i < len; i++)
-			if (!isxdigit(buf[i]))
-				return -EINVAL;
-
-	memset_io(dst, 0, dst_len);
-	memcpy_toio(dst, buf, len);
-
-	return count;
-}
-
-/*
- * The offloads cannot send a passphrase, but the firmware supplicant needs
- * one, not the PMK from nl80211.  The association goes through cfg80211.
- */
-static ssize_t psk_store(struct device *dev, struct device_attribute *attr,
-			 const char *buf, size_t count)
-{
-	struct esp32s31_wifi *priv = dev_get_drvdata(dev);
-
-	return esp32s31_wifi_store_text(priv->ipc->cmd.psk,
-					ESP32S31_IPC_PSK_MAX, buf, count);
-}
-static DEVICE_ATTR_WO(psk);
-
-static struct attribute *esp32s31_wifi_attrs[] = {
-	&dev_attr_psk.attr,
-	NULL,
-};
-ATTRIBUTE_GROUPS(esp32s31_wifi);
-
 static void esp32s31_wifi_send_cmd(struct esp32s31_wifi *priv, u32 code)
 {
 	/* Write the code last: the firmware reads it to find a command. */
 	wmb();
 	iowrite32(code, &priv->ipc->cmd.code);
 	iowrite32(1, priv->doorbell + ESP32S31_WIFI_DOORBELL_TX);
+}
+
+/*
+ * The firmware gives parsed scan data, not the raw elements.  Build the
+ * elements that a supplicant reads: SSID, rates, DS parameter set, and the
+ * RSN or WPA element.
+ */
+#define ESP32S31_WIFI_IE_MAX		160
+
+/* A count (le16) and one suite for each cipher bit. */
+static u8 *esp32s31_wifi_put_ciphers(u8 *p, const u8 *oui, u8 ciphers)
+{
+	static const struct {
+		u8 bit;
+		u8 type;
+	} map[] = {
+		{ ESP32S31_IPC_CIPHER_CCMP, 4 },
+		{ ESP32S31_IPC_CIPHER_TKIP, 2 },
+		{ ESP32S31_IPC_CIPHER_GCMP, 8 },
+		{ ESP32S31_IPC_CIPHER_GCMP256, 9 },
+	};
+	u8 *count = p;
+	unsigned int i;
+
+	p += 2;
+	count[0] = 0;
+	count[1] = 0;
+	for (i = 0; i < ARRAY_SIZE(map); i++) {
+		if (!(ciphers & map[i].bit))
+			continue;
+		memcpy(p, oui, 3);
+		p[3] = map[i].type;
+		p += 4;
+		count[0]++;
+	}
+	return p;
+}
+
+static u8 *esp32s31_wifi_put_suite(u8 *p, const u8 *oui, u8 type)
+{
+	memcpy(p, oui, 3);
+	p[3] = type;
+	return p + 4;
+}
+
+static u8 esp32s31_wifi_cipher_type(u8 ciphers)
+{
+	if (ciphers & ESP32S31_IPC_CIPHER_TKIP)
+		return 2;
+	if (ciphers & ESP32S31_IPC_CIPHER_GCMP)
+		return 8;
+	if (ciphers & ESP32S31_IPC_CIPHER_GCMP256)
+		return 9;
+	return 4;
+}
+
+static size_t esp32s31_wifi_build_ies(const struct esp32s31_ipc_bss *bss,
+				      u8 *ie)
+{
+	static const u8 rsn_oui[3] = { 0x00, 0x0f, 0xac };
+	static const u8 wpa_oui[3] = { 0x00, 0x50, 0xf2 };
+	/* 1, 2, 5.5 and 11 Mbit/s as basic rates, then the OFDM rates. */
+	static const u8 cck[] = { 0x82, 0x84, 0x8b, 0x96 };
+	static const u8 ofdm[] = { 0x0c, 0x12, 0x18, 0x24, 0x30, 0x48, 0x60,
+				   0x6c };
+	u8 pairwise = bss->pairwise ?: ESP32S31_IPC_CIPHER_CCMP;
+	u8 group = bss->group ?: pairwise;
+	u8 rates[sizeof(cck) + sizeof(ofdm)];
+	unsigned int n = 0, first;
+	u8 *p = ie, *len, *count;
+
+	*p++ = WLAN_EID_SSID;
+	*p++ = bss->ssid_len;
+	memcpy(p, bss->ssid, bss->ssid_len);
+	p += bss->ssid_len;
+
+	if ((bss->phy & ESP32S31_IPC_PHY_11B) || !bss->phy) {
+		memcpy(rates, cck, sizeof(cck));
+		n = sizeof(cck);
+	}
+	if (bss->phy & ~ESP32S31_IPC_PHY_11B) {
+		memcpy(rates + n, ofdm, sizeof(ofdm));
+		n += sizeof(ofdm);
+	}
+	/* Up to 8 supported rates, the others in the extended rates. */
+	first = min(n, 8U);
+	*p++ = WLAN_EID_SUPP_RATES;
+	*p++ = first;
+	memcpy(p, rates, first);
+	p += first;
+	if (n > first) {
+		*p++ = WLAN_EID_EXT_SUPP_RATES;
+		*p++ = n - first;
+		memcpy(p, rates + first, n - first);
+		p += n - first;
+	}
+
+	*p++ = WLAN_EID_DS_PARAMS;
+	*p++ = 1;
+	*p++ = bss->channel;
+
+	if (bss->akm & ESP32S31_IPC_AKM_WPA1) {
+		*p++ = WLAN_EID_VENDOR_SPECIFIC;
+		len = p++;
+		p = esp32s31_wifi_put_suite(p, wpa_oui, 1);	/* WPA element */
+		*p++ = 1;					/* version 1 */
+		*p++ = 0;
+		p = esp32s31_wifi_put_suite(p, wpa_oui,
+					    esp32s31_wifi_cipher_type(group));
+		p = esp32s31_wifi_put_ciphers(p, wpa_oui, pairwise &
+					      (ESP32S31_IPC_CIPHER_TKIP |
+					       ESP32S31_IPC_CIPHER_CCMP));
+		*p++ = 1;					/* one AKM */
+		*p++ = 0;
+		p = esp32s31_wifi_put_suite(p, wpa_oui,
+					    bss->akm & ESP32S31_IPC_AKM_EAP ?
+					    1 : 2);
+		*len = p - len - 1;
+	} else if (bss->akm & (ESP32S31_IPC_AKM_PSK | ESP32S31_IPC_AKM_SAE |
+			       ESP32S31_IPC_AKM_EAP | ESP32S31_IPC_AKM_OWE)) {
+		/* SAE and OWE need MFP.  Only SAE or OWE alone requires it. */
+		bool mfpc = bss->akm & (ESP32S31_IPC_AKM_SAE |
+					ESP32S31_IPC_AKM_OWE);
+		bool mfpr = mfpc && !(bss->akm & (ESP32S31_IPC_AKM_PSK |
+						  ESP32S31_IPC_AKM_EAP));
+
+		*p++ = WLAN_EID_RSN;
+		len = p++;
+		*p++ = 1;					/* version 1 */
+		*p++ = 0;
+		p = esp32s31_wifi_put_suite(p, rsn_oui,
+					    esp32s31_wifi_cipher_type(group));
+		p = esp32s31_wifi_put_ciphers(p, rsn_oui, pairwise);
+		count = p;
+		p += 2;
+		count[0] = 0;
+		count[1] = 0;
+		if (bss->akm & ESP32S31_IPC_AKM_EAP) {
+			p = esp32s31_wifi_put_suite(p, rsn_oui, 1);
+			count[0]++;
+		}
+		if (bss->akm & ESP32S31_IPC_AKM_PSK) {
+			p = esp32s31_wifi_put_suite(p, rsn_oui, 2);
+			count[0]++;
+		}
+		if (bss->akm & ESP32S31_IPC_AKM_SAE) {
+			p = esp32s31_wifi_put_suite(p, rsn_oui, 8);
+			count[0]++;
+		}
+		if (bss->akm & ESP32S31_IPC_AKM_OWE) {
+			p = esp32s31_wifi_put_suite(p, rsn_oui, 18);
+			count[0]++;
+		}
+		/* RSN capabilities: bit 6 MFP required, bit 7 MFP capable. */
+		*p++ = (mfpc ? BIT(7) : 0) | (mfpr ? BIT(6) : 0);
+		*p++ = 0;
+		*len = p - len - 1;
+	}
+
+	return p - ie;
 }
 
 static void esp32s31_wifi_scan_work(struct work_struct *work)
@@ -425,8 +582,9 @@ static void esp32s31_wifi_scan_work(struct work_struct *work)
 	for (i = 0; i < count; i++) {
 		struct ieee80211_channel *chan;
 		struct cfg80211_bss *found;
-		u8 ie[2 + ESP32S31_IPC_SSID_MAX];
+		u8 ie[ESP32S31_WIFI_IE_MAX];
 		u16 caps = WLAN_CAPABILITY_ESS;
+		size_t ie_len;
 		int freq;
 
 		memcpy_fromio(&bss, &priv->ipc->scan.bss[i], sizeof(bss));
@@ -439,20 +597,14 @@ static void esp32s31_wifi_scan_work(struct work_struct *work)
 		if (!chan)
 			continue;
 
-		if (bss.authmode != ESP32S31_IPC_AUTH_OPEN)
+		if (bss.akm)
 			caps |= WLAN_CAPABILITY_PRIVACY;
-
-		/* cfg80211 makes the BSS from the SSID element only.  The
-		 * firmware does not give the other elements.
-		 */
-		ie[0] = WLAN_EID_SSID;
-		ie[1] = bss.ssid_len;
-		memcpy(&ie[2], bss.ssid, bss.ssid_len);
+		ie_len = esp32s31_wifi_build_ies(&bss, ie);
 
 		found = cfg80211_inform_bss(priv->wiphy, chan,
 					    CFG80211_BSS_FTYPE_UNKNOWN,
 					    bss.bssid, 0, caps, 100,
-					    ie, 2 + bss.ssid_len,
+					    ie, ie_len,
 					    DBM_TO_MBM(bss.rssi), GFP_KERNEL);
 		if (found)
 			cfg80211_put_bss(priv->wiphy, found);
@@ -483,20 +635,19 @@ static int esp32s31_wifi_scan(struct wiphy *wiphy,
 /*
  * The firmware supplicant takes one string for all key types: a passphrase,
  * or 64 hex characters that it uses as the PMK.  The 4-way handshake offload
- * gives a PMK.  SAE needs the password, which the SAE offload gives.
+ * gives a PMK.  The SAE offload gives the password.  A supplicant gives the
+ * password only for a network with SAE in key_mgmt.
  */
 static int esp32s31_wifi_set_key(struct esp32s31_wifi *priv,
 				 struct cfg80211_connect_params *sme)
 {
 	char hex[2 * WLAN_PMK_LEN + 1];
 
-	if (sme->crypto.psk) {
-		memset_io(priv->ipc->cmd.psk, 0, ESP32S31_IPC_PSK_MAX);
-		bin2hex(hex, sme->crypto.psk, WLAN_PMK_LEN);
-		memcpy_toio(priv->ipc->cmd.psk, hex, 2 * WLAN_PMK_LEN);
-		return 0;
-	}
-
+	/*
+	 * The password first: the firmware can use it for SAE and for
+	 * WPA2-PSK.  A PMK does not work for SAE, and a supplicant can give
+	 * both for a WPA2/WPA3 transition network.
+	 */
 	if (sme->crypto.sae_pwd) {
 		if (sme->crypto.sae_pwd_len > ESP32S31_IPC_PSK_MAX)
 			return -EINVAL;
@@ -506,12 +657,15 @@ static int esp32s31_wifi_set_key(struct esp32s31_wifi *priv,
 		return 0;
 	}
 
-	/*
-	 * No offload gave a key, so the passphrase comes from the psk
-	 * attribute.  Keep the value that is there.  nl80211 does not say that
-	 * a network is open, only that it has no key.  If this clears the
-	 * value, the firmware does not get the passphrase.
-	 */
+	if (sme->crypto.psk) {
+		memset_io(priv->ipc->cmd.psk, 0, ESP32S31_IPC_PSK_MAX);
+		bin2hex(hex, sme->crypto.psk, WLAN_PMK_LEN);
+		memcpy_toio(priv->ipc->cmd.psk, hex, 2 * WLAN_PMK_LEN);
+		return 0;
+	}
+
+	/* No key: an open network. */
+	memset_io(priv->ipc->cmd.psk, 0, ESP32S31_IPC_PSK_MAX);
 	return 0;
 }
 
@@ -531,6 +685,9 @@ static int esp32s31_wifi_connect(struct wiphy *wiphy, struct net_device *ndev,
 	memset_io(priv->ipc->cmd.ssid, 0, ESP32S31_IPC_SSID_MAX);
 	memcpy_toio(priv->ipc->cmd.ssid, sme->ssid, sme->ssid_len);
 
+	priv->key_offload = sme->crypto.psk || sme->crypto.sae_pwd;
+	priv->fail_seq = ioread32(&priv->ipc->fail_seq);
+	priv->connecting = true;
 	esp32s31_wifi_send_cmd(priv, ESP32S31_IPC_CMD_CONNECT);
 
 	return 0;
@@ -541,6 +698,7 @@ static int esp32s31_wifi_disconnect(struct wiphy *wiphy,
 {
 	struct esp32s31_wifi *priv = wiphy_priv(wiphy);
 
+	priv->connecting = false;
 	esp32s31_wifi_send_cmd(priv, ESP32S31_IPC_CMD_DISCONNECT);
 
 	return 0;
@@ -723,7 +881,6 @@ static struct platform_driver esp32s31_wifi_driver = {
 	.driver = {
 		.name = "esp32s31-wifi",
 		.of_match_table = esp32s31_wifi_of_match,
-		.dev_groups = esp32s31_wifi_groups,
 	},
 };
 module_platform_driver(esp32s31_wifi_driver);

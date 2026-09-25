@@ -51,8 +51,8 @@ examples:
   - |
     wifi@2f050000 {
         compatible = "esp,esp32s31-wifi";
-        reg = <0x2f050000 0x10000>, <0x20586010 0x8>;
+        reg = <0x2f050000 0x10000>, <0x20586014 0x8>;
         reg-names = "ipc", "doorbell";
         interrupt-parent = <&clic>;
-        interrupts = <35 65 4>;
+        interrupts = <35 67 4>;
     };

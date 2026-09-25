@@ -180,15 +180,17 @@
 
 		/*
 		 * The rings are in internal SRAM.  The doorbells are the
-		 * cross-core interrupt registers.  The firmware sets
-		 * FROM_CPU_0 and Linux clears it.  Linux sets FROM_CPU_1.
+		 * cross-core interrupt registers.  Linux sets FROM_CPU_1.  The
+		 * firmware sets FROM_CPU_2 and Linux clears it.  FROM_CPU_0 is
+		 * not usable: ESP-IDF on hart 0 clears it in its own
+		 * cross-core interrupt.
 		 */
 		wifi: wifi@2f050000 {
 			compatible = "esp,esp32s31-wifi";
-			reg = <0x2f050000 0x10000>, <0x20586010 0x8>;
+			reg = <0x2f050000 0x10000>, <0x20586014 0x8>;
 			reg-names = "ipc", "doorbell";
 			interrupt-parent = <&clic>;
-			interrupts = <35 65 IRQ_TYPE_LEVEL_HIGH>;
+			interrupts = <35 67 IRQ_TYPE_LEVEL_HIGH>;
 		};
 
 		usb_phy: phy@205870ac {

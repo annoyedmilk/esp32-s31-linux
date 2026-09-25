@@ -33,7 +33,7 @@ SOC_RESERVE_MEMORY_REGION(ESP32S31_IPC_SRAM_ADDR,
 _Static_assert(sizeof(struct esp32s31_ipc) <= ESP32S31_IPC_SRAM_SIZE,
                "Wi-Fi IPC block exceeds its reserved SRAM window");
 
-#define IPC_DOORBELL_TO_LINUX_REG    HP_SYSTEM_CPU_INT_FROM_CPU_0_REG
+#define IPC_DOORBELL_TO_LINUX_REG    HP_SYSTEM_CPU_INT_FROM_CPU_2_REG
 #define IPC_DOORBELL_TO_FIRMWARE     ETS_CPU_INTR_FROM_CPU_1_SOURCE
 #define IPC_DOORBELL_TO_FIRMWARE_REG HP_SYSTEM_CPU_INT_FROM_CPU_1_REG
 
@@ -98,6 +98,12 @@ static esp_err_t ipc_wifi_rx(void *buffer, uint16_t len, void *eb)
 
 static TaskHandle_t ipc_tx_task_handle;
 
+/*
+ * The transmit task also wakes up after this time without a doorbell.  Thus
+ * a lost doorbell stops the transmission for a short time only.
+ */
+#define IPC_TX_POLL_MS      10
+
 /* esp_wifi_internal_tx() can block, so the doorbell only wakes the task. */
 static void ipc_from_linux_isr(void *arg)
 {
@@ -110,6 +116,16 @@ static void ipc_from_linux_isr(void *arg)
 
 /* Try to associate again only while Linux wants a connection. */
 static bool ipc_want_connection;
+
+/*
+ * A new connect command gets IPC_CONNECT_TRIES attempts.  When none of them
+ * associates, the firmware stops and reports the failure to Linux, so that
+ * cfg80211 and the supplicant get a result.  After an association, a lost
+ * link starts the retries with backoff below.
+ */
+#define IPC_CONNECT_TRIES   3U
+static bool ipc_associated;
+static uint32_t ipc_connect_tries;
 
 /*
  * Wait longer after each failed attempt: 1 s, then twice as long each time,
@@ -173,6 +189,8 @@ static void ipc_run_command(void)
             break;
         }
         ipc_want_connection = true;
+        ipc_associated = false;
+        ipc_connect_tries = 1;
         esp_wifi_connect();
         break;
     case ESP32S31_IPC_CMD_DISCONNECT:
@@ -203,7 +221,7 @@ static void ipc_tx_task(void *arg)
     bool drained;
 
     for (;;) {
-        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(IPC_TX_POLL_MS));
         ipc_run_command();
         drained = false;
         while (ipc_ring_pop(&ipc->to_firmware, frame, &len)) {
@@ -223,6 +241,50 @@ static void ipc_publish_scan(uint32_t count)
     ipc->scan.count = count;
     __atomic_store_n(&ipc->scan.seq, ipc->scan.seq + 1, __ATOMIC_RELEASE);
     REG_WRITE(IPC_DOORBELL_TO_LINUX_REG, 1);
+}
+
+static uint8_t ipc_akm(wifi_auth_mode_t mode)
+{
+    switch (mode) {
+    case WIFI_AUTH_WEP:
+        return ESP32S31_IPC_AKM_WEP;
+    case WIFI_AUTH_WPA_PSK:
+        return ESP32S31_IPC_AKM_PSK | ESP32S31_IPC_AKM_WPA1;
+    case WIFI_AUTH_WPA2_PSK:
+    case WIFI_AUTH_WPA_WPA2_PSK:
+        return ESP32S31_IPC_AKM_PSK;
+    case WIFI_AUTH_WPA3_PSK:
+        return ESP32S31_IPC_AKM_SAE;
+    case WIFI_AUTH_WPA2_WPA3_PSK:
+        return ESP32S31_IPC_AKM_PSK | ESP32S31_IPC_AKM_SAE;
+    case WIFI_AUTH_OWE:
+        return ESP32S31_IPC_AKM_OWE;
+    case WIFI_AUTH_WPA_ENTERPRISE:
+        return ESP32S31_IPC_AKM_EAP | ESP32S31_IPC_AKM_WPA1;
+    case WIFI_AUTH_OPEN:
+        return 0;
+    default:
+        /* Enterprise variants, WAPI, DPP: show them as 802.1X. */
+        return ESP32S31_IPC_AKM_EAP;
+    }
+}
+
+static uint8_t ipc_ciphers(wifi_cipher_type_t cipher)
+{
+    switch (cipher) {
+    case WIFI_CIPHER_TYPE_TKIP:
+        return ESP32S31_IPC_CIPHER_TKIP;
+    case WIFI_CIPHER_TYPE_TKIP_CCMP:
+        return ESP32S31_IPC_CIPHER_TKIP | ESP32S31_IPC_CIPHER_CCMP;
+    case WIFI_CIPHER_TYPE_GCMP:
+        return ESP32S31_IPC_CIPHER_GCMP;
+    case WIFI_CIPHER_TYPE_GCMP256:
+        return ESP32S31_IPC_CIPHER_GCMP256;
+    case WIFI_CIPHER_TYPE_CCMP:
+        return ESP32S31_IPC_CIPHER_CCMP;
+    default:
+        return 0;
+    }
 }
 
 static void ipc_collect_scan(void)
@@ -246,8 +308,13 @@ static void ipc_collect_scan(void)
         bss->ssid_len = len;
         bss->channel = records[i].primary;
         bss->rssi = records[i].rssi;
-        bss->authmode = records[i].authmode == WIFI_AUTH_OPEN ?
-                        ESP32S31_IPC_AUTH_OPEN : ESP32S31_IPC_AUTH_SECURED;
+        bss->akm = ipc_akm(records[i].authmode);
+        bss->pairwise = ipc_ciphers(records[i].pairwise_cipher);
+        bss->group = ipc_ciphers(records[i].group_cipher);
+        bss->phy = (records[i].phy_11b ? ESP32S31_IPC_PHY_11B : 0) |
+                   (records[i].phy_11g ? ESP32S31_IPC_PHY_11G : 0) |
+                   (records[i].phy_11n ? ESP32S31_IPC_PHY_11N : 0) |
+                   (records[i].phy_11ax ? ESP32S31_IPC_PHY_11AX : 0);
     }
 
     ipc_publish_scan(num);
@@ -276,6 +343,7 @@ static void ipc_wifi_event(void *arg, esp_event_base_t base, int32_t id,
         memcpy((void *)ipc->bssid, ev->bssid, sizeof(ipc->bssid));
         ipc->channel = ev->channel;
         ESP_LOGI(TAG, "associated");
+        ipc_associated = true;
         ipc_retry_ms = 0;
         ipc_set_link(1);
         break;
@@ -285,6 +353,23 @@ static void ipc_wifi_event(void *arg, esp_event_base_t base, int32_t id,
 
         ipc_set_link(0);
         if (!ipc_want_connection) {
+            break;
+        }
+        if (!ipc_associated) {
+            if (ipc_connect_tries < IPC_CONNECT_TRIES) {
+                ipc_connect_tries++;
+                ESP_LOGW(TAG, "no association, reason %u, try %" PRIu32,
+                         ev->reason, ipc_connect_tries);
+                xTimerChangePeriod(ipc_retry_timer,
+                                   pdMS_TO_TICKS(IPC_RETRY_MIN_MS), 0);
+                break;
+            }
+            ESP_LOGW(TAG, "no association, reason %u, stop", ev->reason);
+            ipc_want_connection = false;
+            ipc->fail_reason = ev->reason;
+            __atomic_store_n(&ipc->fail_seq, ipc->fail_seq + 1,
+                             __ATOMIC_RELEASE);
+            REG_WRITE(IPC_DOORBELL_TO_LINUX_REG, 1);
             break;
         }
         ipc_retry_ms = ipc_retry_ms ? ipc_retry_ms * 2 : IPC_RETRY_MIN_MS;

@@ -18,12 +18,13 @@
 #else
 #include <stdint.h>
 typedef uint32_t u32;
+typedef uint16_t u16;
 typedef uint8_t u8;
 typedef int16_t s16;
 #endif
 
 #define ESP32S31_IPC_MAGIC		0x49313353	/* "S31I" */
-#define ESP32S31_IPC_VERSION		3
+#define ESP32S31_IPC_VERSION		4
 
 /*
  * Fixed address of the block in internal SRAM.  The loader puts it here and
@@ -61,9 +62,27 @@ struct esp32s31_ipc_ring {
 
 #define ESP32S31_IPC_SCAN_MAX		24
 
-/* Authentication modes: only the data that cfg80211 must publish. */
-#define ESP32S31_IPC_AUTH_OPEN		0
-#define ESP32S31_IPC_AUTH_SECURED	1
+/*
+ * Security of a scanned BSS.  The firmware gives parsed values, not the raw
+ * elements, so the driver builds the RSN and WPA elements from these bits.
+ * No AKM bit means an open network.
+ */
+#define ESP32S31_IPC_AKM_PSK		(1U << 0)
+#define ESP32S31_IPC_AKM_SAE		(1U << 1)
+#define ESP32S31_IPC_AKM_EAP		(1U << 2)
+#define ESP32S31_IPC_AKM_OWE		(1U << 3)
+#define ESP32S31_IPC_AKM_WPA1		(1U << 4)	/* WPA element, not RSN */
+#define ESP32S31_IPC_AKM_WEP		(1U << 5)
+
+#define ESP32S31_IPC_CIPHER_TKIP	(1U << 0)
+#define ESP32S31_IPC_CIPHER_CCMP	(1U << 1)
+#define ESP32S31_IPC_CIPHER_GCMP	(1U << 2)
+#define ESP32S31_IPC_CIPHER_GCMP256	(1U << 3)
+
+#define ESP32S31_IPC_PHY_11B		(1U << 0)
+#define ESP32S31_IPC_PHY_11G		(1U << 1)
+#define ESP32S31_IPC_PHY_11N		(1U << 2)
+#define ESP32S31_IPC_PHY_11AX		(1U << 3)
 
 /*
  * The firmware runs the supplicant and does the association.  Linux writes
@@ -83,10 +102,13 @@ struct esp32s31_ipc_bss {
 	u8 bssid[6];
 	u8 channel;
 	u8 ssid_len;
-	u8 authmode;
-	u8 reserved[1];
+	u8 akm;
+	u8 pairwise;
+	u8 group;
+	u8 phy;
 	s16 rssi;
 	u8 ssid[ESP32S31_IPC_SSID_MAX];
+	u8 reserved[2];
 };
 
 /*
@@ -111,7 +133,14 @@ struct esp32s31_ipc {
 	 */
 	u8 bssid[6];
 	u8 channel;
-	u8 reserved[ESP32S31_IPC_LINE - 25];
+	u8 reserved0;
+	/*
+	 * A connect command that did not associate: the firmware writes the
+	 * 802.11 or ESP-IDF reason code, then increments fail_seq.
+	 */
+	u16 fail_reason;
+	u32 fail_seq;
+	u8 reserved[ESP32S31_IPC_LINE - 32];
 	struct esp32s31_ipc_cmd cmd;
 	struct esp32s31_ipc_scan scan;
 	struct esp32s31_ipc_ring to_linux;
