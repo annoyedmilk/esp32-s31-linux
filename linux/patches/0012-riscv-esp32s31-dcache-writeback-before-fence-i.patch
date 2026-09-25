@@ -1,0 +1,33 @@
+From: Marco Müller <hello@annoyedmilk.ch>
+Subject: [PATCH] riscv: esp32s31: write back the D-cache before fence.i
+
+The I-cache of each ESP32-S31 core refills from PSRAM, not from the
+shared D-cache, and fence.i does not write the D-cache back.  With
+write-back PSRAM, patched code can stay in the D-cache, and the core then
+executes the old instructions.  Write back the D-cache first.
+
+Signed-off-by: Marco Müller <hello@annoyedmilk.ch>
+---
+diff --git a/arch/riscv/include/asm/cacheflush.h b/arch/riscv/include/asm/cacheflush.h
+--- a/arch/riscv/include/asm/cacheflush.h
++++ b/arch/riscv/include/asm/cacheflush.h
+@@ -8,8 +8,19 @@
+ 
+ #include <linux/mm.h>
+ 
++#ifdef CONFIG_ESP32S31_CACHE
++void esp32s31_dcache_wback_all(void);
++#endif
++
+ static inline void local_flush_icache_all(void)
+ {
++#ifdef CONFIG_ESP32S31_CACHE
++	/*
++	 * The ESP32-S31 I-cache refills from PSRAM, not from the shared
++	 * D-cache.  With write-back PSRAM, new code can stay in the D-cache.
++	 */
++	esp32s31_dcache_wback_all();
++#endif
+ 	asm volatile ("fence.i" ::: "memory");
+ }
+ 

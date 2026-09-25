@@ -4,8 +4,10 @@
 #include <sbi/riscv_asm.h>
 #include <sbi/sbi_console.h>
 #include <sbi/sbi_ecall_interface.h>
+#include <sbi/sbi_error.h>
 #include <sbi/sbi_ipi.h>
 #include <sbi/sbi_platform.h>
+#include <sbi/riscv_locks.h>
 #include <sbi/sbi_system.h>
 #include <sbi/sbi_timer.h>
 
@@ -430,10 +432,86 @@ static int esp32s31_timer_init(void)
 	return 0;
 }
 
+/*
+ * Cache sync engine.  Its SYNC_* registers are global and hold one operation
+ * at a time, so only OpenSBI programs them, under one lock.  The ESP-IDF
+ * firmware on hart 0 does not use the engine: its heap is not in PSRAM, and
+ * it does not write the flash.  Linux asks for operations through the vendor
+ * SBI extension (0x09000000 + mvendorid).  A size of 0 selects the full
+ * cache, as the ROM Cache_WriteBack_All() does.  Linux also needs the
+ * operations before it can map the cache registers: to write back new code
+ * before fence.i.
+ */
+#define ESP32S31_CACHE_BASE		0x2c000000UL
+#define ESP32S31_CACHE_SYNC_CTRL	(ESP32S31_CACHE_BASE + 0x9cUL)
+#define ESP32S31_CACHE_SYNC_MAP		(ESP32S31_CACHE_BASE + 0xa0UL)
+#define ESP32S31_CACHE_SYNC_ADDR	(ESP32S31_CACHE_BASE + 0xa4UL)
+#define ESP32S31_CACHE_SYNC_SIZE	(ESP32S31_CACHE_BASE + 0xa8UL)
+#define ESP32S31_CACHE_INVALIDATE	(1UL << 0)
+#define ESP32S31_CACHE_WRITEBACK	(1UL << 2)
+#define ESP32S31_CACHE_WRITEBACK_INV	(1UL << 3)
+#define ESP32S31_CACHE_SYNC_DONE	(1UL << 4)
+#define ESP32S31_CACHE_MAP_L1_DCACHE	(1UL << 4)
+
+/* Vendor SBI function IDs.  Keep them the same as in the Linux driver. */
+#define ESP32S31_SBI_CACHE_WBACK_ALL	0
+#define ESP32S31_SBI_CACHE_INV		1
+#define ESP32S31_SBI_CACHE_WBACK	2
+#define ESP32S31_SBI_CACHE_WBACK_INV	3
+
+static spinlock_t esp32s31_cache_lock = SPIN_LOCK_INITIALIZER;
+
+/*
+ * Erratum: a writeback can lose part of the range if it runs only once.  The
+ * ESP-IDF ROM patch also runs it twice.  An invalidate runs once.
+ */
+static void esp32s31_cache_sync(unsigned long op, unsigned long addr,
+				unsigned long size)
+{
+	int pass, passes = op == ESP32S31_CACHE_INVALIDATE ? 1 : 2;
+
+	spin_lock(&esp32s31_cache_lock);
+	reg_write(ESP32S31_CACHE_SYNC_MAP, ESP32S31_CACHE_MAP_L1_DCACHE);
+	reg_write(ESP32S31_CACHE_SYNC_ADDR, addr);
+	reg_write(ESP32S31_CACHE_SYNC_SIZE, size);
+	for (pass = 0; pass < passes; pass++) {
+		reg_write(ESP32S31_CACHE_SYNC_CTRL, op);
+		while (!(reg_read(ESP32S31_CACHE_SYNC_CTRL) &
+			 ESP32S31_CACHE_SYNC_DONE))
+			;
+	}
+	spin_unlock(&esp32s31_cache_lock);
+}
+
+static int esp32s31_vendor_ext(long funcid, struct sbi_trap_regs *regs,
+			       struct sbi_ecall_return *out)
+{
+	switch (funcid) {
+	case ESP32S31_SBI_CACHE_WBACK_ALL:
+		esp32s31_cache_sync(ESP32S31_CACHE_WRITEBACK, 0, 0);
+		return 0;
+	case ESP32S31_SBI_CACHE_INV:
+		esp32s31_cache_sync(ESP32S31_CACHE_INVALIDATE,
+				    regs->a0, regs->a1);
+		return 0;
+	case ESP32S31_SBI_CACHE_WBACK:
+		esp32s31_cache_sync(ESP32S31_CACHE_WRITEBACK,
+				    regs->a0, regs->a1);
+		return 0;
+	case ESP32S31_SBI_CACHE_WBACK_INV:
+		esp32s31_cache_sync(ESP32S31_CACHE_WRITEBACK_INV,
+				    regs->a0, regs->a1);
+		return 0;
+	default:
+		return SBI_ENOTSUPP;
+	}
+}
+
 const struct sbi_platform_operations platform_ops = {
 	.early_init = esp32s31_early_init,
 	.final_init = esp32s31_final_init,
 	.timer_init = esp32s31_timer_init,
+	.vendor_ext_provider = esp32s31_vendor_ext,
 };
 
 /*
