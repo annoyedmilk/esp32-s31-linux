@@ -241,7 +241,7 @@ kernel-clean: br-volume
 
 # vmlinux has 100 MB of DWARF, so copy it only when GDB needs it.
 kernel-vmlinux: br-volume
-	@$(BR_RUN) sh -c 'cp /br/output/build/linux-*/vmlinux /work/$(BUILD_DIR)/'
+	@$(BR_RUN) sh -c 'cp /br/output/build/linux-$(LINUX_VERSION)/vmlinux /work/$(BUILD_DIR)/'
 	@ls -l "$(BUILD_DIR)/vmlinux"
 
 kernel-menuconfig: br-volume
