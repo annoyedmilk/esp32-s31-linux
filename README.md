@@ -13,7 +13,8 @@ The ESP32-S31 is a microcontroller: two RV32 harts at 320 MHz, 512 KiB of
 SRAM, Wi-Fi 6 and Bluetooth. It was not made for Linux. This project runs a
 stock Linux 7.2 kernel with a small patch set on it, with a real userspace:
 a shell on the LCD, Wi-Fi with `wpa_supplicant`, SSH, USB keyboards and
-sticks, `vim`, `gdb`, `strace`, MicroPython and a web browser (`links`).
+sticks, `vim`, `gdb`, `strace`, MicroPython and a text-mode web browser
+(`links`).
 
 You can use it in two ways:
 
