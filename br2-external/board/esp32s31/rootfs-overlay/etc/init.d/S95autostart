@@ -1,0 +1,11 @@
+#!/bin/sh
+# SPDX-License-Identifier: MIT
+# Run autostart.sh from p1 at each boot.  p1 stays after "make sdroot", and
+# a Mac or PC can write it.
+
+SCRIPT=/mnt/sd/autostart.sh
+
+[ "$1" = start ] && [ -f "$SCRIPT" ] || exit 0
+
+echo "autostart: $SCRIPT, output in /tmp/autostart.log"
+sh "$SCRIPT" </dev/null >/tmp/autostart.log 2>&1 &
