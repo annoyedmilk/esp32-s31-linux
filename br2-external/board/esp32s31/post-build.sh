@@ -13,4 +13,7 @@ test -x "$1/sbin/serial-autologin"
 tty1_line='tty1::respawn:/sbin/getty -n -l /sbin/serial-autologin tty1 38400 linux'
 grep -qF "$tty1_line" "$1/etc/inittab" || printf '%s\n' "$tty1_line" >> "$1/etc/inittab"
 
+# BusyBox installs a start script for its httpd.  Here httpd is a tool.
+rm -f "$1/etc/init.d/S90httpd"
+
 mkdir -p "$1/mnt/sd"

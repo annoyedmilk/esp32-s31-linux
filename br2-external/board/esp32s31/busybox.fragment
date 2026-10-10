@@ -7,3 +7,10 @@ CONFIG_NTPD=y
 CONFIG_NC=y
 CONFIG_NC_SERVER=y
 CONFIG_NC_EXTRA=y
+
+# A web server to start by hand, with CGI for the example.  With CGI and
+# without BASIC_AUTH, BusyBox 1.38 gives 404 for a directory URL: it cuts
+# index.html from the path and does not put it back.
+CONFIG_HTTPD=y
+CONFIG_FEATURE_HTTPD_CGI=y
+CONFIG_FEATURE_HTTPD_BASIC_AUTH=y
