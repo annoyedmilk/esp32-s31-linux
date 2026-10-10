@@ -1,0 +1,2 @@
+# /var/log is in RAM.  Keep 64 KiB and one old file, not 200 KiB of each.
+SYSLOGD_ARGS="-s 64 -b 1"

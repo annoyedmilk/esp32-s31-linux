@@ -26,9 +26,9 @@ APPLETS = (
 DIRECTORIES = (".", "bin", "dev", "lib", "lib/firmware", "mnt", "proc", "run",
                "sys", "tmp")
 
-# cfg80211 loads these while the initramfs is the root.  The copy on the
+# cfg80211 loads this while the initramfs is the root.  The copy on the
 # card is not available yet.
-FIRMWARE = ("regulatory.db", "regulatory.db.p7s")
+FIRMWARE = ("regulatory.db",)
 
 PT_INTERP = 3
 
