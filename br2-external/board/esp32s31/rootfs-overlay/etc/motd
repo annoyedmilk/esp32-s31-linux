@@ -1,0 +1,12 @@
+
+ESP32-S31 Linux: RV32 at 320 MHz, 16 MiB PSRAM, Wi-Fi, LCD.
+
+Wi-Fi     wpa_passphrase "<ssid>" "<passphrase>" >> /etc/wpa_supplicant.conf
+          /etc/init.d/S40wifi restart
+          iw dev wlan0 link; iw dev wlan0 scan | grep SSID
+System    htop, free, df -h, dmesg
+Network   ssh, scp, curl, links, iperf3, tcpdump
+Files     /mnt/sd is the FAT partition of the card
+Code      micropython, lua, vim, gdbserver, strace
+Examples  ls /usr/share/examples
+
