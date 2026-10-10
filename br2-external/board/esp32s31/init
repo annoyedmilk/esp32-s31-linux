@@ -36,7 +36,10 @@ echo "$msg"
 
 # /dev/console is the UART, and the panel shows only the kernel log.  Start a
 # second shell on the panel for a USB keyboard.  setsid -c makes tty1 its
-# controlling terminal, so Ctrl-C works there.
-setsid -c /bin/sh -c 'echo "$1"; exec /bin/sh -i' sh "$msg" <>/dev/tty1 >&0 2>&1 &
+# controlling terminal.  Do not start it with &: such a job ignores SIGINT,
+# and Ctrl-C does nothing in that shell.  The first setsid makes the second
+# one a process group leader.  That one must fork, and its parent exits, so
+# the script continues.
+setsid setsid -c /bin/sh -c 'echo "$1"; exec /bin/sh -i' sh "$msg" <>/dev/tty1 >&0 2>&1
 
 exec /bin/sh -i
