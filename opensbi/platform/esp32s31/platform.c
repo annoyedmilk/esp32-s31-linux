@@ -68,30 +68,25 @@
 #define ESP32S31_CPU_APM_FUNC_CTRL	(ESP32S31_CPU_APM_BASE + 0xc4UL)
 
 /*
- * PSRAM is write-back, which is much faster.  With the LCD, it must be
- * write-through: the LCD DMA engine reads the frame buffer directly from
- * PSRAM, without the CPU cache or the DMA API.  With write-back, dirty lines
- * stay in L1, the panel does not see them, and the text is corrupted.  The
- * Makefile sets ESP32S31_PSRAM_WRITE_THROUGH when the loader starts the LCD.
- * SD and USB use the DMA API, and the esp32s31-cache driver does their cache
- * maintenance in the two modes.  Bit 26 of the cfg selects write-through.  The
- * other bits set RWX and cached.
+ * PSRAM is cached and write-back.  The LCD DMA engine reads the frame buffer
+ * directly from PSRAM, without the CPU cache or the DMA API.  If the frame
+ * buffer is cached, dirty lines stay in L1, the panel does not see them, and
+ * the text is corrupted.  Thus the frame buffer is not cached: bit 27 of a
+ * PMA cfg makes a range uncached, and the entry with the lowest index has
+ * priority.  The two NAPOT ranges together are the framebuffer node in
+ * esp32s31.dtsi.  The Makefile sets ESP32S31_FB_UNCACHED when the loader
+ * starts the LCD.  SD and USB use the DMA API, and the esp32s31-cache driver
+ * does their cache maintenance.
  *
- * SRAM and the peripherals need no PMA entry.  Entry 0 stays free: the entry
- * with the lowest index has priority, so an uncached sub-range of PSRAM (cfg
- * bit 27) must be below entry 1.
+ * SRAM and the peripherals need no PMA entry.
  */
 #define ESP32S31_PMAADDR0		0xbd0
 #define ESP32S31_PMACFG0		0xbc0
-#define ESP32S31_PSRAM_PMA_NAPOT	0x141fffffUL
-#define ESP32S31_PSRAM_PMA_RWX_WB	0xc000001dUL
-#define ESP32S31_PSRAM_PMA_RWX_WT	0xc400001dUL
-
-#if ESP32S31_PSRAM_WRITE_THROUGH
-#define ESP32S31_PSRAM_PMA_CFG		ESP32S31_PSRAM_PMA_RWX_WT
-#else
-#define ESP32S31_PSRAM_PMA_CFG		ESP32S31_PSRAM_PMA_RWX_WB
-#endif
+#define ESP32S31_PMA_NAPOT(base, size)	(((base) | (((size) >> 1) - 1)) >> 2)
+#define ESP32S31_PMA_RWX		0xc000001dUL
+#define ESP32S31_PMA_RW_UNCACHED	0xc8000019UL
+#define ESP32S31_PSRAM_BASE		0x50000000UL
+#define ESP32S31_PSRAM_SIZE		0x01000000UL
 
 static inline void reg_write(unsigned long addr, unsigned long val)
 {
@@ -143,8 +138,17 @@ static void esp32s31_apm_init(void)
 
 static void esp32s31_pma_init(void)
 {
-	csr_write_num(ESP32S31_PMAADDR0 + 1, ESP32S31_PSRAM_PMA_NAPOT);
-	csr_write_num(ESP32S31_PMACFG0 + 1, ESP32S31_PSRAM_PMA_CFG);
+	csr_write_num(ESP32S31_PMAADDR0 + 2,
+		      ESP32S31_PMA_NAPOT(ESP32S31_PSRAM_BASE, ESP32S31_PSRAM_SIZE));
+	csr_write_num(ESP32S31_PMACFG0 + 2, ESP32S31_PMA_RWX);
+#if ESP32S31_FB_UNCACHED
+	csr_write_num(ESP32S31_PMAADDR0,
+		      ESP32S31_PMA_NAPOT(0x50f40000UL, 0x00040000UL));
+	csr_write_num(ESP32S31_PMACFG0, ESP32S31_PMA_RW_UNCACHED);
+	csr_write_num(ESP32S31_PMAADDR0 + 1,
+		      ESP32S31_PMA_NAPOT(0x50f80000UL, 0x00080000UL));
+	csr_write_num(ESP32S31_PMACFG0 + 1, ESP32S31_PMA_RW_UNCACHED);
+#endif
 }
 
 #if ESP32S31_USB_SERIAL_JTAG_CONSOLE

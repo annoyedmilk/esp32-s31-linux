@@ -98,14 +98,14 @@ python -m espefuse --chip esp32s31 -p PORT summary
   in S-mode, Linux cannot see it. The S-mode trampoline must use `sret` and
   restore `scause.spil`. `mret` locks `mintstatus.SIL` and masks all
   supervisor interrupts.
-- **Cache.** PSRAM is write-back. With the LCD, the Makefile selects
-  write-through, because the panel DMA reads PSRAM without the cache. No bus
-  master is coherent with the data cache, and the hart has no Zicbom. DMA
-  uses the cache sync engine, which OpenSBI programs for Linux through a
-  vendor SBI extension (`drivers/cache/esp32s31-cache.c`). The I-cache
-  refills from PSRAM, not from the D-cache, so Linux writes the D-cache back
-  before each `fence.i`. Coherent DMA memory comes from a 64 KiB pool in SRAM
-  at `0x2F040000`.
+- **Cache.** PSRAM is write-back. The panel DMA reads the frame buffer from
+  PSRAM without the cache, so OpenSBI makes the frame buffer range uncached
+  with PMA entries. No bus master is coherent with the data cache, and the
+  hart has no Zicbom. DMA uses the cache sync engine, which OpenSBI programs
+  for Linux through a vendor SBI extension
+  (`drivers/cache/esp32s31-cache.c`). The I-cache refills from PSRAM, not
+  from the D-cache, so Linux writes the D-cache back before each `fence.i`.
+  Coherent DMA memory comes from a 64 KiB pool in SRAM at `0x2F040000`.
 - **Shared SRAM.** `0x2F040000`-`0x2F060000` is outside the ESP-IDF heap. The
   lower half is the DMA pool. The upper half holds the Wi-Fi rings
   (`shared/esp32s31-wifi-ipc.h`).

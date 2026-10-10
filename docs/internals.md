@@ -53,7 +53,7 @@ ROM -> ESP-IDF 2nd stage -> loader (hart 0) -> OpenSBI (hart 1, M) -> Linux (har
 | `0x50000000` | 8 MiB | Kernel image and its memory |
 | `0x50800000` | 2 MiB | initramfs |
 | `0x50E00000` | 256 KiB | OpenSBI (reserved, no-map) |
-| `0x50F40000` | 752 KiB | LCD frame buffer (reserved, no-map) |
+| `0x50F40000` | 768 KiB | LCD frame buffer (reserved, no-map, uncached) |
 
 The loader keeps its own copy of these numbers. The device tree
 (`esp32s31.dtsi`) must agree with it.
@@ -146,9 +146,11 @@ This is the part that is most different from other RISC-V SoCs.
   load, `exec`, JIT) can be in a dirty D-cache line. So
   `local_flush_icache_all()` writes the D-cache back before `fence.i`
   (`patches/0012`).
-- **Write-back or write-through.** PSRAM is write-back. With the LCD, it is
-  write-through, because the LCD DMA reads the frame buffer from PSRAM with
-  no cache maintenance. The PMA in OpenSBI selects the mode.
+- **The frame buffer is uncached.** PSRAM is write-back. The LCD DMA reads
+  the frame buffer from PSRAM with no cache maintenance, so OpenSBI makes
+  that range uncached with two PMA entries. Write-through for all of PSRAM
+  (bit 26 of the PMA cfg) also gives a correct picture, but then Linux is 2
+  to 10 times slower.
 
 ### Drivers that needed a change for this
 

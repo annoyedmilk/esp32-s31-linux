@@ -1,12 +1,12 @@
 # Copy the boot console to the USB Serial/JTAG CDC endpoint.
 ESP32S31_USB_SERIAL_JTAG_CONSOLE ?= 1
 
-# Write-through PSRAM for the LCD.  The Makefile sets it from the loader config.
-ESP32S31_PSRAM_WRITE_THROUGH ?= 0
+# Uncached frame buffer for the LCD.  The Makefile sets it from the loader config.
+ESP32S31_FB_UNCACHED ?= 0
 
 platform-cppflags-y = -DFW_NO_MSTATUSH -DCLIC_NO_SIE \
 	-DESP32S31_USB_SERIAL_JTAG_CONSOLE=$(ESP32S31_USB_SERIAL_JTAG_CONSOLE) \
-	-DESP32S31_PSRAM_WRITE_THROUGH=$(ESP32S31_PSRAM_WRITE_THROUGH)
+	-DESP32S31_FB_UNCACHED=$(ESP32S31_FB_UNCACHED)
 platform-cflags-y = $(platform-cppflags-y)
 platform-asflags-y = $(platform-cppflags-y)
 platform-ldflags-y =

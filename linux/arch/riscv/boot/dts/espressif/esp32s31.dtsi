@@ -23,9 +23,13 @@
 		#size-cells = <1>;
 		ranges;
 
-		/* The loader DMA reads this buffer also after the handoff. */
+		/*
+		 * The loader DMA reads this buffer also after the handoff.
+		 * OpenSBI makes this range uncached with two PMA entries, so
+		 * it goes to the end of PSRAM.
+		 */
 		fb_region: framebuffer@50f40000 {
-			reg = <0x50f40000 0xbc000>;
+			reg = <0x50f40000 0xc0000>;
 			no-map;
 		};
 

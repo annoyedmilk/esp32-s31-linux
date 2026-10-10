@@ -217,9 +217,8 @@ static void disable_linux_hart_stack_protector(void)
  */
 static void IRAM_ATTR linux_hart_entry(void)
 {
-    PMA_ENTRY_SET_NAPOT(1, PSRAM_BASE, PSRAM_PMA_SIZE,
-                        PMA_NAPOT | PMA_WRITETHROUGH |
-                        PMA_EN | PMA_R | PMA_W | PMA_X);
+    PMA_ENTRY_SET_NAPOT(2, PSRAM_BASE, PSRAM_PMA_SIZE,
+                        PMA_NAPOT | PMA_EN | PMA_R | PMA_W | PMA_X);
 
     __asm__ volatile (
         "li   a0, %0\n\t"

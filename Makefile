@@ -21,9 +21,9 @@ OPENSBI_DIR := external/opensbi
 OPENSBI_SRC := $(BUILD_DIR)/opensbi-src
 OPENSBI_OUT := $(CURDIR)/$(BUILD_DIR)/opensbi
 OPENSBI_PATCHES := $(sort $(wildcard opensbi/patches/*.patch))
-# The LCD DMA reads PSRAM without the cache, so PSRAM must be write-through
-# when the loader starts the LCD.  Otherwise it is write-back.
-PSRAM_WRITE_THROUGH := $(shell grep -q '^CONFIG_ESP_CONSOLE_SECONDARY_NONE=y' \
+# The LCD DMA reads PSRAM without the cache, so the frame buffer must not be
+# cached when the loader starts the LCD.
+FB_UNCACHED := $(shell grep -q '^CONFIG_ESP_CONSOLE_SECONDARY_NONE=y' \
 	bootloader/sdkconfig.defaults && echo 1 || echo 0)
 
 # Buildroot cannot build on macOS, so it runs in a container.  Its output/
@@ -178,7 +178,7 @@ opensbi:
 	@$(GMAKE) -C "$(OPENSBI_SRC)" \
 		PLATFORM_DIR="$(CURDIR)/opensbi/platform" PLATFORM=esp32s31 \
 		O="$(OPENSBI_OUT)" CROSS_COMPILE="$(CROSS_COMPILE)" \
-		ESP32S31_PSRAM_WRITE_THROUGH=$(PSRAM_WRITE_THROUGH)
+		ESP32S31_FB_UNCACHED=$(FB_UNCACHED)
 	@cp "$(OPENSBI_OUT)/platform/esp32s31/firmware/fw_jump.elf" "$(BUILD_DIR)/opensbi.elf"
 	@cp "$(OPENSBI_OUT)/platform/esp32s31/firmware/fw_jump.bin" "$(BUILD_DIR)/opensbi.bin"
 
