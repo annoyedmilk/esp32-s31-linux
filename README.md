@@ -162,7 +162,8 @@ make monitor SERIAL_PORT=/dev/cu.usbserial-XXXX
 - Set `RESET_PORT` if the RTS line of `SERIAL_PORT` cannot reset the board.
 - `make help` shows all targets.
 
-Without a prepared SD card, the initramfs starts a recovery shell.
+Without a prepared SD card, the initramfs starts a recovery shell on the UART
+and one on the LCD.
 
 ## SD card
 
@@ -261,7 +262,8 @@ in `br2-external/configs/esp32s31_defconfig`) with `linux/patches/`.
 | `0xA20000` | 2 MiB initramfs |
 
 The initramfs holds BusyBox and an `init` that mounts `/dev/mmcblk0p2` and
-does `switch_root`. If the card is not there, it starts a shell.
+does `switch_root`. If the card is not there, it starts a shell on the UART
+and one on the LCD.
 
 ## Debugging
 
