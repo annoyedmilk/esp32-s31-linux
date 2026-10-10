@@ -26,7 +26,6 @@
 
 #include "esp32s31-wifi-ipc.h"
 
-#define ESP32S31_WIFI_NAPI_BUDGET	16
 /* Offsets from FROM_CPU_1: Linux sets TX, the firmware sets RX. */
 #define ESP32S31_WIFI_DOORBELL_TX	0x0
 #define ESP32S31_WIFI_DOORBELL_RX	0x4

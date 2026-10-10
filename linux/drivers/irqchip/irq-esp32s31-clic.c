@@ -232,15 +232,6 @@ static struct irq_chip esp32s31_clic_chip = {
 	.irq_set_type = esp32s31_clic_set_type,
 };
 
-/*
- * S-mode CLIC chip for the riscv,cpu-intc domain.
- *
- * On the ESP32-S31 in CLIC mode, the standard S-mode interrupt-enable CSRs
- * (sie/sieh) are illegal.  Thus mask and unmask the local riscv,cpu-intc
- * interrupts (timer, IPI) through the S-mode CLIC MMIO window.  This chip
- * replaces the upstream riscv_intc_chip on the INTC domain.
- */
-
 #if defined(CONFIG_IRQ_WORK) && !defined(CONFIG_SMP)
 /*
  * Upstream RISC-V has arch_irq_work_raise() in smp.c.  Thus a UP kernel
@@ -313,6 +304,14 @@ static int __init esp32s31_irq_work_init(struct esp32s31_clic *clic)
 }
 #endif
 
+/*
+ * S-mode CLIC chip for the riscv,cpu-intc domain.
+ *
+ * On the ESP32-S31 in CLIC mode, the standard S-mode interrupt-enable CSRs
+ * (sie/sieh) are illegal.  Thus mask and unmask the local riscv,cpu-intc
+ * interrupts (timer, IPI) through the S-mode CLIC MMIO window.  This chip
+ * replaces the upstream riscv_intc_chip on the INTC domain.
+ */
 static void esp32s31_intc_clic_irq_mask(struct irq_data *d)
 {
 	clic_writeb(this_cpu_read(clic_per_cpu), d->hwirq,

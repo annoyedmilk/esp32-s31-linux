@@ -418,7 +418,8 @@ void sbi_timer_plat_sirq_clear(void)
 /*
  * MIP.SSIP is not writable on this CLIC-only hart.  SBI self-IPIs go through
  * CLIC input 1, which has the cause code of the standard supervisor software
- * interrupt.  Linux irq_work uses them, also on a uniprocessor system.
+ * interrupt.  The Linux CLIC driver does not use them: on this revision the
+ * CLIC does not arbitrate input 1, so its irq_work uses external input 16.
  */
 void sbi_ipi_plat_sirq_set(void)
 {

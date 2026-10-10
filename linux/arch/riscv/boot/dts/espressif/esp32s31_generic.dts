@@ -23,9 +23,8 @@
 		 * /chosen.  If the loader gives GPIO33/34 to USB Serial/JTAG,
 		 * it does not start the display: fb0 exists but shows nothing.
 		 */
-		framebuffer: framebuffer@50f40000 {
+		framebuffer {
 			compatible = "simple-framebuffer";
-			reg = <0x50f40000 (800 * 480 * 2)>;
 			width = <800>;
 			height = <480>;
 			stride = <(800 * 2)>;

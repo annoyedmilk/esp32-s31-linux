@@ -415,8 +415,7 @@ static esp_err_t start_ipc(void)
  * The radio start reads the flash.  A flash transaction disables the cache
  * that Linux executes from.  Thus this must be complete before hart 1 starts.
  * NVS is off for the same reason: nothing must write the flash while the
- * kernel runs.  The cost is a phy_init error and a full RF calibration at each
- * boot.
+ * kernel runs.  The cost is a full RF calibration at each boot.
  */
 void start_wifi(void)
 {

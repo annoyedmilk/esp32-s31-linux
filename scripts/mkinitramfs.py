@@ -20,7 +20,7 @@ from pathlib import Path
 APPLETS = (
     "sh", "ash", "mount", "umount", "switch_root", "sleep", "echo", "cat",
     "ls", "mkdir", "dmesg", "blkid", "fdisk", "sync", "uname", "setsid",
-    "cttyhack", "df", "free", "dd", "hexdump", "reboot", "poweroff",
+    "df", "free", "dd", "hexdump", "reboot", "poweroff",
 )
 
 DIRECTORIES = (".", "bin", "dev", "lib", "lib/firmware", "mnt", "proc", "run",

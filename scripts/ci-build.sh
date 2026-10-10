@@ -21,10 +21,9 @@ if [ "$want" != "$have" ]; then
 	exit 1
 fi
 
-jobs=$(nproc)
 make kernel-patches
 make bootloader
-make opensbi JOBS="$jobs"
+make opensbi
 
 # The same steps as "make rootfs", without the container.
 br="make -C external/buildroot O=$BR_OUTPUT BR2_EXTERNAL=$PWD/br2-external"

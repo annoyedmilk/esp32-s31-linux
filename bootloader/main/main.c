@@ -14,7 +14,6 @@
 #include "esp_rom_crc.h"
 #include "esp_attr.h"
 #include "esp_cpu.h"
-#include "esp32s31/rom/cache.h"
 #include "esp32s31/rom/ets_sys.h"
 #include "riscv/csr.h"
 #include "hal/assist_debug_ll.h"
@@ -58,9 +57,10 @@ SOC_RESERVE_MEMORY_REGION(LINUX_DMA_POOL_ADDR,
                           linux_dma_pool);
 
 /*
- * APM region attribute word: one nibble for each REE mode (R0 to R3).  Each
- * nibble has X at bit 0, W at bit 1 and R at bit 2.  0x7777 gives read, write
- * and execute to all modes.  There is no privilege separation yet.
+ * APM region attribute word: one nibble for each of the REE modes 0 to 2,
+ * then one for TEE mode.  Each nibble has X at bit 0, W at bit 1 and R at
+ * bit 2.  0x7777 gives read, write and execute to all modes.  OpenSBI makes
+ * the HP_APM regions smaller later, to protect its memory.
  */
 #define APM_REGION_ATTR_ALL_RWX     0x7777U
 
@@ -125,24 +125,9 @@ static void flush_l1_cache_before_handoff(void)
     fence_i();
 }
 
-static void log_cache_mode(void)
-{
-    struct cache_mode icache = { .cache_type = CACHE_L1_ICACHE0 };
-    struct cache_mode dcache = { .cache_type = CACHE_L1_DCACHE };
-
-    Cache_Get_Mode(&icache);
-    Cache_Get_Mode(&dcache);
-    ESP_LOGI(TAG, "cache: I=%" PRIu32 "K/%u-way/%uB D=%" PRIu32
-                  "K/%u-way/%uB PSRAM=%s",
-             icache.cache_size / 1024, icache.cache_ways,
-             icache.cache_line_size, dcache.cache_size / 1024,
-             dcache.cache_ways, dcache.cache_line_size,
-             Cache_Address_Through_Cache(KERNEL_LOAD_ADDR) ? "cached" : "bypass");
-}
-
 /*
  * Open all Access Permission Managers on the chip.  Each APM gets one region
- * for the full 32-bit address space, with RWX for all REE modes.  Then its
+ * for the full 32-bit address space, with RWX for all modes.  Then its
  * filter is enabled.  FUNC_CTRL enables the filter for each bus master.  All
  * bits are set, so all masters get the same permissions.
  */
@@ -400,7 +385,6 @@ void app_main(void)
         ESP_LOGE(TAG, "PSRAM not initialized");
         esp_restart();
     }
-    log_cache_mode();
     init_sd_card();
     init_rmt_led();
 
