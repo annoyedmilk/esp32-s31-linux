@@ -54,6 +54,10 @@ BR2_PACKAGE_HOST_GENIMAGE=y
 
 # The root is on a removable card, and a clean shutdown is not certain.
 BR2_PACKAGE_E2FSPROGS=y
+# fsck.fat clears the dirty flag of p1 after a reset.  Nothing runs it at
+# boot: for a large p1 it needs more memory than the board has.
+BR2_PACKAGE_DOSFSTOOLS=y
+BR2_PACKAGE_DOSFSTOOLS_FSCK_FAT=y
 BR2_PACKAGE_IW=y
 BR2_PACKAGE_WIRELESS_REGDB=y
 BR2_PACKAGE_LIBGPIOD=y
