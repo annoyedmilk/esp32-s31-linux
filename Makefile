@@ -25,6 +25,9 @@ OPENSBI_PATCHES := $(sort $(wildcard opensbi/patches/*.patch))
 # cached when the loader starts the LCD.
 FB_UNCACHED := $(shell grep -q '^CONFIG_ESP_CONSOLE_SECONDARY_NONE=y' \
 	bootloader/sdkconfig.defaults && echo 1 || echo 0)
+# The LCD has the pins of the USB Serial/JTAG, so OpenSBI copies its console
+# to USB only when the loader does not start the LCD.
+USB_CONSOLE := $(if $(filter 1,$(FB_UNCACHED)),0,1)
 
 # Buildroot cannot build on macOS, so it runs in a container.  Its output/
 # and dl/ are in a volume, because virtiofs is slow for many gigabytes.
@@ -178,7 +181,8 @@ opensbi:
 	@$(GMAKE) -C "$(OPENSBI_SRC)" \
 		PLATFORM_DIR="$(CURDIR)/opensbi/platform" PLATFORM=esp32s31 \
 		O="$(OPENSBI_OUT)" CROSS_COMPILE="$(CROSS_COMPILE)" \
-		ESP32S31_FB_UNCACHED=$(FB_UNCACHED)
+		ESP32S31_FB_UNCACHED=$(FB_UNCACHED) \
+		ESP32S31_USB_SERIAL_JTAG_CONSOLE=$(USB_CONSOLE)
 	@cp "$(OPENSBI_OUT)/platform/esp32s31/firmware/fw_jump.elf" "$(BUILD_DIR)/opensbi.elf"
 	@cp "$(OPENSBI_OUT)/platform/esp32s31/firmware/fw_jump.bin" "$(BUILD_DIR)/opensbi.bin"
 
