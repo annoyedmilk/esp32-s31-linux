@@ -6,7 +6,7 @@ diff --git a/drivers/mmc/host/dw_mmc.c b/drivers/mmc/host/dw_mmc.c
  }
  
 +/*
-+ * On platforms without a coherent alias, the IDMAC ring is usual cached
++ * On platforms with no coherent memory for it, the IDMAC ring is cached
 + * memory.  Thus each change of ownership needs cache maintenance.  Sync the
 + * full ring, not one descriptor: descriptors are 16 bytes, and one cache line
 + * holds more than one.  An invalidate for one descriptor could discard the
@@ -98,7 +98,7 @@ diff --git a/drivers/mmc/host/dw_mmc.h b/drivers/mmc/host/dw_mmc.h
  #define DW_MMC_QUIRK_EXTENDED_TMOUT            BIT(0)
  /* Force 32-bit access to the FIFO */
  #define DW_MMC_QUIRK_FIFO64_32                 BIT(1)
-+/* No coherent alias exists, so the descriptor ring needs cache maintenance */
++/* The descriptor ring is cached memory and needs cache maintenance */
 +#define DW_MMC_QUIRK_NONCOHERENT_DESC          BIT(2)
  
  #define DW_MMC_240A		0x240a
@@ -113,7 +113,7 @@ diff --git a/drivers/mmc/host/dw_mmc-pltfm.c b/drivers/mmc/host/dw_mmc-pltfm.c
 +static int dw_mci_esp32s31_init(struct dw_mci *host)
 +{
 +	/*
-+	 * PSRAM has no uncached alias on this SoC, and RV32 cannot remap it.
++	 * This port does not map PSRAM as uncached.
 +	 * Thus dma_alloc_coherent() gives cached memory, and the IDMAC owner
 +	 * bits become old.  Get the descriptor ring from non-coherent DMA
 +	 * memory and do the cache maintenance in the driver.

@@ -9,7 +9,7 @@ diff --git a/Documentation/devicetree/bindings/cache/esp,esp32s31-cache.yaml b/D
 new file mode 100644
 --- /dev/null
 +++ b/Documentation/devicetree/bindings/cache/esp,esp32s31-cache.yaml
-@@ -0,0 +1,46 @@
+@@ -0,0 +1,47 @@
 +# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
 +%YAML 1.2
 +---
@@ -25,9 +25,10 @@ new file mode 100644
 +  The ESP32-S31 cache controller is in front of the external PSRAM aperture.
 +  Its sync engine does invalidate, writeback and writeback-invalidate
 +  operations on an address range. The kernel uses them for DMA cache
-+  maintenance, because the hart has no Zicbom and the SoC has no uncached
-+  alias of that aperture. The engine registers are global, so the M-mode
-+  firmware programs them and the kernel asks it for each operation.
++  maintenance, because the hart has no Zicbom and the kernel does not use
++  the uncached alias of that aperture. The engine registers are global, so
++  the M-mode firmware programs them and the kernel asks it for each
++  operation.
 +
 +properties:
 +  compatible:
@@ -418,7 +419,7 @@ diff --git a/arch/riscv/boot/dts/espressif/esp32s31.dtsi b/arch/riscv/boot/dts/e
 new file mode 100644
 --- /dev/null
 +++ b/arch/riscv/boot/dts/espressif/esp32s31.dtsi
-@@ -0,0 +1,228 @@
+@@ -0,0 +1,229 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * Espressif ESP32-S31 minimal device tree.
@@ -461,9 +462,10 @@ new file mode 100644
 +		};
 +
 +		/*
-+		 * PSRAM has no uncached alias, and Sv32 has no cacheability
-+		 * attribute.  Thus coherent allocations come from internal
-+		 * SRAM, which the data cache does not hold.
++		 * Sv32 has no cacheability attribute, and the port does not
++		 * use the uncached alias of PSRAM at 0xc0000000.  Thus coherent
++		 * allocations come from internal SRAM, which the data cache
++		 * does not hold.
 +		 */
 +		dma_pool: dma-pool@2f040000 {
 +			compatible = "shared-dma-pool";
@@ -1066,19 +1068,20 @@ diff --git a/drivers/cache/esp32s31-cache.c b/drivers/cache/esp32s31-cache.c
 new file mode 100644
 --- /dev/null
 +++ b/drivers/cache/esp32s31-cache.c
-@@ -0,0 +1,123 @@
+@@ -0,0 +1,124 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * Author: Marco Müller <hello@annoyedmilk.ch>
 + *
 + * ESP32-S31 cache controller: non-standard cache maintenance for DMA
 + *
-+ * The hart has no Zicbom, and the SoC has no uncached alias of the PSRAM
-+ * aperture.  Thus the only way to make DMA buffers coherent is the sync
-+ * engine of the cache controller.  One set of global SYNC_* registers holds
-+ * one operation at a time.  OpenSBI does all sync operations in M-mode under
-+ * one lock, and this driver asks for them through the vendor SBI extension.
-+ * The SBI call also works early in the boot, before an ioremap() is possible.
++ * The hart has no Zicbom.  Thus the only way to make DMA buffers in cached
++ * memory coherent is the sync engine of the cache controller.  The uncached
++ * alias of PSRAM at 0xc0000000 is not used.  One set of global SYNC_*
++ * registers holds one operation at a time.  OpenSBI does all sync operations
++ * in M-mode under one lock, and this driver asks for them through the vendor
++ * SBI extension.  The SBI call also works early in the boot, before an
++ * ioremap() is possible.
 + *
 + * The I-cache of each core refills from PSRAM, not from the shared D-cache.
 + * With write-back PSRAM, new code can stay in the D-cache, so

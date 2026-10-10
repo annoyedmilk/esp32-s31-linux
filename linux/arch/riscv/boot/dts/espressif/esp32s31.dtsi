@@ -40,9 +40,10 @@
 		};
 
 		/*
-		 * PSRAM has no uncached alias, and Sv32 has no cacheability
-		 * attribute.  Thus coherent allocations come from internal
-		 * SRAM, which the data cache does not hold.
+		 * Sv32 has no cacheability attribute, and the port does not
+		 * use the uncached alias of PSRAM at 0xc0000000.  Thus coherent
+		 * allocations come from internal SRAM, which the data cache
+		 * does not hold.
 		 */
 		dma_pool: dma-pool@2f040000 {
 			compatible = "shared-dma-pool";

@@ -20,7 +20,7 @@ the best public reference for addresses and fields.
 | Cache maintenance | No Zicbom. A cache controller with a "sync engine" (MMIO). |
 | Interrupts | CLIC only. The standard `sie`/`sip` CSRs do not exist. |
 | Internal SRAM | 512 KiB at `0x2F000000`, not cached by the D-cache |
-| PSRAM | 16 MiB octal at `0x50000000`, cached. Linux uses it as RAM. |
+| PSRAM | 16 MiB octal, cached. The loader maps it at `0x50000000` with the MMU of the PSRAM controller. Linux uses it as RAM. An uncached alias is at `0xC0000000`. |
 | Flash | 16 MB NOR, mapped by the MMU of the flash controller |
 
 ## Boot chain
@@ -125,8 +125,19 @@ This is the part that is most different from other RISC-V SoCs.
 
 - **No coherent bus master.** SD, USB, LCD and the GDMA do not snoop the
   D-cache.
-- **No Zicbom, and no uncached alias of PSRAM.** Sv32 has no cacheability
-  bits either. So Linux cannot map PSRAM as uncached.
+- **No Zicbom, and Sv32 has no cacheability bits.** So Linux cannot make a
+  usual mapping uncached. The hardware has two other ways. PSRAM has a
+  cache-bypass alias at `0xC0000000` (the address plus `0x70000000`). It
+  needs no PMA entry and works from S-mode, and the port does not use it.
+  And bit 27 of a PMA cfg makes a range uncached at its usual address. The
+  PMA entry with the lowest index has priority. The port uses this for the
+  frame buffer. An uncached word read takes approximately 120 CPU cycles,
+  and a write approximately 50.
+- **Two rules for uncached memory.** A store through one address of a word
+  is visible to a load through its other address only after a `fence`. And
+  when a range becomes uncached, its lines must not be in the cache: the
+  write-back of an old dirty line overwrites newer uncached data. The loader
+  writes back and invalidates the full cache before the handoff.
 - **The cache controller has a sync engine.** It writes back or invalidates
   an address range, one operation at a time, through global registers. Two
   masters that use it at the same time corrupt each other. So only OpenSBI
@@ -170,7 +181,9 @@ This is the part that is most different from other RISC-V SoCs.
 - **APM.** `HP_APM` checks the accesses of the bus masters, also DMA to
   PSRAM. M-mode is TEE mode, and the DMA masters are REE mode. OpenSBI
   gives its memory to TEE mode only and locks the regions. A blocked access
-  returns 0 and is recorded, with no bus error. `CPU_APM` checks only CPU
+  returns 0 and is recorded, with no bus error. PMP does not cover the
+  uncached alias of the OpenSBI memory (`0xC0E00000`). There, an S-mode
+  read also returns 0 and a write is lost. `CPU_APM` checks only CPU
   accesses, and `HP_MEM_APM` covers only SRAM.
 - **The APM registers themselves** (`0x20504000`) are M-mode only, through
   an OpenSBI domain region.
@@ -206,6 +219,7 @@ the loader and the kernel both include.
 | SD PIO FIFO | Does not work. Use IDMAC. |
 | Cache write-back erratum | A single write-back can lose data. Run it twice. |
 | PMP entries overlap | Fault, even for a short time during an update. |
+| PMA entries overlap | No fault. The entry with the lowest index is used. |
 | FPU `EXT_ILL` | Cannot identify FLW/FSW. |
 | GPIO33/34 | LCD data pins and also the USB Serial/JTAG pins. |
 

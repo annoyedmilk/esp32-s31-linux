@@ -4,12 +4,13 @@
  *
  * ESP32-S31 cache controller: non-standard cache maintenance for DMA
  *
- * The hart has no Zicbom, and the SoC has no uncached alias of the PSRAM
- * aperture.  Thus the only way to make DMA buffers coherent is the sync
- * engine of the cache controller.  One set of global SYNC_* registers holds
- * one operation at a time.  OpenSBI does all sync operations in M-mode under
- * one lock, and this driver asks for them through the vendor SBI extension.
- * The SBI call also works early in the boot, before an ioremap() is possible.
+ * The hart has no Zicbom.  Thus the only way to make DMA buffers in cached
+ * memory coherent is the sync engine of the cache controller.  The uncached
+ * alias of PSRAM at 0xc0000000 is not used.  One set of global SYNC_*
+ * registers holds one operation at a time.  OpenSBI does all sync operations
+ * in M-mode under one lock, and this driver asks for them through the vendor
+ * SBI extension.  The SBI call also works early in the boot, before an
+ * ioremap() is possible.
  *
  * The I-cache of each core refills from PSRAM, not from the shared D-cache.
  * With write-back PSRAM, new code can stay in the D-cache, so

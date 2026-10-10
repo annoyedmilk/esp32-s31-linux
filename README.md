@@ -20,9 +20,9 @@ You can use it in two ways:
 
 - **To try it.** Flash a release, write the card image, and log in. It
   takes about ten minutes.
-- **To learn from it.** The SoC has no PLIC, no Zicbom, no coherent DMA and
-  no uncached alias of its RAM. Each of these has a solution here that you
-  can read in a few hundred lines. [docs/internals.md](docs/internals.md)
+- **To learn from it.** The SoC has no PLIC, no Zicbom and no coherent DMA.
+  Each of these has a solution here that you can read in a few hundred
+  lines. [docs/internals.md](docs/internals.md)
   tells the full story for kernel developers.
 
 ## Try it

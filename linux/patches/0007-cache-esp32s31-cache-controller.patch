@@ -43,7 +43,7 @@ diff --git a/drivers/cache/Kconfig b/drivers/cache/Kconfig
 +	select DMA_GLOBAL_POOL if !DMA_DIRECT_REMAP
 +	help
 +	  Cache maintenance for DMA on the Espressif ESP32-S31.  The hart has
-+	  no Zicbom, and the SoC has no uncached alias of PSRAM.  Thus the
++	  no Zicbom, and the port does not map PSRAM as uncached.  Thus the
 +	  sync engine of the cache controller keeps DMA buffers coherent.
 +	  OpenSBI operates it for Linux through a vendor SBI extension.
 +	  Coherent allocations come from a shared-dma-pool in internal SRAM,
