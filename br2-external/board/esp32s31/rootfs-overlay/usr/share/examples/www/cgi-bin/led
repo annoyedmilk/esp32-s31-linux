@@ -1,0 +1,19 @@
+#!/bin/sh
+# SPDX-License-Identifier: MIT
+# CGI for the BusyBox httpd: /cgi-bin/led?RED,GREEN,BLUE sets the RGB LED.
+#
+#   httpd -f -p 8080 -h /usr/share/examples/www
+
+LED=/sys/class/leds/rgb:status
+
+echo "Content-Type: text/plain"
+echo
+case "$QUERY_STRING" in
+*[!0-9,]* | "")
+	echo "use /cgi-bin/led?RED,GREEN,BLUE with values from 0 to 255"
+	exit 0
+	;;
+esac
+echo "$QUERY_STRING" | tr , ' ' > $LED/multi_intensity || exit 0
+echo 255 > $LED/brightness
+echo "LED: $QUERY_STRING"
