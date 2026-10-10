@@ -206,7 +206,35 @@ Boot scripts in `br2-external/board/esp32s31/rootfs-overlay`:
 - `S10sdcard` mounts p1 on `/mnt/sd`.
 - `S40wifi` starts `wpa_supplicant` on `wlan0`.
 - The udhcpc hook sets the clock with NTP on each new lease.
+- `S95autostart` runs `/mnt/sd/autostart.sh`, if that file exists.
 - `S99banner` prints the line that `make monitor` waits for.
+
+`login` and SSH show `/etc/motd`, which lists the first commands.
+
+### Tools
+
+| Use | Commands |
+| --- | --- |
+| System | `htop`, `free`, `df -h`, `dmesg`, `file`, `strace`, `gdbserver` |
+| Network | `ssh`, `scp`, `curl`, `links`, `iperf3`, `tcpdump`, `nslookup` |
+| Code | `micropython`, `lua`, `vim` |
+| Hardware | `gpioinfo`, `gpioget`, `gpioset` (libgpiod 2), `lsusb` |
+
+The shell is bash, with a history that stays after a reset.
+
+### Files and scripts
+
+- **Copy files.** From a computer, `scp` and `sftp` work with the root
+  password: `scp file root@<address>:/mnt/sd/`.
+- **Web server.** `httpd -f -p 8080 -h /mnt/sd` gives the files of the card
+  to a browser, at `http://<address>:8080/<file name>`. It shows no list of
+  the files: a directory needs an `index.html`. Stop it with Ctrl-C.
+- **Start at boot.** The board runs `/mnt/sd/autostart.sh` at each boot, as
+  root. The file is on the FAT partition, so a computer can also write it,
+  and it stays after `make sdroot`.
+- **Examples** in `/usr/share/examples`: `led.py` sets the RGB LED from
+  MicroPython, `gpio.sh` reads or sets a pin, `www/` is a web page with a CGI
+  script for the LED, and `autostart.sh` is a start script.
 
 ## Wi-Fi
 
