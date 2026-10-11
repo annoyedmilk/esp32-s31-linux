@@ -115,10 +115,12 @@ static void esp32s31_apm_init(void)
 	/*
 	 * The loader opened region 0 for all addresses.  Set regions 2 and 1
 	 * first, and make region 0 smaller last.  Thus no access is outside a
-	 * region in between.
+	 * region in between.  A region is for TEE mode only after reset, so
+	 * set its attribute before the filter enables it.
 	 */
 	reg_write(ESP32S31_HP_APM_START(2), fw_end);
 	reg_write(ESP32S31_HP_APM_END(2), 0xffffffffUL);
+	reg_write(ESP32S31_HP_APM_ATTR(2), ESP32S31_APM_REE_TEE_RWX | ESP32S31_APM_LOCK);
 	reg_write(ESP32S31_HP_APM_START(1), ESP32S31_FW_BASE);
 	reg_write(ESP32S31_HP_APM_END(1), fw_end - 1);
 	reg_write(ESP32S31_HP_APM_ATTR(1), ESP32S31_APM_TEE_RWX | ESP32S31_APM_LOCK);
@@ -126,7 +128,6 @@ static void esp32s31_apm_init(void)
 	reg_write(ESP32S31_HP_APM_START(0), 0);
 	reg_write(ESP32S31_HP_APM_END(0), ESP32S31_FW_BASE - 1);
 	reg_write(ESP32S31_HP_APM_ATTR(0), ESP32S31_APM_REE_TEE_RWX | ESP32S31_APM_LOCK);
-	reg_write(ESP32S31_HP_APM_ATTR(2), ESP32S31_APM_REE_TEE_RWX | ESP32S31_APM_LOCK);
 
 	reg_write(ESP32S31_HP_MEM_APM_ATTR0, ESP32S31_APM_REE_TEE_RWX);
 	reg_write(ESP32S31_CPU_APM_REGION0_START, 0x00000000UL);
