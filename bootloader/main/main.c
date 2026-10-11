@@ -57,6 +57,18 @@ SOC_RESERVE_MEMORY_REGION(LINUX_DMA_POOL_ADDR,
                           linux_dma_pool);
 
 /*
+ * The ROM start code of hart 1 uses a stack below this address until it
+ * jumps to linux_hart_entry().  ESP-IDF gives this area to the heap after
+ * startup.  Hart 1 starts later than that, so keep the area out of the heap.
+ */
+#define ROM_HART1_STACK_TOP         0x2F07E600U
+#define ROM_HART1_STACK_SIZE        0x00000400U
+
+SOC_RESERVE_MEMORY_REGION(ROM_HART1_STACK_TOP - ROM_HART1_STACK_SIZE,
+                          ROM_HART1_STACK_TOP,
+                          rom_hart1_stack);
+
+/*
  * APM region attribute word: one nibble for each of the REE modes 0 to 2,
  * then one for TEE mode.  Each nibble has X at bit 0, W at bit 1 and R at
  * bit 2.  0x7777 gives read, write and execute to all modes.  OpenSBI makes
@@ -194,8 +206,9 @@ static void disable_linux_hart_stack_protector(void)
 }
 
 /*
- * Reset entry for hart 1.  PMA is per hart, and this hart starts with no PMA
- * entry for PSRAM.  Without it, OpenSBI faults on its first BSS write.  Use
+ * Reset entry for hart 1.  PMA is per hart, and the ROM gives this hart only
+ * read and execute access to PSRAM.  Without a write entry, OpenSBI faults on
+ * its first BSS write.  A lower index has priority over the ROM entry.  Use
  * the index that esp32s31_pma_init() writes again later.  Do not call
  * esp_cpu_configure_region_protection() here: it locks all 16 PMP entries and
  * makes PSRAM non-executable.  Entry ABI: hart ID in a0, DTB in a1.
