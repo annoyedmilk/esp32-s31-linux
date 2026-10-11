@@ -22,6 +22,17 @@ Linux 7.2 on the ESP32-S31-Korvo-1, ready to flash.
 
 The LCD shows the kernel log and a login. A USB keyboard works on it.
 
+## Fixed in v0.2.1
+
+- The board did not start in about 2% of the boots. The log stopped after
+  `hart 0 resident`, and only the reset button helped. v0.1.0 and v0.2.0
+  have this fault. The cause was the sequence in which OpenSBI sets the
+  memory permissions of the chip.
+- The start of the Linux hart wrote into memory of the Wi-Fi firmware. That
+  memory is now reserved.
+
+From v0.2.0, flash `flash.bin` only. The card image has no change.
+
 ## New since v0.1.0
 
 - Linux 7.2.9 and a newer ESP-IDF, with a fix in the PHY library.
@@ -49,8 +60,8 @@ The LCD shows the kernel log and a login. A USB keyboard works on it.
 
 The recovery shell on the LCD and `fsck.fat` are from Platima.
 
-To update, flash `flash.bin` and write the new card image. The card image
-erases the card, so save your files from the FAT partition first.
+To update from v0.1.0, flash `flash.bin` and write the new card image. The
+card image erases the card, so save your files from the FAT partition first.
 
 ## Known limits
 
