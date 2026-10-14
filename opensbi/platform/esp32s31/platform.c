@@ -289,7 +289,7 @@ static int esp32s31_final_init(bool cold_boot)
  * ID.  The ESP-IDF loader sets the CPU and machine-timer clock to 320 MHz
  * before it starts OpenSBI.
  *
- * mcliccfg.NMBITS is writable.  NMBITS=1 enables clicintattr[i].MODE, so a
+ * mcliccfg.NMBITS is writable.  NMBITS=2 enables clicintattr[i].MODE, so a
  * CLIC input can go directly to S-mode.  CLIC input 5 is also the S-mode
  * timer interrupt: in CLIC mode the interrupt ID goes into the scause
  * exception-code field, and 5 == IRQ_S_TIMER.
@@ -308,20 +308,18 @@ static int esp32s31_final_init(bool cold_boot)
 #define ESP32S31_MTIMER_FREQ		320000000UL
 
 /*
- * cliccfg is per hart: nvbits at bit 0, nlbits at [4:1], nmbits at [6:5].
- * Write all fields.  The Linux hart does not run the ESP-IDF startup, which
- * sets nlbits.  With an incorrect nlbits, the level bits of clicintctl are in
- * the wrong position.  Then all inputs have level 0 and never pass a zero
- * threshold.  nmbits = 1 enables clicintattr[i].MODE, so an input can go
- * directly to S-mode.
+ * cliccfg is per hart.  Measured layout: mnlbits at [3:0], nmbits at [5:4],
+ * snlbits at [19:16], unlbits at [27:24].  The ESP-IDF header shows an older
+ * layout.  Write all fields: the Linux hart does not run the ESP-IDF startup.
+ * mnlbits = 3: the three clicintctl bits are the machine level.  nmbits = 2:
+ * clicintattr[i].MODE selects M, S or U, so an input can go directly to
+ * S-mode.  snlbits = 0: all S-mode inputs have level 255.
  */
 #define ESP32S31_MCLICCFG		0x10800000UL
-#define ESP32S31_MCLICCFG_NVBITS	(1UL << 0)
-#define ESP32S31_MCLICCFG_NLBITS_1	(1UL << 1)
-#define ESP32S31_MCLICCFG_NMBITS_M_S	(1UL << 5)
+#define ESP32S31_MCLICCFG_MNLBITS_3	(3UL << 0)
+#define ESP32S31_MCLICCFG_NMBITS_2	(2UL << 4)
 #define ESP32S31_MCLICCFG_VALUE \
-	(ESP32S31_MCLICCFG_NVBITS | ESP32S31_MCLICCFG_NLBITS_1 | \
-	 ESP32S31_MCLICCFG_NMBITS_M_S)
+	(ESP32S31_MCLICCFG_MNLBITS_3 | ESP32S31_MCLICCFG_NMBITS_2)
 
 #define ESP32S31_CLIC_CTRL_BASE	0x10801000UL
 #define ESP32S31_CLIC_IP(id)		(ESP32S31_CLIC_CTRL_BASE + 4UL * (id) + 0)

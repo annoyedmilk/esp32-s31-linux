@@ -10,7 +10,7 @@
  * Main ESP32-S31 CLIC data:
  *   - S-mode register base at 0x10a0_0000
  *   - S-mode per-interrupt control at 0x10a0_1000
- *   - CLICINTCTLBITS = 3, with CLICCFG.nlbits set to 1
+ *   - CLICINTCTLBITS = 3, with CLICCFG.snlbits set to 0
  *   - 32 external interrupts (CLIC IDs 16-47) from the Interrupt Matrix
  */
 
@@ -42,7 +42,7 @@
 #define ESP32S31_CLIC_INT_IP 0x0		/* Pending (byte 0, bit 0) */
 #define ESP32S31_CLIC_INT_IE 0x1		/* Enable (byte 1, bit 0) */
 #define ESP32S31_CLIC_INT_ATTR 0x2		/* Attributes (byte 2) */
-#define ESP32S31_CLIC_INT_CTL 0x3		/* Level (byte 3, bits [7:5]) */
+#define ESP32S31_CLIC_INT_CTL 0x3		/* Level, priority (byte 3, [7:5]) */
 
 /* Interrupt numbering */
 
@@ -70,8 +70,8 @@
 /* CLIC configuration constants */
 
 #define ESP32S31_CLICINTCTLBITS 3		/* Implemented control bits */
-#define ESP32S31_CLICNLBITS 1			/* The firmware sets CLICCFG.nlbits */
-#define ESP32S31_MAX_PRIORITY 3			/* The other two bits are priority */
+#define ESP32S31_CLICNLBITS 1			/* Level bits of CLICCTL_MAKE() */
+#define ESP32S31_MAX_PRIORITY 3			/* Bits [6:5] of CLICCTL_MAKE() */
 
 /* CLIC CSRs */
 #ifndef CSR_SINTTHRESH
@@ -79,11 +79,10 @@
 #endif
 
 /*
- * clicintctl[i], byte 3 of the per-interrupt word: bit 7 is the level, bits
- * [6:5] are the priority.  CLICINFO shows three control bits, but the
- * firmware sets CLICCFG 0x23 (nmbits=1, nlbits=1).  Thus the level must be in
- * bit 7.  If the level uses all three bits, level 1 becomes 0x3f.  Then bit 7
- * is clear, and the input never passes a zero threshold.
+ * clicintctl[i], byte 3 of the per-interrupt word.  OpenSBI sets CLICCFG to
+ * 0x23: snlbits = 0, so all supervisor inputs have level 255, and the three
+ * implemented bits are only the priority.  CLICCTL_MAKE(1, 3) gives 0xe0,
+ * which also keeps level 255 when snlbits is 1.
  */
 #define CLICCTL_MAKE(level, prio) \
 	(((level) << (8 - ESP32S31_CLICNLBITS)) | \

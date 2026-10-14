@@ -153,7 +153,8 @@ SYM_CODE_START(esp32s31_clic_trampoline)
 	 * Remove the level from the CLIC supervisor level stack before C code.
 	 *
 	 * On this CLIC, only sret lowers the supervisor interrupt level
-	 * (sintstatus.SIL <- scause.spil).  do_irq() can switch context
+	 * (sintstatus.SIL <- scause.spil), and only when the interrupt bit of
+	 * scause is set.  It is set here.  do_irq() can switch context
 	 * through irqentry_exit() or preempt_schedule_irq().  If the level is
 	 * still high then, other tasks run at handler level, with all S-mode
 	 * interrupts masked.  The handler frames of preempted tasks then do
@@ -281,9 +282,9 @@ SYM_CODE_START(esp32s31_clic_trampoline)
 	/*
 	 * sret uses scause, so restore it after all other state.  The CLIC
 	 * keeps the previous interrupt level in scause, and sret copies it to
-	 * sintstatus.  Thus use scause and sret.  With mret, mintstatus.SIL
-	 * stays at the level of the interrupt, and all later supervisor
-	 * interrupts stay masked.
+	 * sintstatus when the interrupt bit of scause is set.  Thus use scause
+	 * and sret.  With mret, mintstatus.SIL stays at the level of the
+	 * interrupt, and all later supervisor interrupts stay masked.
 	 *
 	 * The entry already removed the level, so set spil to zero here too.
 	 * The interrupted context always continues at base level.  The saved

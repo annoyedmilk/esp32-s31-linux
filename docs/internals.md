@@ -89,11 +89,17 @@ The traps that cost the most time:
   field of `clicintattr` must be S. Otherwise the S-mode window reads 0 and
   ignores writes, with no fault. OpenSBI gives inputs 16 to 47 to S-mode.
 - **`cliccfg` is per hart.** Write the full value. The Linux hart does not
-  run the ESP-IDF start code, so nothing else sets `nlbits`.
-- **`sret` restores the interrupt level from `scause.spil`.** The trap exit
-  must write the full CLIC `scause` back before `sret`. `mret` from S-mode
-  does not trap on this revision. It changes only the machine level and
-  leaves `sintstatus.SIL` high, which masks all S-mode interrupts.
+  run the ESP-IDF start code. The measured layout is `mnlbits` [3:0],
+  `nmbits` [5:4], `snlbits` [19:16], `unlbits` [27:24]. The ESP-IDF header
+  `clic_reg.h` shows an older layout. OpenSBI writes `0x23`: three machine
+  level bits, `nmbits` = 2 (the MODE field selects M, S or U), and no
+  supervisor level bits, so all S-mode inputs have level 255.
+- **`sret` restores the interrupt level from `scause.spil`, but only when
+  `scause` bit 31 is set.** With an exception-type `scause`, the level stays
+  where it is. The trap exit must write the full CLIC `scause` back before
+  `sret`. `mret` from S-mode does not trap on this revision. It changes
+  only the machine level and leaves `sintstatus.SIL` high, which masks all
+  S-mode interrupts.
 - **The level stack and the scheduler.** Only `sret` lowers the level. If a
   handler schedules another task while its level is still high, that task
   runs with interrupts masked. The trampoline
@@ -114,6 +120,12 @@ The machine timer is CLINT-like at `0x10000000` (`mtime` at `+0xBFF8`,
 it and sets input 5, which is the S-mode timer ID. `MIP.STIP` and
 `MIP.SSIP` are not writable, so OpenSBI uses platform hooks for them
 (`opensbi/patches/0005`, `0006`).
+
+The `time` CSR is in the hardware. A read from user mode takes approximately
+2 CPU cycles and does not trap. `mtime` has the same rate when the hart is
+idle and when it is busy: -17 ppm and +10 ppm against a host clock, with a
+resolution of approximately 30 ppm. It also counts in WFI when
+`CPU_WAIT_MODE_FORCE_ON` (`0x20586118`, bit 0) is cleared.
 
 A uniprocessor kernel still needs a self-interrupt for `irq_work`. CLIC
 input 1 accepts IP writes but does not arbitrate on this revision. So the
@@ -146,7 +158,8 @@ This is the part that is most different from other RISC-V SoCs.
   write back and invalidate, I-cache sync). See
   `drivers/cache/esp32s31-cache.c`. An
   erratum: a write-back can lose part of the range, so OpenSBI runs it
-  twice, as the ROM does.
+  twice, as the ESP-IDF ROM patch does. A test of 360 write-backs did not
+  show the loss, but ESP-IDF marks it as necessary for this chip.
 - **Coherent allocations come from SRAM.** The CPU accesses SRAM without
   the D-cache. The 64 KiB `shared-dma-pool` at `0x2F040000` is the default
   for `dma_alloc_coherent()`.
@@ -187,8 +200,13 @@ This is the part that is most different from other RISC-V SoCs.
   gives its memory to TEE mode only and locks the regions. A blocked access
   returns 0 and is recorded, with no bus error. PMP does not cover the
   uncached alias of the OpenSBI memory (`0xC0E00000`). There, an S-mode
-  read also returns 0 and a write is lost. `CPU_APM` checks only CPU
-  accesses, and `HP_MEM_APM` covers only SRAM.
+  read also returns 0 and a write is lost. A read that hits the D-cache is
+  not checked: the APM sees only bus accesses, so PMP must protect the
+  cached addresses. `CPU_APM` checks only CPU accesses, and `HP_MEM_APM`
+  covers only SRAM.
+- **`TEE_SUPERVISOR_PRIV_SEL`** (`0x20504200`) is 0 after the boot, and
+  S-mode runs with 0. When it is set for a hart, the S-mode accesses of that
+  hart use the M-mode (TEE) path, and the APM protection above is gone.
 - **The APM registers themselves** (`0x20504000`) are M-mode only, through
   an OpenSBI domain region.
 - **The limit.** Hart 0 runs ESP-IDF in M-mode. Nothing can protect
@@ -223,6 +241,8 @@ the loader and the kernel both include.
 | SD PIO FIFO | Does not work. Use IDMAC. |
 | Cache write-back erratum | A single write-back can lose data. Run it twice. |
 | `fence.i` | Does not invalidate the I-cache. Use the sync engine. |
+| Sync engine range | It does not round the size up to a line. Align address and size. |
+| `cliccfg` layout | Not the layout in the ESP-IDF header. See "Interrupts". |
 | PMP entries overlap | Fault, even for a short time during an update. |
 | PMA entries overlap | No fault. The entry with the lowest index is used. |
 | FPU `EXT_ILL` | Cannot identify FLW/FSW. |
