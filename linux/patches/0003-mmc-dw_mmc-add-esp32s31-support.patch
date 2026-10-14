@@ -1,7 +1,7 @@
 diff --git a/drivers/mmc/host/dw_mmc.c b/drivers/mmc/host/dw_mmc.c
 --- a/drivers/mmc/host/dw_mmc.c
 +++ b/drivers/mmc/host/dw_mmc.c
-@@ -485,6 +485,35 @@
+@@ -484,6 +484,35 @@
  	}
  }
  
@@ -37,7 +37,7 @@ diff --git a/drivers/mmc/host/dw_mmc.c b/drivers/mmc/host/dw_mmc.c
  static int dw_mci_idmac_init(struct dw_mci *host)
  {
  	int i;
-@@ -538,6 +567,8 @@
+@@ -537,6 +566,8 @@
  		p->des0 = cpu_to_le32(IDMAC_DES0_ER);
  	}
  
@@ -46,7 +46,7 @@ diff --git a/drivers/mmc/host/dw_mmc.c b/drivers/mmc/host/dw_mmc.c
  	dw_mci_idmac_reset(host);
  
  	if (host->dma_64bit_address == 1) {
-@@ -572,6 +603,8 @@
+@@ -571,6 +602,8 @@
  	u32 val, des0;
  	int i, err;
  
@@ -55,7 +55,7 @@ diff --git a/drivers/mmc/host/dw_mmc.c b/drivers/mmc/host/dw_mmc.c
  	if (is_64bit)
  		desc64_first = desc64_last = desc64 = host->sg_cpu;
  	else
-@@ -667,6 +700,8 @@
+@@ -666,6 +699,8 @@
  	if (ret)
  		goto out;
  
@@ -64,7 +64,7 @@ diff --git a/drivers/mmc/host/dw_mmc.c b/drivers/mmc/host/dw_mmc.c
  	/* drain writebuffer */
  	wmb();
  
-@@ -2953,9 +2988,23 @@
+@@ -2952,9 +2987,23 @@
  		}
  
  		/* Alloc memory for sg translation */
@@ -94,7 +94,7 @@ diff --git a/drivers/mmc/host/dw_mmc.c b/drivers/mmc/host/dw_mmc.c
 diff --git a/drivers/mmc/host/dw_mmc.h b/drivers/mmc/host/dw_mmc.h
 --- a/drivers/mmc/host/dw_mmc.h
 +++ b/drivers/mmc/host/dw_mmc.h
-@@ -269,6 +269,8 @@
+@@ -271,6 +271,8 @@
  #define DW_MMC_QUIRK_EXTENDED_TMOUT            BIT(0)
  /* Force 32-bit access to the FIFO */
  #define DW_MMC_QUIRK_FIFO64_32                 BIT(1)

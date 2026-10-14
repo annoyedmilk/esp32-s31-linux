@@ -10,7 +10,7 @@ Signed-off-by: Marco Müller <hello@annoyedmilk.ch>
 ---
 --- a/drivers/char/hw_random/Kconfig
 +++ b/drivers/char/hw_random/Kconfig
-@@ -503,6 +503,20 @@
+@@ -513,6 +513,20 @@
  
  	  To compile this driver as a module, choose M here: the module
  	  will be called exynos-trng.

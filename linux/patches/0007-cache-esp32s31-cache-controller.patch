@@ -9,7 +9,7 @@ diff --git a/arch/riscv/kernel/setup.c b/arch/riscv/kernel/setup.c
  #include <asm/pgtable.h>
  #include <asm/setup.h>
  #include <asm/set_memory.h>
-@@ -360,6 +361,18 @@
+@@ -357,6 +358,18 @@
  	if (IS_ENABLED(CONFIG_RISCV_ISA_ZICBOM) &&
  	    riscv_isa_extension_available(NULL, ZICBOM))
  		riscv_noncoherent_supported();

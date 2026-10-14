@@ -1,7 +1,7 @@
 diff --git a/drivers/gpio/Kconfig b/drivers/gpio/Kconfig
 --- a/drivers/gpio/Kconfig
 +++ b/drivers/gpio/Kconfig
-@@ -315,6 +315,14 @@
+@@ -324,6 +324,14 @@
  	select GPIO_GENERIC
  	select GPIOLIB_IRQCHIP
  
@@ -19,7 +19,7 @@ diff --git a/drivers/gpio/Kconfig b/drivers/gpio/Kconfig
 diff --git a/drivers/gpio/Makefile b/drivers/gpio/Makefile
 --- a/drivers/gpio/Makefile
 +++ b/drivers/gpio/Makefile
-@@ -67,6 +67,7 @@
+@@ -68,6 +68,7 @@
  obj-$(CONFIG_GPIO_EM)			+= gpio-em.o
  obj-$(CONFIG_GPIO_EN7523)		+= gpio-en7523.o
  obj-$(CONFIG_GPIO_EP93XX)		+= gpio-ep93xx.o

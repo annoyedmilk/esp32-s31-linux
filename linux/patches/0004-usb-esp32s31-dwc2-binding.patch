@@ -1,7 +1,7 @@
 diff --git a/Documentation/devicetree/bindings/usb/dwc2.yaml b/Documentation/devicetree/bindings/usb/dwc2.yaml
 --- a/Documentation/devicetree/bindings/usb/dwc2.yaml
 +++ b/Documentation/devicetree/bindings/usb/dwc2.yaml
-@@ -24,4 +24,7 @@ properties:
+@@ -19,4 +19,7 @@ properties:
        - const: brcm,bcm2835-usb
 +      - items:
 +          - const: esp,esp32s31-usb

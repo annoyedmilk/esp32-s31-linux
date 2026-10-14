@@ -32,7 +32,8 @@ The LCD shows the kernel log and a login. A USB keyboard works on it.
   (WPA2 and WPA3-SAE). `hostapd` is on the card and starts an access point.
 - Wi-Fi is faster: approximately 46 Mbit/s TX and 41 to 43 Mbit/s RX with
   iperf3 TCP (v0.2.2: 39 and 46 Mbit/s).
-- ESP-IDF v6.1 (before: a development version).
+- Linux 7.2.10 and ESP-IDF v6.1 (before: Linux 7.2.9 and a development
+  version of ESP-IDF).
 - A program starts faster the first time after a file change: Linux syncs
   the caches only for the new code page, not for the full caches.
 
