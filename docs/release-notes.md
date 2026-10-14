@@ -36,6 +36,7 @@ The LCD shows the kernel log and a login. A USB keyboard works on it.
   version of ESP-IDF).
 - A program starts faster the first time after a file change: Linux syncs
   the caches only for the new code page, not for the full caches.
+- `fastfetch` shows the system, the kernel, the memory and the network.
 
 v0.3.0 needs the new `flash.bin` and the new card image together. A v0.2.x
 card does not have the Wi-Fi module, and the v0.3.0 card does not work

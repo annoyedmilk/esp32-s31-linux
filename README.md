@@ -7,6 +7,8 @@ Linux 7.2 and OpenSBI 1.9 on the ESP32-S31-Korvo-1 board. Linux uses the
 ESP ROM -> ESP-IDF 2nd stage -> loader -> OpenSBI -> Linux -> initramfs -> Buildroot rootfs (SD)
 ```
 
+![fastfetch on the ESP32-S31-Korvo-1](docs/fastfetch.svg)
+
 ## About
 
 The ESP32-S31 is a microcontroller: two RV32 harts at 320 MHz, 512 KiB of
