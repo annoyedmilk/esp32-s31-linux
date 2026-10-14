@@ -12,6 +12,7 @@
 #include "esp_partition.h"
 #include "esp_psram.h"
 #include "esp_rom_crc.h"
+#include "bootloader_random.h"
 #include "esp_attr.h"
 #include "esp_cpu.h"
 #include "esp32s31/rom/ets_sys.h"
@@ -393,6 +394,11 @@ void app_main(void)
 {
     open_apm();
     disable_watchdogs();
+    /*
+     * ESP-IDF v6.1 stops the TRNG after the second stage.  esp_random() and
+     * the Linux hwrng need it.  Its noise source does not use the RF.
+     */
+    bootloader_random_enable();
 
     if (!esp_psram_is_initialized()) {
         ESP_LOGE(TAG, "PSRAM not initialized");
