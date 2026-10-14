@@ -3,8 +3,9 @@
 # Build all images on a Linux host, for CI.  The Makefile does the same on
 # macOS, where Buildroot runs in a container.  Here Buildroot runs directly.
 #
-# Needs: ESP-IDF at $IDF_PATH (the commit in bootloader/esp-idf.version),
-# with its tools installed, and the Buildroot host packages.
+# Needs: ESP-IDF at $IDF_PATH (the commit in bootloader/esp-idf.version and
+# the ROM patch commit of scripts/ci-setup.sh), with its tools installed,
+# and the Buildroot host packages.
 # Output: build/ with the flash images and build/buildroot/sdcard.img.
 set -eu
 
@@ -15,9 +16,9 @@ cd "$(dirname "$0")/.."
 export IDF_PATH BR2_DL_DIR="$BR_DL_DIR"
 
 want=$(cat bootloader/esp-idf.version)
-have=$(git -C "$IDF_PATH" rev-parse HEAD)
+have=$(git -C "$IDF_PATH" rev-parse HEAD~1)
 if [ "$want" != "$have" ]; then
-	echo "ESP-IDF is at $have, but bootloader/esp-idf.version wants $want" >&2
+	echo "ESP-IDF is on $have, but bootloader/esp-idf.version wants $want" >&2
 	exit 1
 fi
 

@@ -19,16 +19,13 @@ DEBIAN_FRONTEND=noninteractive $sudo apt-get install -y --no-install-recommends 
 # ESP-IDF at the tested commit, only with the tools for this chip.
 : "${IDF_PATH:=$HOME/esp/esp-idf}"
 commit=$(cat bootloader/esp-idf.version)
+idf() { git -C "$IDF_PATH" "$@"; }
 if [ ! -d "$IDF_PATH/.git" ]; then
 	git clone --filter=blob:none https://github.com/espressif/esp-idf.git "$IDF_PATH"
 fi
-if [ "$(git -C "$IDF_PATH" rev-parse HEAD)" != "$commit" ]; then
-	git -C "$IDF_PATH" fetch --filter=blob:none origin "$commit"
-	git -C "$IDF_PATH" checkout -q "$commit"
-fi
-git -C "$IDF_PATH" submodule update --init --recursive --filter=blob:none
-# The ESP-Hosted Wi-Fi libraries need their ROM patch in ESP-IDF.
-patch=$PWD/external/esp-hosted-linux/esp/esp_driver/lib/rom.patch
-git -C "$IDF_PATH" apply --recount --reverse --check "$patch" 2>/dev/null ||
-	git -C "$IDF_PATH" apply --recount "$patch"
+idf cat-file -e "$commit^{commit}" 2>/dev/null ||
+	idf fetch --filter=blob:none origin "$commit"
+idf checkout -q -f --detach "$commit"
+idf submodule update --init --recursive --filter=blob:none
+IDF_PATH=$IDF_PATH scripts/patch-esp-idf.sh
 "$IDF_PATH/install.sh" esp32s31
