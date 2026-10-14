@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: GPL-2.0-only
+# The ESP-Hosted host driver with the shared-memory transport.  The objects
+# are the common objects of host/Makefile.  esp-hosted-linux.mk copies this
+# file and esp_shm.c into host/ of the ESP-Hosted sources.
+obj-m := esp32_shm.o
+esp32_shm-y := esp_shm.o esp_bt.o esp_rcp.o main.o esp_cmd.o esp_utils.o \
+	esp_cfg80211.o esp_stats.o esp_debugfs.o esp_log.o
+ccflags-y += -I$(src) -I$(src)/include -DCONFIG_AP_MODE
+CFLAGS_esp_log.o = -DDEBUG

@@ -25,3 +25,16 @@ CONFIG_ESP_CONSOLE_UART_DEFAULT=y
 # CONFIG_ESP_CONSOLE_SECONDARY_USB_SERIAL_JTAG=y.
 # Flash and the Linux console use the CP2102N bridge in the two cases.
 CONFIG_ESP_CONSOLE_SECONDARY_NONE=y
+# The ESP-Hosted firmware runs the radio for Linux (components/esp_hosted).
+# Its frames are the frames of the USB transport, but they go through shared
+# memory.  Only Wi-Fi: no Bluetooth and no IEEE 802.15.4.
+CONFIG_ESP_USB_HOST_INTERFACE=y
+# CONFIG_BT_ENABLED is not set
+# CONFIG_ESP_HOSTED_RCP is not set
+# The supplicant runs on Linux.  Nothing writes the flash after Linux starts.
+# CONFIG_ESP_WIFI_NVS_ENABLED is not set
+# CONFIG_ESP_WIFI_ENABLE_WPA3_SAE is not set
+# CONFIG_ESP_WIFI_ENABLE_SAE_PK is not set
+# CONFIG_ESP_WIFI_ENABLE_WPA3_OWE_STA is not set
+# CONFIG_ESP_WIFI_ENABLE_WPA3_OWE_SOFTAP is not set
+# CONFIG_ESP_WIFI_ENTERPRISE_SUPPORT is not set

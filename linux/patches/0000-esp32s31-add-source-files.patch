@@ -235,6 +235,64 @@ new file mode 100644
 +            function = LED_FUNCTION_STATUS;
 +        };
 +    };
+diff --git a/Documentation/devicetree/bindings/net/wireless/esp,esp32s31-hosted-shm.yaml b/Documentation/devicetree/bindings/net/wireless/esp,esp32s31-hosted-shm.yaml
+new file mode 100644
+--- /dev/null
++++ b/Documentation/devicetree/bindings/net/wireless/esp,esp32s31-hosted-shm.yaml
+@@ -0,0 +1,53 @@
++# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
++%YAML 1.2
++---
++$id: http://devicetree.org/schemas/net/wireless/esp,esp32s31-hosted-shm.yaml#
++$schema: http://devicetree.org/meta-schemas/core.yaml#
++
++title: Espressif ESP32-S31 ESP-Hosted shared-memory transport
++
++maintainers:
++  - Marco Müller <hello@annoyedmilk.ch>
++
++description: >
++  The ESP-Hosted firmware on the hart that does not run Linux controls the
++  WLAN modem of the ESP32-S31. Linux is the ESP-Hosted host. The two sides
++  send ESP-Hosted frames through two byte rings in internal SRAM. One
++  cross-core interrupt register signals each direction. Linux sets the
++  first. The firmware sets the second and Linux clears it.
++
++properties:
++  compatible:
++    const: esp,esp32s31-hosted-shm
++
++  reg:
++    items:
++      - description: shared ring region in internal SRAM
++      - description: cross-core doorbell register pair
++
++  reg-names:
++    items:
++      - const: shm
++      - const: doorbell
++
++  interrupts:
++    maxItems: 1
++    description: doorbell that the firmware sets when it adds frames
++
++required:
++  - compatible
++  - reg
++  - reg-names
++  - interrupts
++
++additionalProperties: false
++
++examples:
++  - |
++    wifi@2f050000 {
++        compatible = "esp,esp32s31-hosted-shm";
++        reg = <0x2f050000 0x10000>, <0x20586014 0x8>;
++        reg-names = "shm", "doorbell";
++        interrupt-parent = <&clic>;
++        interrupts = <35 67 4>;
++    };
 diff --git a/Documentation/devicetree/bindings/net/wireless/esp,esp32s31-wifi.yaml b/Documentation/devicetree/bindings/net/wireless/esp,esp32s31-wifi.yaml
 new file mode 100644
 --- /dev/null
@@ -419,7 +477,7 @@ diff --git a/arch/riscv/boot/dts/espressif/esp32s31.dtsi b/arch/riscv/boot/dts/e
 new file mode 100644
 --- /dev/null
 +++ b/arch/riscv/boot/dts/espressif/esp32s31.dtsi
-@@ -0,0 +1,229 @@
+@@ -0,0 +1,230 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * Espressif ESP32-S31 minimal device tree.
@@ -606,16 +664,17 @@ new file mode 100644
 +		};
 +
 +		/*
-+		 * The rings are in internal SRAM.  The doorbells are the
-+		 * cross-core interrupt registers.  Linux sets FROM_CPU_1.  The
-+		 * firmware sets FROM_CPU_2 and Linux clears it.  FROM_CPU_0 is
-+		 * not usable: ESP-IDF on hart 0 clears it in its own
++		 * The ESP-Hosted firmware on hart 0, through its shared-memory
++		 * transport.  The rings are in internal SRAM.  The doorbells are
++		 * the cross-core interrupt registers.  Linux sets FROM_CPU_1.
++		 * The firmware sets FROM_CPU_2 and Linux clears it.  FROM_CPU_0
++		 * is not usable: ESP-IDF on hart 0 clears it in its own
 +		 * cross-core interrupt.
 +		 */
 +		wifi: wifi@2f050000 {
-+			compatible = "esp,esp32s31-wifi";
++			compatible = "esp,esp32s31-hosted-shm";
 +			reg = <0x2f050000 0x10000>, <0x20586014 0x8>;
-+			reg-names = "ipc", "doorbell";
++			reg-names = "shm", "doorbell";
 +			interrupt-parent = <&clic>;
 +			interrupts = <35 67 IRQ_TYPE_LEVEL_HIGH>;
 +		};
