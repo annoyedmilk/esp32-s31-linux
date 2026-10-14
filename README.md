@@ -59,8 +59,10 @@ commit for a local build.
 - 800x480 LCD as `/dev/fb0` with `fbcon`, and a login on `tty1`.
 - USB host (DWC2): keyboards, mice and mass storage.
 - microSD (`dw_mmc` with internal DMA): FAT on p1, ext4 root on p2.
-- Wi-Fi as `wlan0` (cfg80211 full-MAC) with `wpa_supplicant`, through the
-  firmware on hart 0.
+- Wi-Fi as `wlan0` (cfg80211 full-MAC) through the ESP-Hosted firmware on
+  hart 0: station with `wpa_supplicant` (WPA2 and WPA3-SAE), access point
+  with `hostapd`. iperf3 TCP gives approximately 46 Mbit/s TX and 41 to
+  43 Mbit/s RX.
 - Hardware RNG, GPIO, `reboot` and `poweroff`.
 
 ## Tested hardware
@@ -108,7 +110,7 @@ python -m espefuse --chip esp32s31 -p PORT summary
   Coherent DMA memory comes from a 64 KiB pool in SRAM at `0x2F040000`.
 - **Shared SRAM.** `0x2F040000`-`0x2F060000` is outside the ESP-IDF heap. The
   lower half is the DMA pool. The upper half holds the Wi-Fi rings
-  (`shared/esp32s31-wifi-ipc.h`).
+  (`shared/esp32s31-hosted-shm.h`).
 - **Display.** The frame buffer is at `0x50F40000`. The loader DMA continues
   to scan it out after the handoff. Linux uses it as a `simple-framebuffer`.
 
@@ -205,7 +207,7 @@ Boot scripts in `br2-external/board/esp32s31/rootfs-overlay`:
 - `S01clock` sets the clock from `/etc/timestamp`. The board has no RTC.
 - `S05swap` makes a swap file of max. 64 MiB on the root.
 - `S10sdcard` mounts p1 on `/mnt/sd`.
-- `S40wifi` starts `wpa_supplicant` on `wlan0`.
+- `S40wifi` loads the Wi-Fi driver and starts `wpa_supplicant` on `wlan0`.
 - The udhcpc hook sets the clock with NTP on each new lease.
 - `S95autostart` runs `/mnt/sd/autostart.sh`, if that file exists.
 - `S99banner` prints the line that `make monitor` waits for.
@@ -256,10 +258,11 @@ For WPA3 and WPA2/WPA3 networks, the network block needs
 `key_mgmt=WPA-PSK SAE`, `ieee80211w=1` and the passphrase as `psk="..."`.
 The hex PSK from `wpa_passphrase` is not sufficient for SAE.
 
-The firmware on hart 0 runs 802.11 and the key handshakes.
-`wpa_supplicant` gives it the key through the nl80211 4-way handshake
-offload (the PMK) or the SAE offload (the password). The firmware stops
-after 3 attempts that do not associate and reports the failure.
+The ESP-Hosted firmware on hart 0 runs the 802.11 MAC. Linux loads the
+ESP-Hosted host driver (`esp32_shm`) and runs the authentication and the
+key handshakes in `wpa_supplicant`. `hostapd` with the nl80211 driver
+starts an access point. Stop `S40wifi` first: `wlan0` is a station or an
+access point, not the two at the same time.
 
 ## Kernel
 
@@ -308,18 +311,22 @@ and one on the LCD.
 - The hardware FPU is not used: the hart has F but not D, and Linux supports
   an FPU only with D. Floating point works, because userspace is built
   soft-float (ilp32), but it is slower.
-- ESP-Hosted cannot work: Espressif does not supply the FullMAC hooks for the
-  ESP32-S31 Wi-Fi libraries.
 - OpenSBI protects its memory and the TEE/APM registers from S-mode with
   PMP, and its memory from DMA with HP_APM. The Wi-Fi firmware on hart 0
   runs in M-mode, so nothing protects OpenSBI from hart 0.
 - `poweroff` stops the hart. It does not remove power.
 - The coherent DMA pool is 64 KiB.
 - There is no I2C, audio or camera driver.
+- Bluetooth and IEEE 802.15.4 are off in the firmware. ESP-Hosted has host
+  code for the two (`hci0`, the Spinel RCP), but this port does not build
+  or test it yet. The Bluetooth core module loads only because the host
+  driver links to it.
+- WPA2/WPA3 Enterprise is not tested.
 
 ## License
 
 `LICENSE` (MIT) applies to the build system, scripts and rootfs files. Other
 files have SPDX headers: `bootloader/` and the OpenSBI platform are
-BSD-2-Clause, `linux/` is GPL-2.0, `shared/esp32s31-wifi-ipc.h` is
-GPL-2.0 or BSD-2-Clause.
+BSD-2-Clause, `bootloader/components/esp_hosted/` is Apache-2.0, `linux/`
+and `br2-external/package/esp-hosted-linux/` are GPL-2.0,
+`shared/esp32s31-hosted-shm.h` is GPL-2.0 or Apache-2.0.

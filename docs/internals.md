@@ -37,7 +37,8 @@ ROM -> ESP-IDF 2nd stage -> loader (hart 0) -> OpenSBI (hart 1, M) -> Linux (har
    initramfs, and OpenSBI `fw_jump`.
 3. The loader writes the D-cache back, sets the PMA of hart 1 for PSRAM and
    releases hart 1 at the OpenSBI entry.
-4. Hart 0 stays in the loader. The loader is now the Wi-Fi firmware.
+4. Hart 0 stays in the loader. The loader is now the ESP-Hosted Wi-Fi
+   firmware.
 5. OpenSBI sets up the CLIC, the timer, PMP, APM and the SBI extensions.
    Then it jumps to the kernel in S-mode.
 6. The kernel has a built-in DTB (`esp32s31_generic.dts`). The initramfs
@@ -48,7 +49,7 @@ ROM -> ESP-IDF 2nd stage -> loader (hart 0) -> OpenSBI (hart 1, M) -> Linux (har
 | Address | Size | Use |
 | --- | --- | --- |
 | `0x2F040000` | 64 KiB | Coherent DMA pool for Linux (`shared-dma-pool`) |
-| `0x2F050000` | 64 KiB | Wi-Fi shared memory (rings, commands, scan table) |
+| `0x2F050000` | 64 KiB | Wi-Fi shared memory (ESP-Hosted rings) |
 | `0x2F079000` | 4 KiB | LCD DMA descriptor ring |
 | `0x50000000` | 8 MiB | Kernel image and its memory |
 | `0x50800000` | 2 MiB | initramfs |
@@ -58,13 +59,30 @@ ROM -> ESP-IDF 2nd stage -> loader (hart 0) -> OpenSBI (hart 1, M) -> Linux (har
 The loader keeps its own copy of these numbers. The device tree
 (`esp32s31.dtsi`) must agree with it.
 
+### Internal SRAM
+
+The HP SRAM is 512 KiB (`0x2F000000`-`0x2F080000`). Measured with Wi-Fi
+connected:
+
+| Use | Size |
+| --- | --- |
+| Loader and ESP-Hosted firmware, static (`.text`, `.data`, `.bss`) | 120 KiB |
+| Linux: DMA pool and Wi-Fi rings (`0x2F040000`-`0x2F060000`) | 128 KiB |
+| LCD descriptor ring and reserved blocks | 8 KiB |
+| ESP-IDF heap in HP SRAM | 256 KiB |
+
+The heap also has 32 KiB of LP SRAM. Of the 288 KiB heap, 198 KiB are free
+when Wi-Fi is connected and idle. During iperf3 the minimum was 132 KiB.
+That is the space for a Bluetooth controller, if it is enabled later. Its
+own need on this chip is not measured.
+
 ## Why Linux uses only hart 1
 
 The Wi-Fi and Bluetooth radios need the ESP-IDF libraries. These libraries
-are binary, run in M-mode and use FreeRTOS. Espressif does not supply the
-"full MAC" hooks that ESP-Hosted needs for this chip. So hart 0 keeps a
-small ESP-IDF application that owns the radio, and Linux talks to it
-through shared SRAM (see "Wi-Fi"). The price is a uniprocessor Linux.
+are binary, run in M-mode and use FreeRTOS. So hart 0 keeps a small
+ESP-IDF application that owns the radio, the ESP-Hosted firmware, and
+Linux talks to it through shared SRAM (see "Wi-Fi"). The price is a
+uniprocessor Linux.
 
 ## Interrupts: the CLIC
 
@@ -174,6 +192,12 @@ This is the part that is most different from other RISC-V SoCs.
   the same address gave the old code in 292 of 300 runs. So
   `local_flush_icache_all()` asks OpenSBI to write the D-cache back and to
   invalidate the I-cache of the hart (`patches/0012`, vendor SBI function 4).
+  For a new user code page, `flush_icache_pte()` gives only the range of the
+  folio (`patches/0013`). The first run of fresh copies of `iperf3` and the
+  musl loader then costs 2 to 4 ms more than the second run, not 8 to 9 ms.
+  A test that changes the code in a file page, maps it again and calls it
+  gets the new code in 2300 of 2300 runs. Without a new mapping (no sync) it
+  gets the old code in 299 of 300 runs.
 - **The frame buffer is uncached.** PSRAM is write-back. The LCD DMA reads
   the frame buffer from PSRAM with no cache maintenance, so OpenSBI makes
   that range uncached with two PMA entries. Write-through for all of PSRAM
@@ -214,22 +238,48 @@ This is the part that is most different from other RISC-V SoCs.
 
 ## Wi-Fi
 
-`drivers/net/wireless/espressif/esp32s31-wifi.c` is a cfg80211 full-MAC
-driver. The ESP-IDF firmware on hart 0 runs 802.11, the association and the
-key handshakes. The ABI is one header, `shared/esp32s31-wifi-ipc.h`, which
-the loader and the kernel both include.
+Wi-Fi is ESP-Hosted (`external/esp-hosted-linux`). The loader includes
+the ESP-Hosted firmware (`bootloader/components/esp_hosted/`). ESP-Hosted
+supplies its own ESP32-S31 Wi-Fi libraries with the full-MAC hooks
+(`esp/esp_driver/lib/esp32s31`), and the component links these in place of
+the libraries of ESP-IDF. Linux loads
+the ESP-Hosted host driver, the module `esp32_shm`
+(`br2-external/package/esp-hosted-linux/`), which is a cfg80211 full-MAC
+driver. The firmware runs the 802.11 MAC. `wpa_supplicant` and `hostapd` on
+Linux run the authentication and the key handshakes. ESP-Hosted has no
+transport for a host on the same chip, so the two sides use the frames of
+the USB transport in shared SRAM. The layout is in
+`shared/esp32s31-hosted-shm.h`, which the loader and the module include.
 
-- Two rings of 16 slots with 1536 bytes, one for each direction, in SRAM at
-  `0x2F050000`. Each ring has one producer and one consumer, so no lock is
-  necessary. The harts access SRAM without the D-cache.
+- Two byte rings in SRAM at `0x2F050000`: 16 KiB to the firmware and 32 KiB
+  to Linux. Each record is a 32-bit length and one ESP-Hosted frame. Each
+  ring has one producer and one consumer, so no lock is necessary. The harts
+  access SRAM without the D-cache.
 - Two cross-core interrupts are the doorbells. Linux sets `FROM_CPU_1`, and
   the firmware sets `FROM_CPU_2`. `FROM_CPU_0` is not usable: the ESP-IDF
   cross-core handler on hart 0 clears it.
-- Commands (connect, disconnect, scan) and a scan table are in the same
-  block. The firmware gives parsed scan data. The driver builds the RSN and
-  WPA elements from it, so `wpa_supplicant` sees usual beacons.
-- `wpa_supplicant` gives the key through the 4-way handshake offload (a PMK)
-  or the SAE offload (the password).
+- A producer rings only when the consumer has read all frames, because only
+  then the consumer can wait. Each side stores its index, then does a full
+  fence, then loads the index of the other side. Thus one of the two sides
+  always sees the other, and no frame waits for a doorbell that does not
+  come. At full load, Linux gets one interrupt for approximately 5 frames.
+- Linux writes a frame into the ring in `ndo_start_xmit`, and uses a worker
+  only when the ring is full. When 64 frames wait, it stops the net queue.
+  iperf3 TCP gives approximately 46 Mbit/s TX and 41 to 43 Mbit/s RX. Linux
+  then has no idle time: the copy from SRAM, the RX worker and the network
+  stack use the full hart.
+- A restart of the firmware also restarts Linux. Thus when the host driver
+  opens or closes the data path, the firmware only sends its boot event
+  again. Over USB, close restarts the firmware. Here the firmware keeps its
+  Wi-Fi state. The fatal error paths of the firmware still call
+  `esp_restart()`, which restarts the full chip.
+- When Wi-Fi stops, the firmware drops the events that are still in its
+  event loop. The host waited 5 s for such a disconnect event and then asked
+  for a firmware restart. A patch of the host driver stops that wait when
+  `DEINIT` succeeds (`br2-external/package/esp-hosted-linux/0003-*`).
+- The ESP-Hosted Wi-Fi libraries need `rom.patch` of ESP-Hosted in ESP-IDF.
+  Without it, the ROM handles the received EAPOL frames, and the 4-way
+  handshake fails.
 
 ## Silicon traps
 
@@ -257,5 +307,5 @@ the loader and the kernel both include.
 | Interrupt entry | `linux/arch/riscv/kernel/esp32s31-clic-trampoline.S` |
 | Interrupt controller | `linux/drivers/irqchip/irq-esp32s31-clic.c` |
 | DMA coherency | `linux/drivers/cache/esp32s31-cache.c`, `linux/patches/0007` |
-| Wi-Fi ABI | `shared/esp32s31-wifi-ipc.h` |
+| Wi-Fi transport | `shared/esp32s31-hosted-shm.h` |
 | Device tree | `linux/arch/riscv/boot/dts/espressif/esp32s31.dtsi` |
