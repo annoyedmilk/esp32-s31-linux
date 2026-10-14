@@ -14,8 +14,8 @@
  *
  * The I-cache of each core refills from PSRAM, not from the shared D-cache,
  * and fence.i does not invalidate it.  With write-back PSRAM, new code can
- * also stay in the D-cache.  Thus local_flush_icache_all() calls
- * esp32s31_icache_sync().
+ * also stay in the D-cache.  Thus local_flush_icache_all() and
+ * flush_icache_folio() call esp32s31_icache_sync().
  */
 
 #include <linux/align.h>
@@ -36,18 +36,14 @@
 #define ESP32S31_SBI_ICACHE_SYNC	4
 
 /*
- * Make new code visible: write back the full D-cache, then invalidate the
- * I-cache of this hart.  The kernel calls this at any time.
+ * Make new code visible: write back the D-cache, then invalidate the I-cache
+ * of this hart.  A size of 0 means the full caches.  The kernel calls this at
+ * any time.
  */
-void esp32s31_icache_sync(void)
+void esp32s31_icache_sync(phys_addr_t paddr, size_t size)
 {
-	struct sbiret ret = sbi_ecall(ESP32S31_SBI_EXT, ESP32S31_SBI_ICACHE_SYNC,
-				      0, 0, 0, 0, 0, 0);
-
-	/* Firmware without ICACHE_SYNC: write back only, as before. */
-	if (ret.error)
-		sbi_ecall(ESP32S31_SBI_EXT, ESP32S31_SBI_CACHE_WBACK_ALL,
-			  0, 0, 0, 0, 0, 0);
+	sbi_ecall(ESP32S31_SBI_EXT, ESP32S31_SBI_ICACHE_SYNC,
+		  paddr, size, 0, 0, 0, 0);
 }
 
 /*

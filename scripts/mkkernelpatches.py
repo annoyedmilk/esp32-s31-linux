@@ -16,12 +16,6 @@ OUTPUT = OVERLAY / "patches" / "0000-esp32s31-add-source-files.patch"
 
 EXCLUDED = {"patches"}
 
-# The loader and the kernel both use the Wi-Fi ABI header.  shared/ has the master copy.
-EXTRA = {
-    REPO / "shared" / "esp32s31-wifi-ipc.h":
-        "drivers/net/wireless/espressif/esp32s31-wifi-ipc.h",
-}
-
 HEADER = """\
 ESP32-S31: add the kernel source files of the SoC
 
@@ -64,8 +58,6 @@ def main():
         rel = path.relative_to(OVERLAY).as_posix()
         if excluded(rel):
             continue
-        sources[rel] = path
-    for path, rel in EXTRA.items():
         sources[rel] = path
 
     if not sources:

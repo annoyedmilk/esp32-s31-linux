@@ -27,4 +27,8 @@ if [ "$(git -C "$IDF_PATH" rev-parse HEAD)" != "$commit" ]; then
 	git -C "$IDF_PATH" checkout -q "$commit"
 fi
 git -C "$IDF_PATH" submodule update --init --recursive --filter=blob:none
+# The ESP-Hosted Wi-Fi libraries need their ROM patch in ESP-IDF.
+patch=$PWD/external/esp-hosted-linux/esp/esp_driver/lib/rom.patch
+git -C "$IDF_PATH" apply --recount --reverse --check "$patch" 2>/dev/null ||
+	git -C "$IDF_PATH" apply --recount "$patch"
 "$IDF_PATH/install.sh" esp32s31

@@ -1,0 +1,42 @@
+From: Marco Müller <hello@annoyedmilk.ch>
+Subject: [PATCH] host: send the world regulatory domain as "01"
+
+cfg80211 sets the world domain "00" at the start.  ESP-IDF names the
+world-safe mode "01" and rejects "00" with ESP_ERR_INVALID_ARG, so each
+start logged a failed SET_REG command.  Map "00" to "01" before the check
+for a known domain, so that the firmware also gets it only one time.
+
+Upstream: not sent
+---
+--- a/host/esp_cfg80211.c
++++ b/host/esp_cfg80211.c
+@@ -2703,6 +2703,7 @@
+ 	struct esp_device *esp_dev;
+ 	struct esp_adapter *adapter;
+ 	struct esp_wifi_device *priv;
++	const char *alpha2;
+ 	int ret;
+ 
+ 	if (!wiphy || !request)
+@@ -2733,15 +2734,18 @@
+ 		return;
+ 	}
+ 
++	/* cfg80211 names the world domain "00", ESP-IDF names it "01". */
++	alpha2 = memcmp(request->alpha2, "00", 2) ? request->alpha2 : "01";
++
+ 	/* Do not pre-commit alpha2. Identical callbacks are suppressed only
+ 	 * after firmware has acknowledged the country-code update. */
+-	if (!memcmp(request->alpha2, priv->country_code, 2))
++	if (!memcmp(alpha2, priv->country_code, 2))
+ 		return;
+ 
+-	ret = cmd_set_reg_domain(priv, request->alpha2);
++	ret = cmd_set_reg_domain(priv, alpha2);
+ 	if (ret)
+ 		esp_err("Regulatory domain %c%c apply failed: %d\n",
+-			request->alpha2[0], request->alpha2[1], ret);
++			alpha2[0], alpha2[1], ret);
+ }
+ 
+ int esp_add_wiphy(struct esp_adapter *adapter)

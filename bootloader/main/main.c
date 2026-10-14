@@ -12,6 +12,7 @@
 #include "esp_partition.h"
 #include "esp_psram.h"
 #include "esp_rom_crc.h"
+#include "bootloader_random.h"
 #include "esp_attr.h"
 #include "esp_cpu.h"
 #include "esp32s31/rom/ets_sys.h"
@@ -393,6 +394,11 @@ void app_main(void)
 {
     open_apm();
     disable_watchdogs();
+    /*
+     * ESP-IDF v6.1 stops the TRNG after the second stage.  esp_random() and
+     * the Linux hwrng need it.  Its noise source does not use the RF.
+     */
+    bootloader_random_enable();
 
     if (!esp_psram_is_initialized()) {
         ESP_LOGE(TAG, "PSRAM not initialized");
@@ -420,7 +426,12 @@ void app_main(void)
              (uint32_t)OPENSBI_LOAD_ADDR, (uint32_t)KERNEL_LOAD_ADDR,
              (uint32_t)INITRAMFS_LOAD_ADDR);
 
-    start_wifi();
+    /*
+     * The radio start reads the flash, and NVS can write it.  A flash
+     * transaction disables the cache that Linux executes from.  Thus this
+     * must be complete before hart 1 starts.
+     */
+    esp_hosted_main();
 
     disable_linux_hart_stack_protector();
     flush_l1_cache_before_handoff();

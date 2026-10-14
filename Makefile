@@ -5,11 +5,14 @@ LOG_DIR := logs
 
 IDF_PATH ?= $(HOME)/esp/esp-idf
 IDF_TOOLS_PATH ?= $(HOME)/.espressif
-PYTHON ?= $(lastword $(foreach p,$(sort $(wildcard $(IDF_TOOLS_PATH)/python_env/*/bin/python)),$(if $(realpath $(p)),$(p))))
+IDF_VERSION := $(shell sed -n 's/^set(IDF_VERSION_M[AI][JN]OR \([0-9]*\))/\1/p' \
+	"$(IDF_PATH)/tools/cmake/version.cmake" 2>/dev/null | paste -sd. -)
+PYTHON ?= $(lastword $(foreach p,$(sort $(wildcard $(IDF_TOOLS_PATH)/python_env/idf$(IDF_VERSION)_*/bin/python)),$(if $(realpath $(p)),$(p))))
 ESPTOOL := $(PYTHON) -m esptool
 # export.sh names its virtualenv after the python3 that it finds.  After a
 # host Python upgrade, that virtualenv does not exist, and the old one can
-# have a broken python link.  PYTHON is the newest one that works.
+# have a broken python link.  PYTHON is the newest one that works, for the
+# ESP-IDF version at IDF_PATH.
 IDF_PYTHON_ENV := $(patsubst %/bin/python,%,$(PYTHON))
 ESP_RISCV_BIN := $(lastword $(sort $(wildcard $(IDF_TOOLS_PATH)/tools/riscv32-esp-elf/*/riscv32-esp-elf/bin)))
 CROSS_COMPILE ?= $(ESP_RISCV_BIN)/riscv32-esp-elf-
@@ -19,6 +22,8 @@ GMAKE ?= $(shell command -v gmake 2>/dev/null || command -v make)
 JOBS ?= $(shell sysctl -n hw.ncpu 2>/dev/null || nproc 2>/dev/null || echo 4)
 
 OPENSBI_DIR := external/opensbi
+# The ESP-Hosted Wi-Fi libraries need this patch in ESP-IDF (scripts/ci-setup.sh).
+HOSTED_ROM_PATCH := $(CURDIR)/external/esp-hosted-linux/esp/esp_driver/lib/rom.patch
 OPENSBI_SRC := $(BUILD_DIR)/opensbi-src
 OPENSBI_OUT := $(CURDIR)/$(BUILD_DIR)/opensbi
 OPENSBI_PATCHES := $(sort $(wildcard opensbi/patches/*.patch))
@@ -160,6 +165,9 @@ bootloader:
 		rm -f bootloader/sdkconfig; \
 	fi
 	@mkdir -p "$(BUILD_DIR)"
+	@git -C "$(IDF_PATH)" apply --recount --reverse --check "$(HOSTED_ROM_PATCH)" 2>/dev/null || { \
+		echo 'apply the ESP-Hosted ROM patch to ESP-IDF first:'; \
+		echo '  git -C $(IDF_PATH) apply --recount $(HOSTED_ROM_PATCH)'; exit 1; }
 	@export IDF_PYTHON_ENV_PATH="$(IDF_PYTHON_ENV)"; \
 	if ! source "$(IDF_PATH)/export.sh" >"$(BUILD_DIR)/idf-export.log" 2>&1; then \
 		cat "$(BUILD_DIR)/idf-export.log"; \

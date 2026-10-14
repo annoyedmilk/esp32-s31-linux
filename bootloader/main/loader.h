@@ -5,4 +5,5 @@
 
 void init_rmt_led(void);
 void init_sd_card(void);
-void start_wifi(void);
+/* The ESP-Hosted firmware: app_main() of external/esp-hosted-linux. */
+void esp_hosted_main(void);

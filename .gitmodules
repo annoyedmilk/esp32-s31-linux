@@ -7,3 +7,7 @@
 	url = https://gitlab.com/buildroot.org/buildroot.git
 	branch = 2026.08.x
 	shallow = true
+[submodule "external/esp-hosted-linux"]
+	path = external/esp-hosted-linux
+	url = https://github.com/espressif/esp-hosted-linux.git
+	shallow = true

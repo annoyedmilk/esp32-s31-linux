@@ -1,0 +1,59 @@
+From: Marco Müller <hello@annoyedmilk.ch>
+Subject: [PATCH] host: do not wait for a disconnect event after DEINIT
+
+When wpa_supplicant stops, it disconnects and then sets the interface
+down.  esp_stop() sends DEINIT, and the firmware stops Wi-Fi.  When the
+DISCONNECTED event of the firmware is still in its event loop at that
+time, the event handler drops it as an event of a stopped incarnation.
+The host still waited for it: after 5 s the MLME timeout reported a
+second disconnect and requested a firmware restart.  When the interface
+then changed to AP, cfg80211 warned about the disconnect.  A fast
+transport hits this at each stop.
+
+esp_stop() reports the disconnect itself, so stop the wait when DEINIT
+succeeds.
+
+Upstream: not sent
+---
+--- a/host/include/esp_cmd.h
++++ b/host/include/esp_cmd.h
+@@ -38,6 +38,7 @@
+ void esp_cmd_transport_failed(struct esp_adapter *adapter, uint8_t cmd_code,
+ 		uint16_t cmd_seq, int error);
+ void esp_wifi_put_bss(struct esp_wifi_device *priv);
++void esp_mlme_drop_disconnect_wait(struct esp_wifi_device *priv);
+ int cmd_scan_request(struct esp_wifi_device *priv,
+ 		struct cfg80211_scan_request *request);
+ int cmd_get_mac(struct esp_wifi_device *priv);
+--- a/host/esp_cmd.c
++++ b/host/esp_cmd.c
+@@ -531,6 +531,19 @@
+ 	}
+ }
+ 
++/*
++ * After DEINIT, the firmware has stopped Wi-Fi and drops the events of the
++ * old station, also a disconnect event that is still queued.  esp_stop()
++ * reports the disconnect itself, so do not wait for that event.
++ */
++void esp_mlme_drop_disconnect_wait(struct esp_wifi_device *priv)
++{
++	spin_lock_bh(&priv->bss_lock);
++	priv->disconnect_awaiting_mlme = false;
++	priv->disconnect_cmd_seq = 0;
++	spin_unlock_bh(&priv->bss_lock);
++}
++
+ static void esp_scan_timeout_work(struct work_struct *work)
+ {
+ 	struct esp_wifi_device *priv = container_of(work, struct esp_wifi_device,
+--- a/host/main.c
++++ b/host/main.c
+@@ -1428,6 +1428,7 @@
+ 				esp_err("Failed to deinit interface");
+ 				return 0;
+ 			}
++			esp_mlme_drop_disconnect_wait(priv);
+ 		}
+ 		clear_bit(ESP_INTERFACE_INITIALIZED, &priv->priv_flags);
+ 	}
