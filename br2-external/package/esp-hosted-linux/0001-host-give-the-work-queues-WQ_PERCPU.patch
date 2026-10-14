@@ -1,0 +1,30 @@
+From: Marco Müller <hello@annoyedmilk.ch>
+Subject: [PATCH] host: give the work queues WQ_PERCPU
+
+Since Linux 6.17, alloc_workqueue() warns when a queue has neither
+WQ_PERCPU nor WQ_UNBOUND, and the default will become unbound.  Keep the
+per-CPU queues and remove the warning at module load.  WQ_PERCPU does not
+exist before 6.17, so this needs a newer kernel.
+
+Upstream: not sent
+---
+--- a/host/main.c
++++ b/host/main.c
+@@ -2372,13 +2372,15 @@
+ 	adapter.fw_recovery_backoff_ms = ESP_FW_RECOVERY_QUIET_MS;
+ 	atomic_set(&adapter.fw_boot_commit_epoch, 0);
+ 
+-	adapter.if_rx_workqueue = alloc_workqueue("ESP_IF_RX_WORK_QUEUE", WQ_HIGHPRI, 0);
++	adapter.if_rx_workqueue = alloc_workqueue("ESP_IF_RX_WORK_QUEUE",
++						  WQ_HIGHPRI | WQ_PERCPU, 0);
+ 	if (!adapter.if_rx_workqueue) {
+ 		deinit_adapter();
+ 		return NULL;
+ 	}
+ 	INIT_WORK(&adapter.if_rx_work, esp_if_rx_work);
+-	adapter.events_wq = alloc_workqueue("ESP_EVENTS_WORKQUEUE", WQ_HIGHPRI, 0);
++	adapter.events_wq = alloc_workqueue("ESP_EVENTS_WORKQUEUE",
++					    WQ_HIGHPRI | WQ_PERCPU, 0);
+ 	if (!adapter.events_wq) {
+ 		deinit_adapter();
+ 		return NULL;
