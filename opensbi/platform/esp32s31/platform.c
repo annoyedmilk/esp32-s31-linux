@@ -484,8 +484,8 @@ static int esp32s31_timer_init(void)
  * it does not write the flash.  Linux asks for operations through the vendor
  * SBI extension (0x09000000 + mvendorid).  A size of 0 selects the full
  * cache, as the ROM Cache_WriteBack_All() does.  Linux also needs the
- * operations before it can map the cache registers: to write back new code
- * before fence.i.
+ * operations before it can map the cache registers: to make new code
+ * visible to the I-cache.
  */
 #define ESP32S31_CACHE_BASE		0x2c000000UL
 #define ESP32S31_CACHE_SYNC_CTRL	(ESP32S31_CACHE_BASE + 0x9cUL)
@@ -496,6 +496,7 @@ static int esp32s31_timer_init(void)
 #define ESP32S31_CACHE_WRITEBACK	(1UL << 2)
 #define ESP32S31_CACHE_WRITEBACK_INV	(1UL << 3)
 #define ESP32S31_CACHE_SYNC_DONE	(1UL << 4)
+#define ESP32S31_CACHE_MAP_L1_ICACHE(hart)	(1UL << (hart))
 #define ESP32S31_CACHE_MAP_L1_DCACHE	(1UL << 4)
 
 /* Vendor SBI function IDs.  Keep them the same as in the Linux driver. */
@@ -503,6 +504,7 @@ static int esp32s31_timer_init(void)
 #define ESP32S31_SBI_CACHE_INV		1
 #define ESP32S31_SBI_CACHE_WBACK	2
 #define ESP32S31_SBI_CACHE_WBACK_INV	3
+#define ESP32S31_SBI_ICACHE_SYNC	4
 
 static spinlock_t esp32s31_cache_lock = SPIN_LOCK_INITIALIZER;
 
@@ -510,13 +512,13 @@ static spinlock_t esp32s31_cache_lock = SPIN_LOCK_INITIALIZER;
  * Erratum: a writeback can lose part of the range if it runs only once.  The
  * ESP-IDF ROM patch also runs it twice.  An invalidate runs once.
  */
-static void esp32s31_cache_sync(unsigned long op, unsigned long addr,
-				unsigned long size)
+static void esp32s31_cache_sync(unsigned long map, unsigned long op,
+				unsigned long addr, unsigned long size)
 {
 	int pass, passes = op == ESP32S31_CACHE_INVALIDATE ? 1 : 2;
 
 	spin_lock(&esp32s31_cache_lock);
-	reg_write(ESP32S31_CACHE_SYNC_MAP, ESP32S31_CACHE_MAP_L1_DCACHE);
+	reg_write(ESP32S31_CACHE_SYNC_MAP, map);
 	reg_write(ESP32S31_CACHE_SYNC_ADDR, addr);
 	reg_write(ESP32S31_CACHE_SYNC_SIZE, size);
 	for (pass = 0; pass < passes; pass++) {
@@ -528,24 +530,39 @@ static void esp32s31_cache_sync(unsigned long op, unsigned long addr,
 	spin_unlock(&esp32s31_cache_lock);
 }
 
-/* The sync operation for each vendor SBI function ID. */
-static const unsigned long esp32s31_cache_ops[] = {
-	[ESP32S31_SBI_CACHE_WBACK_ALL] = ESP32S31_CACHE_WRITEBACK,
-	[ESP32S31_SBI_CACHE_INV] = ESP32S31_CACHE_INVALIDATE,
-	[ESP32S31_SBI_CACHE_WBACK] = ESP32S31_CACHE_WRITEBACK,
-	[ESP32S31_SBI_CACHE_WBACK_INV] = ESP32S31_CACHE_WRITEBACK_INV,
+/*
+ * The sync operations for each vendor SBI function ID: one for the D-cache,
+ * then one for the I-cache of the calling hart, or 0 for none.  fence.i does
+ * not invalidate the I-cache on this SoC, so new code needs ICACHE_SYNC.
+ */
+static const struct {
+	unsigned long dcache_op;
+	unsigned long icache_op;
+} esp32s31_cache_ops[] = {
+	[ESP32S31_SBI_CACHE_WBACK_ALL] = { ESP32S31_CACHE_WRITEBACK, 0 },
+	[ESP32S31_SBI_CACHE_INV] = { ESP32S31_CACHE_INVALIDATE, 0 },
+	[ESP32S31_SBI_CACHE_WBACK] = { ESP32S31_CACHE_WRITEBACK, 0 },
+	[ESP32S31_SBI_CACHE_WBACK_INV] = { ESP32S31_CACHE_WRITEBACK_INV, 0 },
+	[ESP32S31_SBI_ICACHE_SYNC] = { ESP32S31_CACHE_WRITEBACK,
+				       ESP32S31_CACHE_INVALIDATE },
 };
 
 static int esp32s31_vendor_ext(long funcid, struct sbi_trap_regs *regs,
 			       struct sbi_ecall_return *out)
 {
 	bool all = funcid == ESP32S31_SBI_CACHE_WBACK_ALL;
+	unsigned long addr = all ? 0 : regs->a0;
+	unsigned long size = all ? 0 : regs->a1;
 
 	if (funcid < 0 || funcid >= array_size(esp32s31_cache_ops))
 		return SBI_ENOTSUPP;
 
-	esp32s31_cache_sync(esp32s31_cache_ops[funcid], all ? 0 : regs->a0,
-			    all ? 0 : regs->a1);
+	esp32s31_cache_sync(ESP32S31_CACHE_MAP_L1_DCACHE,
+			    esp32s31_cache_ops[funcid].dcache_op, addr, size);
+	if (esp32s31_cache_ops[funcid].icache_op)
+		esp32s31_cache_sync(ESP32S31_CACHE_MAP_L1_ICACHE(current_hartid()),
+				    esp32s31_cache_ops[funcid].icache_op,
+				    addr, size);
 	return 0;
 }
 

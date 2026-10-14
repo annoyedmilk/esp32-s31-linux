@@ -143,7 +143,8 @@ This is the part that is most different from other RISC-V SoCs.
   masters that use it at the same time corrupt each other. So only OpenSBI
   programs it, under a lock. Linux asks through a vendor SBI extension
   (`0x09000612`, functions: write back all, invalidate, write back,
-  write back and invalidate). See `drivers/cache/esp32s31-cache.c`. An
+  write back and invalidate, I-cache sync). See
+  `drivers/cache/esp32s31-cache.c`. An
   erratum: a write-back can lose part of the range, so OpenSBI runs it
   twice, as the ROM does.
 - **Coherent allocations come from SRAM.** The CPU accesses SRAM without
@@ -153,10 +154,13 @@ This is the part that is most different from other RISC-V SoCs.
   `riscv_noncoherent_register_cache_ops()`. `setup_arch()` enables
   non-coherent DMA early (`patches/0007`), because slab gets its alignment
   from `dma_get_cache_alignment()` before the initcalls.
-- **The I-cache refills from PSRAM, not from the D-cache.** New code (module
-  load, `exec`, JIT) can be in a dirty D-cache line. So
-  `local_flush_icache_all()` writes the D-cache back before `fence.i`
-  (`patches/0012`).
+- **The I-cache refills from PSRAM, not from the D-cache, and `fence.i` does
+  not invalidate it.** New code (module load, `exec`, JIT) can be in a dirty
+  D-cache line. The I-cache also keeps the old line until other code replaces
+  it. Measured from user space: a write, a flush with `fence.i` and a call of
+  the same address gave the old code in 292 of 300 runs. So
+  `local_flush_icache_all()` asks OpenSBI to write the D-cache back and to
+  invalidate the I-cache of the hart (`patches/0012`, vendor SBI function 4).
 - **The frame buffer is uncached.** PSRAM is write-back. The LCD DMA reads
   the frame buffer from PSRAM with no cache maintenance, so OpenSBI makes
   that range uncached with two PMA entries. Write-through for all of PSRAM
@@ -218,6 +222,7 @@ the loader and the kernel both include.
 | `sret` without the full `scause` | `SIL` stays high, all S-mode interrupts masked. |
 | SD PIO FIFO | Does not work. Use IDMAC. |
 | Cache write-back erratum | A single write-back can lose data. Run it twice. |
+| `fence.i` | Does not invalidate the I-cache. Use the sync engine. |
 | PMP entries overlap | Fault, even for a short time during an update. |
 | PMA entries overlap | No fault. The entry with the lowest index is used. |
 | FPU `EXT_ILL` | Cannot identify FLW/FSW. |

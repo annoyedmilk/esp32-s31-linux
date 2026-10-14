@@ -12,9 +12,10 @@
  * SBI extension.  The SBI call also works early in the boot, before an
  * ioremap() is possible.
  *
- * The I-cache of each core refills from PSRAM, not from the shared D-cache.
- * With write-back PSRAM, new code can stay in the D-cache, so
- * local_flush_icache_all() calls esp32s31_dcache_wback_all() before fence.i.
+ * The I-cache of each core refills from PSRAM, not from the shared D-cache,
+ * and fence.i does not invalidate it.  With write-back PSRAM, new code can
+ * also stay in the D-cache.  Thus local_flush_icache_all() calls
+ * esp32s31_icache_sync().
  */
 
 #include <linux/align.h>
@@ -32,12 +33,21 @@
 #define ESP32S31_SBI_CACHE_INV		1
 #define ESP32S31_SBI_CACHE_WBACK	2
 #define ESP32S31_SBI_CACHE_WBACK_INV	3
+#define ESP32S31_SBI_ICACHE_SYNC	4
 
-/* Write back the full D-cache.  The kernel calls this at any time. */
-void esp32s31_dcache_wback_all(void)
+/*
+ * Make new code visible: write back the full D-cache, then invalidate the
+ * I-cache of this hart.  The kernel calls this at any time.
+ */
+void esp32s31_icache_sync(void)
 {
-	sbi_ecall(ESP32S31_SBI_EXT, ESP32S31_SBI_CACHE_WBACK_ALL,
-		  0, 0, 0, 0, 0, 0);
+	struct sbiret ret = sbi_ecall(ESP32S31_SBI_EXT, ESP32S31_SBI_ICACHE_SYNC,
+				      0, 0, 0, 0, 0, 0);
+
+	/* Firmware without ICACHE_SYNC: write back only, as before. */
+	if (ret.error)
+		sbi_ecall(ESP32S31_SBI_EXT, ESP32S31_SBI_CACHE_WBACK_ALL,
+			  0, 0, 0, 0, 0, 0);
 }
 
 /*

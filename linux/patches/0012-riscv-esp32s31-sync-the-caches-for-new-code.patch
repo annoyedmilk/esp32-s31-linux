@@ -1,10 +1,14 @@
 From: Marco Müller <hello@annoyedmilk.ch>
-Subject: [PATCH] riscv: esp32s31: write back the D-cache before fence.i
+Subject: [PATCH] riscv: esp32s31: sync the caches for new code
 
 The I-cache of each ESP32-S31 core refills from PSRAM, not from the
-shared D-cache, and fence.i does not write the D-cache back.  With
-write-back PSRAM, patched code can stay in the D-cache, and the core then
-executes the old instructions.  Write back the D-cache first.
+shared D-cache.  With write-back PSRAM, new code can stay in the
+D-cache.  fence.i also does not invalidate the I-cache: a write, a
+flush and a call of the same address gave the old code in 292 of 300
+runs, until a timer tick replaced the line.
+
+Ask the firmware to write back the D-cache and to invalidate the
+I-cache.
 
 Signed-off-by: Marco Müller <hello@annoyedmilk.ch>
 ---
@@ -16,7 +20,7 @@ diff --git a/arch/riscv/include/asm/cacheflush.h b/arch/riscv/include/asm/cachef
  #include <linux/mm.h>
  
 +#ifdef CONFIG_ESP32S31_CACHE
-+void esp32s31_dcache_wback_all(void);
++void esp32s31_icache_sync(void);
 +#endif
 +
  static inline void local_flush_icache_all(void)
@@ -24,9 +28,9 @@ diff --git a/arch/riscv/include/asm/cacheflush.h b/arch/riscv/include/asm/cachef
 +#ifdef CONFIG_ESP32S31_CACHE
 +	/*
 +	 * The ESP32-S31 I-cache refills from PSRAM, not from the shared
-+	 * D-cache.  With write-back PSRAM, new code can stay in the D-cache.
++	 * D-cache, and fence.i does not invalidate it.
 +	 */
-+	esp32s31_dcache_wback_all();
++	esp32s31_icache_sync();
 +#endif
  	asm volatile ("fence.i" ::: "memory");
  }
