@@ -5,10 +5,11 @@ LOG_DIR := logs
 
 IDF_PATH ?= $(HOME)/esp/esp-idf
 IDF_TOOLS_PATH ?= $(HOME)/.espressif
-PYTHON ?= $(lastword $(sort $(wildcard $(IDF_TOOLS_PATH)/python_env/*/bin/python)))
+PYTHON ?= $(lastword $(foreach p,$(sort $(wildcard $(IDF_TOOLS_PATH)/python_env/*/bin/python)),$(if $(realpath $(p)),$(p))))
 ESPTOOL := $(PYTHON) -m esptool
 # export.sh names its virtualenv after the python3 that it finds.  After a
-# host Python upgrade, that virtualenv does not exist.  Use the one that does.
+# host Python upgrade, that virtualenv does not exist, and the old one can
+# have a broken python link.  PYTHON is the newest one that works.
 IDF_PYTHON_ENV := $(patsubst %/bin/python,%,$(PYTHON))
 ESP_RISCV_BIN := $(lastword $(sort $(wildcard $(IDF_TOOLS_PATH)/tools/riscv32-esp-elf/*/riscv32-esp-elf/bin)))
 CROSS_COMPILE ?= $(ESP_RISCV_BIN)/riscv32-esp-elf-
