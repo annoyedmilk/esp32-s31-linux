@@ -22,6 +22,17 @@ Linux 7.2 on the ESP32-S31-Korvo-1, ready to flash.
 
 The LCD shows the kernel log and a login. A USB keyboard works on it.
 
+## Fixed in v0.2.2
+
+- A program that writes machine code and then runs it could run the old
+  code: for example a JIT, or a breakpoint that `gdbserver` sets. The
+  `fence.i` instruction does not clear the instruction cache of this chip,
+  so the old code stayed in it for up to one timer tick. Now OpenSBI clears
+  the instruction cache when Linux makes new code visible. v0.1.0 to v0.2.1
+  have this fault.
+
+From v0.2.0 or v0.2.1, flash `flash.bin` only. The card image has no change.
+
 ## Fixed in v0.2.1
 
 - The board did not start in about 2% of the boots. The log stopped after
