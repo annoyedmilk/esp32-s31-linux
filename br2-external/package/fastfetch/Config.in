@@ -1,0 +1,8 @@
+config BR2_PACKAGE_FASTFETCH
+	bool "fastfetch"
+	depends on BR2_TOOLCHAIN_GCC_AT_LEAST_13 # C23
+	help
+	  Shows information about the system next to a logo.  This
+	  build has no desktop, GPU, image logo or scripting support.
+
+	  https://github.com/fastfetch-cli/fastfetch
