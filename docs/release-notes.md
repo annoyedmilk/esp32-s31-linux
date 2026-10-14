@@ -22,6 +22,24 @@ Linux 7.2 on the ESP32-S31-Korvo-1, ready to flash.
 
 The LCD shows the kernel log and a login. A USB keyboard works on it.
 
+## New in v0.3.0
+
+- Wi-Fi is now ESP-Hosted from Espressif. The ESP-Hosted firmware runs on
+  hart 0, and Linux loads its host driver as the module `esp32_shm`. The
+  two sides use a shared-memory transport. The own Wi-Fi driver and its
+  firmware of v0.2.x are gone.
+- `wpa_supplicant` on Linux runs the authentication and the key handshakes
+  (WPA2 and WPA3-SAE). `hostapd` is on the card and starts an access point.
+- Wi-Fi is faster: approximately 46 Mbit/s TX and 41 to 43 Mbit/s RX with
+  iperf3 TCP (v0.2.2: 39 and 46 Mbit/s).
+- ESP-IDF v6.1 (before: a development version).
+- A program starts faster the first time after a file change: Linux syncs
+  the caches only for the new code page, not for the full caches.
+
+v0.3.0 needs the new `flash.bin` and the new card image together. A v0.2.x
+card does not have the Wi-Fi module, and the v0.3.0 card does not work
+with a v0.2.x `flash.bin`.
+
 ## Fixed in v0.2.2
 
 - A program that writes machine code and then runs it could run the old
