@@ -204,9 +204,10 @@ opensbi:
 kernel-patches:
 	@"$(PYTHON)" scripts/mkkernelpatches.py
 
-# Apply the series to a clean extract of the kernel release, in the container
-# at zero fuzz, as Buildroot does.  The macOS patch accepts old context that
-# GNU patch rejects.  A kernel version change must also pass this test.
+# Apply the series in order to a clean extract of the kernel release, in the
+# container at zero fuzz, as Buildroot does.  The macOS patch accepts old
+# context that GNU patch rejects.  A kernel version change must also pass
+# this test.
 kernel-check: kernel-patches br-volume
 	@$(BR_RUN) sh -c 'set -e; \
 		cd /work/$(BR_DIR); \
@@ -219,7 +220,7 @@ kernel-check: kernel-patches br-volume
 		cd /br/check; fail=0; \
 		for p in /work/linux/patches/*.patch; do \
 			printf "%-50s " "$$(basename $$p)"; \
-			if patch -p1 -F0 --dry-run -s -f < "$$p" >/dev/null 2>&1; \
+			if patch -p1 -F0 -s -f < "$$p" >/dev/null 2>&1; \
 				then echo applies; else echo FAILS; fail=1; fi; \
 		done; rm -rf /br/check; exit $$fail'
 
