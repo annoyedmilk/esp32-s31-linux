@@ -210,7 +210,7 @@ Boot scripts in `br2-external/board/esp32s31/rootfs-overlay`:
 - `S05swap` starts 6 MiB of LZ4 swap in RAM (`/dev/zram0`, priority 100),
   then a swap file of max. 64 MiB on the root (priority 10).
 - `S10sdcard` mounts p1 on `/mnt/sd`.
-- `S40wifi` loads the Wi-Fi driver and starts `wpa_supplicant` on `wlan0`.
+- `S40wifi` starts `wpa_supplicant` on `wlan0`.
 - The udhcpc hook sets the clock with NTP on each new lease.
 - `S95autostart` runs `/mnt/sd/autostart.sh`, if that file exists.
 - `S99banner` prints the line that `make monitor` waits for.
@@ -261,9 +261,9 @@ For WPA3 and WPA2/WPA3 networks, the network block needs
 `key_mgmt=WPA-PSK SAE`, `ieee80211w=1` and the passphrase as `psk="..."`.
 The hex PSK from `wpa_passphrase` is not sufficient for SAE.
 
-The ESP-Hosted firmware on hart 0 runs the 802.11 MAC. Linux loads the
-ESP-Hosted host driver (`esp32_shm`) and runs the authentication and the
-key handshakes in `wpa_supplicant`. `hostapd` with the nl80211 driver
+The ESP-Hosted firmware on hart 0 runs the 802.11 MAC. The ESP-Hosted host
+driver (`esp32_shm`) is built into the kernel. `wpa_supplicant` runs the
+authentication and the key handshakes. `hostapd` with the nl80211 driver
 starts an access point. Stop `S40wifi` first: `wlan0` is a station or an
 access point, not the two at the same time.
 

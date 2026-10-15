@@ -221,18 +221,24 @@ kernel-check: kernel-patches br-volume
 		done; rm -rf /br/check; exit $$fail'
 
 # Buildroot applies the patches only when it extracts the kernel, and it
-# ignores changes to the custom config.  Thus keep a hash of the two in the
-# volume.  When the hash changes, delete the extracted kernel and headers, so
-# Buildroot extracts, patches and configures them again.  Runs in the
-# container, in the Buildroot directory.
+# ignores changes to the custom config and to the ESP-Hosted sources.  Thus
+# keep a hash of all three in the volume.  When the hash changes, delete the
+# extracted kernel, headers and ESP-Hosted sources, so Buildroot extracts,
+# patches and configures them again.  Runs in the container, in the Buildroot
+# directory.
 KERNEL_SYNC = sum=$$(cat /work/linux/patches/*.patch \
 		/work/br2-external/board/esp32s31/linux.config \
-		/work/br2-external/configs/$(BR_DEFCONFIG) | sha256sum | cut -d" " -f1); \
+		/work/br2-external/configs/$(BR_DEFCONFIG) \
+		/work/shared/*.h /work/br2-external/package/esp-hosted-linux/* \
+		/work/external/esp-hosted-linux/host/*.c \
+		/work/external/esp-hosted-linux/host/include/*.h | \
+		sha256sum | cut -d" " -f1); \
 	stamp=/br/output/.esp32s31-kernel-inputs; \
 	if test -f /br/output/.config && \
 		test "$$(cat $$stamp 2>/dev/null)" != "$$sum"; then \
-		echo "kernel patches or config changed: extracting the kernel again"; \
-		$(BR_MAKE) linux-dirclean linux-headers-dirclean; \
+		echo "kernel sources or config changed: extracting the kernel again"; \
+		$(BR_MAKE) linux-dirclean linux-headers-dirclean \
+			esp-hosted-linux-dirclean; \
 	fi; \
 	mkdir -p /br/output; echo "$$sum" > $$stamp
 

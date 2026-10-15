@@ -1,0 +1,31 @@
+From: Marco Müller <hello@annoyedmilk.ch>
+Subject: [PATCH] wifi: add the ESP32-S31 ESP-Hosted directory
+
+The ESP-Hosted host driver for the firmware on hart 0 is in
+drivers/net/wireless/espressif.  Add the directory to the wireless
+Kconfig and Makefile.
+
+Signed-off-by: Marco Müller <hello@annoyedmilk.ch>
+---
+diff --git a/drivers/net/wireless/Kconfig b/drivers/net/wireless/Kconfig
+--- a/drivers/net/wireless/Kconfig
++++ b/drivers/net/wireless/Kconfig
+@@ -21,6 +21,7 @@ if WLAN
+ source "drivers/net/wireless/ath/Kconfig"
+ source "drivers/net/wireless/atmel/Kconfig"
+ source "drivers/net/wireless/broadcom/Kconfig"
++source "drivers/net/wireless/espressif/Kconfig"
+ source "drivers/net/wireless/intel/Kconfig"
+ source "drivers/net/wireless/intersil/Kconfig"
+ source "drivers/net/wireless/marvell/Kconfig"
+diff --git a/drivers/net/wireless/Makefile b/drivers/net/wireless/Makefile
+--- a/drivers/net/wireless/Makefile
++++ b/drivers/net/wireless/Makefile
+@@ -6,6 +6,7 @@
+ obj-$(CONFIG_WLAN_VENDOR_ATH) += ath/
+ obj-$(CONFIG_WLAN_VENDOR_ATMEL) += atmel/
+ obj-$(CONFIG_WLAN_VENDOR_BROADCOM) += broadcom/
++obj-$(CONFIG_ESP32S31_HOSTED) += espressif/
+ obj-$(CONFIG_WLAN_VENDOR_INTEL) += intel/
+ obj-$(CONFIG_WLAN_VENDOR_INTERSIL) += intersil/
+ obj-$(CONFIG_WLAN_VENDOR_MARVELL) += marvell/

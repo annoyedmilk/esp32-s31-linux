@@ -1,7 +1,6 @@
 config BR2_PACKAGE_ESP_HOSTED_LINUX
-	bool "esp-hosted-linux"
-	depends on BR2_LINUX_KERNEL
+	bool
 	help
-	  The ESP-Hosted host driver (external/esp-hosted-linux) with
-	  the shared-memory transport for the ESP-Hosted firmware on
-	  hart 0.  It makes wlan0 for cfg80211 and nl80211.
+	  The ESP-Hosted host driver sources.  Select
+	  BR2_LINUX_KERNEL_EXT_ESP_HOSTED_LINUX to build them into the
+	  kernel.

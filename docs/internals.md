@@ -241,14 +241,15 @@ Wi-Fi is ESP-Hosted (`external/esp-hosted-linux`). The loader includes
 the ESP-Hosted firmware (`bootloader/components/esp_hosted/`). ESP-Hosted
 supplies its own ESP32-S31 Wi-Fi libraries with the full-MAC hooks
 (`esp/esp_driver/lib/esp32s31`), and the component links these in place of
-the libraries of ESP-IDF. Linux loads
-the ESP-Hosted host driver, the module `esp32_shm`
-(`br2-external/package/esp-hosted-linux/`), which is a cfg80211 full-MAC
-driver. The firmware runs the 802.11 MAC. `wpa_supplicant` and `hostapd` on
+the libraries of ESP-IDF. The kernel has the ESP-Hosted host driver
+`esp32_shm` built in, a cfg80211 full-MAC driver. A Buildroot linux
+extension (`br2-external/linux/`) copies it from the submodule into
+`drivers/net/wireless/espressif/esp_hosted`, next to the shared-memory
+transport (`linux/drivers/net/wireless/espressif/esp_hosted/esp_shm.c`). The firmware runs the 802.11 MAC. `wpa_supplicant` and `hostapd` on
 Linux run the authentication and the key handshakes. ESP-Hosted has no
 transport for a host on the same chip, so the two sides use the frames of
 the USB transport in shared SRAM. The layout is in
-`shared/esp32s31-hosted-shm.h`, which the loader and the module include.
+`shared/esp32s31-hosted-shm.h`, which the loader and the driver include.
 
 - Two byte rings in SRAM at `0x2F050000`: 16 KiB to the firmware and 32 KiB
   to Linux. Each record is a 32-bit length and one ESP-Hosted frame. Each
