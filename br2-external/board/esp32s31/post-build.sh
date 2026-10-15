@@ -17,3 +17,7 @@ grep -qF "$tty1_line" "$1/etc/inittab" || printf '%s\n' "$tty1_line" >> "$1/etc/
 rm -f "$1/etc/init.d/S90httpd"
 
 mkdir -p "$1/mnt/sd"
+
+# The boot scripts run as /bin/sh, BusyBox ash, which needs much less memory
+# than bash.  The interactive shell of root stays bash.
+sed -i '/^root:/s,[^:]*$,/bin/bash,' "$1/etc/passwd"
