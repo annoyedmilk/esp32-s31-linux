@@ -110,8 +110,8 @@ python -m espefuse --chip esp32s31 -p PORT summary
   (`drivers/cache/esp32s31-cache.c`). The I-cache refills from PSRAM, not
   from the D-cache, so Linux writes the D-cache back before each `fence.i`.
   Coherent DMA memory comes from a 64 KiB pool in SRAM at `0x2F040000`.
-- **Shared SRAM.** `0x2F040000`-`0x2F060000` is outside the ESP-IDF heap. The
-  lower half is the DMA pool. The upper half holds the Wi-Fi rings
+- **Shared SRAM.** `0x2F040000`-`0x2F05D000` is outside the ESP-IDF heap:
+  the DMA pool, then the ESP-Hosted rings at `0x2F050000`
   (`shared/esp32s31-hosted-shm.h`).
 - **Display.** The frame buffer is at `0x50F40000`. The loader DMA continues
   to scan it out after the handoff. Linux uses it as a `simple-framebuffer`.

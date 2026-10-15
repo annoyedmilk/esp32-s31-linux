@@ -49,7 +49,7 @@ ROM -> ESP-IDF 2nd stage -> loader (hart 0) -> OpenSBI (hart 1, M) -> Linux (har
 | Address | Size | Use |
 | --- | --- | --- |
 | `0x2F040000` | 64 KiB | Coherent DMA pool for Linux (`shared-dma-pool`) |
-| `0x2F050000` | 64 KiB | Wi-Fi shared memory (ESP-Hosted rings) |
+| `0x2F050000` | 52 KiB | ESP-Hosted shared memory (rings) |
 | `0x2F079000` | 4 KiB | LCD DMA descriptor ring |
 | `0x50000000` | 15 MiB | Linux RAM: the kernel image, then the initramfs at `0x50800000` (2 MiB, freed after boot) |
 | `0x50F00000` | 256 KiB | OpenSBI (reserved, no-map) |

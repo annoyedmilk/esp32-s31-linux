@@ -19,7 +19,7 @@
 #define ESP_SHM_VERSION		1
 
 #define ESP_SHM_ADDR		0x2f050000
-#define ESP_SHM_SIZE		0x00010000
+#define ESP_SHM_SIZE		0x0000d000
 
 /* Offsets in the block. */
 #define ESP_SHM_CTRL		0x0000

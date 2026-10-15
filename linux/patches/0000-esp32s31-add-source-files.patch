@@ -288,7 +288,7 @@ new file mode 100644
 +  - |
 +    wifi@2f050000 {
 +        compatible = "esp,esp32s31-hosted-shm";
-+        reg = <0x2f050000 0x10000>, <0x20586014 0x8>;
++        reg = <0x2f050000 0xd000>, <0x20586014 0x8>;
 +        reg-names = "shm", "doorbell";
 +        interrupt-parent = <&clic>;
 +        interrupts = <35 67 4>;
@@ -610,7 +610,7 @@ new file mode 100644
 +		 */
 +		wifi: wifi@2f050000 {
 +			compatible = "esp,esp32s31-hosted-shm";
-+			reg = <0x2f050000 0x10000>, <0x20586014 0x8>;
++			reg = <0x2f050000 0xd000>, <0x20586014 0x8>;
 +			reg-names = "shm", "doorbell";
 +			interrupt-parent = <&clic>;
 +			interrupts = <35 67 IRQ_TYPE_LEVEL_HIGH>;
