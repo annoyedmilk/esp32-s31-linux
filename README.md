@@ -14,8 +14,8 @@ ESP ROM -> ESP-IDF 2nd stage -> loader -> OpenSBI -> Linux -> initramfs -> Build
 The ESP32-S31 is a microcontroller: two RV32 harts at 320 MHz, 512 KiB of
 SRAM, Wi-Fi 6 and Bluetooth. It was not made for Linux. This project runs a
 stock Linux 7.2 kernel with a small patch set on it, with a real userspace:
-a shell on the LCD, Wi-Fi with `wpa_supplicant`, SSH, USB keyboards and
-sticks, `vim`, `gdb`, `strace`, MicroPython and a text-mode web browser
+a shell on the LCD, Wi-Fi with `wpa_supplicant`, Bluetooth with BlueZ, SSH,
+USB keyboards and sticks, `vim`, `gdb`, `strace`, MicroPython and a text-mode web browser
 (`links`).
 
 You can use it in two ways:
@@ -63,8 +63,13 @@ commit for a local build.
 - microSD (`dw_mmc` with internal DMA): FAT on p1, ext4 root on p2.
 - Wi-Fi as `wlan0` (cfg80211 full-MAC) through the ESP-Hosted firmware on
   hart 0: station with `wpa_supplicant` (WPA2 and WPA3-SAE), access point
-  with `hostapd`. iperf3 TCP gives approximately 46 Mbit/s TX and 41 to
-  43 Mbit/s RX.
+  with `hostapd`. iperf3 TCP gives approximately 35 to 38 Mbit/s in each
+  direction.
+- Bluetooth as `hci0` through the same firmware: BR/EDR and LE, with
+  `bluetoothd` and `bluetoothctl`.
+- IEEE 802.15.4 as an OpenThread radio co-processor: the Spinel stream is
+  `/dev/esp_rcp0`, for a Thread host such as `ot-daemon`. The image has no
+  Thread host.
 - Hardware RNG, GPIO, `reboot` and `poweroff`.
 
 ## Tested hardware
@@ -93,7 +98,7 @@ python -m espefuse --chip esp32s31 -p PORT summary
 ## Design
 
 - **Harts.** Hart 0 stays in M-mode. It runs the ESP-IDF loader, which stays
-  resident as the Wi-Fi firmware. Linux runs on hart 1 only.
+  resident as the radio firmware. Linux runs on hart 1 only.
 - **Loader.** The loader checks the size and CRC of the kernel. It copies the
   kernel to `0x50000000`, the initramfs to `0x50800000` and OpenSBI to
   `0x50F00000`. It starts the LCD, the SD slot and Wi-Fi. Then it releases
@@ -201,7 +206,8 @@ Boot scripts in `br2-external/board/esp32s31/rootfs-overlay`:
 - `S05swap` starts 6 MiB of LZ4 swap in RAM (`/dev/zram0`, priority 100),
   then a swap file of max. 64 MiB on the root (priority 10).
 - `S10sdcard` mounts p1 on `/mnt/sd`.
-- `S40wifi` starts `wpa_supplicant` on `wlan0`.
+- `S40wifi` starts `wpa_supplicant` on `wlan0`, and `S40bluetoothd` starts
+  BlueZ for `hci0`.
 - The udhcpc hook sets the clock with NTP on each new lease.
 - `S95autostart` runs `/mnt/sd/autostart.sh`, if that file exists.
 - `S99banner` prints the line that `make monitor` waits for.
@@ -281,7 +287,7 @@ in `br2-external/configs/esp32s31_defconfig`) with `linux/patches/`.
 | ---: | --- |
 | `0x002000` | ESP-IDF second-stage bootloader |
 | `0x008000` | Partition table |
-| `0x020000` | Loader and Wi-Fi firmware |
+| `0x020000` | Loader and radio firmware |
 | `0x220000` | OpenSBI `fw_jump` |
 | `0x2A0000` | Linux Image (with built-in DTB) |
 | `0xA1FFF4` | Linux size and CRC manifest |
@@ -306,15 +312,18 @@ and one on the LCD.
   an FPU only with D. Floating point works, because userspace is built
   soft-float (ilp32), but it is slower.
 - OpenSBI protects its memory and the TEE/APM registers from S-mode with
-  PMP, and its memory from DMA with HP_APM. The Wi-Fi firmware on hart 0
+  PMP, and its memory from DMA with HP_APM. The radio firmware on hart 0
   runs in M-mode, so nothing protects OpenSBI from hart 0.
 - `poweroff` stops the hart. It does not remove power.
 - The coherent DMA pool is 64 KiB.
 - There is no I2C, audio or camera driver.
-- Bluetooth and IEEE 802.15.4 are off in the firmware. ESP-Hosted has host
-  code for the two (`hci0`, the Spinel RCP), but this port does not build
-  or test it yet. The Bluetooth core module loads only because the host
-  driver links to it.
+- The firmware turns the Wi-Fi/802.15.4 coexistence scheme off, because
+  it halves the Wi-Fi throughput also when no Thread host runs. A Thread
+  network on the RCP can lose frames while Wi-Fi is busy.
+- With the three radios, the firmware heap has approximately 64 KiB free
+  when idle and 25 KiB during iperf3. Bluetooth connections and Thread
+  traffic need more, which is not measured.
+- BR/EDR is tested up to the inquiry: no discoverable device was near.
 - WPA2/WPA3 Enterprise is not tested.
 
 ## License

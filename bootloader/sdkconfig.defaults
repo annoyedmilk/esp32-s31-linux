@@ -26,12 +26,34 @@ CONFIG_ESP_CONSOLE_UART_DEFAULT=y
 # CONFIG_ESP_CONSOLE_SECONDARY_USB_SERIAL_JTAG=y.
 # Flash and the Linux console use the CP2102N bridge in the two cases.
 CONFIG_ESP_CONSOLE_SECONDARY_NONE=y
-# The ESP-Hosted firmware runs the radio for Linux (components/esp_hosted).
-# Its frames are the frames of the USB transport, but they go through shared
-# memory.  Only Wi-Fi: no Bluetooth and no IEEE 802.15.4.
+# The ESP-Hosted firmware runs the radios for Linux (components/esp_hosted):
+# Wi-Fi, a dual-mode Bluetooth controller with HCI in RAM, and the OpenThread
+# RCP on the IEEE 802.15.4 radio.  Its frames are the frames of the USB
+# transport, but they go through shared memory.  The software coexistence
+# arbiter shares the RF.
 CONFIG_ESP_USB_HOST_INTERFACE=y
-# CONFIG_BT_ENABLED is not set
-# CONFIG_ESP_HOSTED_RCP is not set
+CONFIG_BT_ENABLED=y
+CONFIG_BT_CONTROLLER_ONLY=y
+CONFIG_BTDM_CTRL_MODE_BTDM=y
+CONFIG_BT_CTRL_HCI_INTERFACE_USE_RAM=y
+# The buffer pools of the S31 config of ESP-Hosted, smaller than the
+# ESP-IDF defaults.
+CONFIG_BT_LE_MSYS_1_BLOCK_COUNT=6
+CONFIG_BT_LE_MSYS_2_BLOCK_COUNT=8
+CONFIG_BT_LE_ACL_BUF_COUNT=8
+CONFIG_BT_LE_HCI_EVT_HI_BUF_COUNT=16
+CONFIG_BT_LE_HCI_EVT_LO_BUF_COUNT=4
+CONFIG_ESP_HOSTED_RCP=y
+CONFIG_ESP_HOSTED_RCP_OPENTHREAD=y
+CONFIG_OPENTHREAD_ENABLED=y
+CONFIG_OPENTHREAD_RADIO=y
+CONFIG_OPENTHREAD_RADIO_NATIVE=y
+CONFIG_OPENTHREAD_RCP_CUSTOM=y
+CONFIG_OPENTHREAD_NCP_VENDOR_HOOK=y
+# CONFIG_OPENTHREAD_CONSOLE_ENABLE is not set
+# CONFIG_OPENTHREAD_CLI is not set
+# CONFIG_OPENTHREAD_DIAG is not set
+CONFIG_ESP_COEX_SW_COEXIST_ENABLE=y
 # The supplicant runs on Linux.  Nothing writes the flash after Linux starts.
 # CONFIG_ESP_WIFI_NVS_ENABLED is not set
 # CONFIG_ESP_WIFI_ENABLE_WPA3_SAE is not set
@@ -39,3 +61,7 @@ CONFIG_ESP_USB_HOST_INTERFACE=y
 # CONFIG_ESP_WIFI_ENABLE_WPA3_OWE_STA is not set
 # CONFIG_ESP_WIFI_ENABLE_WPA3_OWE_SOFTAP is not set
 # CONFIG_ESP_WIFI_ENTERPRISE_SUPPORT is not set
+# 16 dynamic buffers, not 32: with Bluetooth and the RCP, the heap fell to
+# 15 KiB during iperf3.  Wi-Fi still gives approximately 40 Mbit/s.
+CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM=16
+CONFIG_ESP_WIFI_DYNAMIC_TX_BUFFER_NUM=16
