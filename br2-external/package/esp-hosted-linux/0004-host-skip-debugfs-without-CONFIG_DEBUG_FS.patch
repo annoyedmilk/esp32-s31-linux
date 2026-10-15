@@ -1,0 +1,21 @@
+From: Marco Müller <hello@annoyedmilk.ch>
+Subject: [PATCH] host: skip debugfs without CONFIG_DEBUG_FS
+
+Without CONFIG_DEBUG_FS, debugfs_create_dir() returns an error pointer,
+and each boot logged a warning that the directory cannot be created.
+The driver works without debugfs, so do not try.
+
+Upstream: not sent
+---
+--- a/host/esp_debugfs.c
++++ b/host/esp_debugfs.c
+@@ -199,6 +199,9 @@
+ {
+ 	struct esp32_debugfs *debugfs = &drv_debugfs;
+ 
++	if (!IS_ENABLED(CONFIG_DEBUG_FS))
++		return 0;
++
+ 	debugfs->debugfs_dir = debugfs_create_dir(DEBUGFS_DIR_NAME, NULL);
+ 	if (IS_ERR_OR_NULL(debugfs->debugfs_dir)) {
+ 		esp_warn("Failed to create debugfs %s directory\n", DEBUGFS_DIR_NAME);
