@@ -1,0 +1,52 @@
+From: Marco Müller <hello@annoyedmilk.ch>
+Subject: [PATCH] host: clear "BR/EDR Not Supported" of the ESP32-S31
+
+The ESP32-S31 dual-mode controller of ESP-IDF v6.1 answers Read Local
+Supported Features with byte 4 = 0xf8.  Bytes 0 to 3 have the BR/EDR LMP
+features, but bit 5 of byte 4, "BR/EDR Not Supported", comes from the LE
+part of the controller.  The Bluetooth core then uses the controller as
+LE only: no inquiry, paging or BR/EDR connections.  The controller does
+run an HCI Inquiry.
+
+When the firmware reports BR/EDR support, clear the bit in the command
+complete event before the Bluetooth core sees it.
+
+Upstream: not sent
+---
+--- a/host/main.c
++++ b/host/main.c
+@@ -973,6 +973,24 @@
+ 		adapter->if_ops->commit_fw_recovery(adapter);
+ }
+ 
++/*
++ * The ESP32-S31 dual-mode controller sets "BR/EDR Not Supported" in byte 4
++ * of its LMP features, which come from its LE part.  Then the Bluetooth core
++ * uses only LE.  When the firmware has BR/EDR, clear the bit.
++ */
++static void esp_bt_fix_features(struct sk_buff *skb)
++{
++	struct hci_event_hdr *hdr = (void *)skb->data;
++	struct hci_ev_cmd_complete *cc = (void *)(hdr + 1);
++	struct hci_rp_read_local_features *rp = (void *)(cc + 1);
++
++	if (skb->len < sizeof(*hdr) + sizeof(*cc) + sizeof(*rp) ||
++	    hdr->evt != HCI_EV_CMD_COMPLETE ||
++	    le16_to_cpu(cc->opcode) != HCI_OP_READ_LOCAL_FEATURES || rp->status)
++		return;
++	rp->features[4] &= ~LMP_NO_BREDR;
++}
++
+ static int process_event_esp_bootup(struct esp_adapter *adapter, u8 *evt_buf, u8 len)
+ {
+ 	int len_left = len, tag_len, ret = 0;
+@@ -2167,6 +2185,9 @@
+ 		payload_len = skb->len - 1;
+ 		hci_skb_pkt_type(skb) = pkt_type;
+ 		skb_pull(skb, 1);
++		if (pkt_type == HCI_EVENT_PKT &&
++		    (adapter->capabilities & ESP_BR_EDR_ONLY_SUPPORT))
++			esp_bt_fix_features(skb);
+ #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 13, 0))
+ 		if (hci_recv_frame(hdev, skb))
+ #else
