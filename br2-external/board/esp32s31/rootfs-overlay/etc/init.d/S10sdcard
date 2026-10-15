@@ -3,14 +3,43 @@
 # p2 on the card is the root.  The initramfs mounts it.  p1 is the FAT area
 # that the Mac also writes.  It is optional: never stop the boot for it.
 
+P1=/dev/mmcblk0p1
+
+# After a reset, the dirty flag of p1 stays set, and the kernel warns at each
+# mount.  fsck.fat checks p1 and clears the flag.  It needs approximately 8
+# bytes of memory for each cluster, so check only when that fits.
+check_p1()
+{
+	set -- $(dd if=$P1 bs=66 count=1 2>/dev/null | od -An -tu1 -v)
+	[ $# -eq 66 ] || return
+	cluster=$(( (${12} + ${13} * 256) * ${14} ))
+	[ "$cluster" -gt 0 ] || return
+	# The flags are at byte 37 on FAT12/16 and at byte 65 on FAT32, which
+	# has no 16-bit FAT size.
+	if [ $(( ${23} + ${24} * 256 )) -ne 0 ]; then flags=${38}; else flags=${66}; fi
+	[ $(( flags & 1 )) -eq 1 ] || return
+
+	clusters=$(( $(cat /sys/class/block/mmcblk0p1/size) * 512 / cluster ))
+	avail=$(awk '/^MemAvailable:/ { print $2 }' /proc/meminfo)
+	if [ $(( clusters * 8 / 1024 )) -lt $(( avail / 2 )) ]; then
+		fsck.fat -a $P1 >/dev/null 2>&1
+		echo "sdcard: $P1 was not unmounted cleanly, checked"
+	else
+		echo "sdcard: $P1 was not unmounted cleanly; check it on a computer"
+	fi
+}
+
 case "$1" in
 start)
-	[ -b /dev/mmcblk0p1 ] || exit 0
+	[ -b $P1 ] || exit 0
+	# A mounted FAT is always dirty, and fsck.fat must not change it.
+	grep -q "^$P1 " /proc/mounts && exit 0
+	check_p1
 	mkdir -p /mnt/sd
-	if mount -t vfat -o rw,noatime /dev/mmcblk0p1 /mnt/sd 2>/dev/null; then
-		echo "sdcard: /dev/mmcblk0p1 on /mnt/sd"
+	if mount -t vfat -o rw,noatime $P1 /mnt/sd 2>/dev/null; then
+		echo "sdcard: $P1 on /mnt/sd"
 	else
-		echo "sdcard: /dev/mmcblk0p1 will not mount"
+		echo "sdcard: $P1 will not mount"
 	fi
 	;;
 stop)

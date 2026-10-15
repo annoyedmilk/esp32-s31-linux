@@ -183,21 +183,12 @@ The card is MBR. p1 is FAT32 and is mounted on `/mnt/sd`. p2 is the ext4 root
 
 If the root goes read-only, run `e2fsck -f /dev/mmcblk0p2` from the console.
 
-If the kernel says that p1 `was not properly unmounted`, the board was reset
-with p1 mounted. Linux does not clear that flag again, also not at a clean
-shutdown. To clear it:
-
-```sh
-umount /mnt/sd && fsck.fat -a /dev/mmcblk0p1
-/etc/init.d/S10sdcard start
-```
-
-`fsck.fat` does not check if p1 is mounted, and it must not run on a mounted
-p1. If `umount` fails, a program still uses `/mnt/sd`.
-
-`fsck.fat` needs approximately 8 bytes of memory for each cluster of p1. That
-is less than 1 MB for the 64 MiB p1 of the card image, and more than the board
-has for a 28 GiB p1. Check a large p1 on the host.
+When the board is reset with p1 mounted, the FAT keeps a dirty flag. Linux
+does not clear it, also not at a clean shutdown, and warns at each mount.
+`S10sdcard` runs `fsck.fat -a` on a dirty p1 before it mounts it.
+`fsck.fat` needs approximately 8 bytes of memory for each cluster. That is
+less than 1 MB for the 64 MiB p1 of the card image, and more than the board
+has for a 28 GiB p1. `S10sdcard` skips such a large p1: check it on the host.
 
 ## Userspace
 
