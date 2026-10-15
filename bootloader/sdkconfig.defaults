@@ -14,7 +14,8 @@ CONFIG_SPIRAM_SPEED_250M=y
 CONFIG_SPIRAM_BOOT_HW_INIT=y
 CONFIG_SPIRAM_BOOT_INIT=y
 CONFIG_SPIRAM_USE_MEMMAP=y
-CONFIG_SPIRAM_MEMTEST=y
+# The test writes all 16 MiB and takes 330 ms of each boot.
+# CONFIG_SPIRAM_MEMTEST is not set
 CONFIG_ESP_CONSOLE_UART_DEFAULT=y
 # NVS is off, so the PHY calibration data cannot be kept.  Request a full
 # calibration at each boot, and do not fail the NVS lookup.
