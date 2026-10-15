@@ -1,0 +1,23 @@
+From: Marco Müller <hello@annoyedmilk.ch>
+Subject: [PATCH] main: count only the default parameters that are set
+
+parse_mode_config() counted each known parameter of [BR] and [LE], also
+when main.conf does not set it.  load_defaults() then found no value to
+send, and logged "Failed to set default system config for hciN" at
+each start, although nothing failed.
+
+Upstream: not sent
+---
+--- a/src/main.c
++++ b/src/main.c
+@@ -515,9 +515,8 @@
+ 					&val, params[i].min, params[i].max)) {
+ 			val = htobl(val);
+ 			memcpy(params[i].val, &val, params[i].size);
++			++btd_opts.defaults.num_entries;
+ 		}
+-
+-		++btd_opts.defaults.num_entries;
+ 	}
+ }
+ 
