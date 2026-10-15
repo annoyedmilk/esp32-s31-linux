@@ -20,7 +20,38 @@ Linux 7.2 on the ESP32-S31-Korvo-1, ready to flash.
 6. Wi-Fi: `wpa_passphrase "<ssid>" "<passphrase>" >> /etc/wpa_supplicant.conf`,
    then `/etc/init.d/S40wifi restart`.
 
-The LCD shows the kernel log and a login. A USB keyboard works on it.
+The LCD shows the Tux logo, the kernel warnings and a login. A USB keyboard
+works on it.
+
+## New in v0.3.1
+
+- Bluetooth: `hci0` with BR/EDR and LE through the ESP-Hosted firmware on
+  hart 0. `bluetoothd`, `bluetoothctl`, `hciconfig` and `hcitool` are on
+  the card.
+- IEEE 802.15.4: an OpenThread radio co-processor. Its Spinel stream is
+  `/dev/esp_rcp0`, for a Thread host such as `ot-daemon` (not on the card).
+- The kernel log no longer shows a Wi-Fi error every 300 s. The OBSS scan
+  of `wpa_supplicant` now runs.
+- The ESP-Hosted driver is built into the kernel. The kernel has no module
+  support.
+- `/bin/sh` is BusyBox ash, which needs less memory for the boot scripts.
+  The login shell stays bash.
+- Swap goes first to 6 MiB of LZ4-compressed RAM, then to the swap file on
+  the card.
+- The userspace uses the Zba, Zbb and Zbs instructions of the CPU.
+- A boot after a reset checks a dirty FAT partition, so the kernel does
+  not warn about it.
+- The boot is quieter and faster: no PSRAM test, and the consoles show
+  only warnings and errors.
+- OpenSBI 1.9 and the current ESP-Hosted. OpenSBI moved to `0x50F00000`.
+
+Wi-Fi gives approximately 35 to 38 Mbit/s in each direction (v0.3.0: 46
+TX, 41 to 43 RX): the radios take SRAM from the Wi-Fi buffers. The
+firmware turns the Wi-Fi/802.15.4 coexistence off, so a Thread network can
+lose frames while Wi-Fi is busy.
+
+v0.3.1 needs the new `flash.bin` and the new card image together. A v0.3.0
+card loads the Wi-Fi driver as a module, which v0.3.1 does not have.
 
 ## New in v0.3.0
 
