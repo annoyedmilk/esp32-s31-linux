@@ -400,6 +400,8 @@ esp_err_t send_bootup_event_to_host(uint32_t cap, uint32_t ext_cap)
 		len += 2 + sizeof(val_le);
 	}
 
+	esp_hosted_add_boot_mac_tlv(&pos, &len);
+
 	*pos++ = ESP_BOOTUP_RX_BUF_SIZE;
 	*pos++ = LENGTH_4_BYTE;
 	val_le = htole32(SHM_TO_FW_FRAME_MAX);
