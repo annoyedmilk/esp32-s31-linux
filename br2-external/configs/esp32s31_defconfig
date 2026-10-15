@@ -1,4 +1,5 @@
-# RV32 IMAC, Sv32, soft-float ilp32.  Add ISA extensions only after boot tests.
+# RV32 IMAC with Zba, Zbb and Zbs, Sv32, soft-float ilp32.  The hart has F
+# but no D, and Linux supports an FPU only with D.
 BR2_riscv=y
 BR2_riscv_custom=y
 BR2_RISCV_32=y
@@ -9,7 +10,7 @@ BR2_RISCV_ISA_RVA=y
 BR2_RISCV_ISA_RVC=y
 # BR2_RISCV_ISA_RVF is not set
 # BR2_RISCV_ISA_RVD is not set
-BR2_RISCV_ISA_EXTRA=""
+BR2_RISCV_ISA_EXTRA="zba_zbb_zbs"
 BR2_RISCV_ABI_ILP32=y
 BR2_TOOLCHAIN_BUILDROOT_MUSL=y
 # gdbserver needs the C++ runtime.  The full debugger stays in the container.
