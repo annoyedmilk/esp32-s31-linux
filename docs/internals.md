@@ -51,9 +51,8 @@ ROM -> ESP-IDF 2nd stage -> loader (hart 0) -> OpenSBI (hart 1, M) -> Linux (har
 | `0x2F040000` | 64 KiB | Coherent DMA pool for Linux (`shared-dma-pool`) |
 | `0x2F050000` | 64 KiB | Wi-Fi shared memory (ESP-Hosted rings) |
 | `0x2F079000` | 4 KiB | LCD DMA descriptor ring |
-| `0x50000000` | 8 MiB | Kernel image and its memory |
-| `0x50800000` | 2 MiB | initramfs |
-| `0x50E00000` | 256 KiB | OpenSBI (reserved, no-map) |
+| `0x50000000` | 15 MiB | Linux RAM: the kernel image, then the initramfs at `0x50800000` (2 MiB, freed after boot) |
+| `0x50F00000` | 256 KiB | OpenSBI (reserved, no-map) |
 | `0x50F40000` | 768 KiB | LCD frame buffer (reserved, no-map, uncached) |
 
 The loader keeps its own copy of these numbers. The device tree
@@ -217,13 +216,13 @@ This is the part that is most different from other RISC-V SoCs.
 
 ## Protection
 
-- **PMP.** OpenSBI gives its memory (`0x50E00000`, 256 KiB) no S/U access.
+- **PMP.** OpenSBI gives its memory (`0x50F00000`, 256 KiB) no S/U access.
   PMP entries must not overlap on this CPU, even for a short time.
 - **APM.** `HP_APM` checks the accesses of the bus masters, also DMA to
   PSRAM. M-mode is TEE mode, and the DMA masters are REE mode. OpenSBI
   gives its memory to TEE mode only and locks the regions. A blocked access
   returns 0 and is recorded, with no bus error. PMP does not cover the
-  uncached alias of the OpenSBI memory (`0xC0E00000`). There, an S-mode
+  uncached alias of the OpenSBI memory (`0xC0F00000`). There, an S-mode
   read also returns 0 and a write is lost. A read that hits the D-cache is
   not checked: the APM sees only bus accesses, so PMP must protect the
   cached addresses. `CPU_APM` checks only CPU accesses, and `HP_MEM_APM`

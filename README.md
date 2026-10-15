@@ -96,7 +96,7 @@ python -m espefuse --chip esp32s31 -p PORT summary
   resident as the Wi-Fi firmware. Linux runs on hart 1 only.
 - **Loader.** The loader checks the size and CRC of the kernel. It copies the
   kernel to `0x50000000`, the initramfs to `0x50800000` and OpenSBI to
-  `0x50E00000`. It starts the LCD, the SD slot and Wi-Fi. Then it releases
+  `0x50F00000`. It starts the LCD, the SD slot and Wi-Fi. Then it releases
   hart 1 into OpenSBI.
 - **Interrupts.** OpenSBI gives the CLIC inputs to S-mode. If an input is not
   in S-mode, Linux cannot see it. The S-mode trampoline must use `sret` and

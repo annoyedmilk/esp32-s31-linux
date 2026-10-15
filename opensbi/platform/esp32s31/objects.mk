@@ -20,7 +20,7 @@ PLATFORM_HART_COUNT = 1
 
 # fw_jump runs from reserved PSRAM and starts the kernel in PSRAM.  Internal
 # SRAM is for the ESP-IDF firmware, which stays in memory on hart 0.
-FW_TEXT_START = 0x50e00000
+FW_TEXT_START = 0x50f00000
 FW_JUMP = y
 FW_JUMP_ADDR = 0x50000000
 FW_DYNAMIC = n

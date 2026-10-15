@@ -22,8 +22,8 @@
 #include "display.h"
 
 /*
- * Frame buffer: RGB565 at 800x480 is 750 KiB at the top of PSRAM, above the
- * kernel (0x50000000), the initramfs (0x50800000) and OpenSBI (0x50E00000).
+ * Frame buffer: RGB565 at 800x480 is 750 KiB at the top of PSRAM, directly
+ * above OpenSBI (0x50F00000).
  */
 #define LCD_FB_ADDR            0x50F40000U
 #define LCD_H_RES              800U

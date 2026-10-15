@@ -32,7 +32,7 @@
 #include "loader.h"
 
 #define PSRAM_BASE                  0x50000000U
-#define OPENSBI_LOAD_ADDR           0x50E00000U
+#define OPENSBI_LOAD_ADDR           0x50F00000U
 #define OPENSBI_LOAD_SIZE           0x00040000U
 #define KERNEL_LOAD_ADDR            0x50000000U
 #define KERNEL_IMAGE_SIZE_OFFSET    0x10U
