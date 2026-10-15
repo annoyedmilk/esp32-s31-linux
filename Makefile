@@ -22,8 +22,9 @@ GMAKE ?= $(shell command -v gmake 2>/dev/null || command -v make)
 JOBS ?= $(shell sysctl -n hw.ncpu 2>/dev/null || nproc 2>/dev/null || echo 4)
 
 OPENSBI_DIR := external/opensbi
-# The ESP-Hosted Wi-Fi libraries need this patch in ESP-IDF (scripts/patch-esp-idf.sh).
-HOSTED_ROM_PATCH := $(CURDIR)/external/esp-hosted-linux/esp/esp_driver/lib/rom.patch
+# The ESP-Hosted firmware needs these patches in ESP-IDF (scripts/patch-esp-idf.sh).
+HOSTED_IDF_PATCHES := $(addprefix $(CURDIR)/external/esp-hosted-linux/esp/esp_driver/lib/, \
+	rom.patch idf-openthread-custom-rcp-v6.1.patch)
 OPENSBI_SRC := $(BUILD_DIR)/opensbi-src
 OPENSBI_OUT := $(CURDIR)/$(BUILD_DIR)/opensbi
 OPENSBI_PATCHES := $(sort $(wildcard opensbi/patches/*.patch))
@@ -165,8 +166,10 @@ bootloader:
 		rm -f bootloader/sdkconfig; \
 	fi
 	@mkdir -p "$(BUILD_DIR)"
-	@git -C "$(IDF_PATH)" apply --recount --reverse --check "$(HOSTED_ROM_PATCH)" 2>/dev/null || { \
-		echo 'apply the ESP-Hosted ROM patch to ESP-IDF first:'; \
+	@for p in $(HOSTED_IDF_PATCHES); do \
+		git -C "$(IDF_PATH)" apply --recount --reverse --check "$$p" 2>/dev/null || exit 1; \
+	done || { \
+		echo 'apply the ESP-Hosted patches to ESP-IDF first:'; \
 		echo '  IDF_PATH=$(IDF_PATH) scripts/patch-esp-idf.sh'; exit 1; }
 	@export IDF_PYTHON_ENV_PATH="$(IDF_PYTHON_ENV)"; \
 	if ! source "$(IDF_PATH)/export.sh" >"$(BUILD_DIR)/idf-export.log" 2>&1; then \

@@ -4,7 +4,7 @@
 # macOS, where Buildroot runs in a container.  Here Buildroot runs directly.
 #
 # Needs: ESP-IDF at $IDF_PATH (the commit in bootloader/esp-idf.version and
-# the ROM patch commit of scripts/ci-setup.sh), with its tools installed,
+# the patch commit of scripts/patch-esp-idf.sh), with its tools installed,
 # and the Buildroot host packages.
 # Output: build/ with the flash images and build/buildroot/sdcard.img.
 set -eu

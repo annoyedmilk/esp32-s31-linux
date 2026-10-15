@@ -279,7 +279,9 @@ the USB transport in shared SRAM. The layout is in
   `DEINIT` succeeds (`br2-external/package/esp-hosted-linux/0003-*`).
 - The ESP-Hosted Wi-Fi libraries need `rom.patch` of ESP-Hosted in ESP-IDF.
   Without it, the ROM handles the received EAPOL frames, and the 4-way
-  handshake fails.
+  handshake fails. The OpenThread RCP needs
+  `idf-openthread-custom-rcp-v6.1.patch`. `scripts/patch-esp-idf.sh` applies
+  the two as one local commit.
 
 ## Silicon traps
 

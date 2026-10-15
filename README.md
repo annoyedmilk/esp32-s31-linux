@@ -134,7 +134,7 @@ default is the LCD (`CONFIG_ESP_CONSOLE_SECONDARY_NONE` in
 
 - macOS with Homebrew and GNU make (`brew install make`).
 - ESP-IDF at `~/esp/esp-idf`, at the commit in `bootloader/esp-idf.version`,
-  with the `riscv32-esp-elf` toolchain and the ESP-Hosted ROM patch
+  with the `riscv32-esp-elf` toolchain and the ESP-Hosted patches
   (`make bootloader` gives the command).
 - Apple `container` CLI. Run `container system start` first.
 
