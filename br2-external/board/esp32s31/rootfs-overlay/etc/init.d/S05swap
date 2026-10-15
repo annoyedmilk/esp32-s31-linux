@@ -1,25 +1,37 @@
 #!/bin/sh
 # SPDX-License-Identifier: MIT
-# The board has only 16 MiB of PSRAM.  Use a file, not a partition, so all
-# card layouts work.  After "make sdroot", this script makes the file again.
+# Swap to LZ4-compressed RAM first, then to a file on the card.  The file is
+# not a partition, so all card layouts work.  After "make sdroot", this
+# script makes the file again.
 
+ZRAM=/sys/block/zram0
+ZRAM_SIZE=6M	# uncompressed
 SWAPFILE=/swapfile
 WANT=65536	# KiB
 KEEP=32768	# KiB left free on /
 MIN=16384	# KiB, a smaller swap file is not worth the SD wear
 
-case "$1" in
-start)
+start_zram()
+{
+	echo lz4 > $ZRAM/comp_algorithm &&
+		echo $ZRAM_SIZE > $ZRAM/disksize &&
+		mkswap /dev/zram0 >/dev/null &&
+		swapon -p 100 /dev/zram0 &&
+		echo "swap: /dev/zram0 ($ZRAM_SIZE, lz4) active"
+}
+
+start_file()
+{
 	if [ -f "$SWAPFILE" ]; then
-		swapon "$SWAPFILE" 2>/dev/null && echo "swap: $SWAPFILE active"
-		exit 0
+		swapon -p 10 "$SWAPFILE" && echo "swap: $SWAPFILE active"
+		return
 	fi
 
 	size=$(($(df -k / | awk 'NR == 2 { print $4 }') - KEEP))
 	[ "$size" -gt "$WANT" ] && size=$WANT
 	if [ "$size" -lt "$MIN" ]; then
 		echo "swap: too little space on / for a swap file"
-		exit 0
+		return
 	fi
 
 	# dd takes approximately 30 seconds.  The system does not wait for it.
@@ -29,15 +41,22 @@ start)
 		if dd if=/dev/zero of="$SWAPFILE" bs=1024 count="$size" 2>/dev/null; then
 			chmod 600 "$SWAPFILE"
 			mkswap "$SWAPFILE" >/dev/null
-			swapon "$SWAPFILE" && echo "swap: $SWAPFILE active"
+			swapon -p 10 "$SWAPFILE" && echo "swap: $SWAPFILE active"
 		else
 			rm -f "$SWAPFILE"
 			echo "swap: cannot create $SWAPFILE" >&2
 		fi
 	) &
+}
+
+case "$1" in
+start)
+	start_zram
+	start_file
 	;;
 stop)
 	swapoff "$SWAPFILE" 2>/dev/null
+	swapoff /dev/zram0 2>/dev/null && echo 1 > $ZRAM/reset
 	;;
 esac
 

@@ -207,7 +207,8 @@ automatically. Dropbear SSH asks for the password.
 Boot scripts in `br2-external/board/esp32s31/rootfs-overlay`:
 
 - `S01clock` sets the clock from `/etc/timestamp`. The board has no RTC.
-- `S05swap` makes a swap file of max. 64 MiB on the root.
+- `S05swap` starts 6 MiB of LZ4 swap in RAM (`/dev/zram0`, priority 100),
+  then a swap file of max. 64 MiB on the root (priority 10).
 - `S10sdcard` mounts p1 on `/mnt/sd`.
 - `S40wifi` loads the Wi-Fi driver and starts `wpa_supplicant` on `wlan0`.
 - The udhcpc hook sets the clock with NTP on each new lease.
