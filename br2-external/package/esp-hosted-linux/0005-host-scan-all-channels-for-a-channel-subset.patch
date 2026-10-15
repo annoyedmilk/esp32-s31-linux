@@ -1,0 +1,65 @@
+From: Marco Müller <hello@annoyedmilk.ch>
+Subject: [PATCH] host: scan all channels for a channel subset
+
+When the AP sends OBSS scan parameters, wpa_supplicant asks for a scan of
+the channels near the operating channel every 300 s (20/40 MHz BSS
+coexistence).  The firmware scans one channel or all channels, so the
+driver rejected each such request with -EOPNOTSUPP and logged an error.
+The OBSS scan never ran.
+
+Scan all channels for a subset.  The results are a superset of the
+requested channels, which cfg80211 and wpa_supplicant accept.
+
+Upstream: not sent
+---
+--- a/host/esp_cmd.c
++++ b/host/esp_cmd.c
+@@ -3367,9 +3367,6 @@
+ 	struct command_node *cmd_node = NULL;
+ 	struct scan_request *scan_req;
+ 	int ret;
+-	int scan_eligible_channels = 0;
+-	enum nl80211_band band;
+-	int i;
+ 
+ 	if (!priv || !priv->adapter || !request) {
+ 		esp_err("Invalid argument\n");
+@@ -3385,27 +3382,6 @@
+ 	if (request->ie && request->ie_len) {
+ 		esp_err("Scan IEs not supported\n");
+ 		return -EOPNOTSUPP;
+-	}
+-
+-	if (request->n_channels > 1) {
+-		if (priv->adapter->wiphy) {
+-			for (band = 0; band < NUM_NL80211_BANDS; band++) {
+-				struct ieee80211_supported_band *sband;
+-
+-				sband = priv->adapter->wiphy->bands[band];
+-				if (!sband)
+-					continue;
+-				for (i = 0; i < sband->n_channels; i++) {
+-					if (!(sband->channels[i].flags & IEEE80211_CHAN_DISABLED))
+-						scan_eligible_channels++;
+-				}
+-			}
+-		}
+-		if (scan_eligible_channels > 0 && request->n_channels < scan_eligible_channels) {
+-			esp_err("Channel subset scan not supported (%u of %d scan-eligible channels)\n",
+-				request->n_channels, scan_eligible_channels);
+-			return -EOPNOTSUPP;
+-		}
+ 	}
+ 
+ 	if (test_bit(ESP_CLEANUP_IN_PROGRESS, &priv->adapter->state_flags)) {
+@@ -3440,6 +3416,10 @@
+ 	memcpy(scan_req->bssid, request->bssid, MAC_ADDR_LEN);
+ #endif
+ 
++	/*
++	 * The firmware scans one channel or all.  For a subset, such as the
++	 * OBSS scan of wpa_supplicant, scan all: the results are a superset.
++	 */
+ 	if (request->n_channels == 1 && request->channels[0])
+ 		scan_req->channel = request->channels[0]->hw_value;
+ 	else
