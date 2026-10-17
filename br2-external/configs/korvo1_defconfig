@@ -15,6 +15,9 @@ BR2_RISCV_ISA_RVC=y
 BR2_RISCV_ISA_EXTRA="zba_zbb_zbs"
 BR2_RISCV_ABI_ILP32=y
 BR2_TOOLCHAIN_BUILDROOT_MUSL=y
+# A kernel config or patch change extracts and builds the kernel again.  The
+# cache in $(HOME) (the build volume) makes such a rebuild take minutes.
+BR2_CCACHE=y
 # gdbserver needs the C++ runtime.  The full debugger stays in the container.
 BR2_TOOLCHAIN_BUILDROOT_CXX=y
 BR2_PACKAGE_HOST_GDB=y

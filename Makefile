@@ -56,10 +56,16 @@ BR_DEFCONFIG := $(BOARD)_defconfig
 # The kernel release that Buildroot builds and that kernel-check uses.
 LINUX_VERSION := $(shell sed -n 's/^BR2_LINUX_KERNEL_CUSTOM_VERSION_VALUE="\(.*\)"/\1/p' \
 	br2-external/configs/$(BR_DEFCONFIG))
-BR_MEMORY ?= 8G
+# The guest page cache grows to the full limit.  With 8G on an 8 GB Mac,
+# macOS swapped during a build.
+BR_MEMORY ?= 6G
 BR_OUT := $(BUILD_DIR)/buildroot
+# GCC needs approximately 1 GB for each of its largest files.  With 6G and
+# the default of one job more than the CPUs, the kernel killed cc1plus.
+BR_JOBS ?= 5
 BR_O := /br/$(BOARD)
-BR_MAKE := make O=$(BR_O) BR2_EXTERNAL=/work/br2-external BR2_DL_DIR=/br/dl
+BR_MAKE := make O=$(BR_O) BR2_EXTERNAL=/work/br2-external BR2_DL_DIR=/br/dl \
+	BR2_JLEVEL=$(BR_JOBS)
 CONTAINER ?= $(shell command -v container 2>/dev/null)
 BR_RUN = "$(CONTAINER)" run --rm --cpus $(JOBS) --memory $(BR_MEMORY) \
 	--uid $(shell id -u) --gid $(shell id -g) -e HOME=/br/home \
