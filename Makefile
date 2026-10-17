@@ -61,7 +61,8 @@ INITRAMFS_INIT := br2-external/board/esp32s31/init
 SD_DISK ?=
 SD_RAW = $(subst /dev/disk,/dev/rdisk,$(SD_DISK))
 # Size of the FAT partition.  The rest of the card is the root partition.
-# Make it smaller for a small card.  diskutil stops if it does not fit.
+# Make it smaller for a small card, but not below 4G.  diskutil stops if it
+# does not fit.
 SD_DATA_SIZE ?= 28G
 
 FLASH_PORT ?=
@@ -324,6 +325,8 @@ SD_SHOW = @diskutil info "$(SD_DISK)" | grep -E 'Device Node|Media Name|Disk Siz
 
 # Partition a large card: a large FAT partition for the Mac and a small ext4
 # root.  Use this and not sdwrite when the card is larger than the image.
+# fsck.fat on the board needs approximately 8 bytes for each cluster, so p1
+# gets 64 KiB clusters (128 sectors).  FAT32 then needs 4 GiB or more.
 sdpart:
 	$(SD_DISK_REQUIRED)
 	$(SD_SHOW)
@@ -333,6 +336,7 @@ sdpart:
 	@diskutil partitionDisk "$(SD_DISK)" MBR \
 		"MS-DOS FAT32" KORVO_SD $(SD_DATA_SIZE) "MS-DOS FAT32" ROOTFS R
 	@diskutil unmountDisk "$(SD_DISK)"
+	@sudo newfs_msdos -F 32 -c 128 -v KORVO_SD "$(SD_RAW)s1"
 # Linux ignores the type byte.  With 0x83, macOS does not try to mount the
 # ext4 partition as FAT at each insertion.
 	@sudo sh -c 'dd if="$(SD_RAW)" of="$(BUILD_DIR)/mbr.bin" bs=512 count=1 && \

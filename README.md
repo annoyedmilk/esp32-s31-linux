@@ -179,7 +179,7 @@ The card is MBR. p1 is FAT32 and is mounted on `/mnt/sd`. p2 is the ext4 root
 
 | Command | Use |
 | --- | --- |
-| `make sdpart SD_DISK=/dev/diskN` | Partition a large card. p1 gets `SD_DATA_SIZE` (28G). |
+| `make sdpart SD_DISK=/dev/diskN` | Partition a large card. p1 gets `SD_DATA_SIZE` (28G, at least 4G). |
 | `make sdwrite SD_DISK=/dev/diskN` | Write the full card image. Use for a small card. |
 | `make sdroot SD_DISK=/dev/diskN` | Write only the root partition. Use for updates. |
 
@@ -189,8 +189,11 @@ When the board is reset with p1 mounted, the FAT keeps a dirty flag. Linux
 does not clear it, also not at a clean shutdown, and warns at each mount.
 `S10sdcard` runs `fsck.fat -a` on a dirty p1 before it mounts it.
 `fsck.fat` needs approximately 8 bytes of memory for each cluster. That is
-less than 1 MB for the 64 MiB p1 of the card image, and more than the board
-has for a 28 GiB p1. `S10sdcard` skips such a large p1: check it on the host.
+less than 1 MB for the 64 MiB p1 of the card image. `make sdpart` formats p1
+with 64 KiB clusters: a 28 GiB p1 then needs 3.3 MiB, not the 13 MiB of the
+16 KiB clusters that `diskutil` selects. `S10sdcard` skips a p1 whose
+clusters do not fit in half of the free memory, for example a card that a
+camera formatted: check such a card on the host.
 
 ## Userspace
 
