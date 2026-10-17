@@ -1,27 +1,61 @@
-Linux 7.2 on the ESP32-S31-Korvo-1, ready to flash.
+Linux 7.2 on the ESP32-S31, ready to flash: for the ESP32-S31-Korvo-1, and
+for a bare ESP32-S31 module with 16 MiB PSRAM and UART only.
 
 ## Files
 
 | File | Use |
 | --- | --- |
-| `esp32s31-linux-*-flash.zip` | Flash images. `flash.bin` goes to offset 0. `FLASH.txt` tells how. |
-| `esp32s31-linux-*-sdcard.img.xz` | microSD card image: FAT for your files and the ext4 root. |
-| `SHA256SUMS` | Checksums of the two files. |
+| `esp32s31-linux-*-korvo1-flash.zip` | Korvo-1 flash images. `flash.bin` goes to offset 0. `FLASH.txt` tells how. |
+| `esp32s31-linux-*-korvo1-sdcard.img.xz` | Korvo-1 microSD card image: FAT for your files and the ext4 root. |
+| `esp32s31-linux-*-esp32s31-flash.zip` | Flash images for a bare module. The full system is in the flash. |
+| `SHA256SUMS` | Checksums of the files. |
 
 ## Quick start
 
 1. `pip install "esptool>=5.4"`
-2. Connect the UART Type-C port of the board.
+2. Connect the UART port of the board (the UART Type-C port on the Korvo-1).
 3. `esptool --chip esp32s31 -p PORT -b 921600 write-flash 0x0 flash.bin`
-4. Write the card image to a microSD card (all data on the card is lost),
-   for example with balenaEtcher. Put the card into the board.
+4. Korvo-1 only: write the card image to a microSD card (all data on the
+   card is lost), for example with balenaEtcher. Put the card into the
+   board.
 5. Open the console on the same port at 115200 baud, and push the reset
    button. The board logs in as root.
 6. Wi-Fi: `wpa_passphrase "<ssid>" "<passphrase>" >> /etc/wpa_supplicant.conf`,
-   then `/etc/init.d/S40wifi restart`.
+   then `/etc/init.d/S40wifi restart`. On the bare module, use
+   `key_mgmt=WPA-PSK` (it has no WPA3), then `persist save`, or the
+   network is lost at the next boot.
 
-The LCD shows the Tux logo, the kernel warnings and a login. A USB keyboard
-works on it.
+On the Korvo-1, the LCD shows the Tux logo, the kernel warnings and a
+login. A USB keyboard works on it.
+
+## New in v0.4.0
+
+- Two builds: `korvo1` for the ESP32-S31-Korvo-1, and `esp32s31` for a bare
+  module with UART only. The bare build has its full system in the flash,
+  gives Linux 12.6 MiB of RAM, and boots in approximately 6 seconds.
+- `persist save` on the bare build keeps files such as the Wi-Fi network
+  and the SSH host keys in a 64 KiB flash partition.
+- Wi-Fi is fast again: iperf3 TCP gives approximately 43 to 46 Mbit/s TX
+  and 37 to 39 Mbit/s RX on the Korvo-1, and 46 Mbit/s in each direction on
+  the bare build (v0.3.1: 35 to 38). The IEEE 802.15.4 RCP is removed: its
+  SRAM goes to the Wi-Fi buffers.
+- The default `wpa_supplicant.conf` has `pmf=1`. Without protected
+  management frames, a WPA2/WPA3 router gave half of the TX throughput.
+- `poweroff` puts the chip into deep sleep. Before, it only stopped the
+  CPU of Linux.
+- The radio firmware on hart 0 can no longer write the memory of Linux: it
+  locks itself out of PSRAM with PMP.
+- `make sdpart` formats the FAT partition with 64 KiB clusters, so the boot
+  can check a dirty 28 GiB partition (3.3 MiB, not 13 MiB).
+- A Logitech receiver and other USB devices with vendor HID reports no
+  longer give "device has no listeners": the kernel has `hidraw`.
+- `wpa_supplicant` logs to syslog, not to the console.
+- Linux 7.2.11 and the current ESP-Hosted.
+- The Buildroot defconfigs are now `korvo1_defconfig` and
+  `esp32s31_defconfig`. Before, `esp32s31_defconfig` was the Korvo-1 build.
+
+v0.4.0 needs the new `flash.bin`: the partition table changed. On the
+Korvo-1, also write the new card image.
 
 ## New in v0.3.1
 
@@ -127,10 +161,13 @@ card image erases the card, so save your files from the FAT partition first.
 
 ## Known limits
 
-- The board and chip revision v0.0 are the only tested hardware.
+- The Korvo-1 with chip revision v0.0 is the only tested hardware. The
+  bare build is tested on the Korvo-1.
 - One hart runs Linux. The other runs the Wi-Fi firmware.
 - Floating point works in software; the hardware FPU is not used.
 - No I2C, audio or camera driver.
-- `poweroff` stops the CPU. It does not remove power.
+- `poweroff` puts the chip into deep sleep. It does not remove power.
+- With WPA3-SAE, the first connection can fail, and the second one works.
+- The bare build has WPA2 only and no BlueZ.
 
 See the README for the full list, and `docs/internals.md` for the details.

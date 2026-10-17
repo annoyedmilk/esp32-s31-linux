@@ -1,7 +1,8 @@
 # ESP32-S31 Linux
 
-Linux 7.2 and OpenSBI 1.9 on the ESP32-S31-Korvo-1 board. Linux uses the
-16 MiB octal PSRAM as its memory.
+Linux 7.2 and OpenSBI 1.9 on the ESP32-S31: on the ESP32-S31-Korvo-1 board,
+and on a bare ESP32-S31 module with UART only. Linux uses the 16 MiB octal
+PSRAM as its memory.
 
 ```text
 ESP ROM -> ESP-IDF 2nd stage -> loader -> OpenSBI -> Linux -> initramfs -> Buildroot rootfs (SD)
@@ -20,47 +21,71 @@ USB keyboards and sticks, `vim`, `gdb`, `strace`, MicroPython and a text-mode we
 
 You can use it in two ways:
 
-- **To try it.** Flash a release, write the card image, and log in. It
-  takes about ten minutes.
+- **To try it.** Flash a release, write the card image (Korvo-1 only), and
+  log in. It takes about ten minutes.
 - **To learn from it.** The SoC has no PLIC, no Zicbom and no coherent DMA.
   Each of these has a solution here that you can read in a few hundred
   lines. [docs/internals.md](docs/internals.md)
   tells the full story for kernel developers.
 
+## Boards
+
+There are two builds. Select one with `BOARD` for each `make` target.
+
+| | `korvo1` (the default) | `esp32s31` |
+| --- | --- | --- |
+| Hardware | ESP32-S31-Korvo-1 | An ESP32-S31 module with 16 MiB PSRAM, on any board with UART0 |
+| Root | ext4 on the microSD card | The initramfs in the flash, in RAM |
+| Persistence | All files on the card | Only what `persist save` keeps (see [Persist](#persist)) |
+| Consoles | UART, and the LCD with a USB keyboard | UART |
+| Hardware for Linux | LCD, microSD, USB host, RGB LED, GPIO, RNG | GPIO, RNG |
+| Wi-Fi and Bluetooth | `wlan0` and `hci0`, WPA2 and WPA3, BlueZ | `wlan0` and `hci0`, WPA2 only, no BlueZ |
+| RAM for Linux | 10.8 MiB | 12.6 MiB |
+| Userspace | bash, vim, gdb, strace, MicroPython, Lua, links, curl, tcpdump, htop and more | BusyBox, Dropbear, wpa_supplicant, iw, iperf3, the GPIO tools |
+
 ## Try it
 
-1. Get the files of the newest release from the
-   [releases page](https://github.com/annoyedmilk/esp32-s31-linux/releases).
-2. Flash: `pip install "esptool>=5.4"`, connect the UART Type-C port, then
+1. Get the files of your board from the newest release on the
+   [releases page](https://github.com/annoyedmilk/esp32-s31-linux/releases):
+   `*-korvo1-flash.zip` and `*-korvo1-sdcard.img.xz`, or
+   `*-esp32s31-flash.zip`.
+2. Flash: `pip install "esptool>=5.4"`, connect the UART port, then
    `esptool --chip esp32s31 -p PORT -b 921600 write-flash 0x0 flash.bin`.
-3. Write `*-sdcard.img.xz` to a microSD card (for example with
-   balenaEtcher), and put the card into the board.
+3. Korvo-1 only: write `*-sdcard.img.xz` to a microSD card (for example
+   with balenaEtcher), and put the card into the board.
 4. Open the console on the UART port at 115200 baud. Push reset. After
-   about 30 seconds you are root.
-5. Connect to Wi-Fi (see [Wi-Fi](#wi-fi)), then try `ssh`, `links`,
-   `micropython` or `iperf3`.
+   approximately 15 seconds (Korvo-1) or 6 seconds (esp32s31) you are root.
+5. Connect to Wi-Fi (see [Wi-Fi](#wi-fi)), then try `ssh` or `iperf3`.
 
 The root password is `korvo-bringup`. Change it before you connect the board
 to a network that you do not control.
 
 ## What works
 
-- UART console (`ttyS0`) on the CP2102N bridge.
-- 800x480 LCD as `/dev/fb0` with `fbcon`, and a login on `tty1`.
-- USB host (DWC2): keyboards, mice and mass storage.
-- microSD (`dw_mmc` with internal DMA): FAT on p1, ext4 root on p2.
+On the two boards:
+
+- UART console (`ttyS0`), on the CP2102N bridge of the Korvo-1.
 - Wi-Fi as `wlan0` (cfg80211 full-MAC) through the ESP-Hosted firmware on
-  hart 0: station with `wpa_supplicant` (WPA2 and WPA3-SAE), access point
-  with `hostapd`. iperf3 TCP gives approximately 35 to 38 Mbit/s in each
-  direction.
-- Bluetooth as `hci0` through the same firmware: BR/EDR and LE, with
-  `bluetoothd` and `bluetoothctl`.
-- Hardware RNG, GPIO, `reboot` and `poweroff`.
+  hart 0: station with `wpa_supplicant`. iperf3 TCP gives approximately 43
+  to 46 Mbit/s TX and 37 to 39 Mbit/s RX on the Korvo-1, and 46 Mbit/s in
+  each direction on the esp32s31 board.
+- Bluetooth as `hci0` through the same firmware: BR/EDR and LE.
+- Hardware RNG, GPIO, zram swap, `reboot`, and `poweroff` into deep sleep.
+
+On the Korvo-1 also:
+
+- 800x480 LCD as `/dev/fb0` with `fbcon`, and a login on `tty1`.
+- USB host (DWC2): keyboards, mice, `hidraw` and mass storage.
+- microSD (`dw_mmc` with internal DMA): FAT on p1, ext4 root on p2.
+- WPA3-SAE, and an access point with `hostapd`.
+- BlueZ: `bluetoothd` and `bluetoothctl`, LE scan, BR/EDR inquiry and
+  pairing with Secure Simple Pairing.
+- The RGB LED as `/sys/class/leds/rgb:status`.
 
 ## Tested hardware
 
 Espressif makes new chip revisions, and a different revision can change
-the behavior. This port is tested only on this board:
+the behavior. This port is tested only on this board, with the two builds:
 
 | Item | Value |
 | --- | --- |
@@ -85,9 +110,10 @@ python -m espefuse --chip esp32s31 -p PORT summary
 - **Harts.** Hart 0 stays in M-mode. It runs the ESP-IDF loader, which stays
   resident as the radio firmware. Linux runs on hart 1 only.
 - **Loader.** The loader checks the size and CRC of the kernel. It copies the
-  kernel to `0x50000000`, the initramfs to `0x50800000` and OpenSBI to
-  `0x50F00000`. It starts the LCD, the SD slot and Wi-Fi. Then it releases
-  hart 1 into OpenSBI.
+  kernel to `0x50000000`, the initramfs and the persist partition to
+  `0x50800000` and OpenSBI to `0x50F00000`. It starts Wi-Fi and Bluetooth,
+  and on the Korvo-1 also the LCD, the SD slot and the LED. Then it releases
+  hart 1 into OpenSBI, and locks hart 0 out of PSRAM with PMP.
 - **Interrupts.** OpenSBI gives the CLIC inputs to S-mode. If an input is not
   in S-mode, Linux cannot see it. The S-mode trampoline must use `sret` and
   restore `scause.spil`. `mret` locks `mintstatus.SIL` and masks all
@@ -103,10 +129,12 @@ python -m espefuse --chip esp32s31 -p PORT summary
 - **Shared SRAM.** `0x2F040000`-`0x2F05D000` is outside the ESP-IDF heap:
   the DMA pool, then the ESP-Hosted rings at `0x2F050000`
   (`shared/esp32s31-hosted-shm.h`).
-- **Display.** The frame buffer is at `0x50F40000`. The loader DMA continues
-  to scan it out after the handoff. Linux uses it as a `simple-framebuffer`.
+- **Display (Korvo-1).** The frame buffer is at `0x50F40000`. The loader DMA
+  continues to scan it out after the handoff. Linux uses it as a
+  `simple-framebuffer`. The esp32s31 board has no frame buffer, and Linux
+  gets the 768 KiB.
 
-## Hardware connections
+## Hardware connections (Korvo-1)
 
 | Connector | Use |
 | --- | --- |
@@ -117,8 +145,9 @@ python -m espefuse --chip esp32s31 -p PORT summary
 
 GPIO33/34 are also LCD data pins. You can use the LCD or JTAG, not both. The
 default is the LCD (`CONFIG_ESP_CONSOLE_SECONDARY_NONE` in
-`bootloader/sdkconfig.defaults`). For JTAG, set
-`CONFIG_ESP_CONSOLE_SECONDARY_USB_SERIAL_JTAG=y` instead.
+`bootloader/sdkconfig.defaults.korvo1`). For JTAG, set
+`CONFIG_ESP_CONSOLE_SECONDARY_USB_SERIAL_JTAG=y` instead. The esp32s31
+board always gives GPIO33/34 to the USB Serial/JTAG.
 
 ## Host requirements
 
@@ -131,8 +160,9 @@ default is the LCD (`CONFIG_ESP_CONSOLE_SECONDARY_NONE` in
 On Linux, `scripts/ci-build.sh` builds everything without a container.
 
 Buildroot does not run on macOS. It runs in the Debian image from
-`container/Containerfile`. Its `output/` and `dl/` are in the `esp32s31-br`
-volume.
+`container/Containerfile`, with 6 GB of memory (`BR_MEMORY`) and 5 jobs
+(`BR_JOBS`). The output of each board (`/br/<board>`), the downloads
+(`/br/dl`) and the ccache are in the `esp32s31-br` volume.
 
 ```sh
 git submodule update --init --recursive
@@ -149,6 +179,8 @@ make flash   FLASH_PORT=/dev/cu.usbserial-XXXX
 make monitor SERIAL_PORT=/dev/cu.usbserial-XXXX
 ```
 
+- Add `BOARD=esp32s31` for the bare module. The output of a board goes to
+  `build/<board>/`.
 - `make build` builds the loader and OpenSBI on the Mac. Buildroot builds the
   kernel, the rootfs and the card images in the container.
 - `make monitor` resets the board and waits for
@@ -157,10 +189,10 @@ make monitor SERIAL_PORT=/dev/cu.usbserial-XXXX
 - Set `RESET_PORT` if the RTS line of `SERIAL_PORT` cannot reset the board.
 - `make help` shows all targets.
 
-Without a prepared SD card, the initramfs starts a recovery shell on the UART
-and one on the LCD.
+Without a prepared SD card, the Korvo-1 initramfs starts a recovery shell
+on the UART and one on the LCD.
 
-## SD card
+## SD card (Korvo-1)
 
 The card is MBR. p1 is FAT32 and is mounted on `/mnt/sd`. p2 is the ext4 root
 (192 MiB). All card targets erase data. They ask for confirmation and `sudo`.
@@ -186,7 +218,9 @@ camera formatted: check such a card on the host.
 ## Userspace
 
 The root password is `korvo-bringup`. The serial and panel consoles log in
-automatically. Dropbear SSH asks for the password.
+automatically. Dropbear SSH asks for the password. The esp32s31 board has
+only the BusyBox tools and the programs in [Boards](#boards). The rest of
+this section is for the Korvo-1.
 
 Boot scripts in `br2-external/board/esp32s31/rootfs-overlay`:
 
@@ -212,6 +246,27 @@ Boot scripts in `br2-external/board/esp32s31/rootfs-overlay`:
 | Hardware | `gpioinfo`, `gpioget`, `gpioset` (libgpiod 2), `lsusb` |
 
 The shell is bash, with a history that stays after a reset.
+
+### Persist
+
+The root of the esp32s31 board is in RAM. `persist save` keeps the files
+in `/etc/persist.list` in the 64 KiB `persist` flash partition: by default
+`/etc/wpa_supplicant.conf`, the Dropbear host keys and `/etc/shadow`. At
+each boot, the loader puts the partition after the initramfs, and the
+kernel unpacks it over the files of the image.
+
+```sh
+wpa_passphrase "<ssid>" "<passphrase>" >> /etc/wpa_supplicant.conf
+persist save      # keep the files of /etc/persist.list
+persist list      # show the saved files
+persist clear     # the image defaults at the next boot
+```
+
+The partition is the nvmem device `esp32s31-persist`. Hart 0 erases and
+writes the flash, and Linux stops for approximately 50 ms for each 4 KiB
+sector. The archive header is written last: a save that stops half way
+gives the image defaults at the next boot. `make flash` and `flash.bin` do
+not change the partition, so the files stay after an update.
 
 ### Files and scripts
 
@@ -246,16 +301,26 @@ For WPA3 and WPA2/WPA3 networks, the network block needs
 `key_mgmt=WPA-PSK SAE`, `ieee80211w=1` and the passphrase as `psk="..."`.
 The hex PSK from `wpa_passphrase` is not sufficient for SAE.
 
+The default configuration has `pmf=1`: protected management frames when
+the access point offers them. Without them, a WPA2/WPA3 router gave less
+than half of the TX throughput.
+
+On the esp32s31 board, save the network with `persist save`. It has no
+SAE, so use `key_mgmt=WPA-PSK` also for a WPA2/WPA3 network: WPA3 needs
+OpenSSL, which does not fit in its RAM root. A network block with `SAE`
+stops `wpa_supplicant`, and `S40wifi` then points to `/var/log/messages`.
+
 The ESP-Hosted firmware on hart 0 runs the 802.11 MAC. The ESP-Hosted host
 driver (`esp32_shm`) is built into the kernel. `wpa_supplicant` runs the
-authentication and the key handshakes. `hostapd` with the nl80211 driver
-starts an access point. Stop `S40wifi` first: `wlan0` is a station or an
+authentication and the key handshakes, and logs to syslog
+(`/var/log/messages`). `hostapd` with the nl80211 driver starts an access
+point on the Korvo-1. Stop `S40wifi` first: `wlan0` is a station or an
 access point, not the two at the same time.
 
 ## Kernel
 
 Buildroot builds a stock kernel release (`BR2_LINUX_KERNEL_CUSTOM_VERSION_VALUE`
-in `br2-external/configs/esp32s31_defconfig`) with `linux/patches/`.
+in `br2-external/configs/<board>_defconfig`) with `linux/patches/`.
 
 - `0000-esp32s31-add-source-files.patch` is generated from the new files
   under `linux/`. Edit those files, not the patch. Each
@@ -266,7 +331,12 @@ in `br2-external/configs/esp32s31_defconfig`) with `linux/patches/`.
   patches in `br2-external/package/esp-hosted-linux/`. A Buildroot linux
   extension (`br2-external/linux/`) copies it into the kernel tree.
 - The kernel config is `br2-external/board/esp32s31/linux.config`. Use
-  `make kernel-menuconfig` and `make kernel-saveconfig`.
+  `make kernel-menuconfig` and `make kernel-saveconfig`. The esp32s31 board
+  adds `linux-esp32s31.fragment`, which turns off the parts of the Korvo-1.
+  Buildroot cannot save a config with a fragment, so change the fragment by
+  hand.
+- The device tree of each board is built into the kernel:
+  `esp32s31_korvo1.dts` or `esp32s31.dts`.
 - `make kernel-check` applies the series at zero fuzz with GNU patch.
 - `make kernel` and `make rootfs` find a changed series or config. Then
   they extract and patch the kernel again. `make kernel-clean` does this by
@@ -282,18 +352,20 @@ in `br2-external/configs/esp32s31_defconfig`) with `linux/patches/`.
 | `0x220000` | OpenSBI `fw_jump` |
 | `0x2A0000` | Linux Image (with built-in DTB) |
 | `0xA1FFF4` | Linux size and CRC manifest |
-| `0xA20000` | 2 MiB initramfs |
+| `0xA20000` | 4032 KiB initramfs |
+| `0xE10000` | 64 KiB persist partition |
 
-The initramfs holds BusyBox and an `init` that mounts `/dev/mmcblk0p2` and
-does `switch_root`. If the card is not there, it starts a shell on the UART
-and one on the LCD.
+On the Korvo-1, the initramfs holds BusyBox and an `init` that mounts
+`/dev/mmcblk0p2` and does `switch_root`. If the card is not there, it starts
+a shell on the UART and one on the LCD. On the esp32s31 board, the
+initramfs is the gzip rootfs of Buildroot.
 
 ## Debugging
 
 1. Set the loader to JTAG (see above). The LCD then stays dark.
 2. Run `make flash`, then `make openocd`.
-3. Connect `riscv32-esp-elf-gdb` to port 3333. Use `build/opensbi.elf`,
-   `build/bootloader/s31-linux-loader.elf` or `build/vmlinux`
+3. Connect `riscv32-esp-elf-gdb` to port 3333. Use `build/korvo1/opensbi.elf`,
+   `build/korvo1/bootloader/s31-linux-loader.elf` or `build/korvo1/vmlinux`
    (`make kernel-vmlinux`).
 
 ## Limits
@@ -311,9 +383,14 @@ and one on the LCD.
 - The coherent DMA pool is 64 KiB.
 - There is no I2C, audio or camera driver.
 - The firmware heap is small: see "Internal SRAM" in
-  [docs/internals.md](docs/internals.md). Bluetooth connections need more
-  heap, which is not measured.
-- BR/EDR is tested up to the inquiry: no discoverable device was near.
+  [docs/internals.md](docs/internals.md).
+- With WPA3-SAE, the first connection can fail: SAE takes approximately 2 s
+  on hart 1, and the closed Wi-Fi library on hart 0 times out the
+  authentication. `wpa_supplicant` tries again and connects approximately
+  10 s later. WPA2 is not affected.
+- `bluetoothctl` with a command on its command line (`bluetoothctl list`)
+  can exit before it is connected to `bluetoothd`, and prints nothing. Use
+  it interactively, or pipe the commands into it.
 - WPA2/WPA3 Enterprise is not tested.
 
 ## License

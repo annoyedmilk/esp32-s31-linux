@@ -3,7 +3,8 @@
 This document tells how Linux runs on the ESP32-S31, and why the port has
 its current form. It is for developers who know the RISC-V Linux kernel and
 want to understand this SoC. All facts are from chip revision v0.0 on the
-ESP32-S31-Korvo-1 board. Most of them were measured with JTAG, because
+ESP32-S31-Korvo-1 board. The port has two builds: `korvo1` for that board,
+and `esp32s31` for a bare module with UART only. Most of them were measured with JTAG, because
 Espressif does not publish a technical reference manual for this chip yet.
 
 The ESP-IDF register headers (`components/soc/esp32s31/register/soc/`) are
@@ -31,51 +32,55 @@ ROM -> ESP-IDF 2nd stage -> loader (hart 0) -> OpenSBI (hart 1, M) -> Linux (har
 
 1. The ESP-IDF second-stage bootloader starts the loader application
    (`bootloader/main/`) on hart 0.
-2. The loader starts PSRAM, the SD slot pins, the RMT for the LED, the LCD
-   and Wi-Fi. It copies three flash partitions to PSRAM and checks them:
-   the kernel `Image` (size and CRC32 from a manifest at `0xA1FFF4`), the
-   initramfs, and OpenSBI `fw_jump`.
+2. The loader starts PSRAM, and on the Korvo-1 the SD slot pins, the RMT for
+   the LED and the LCD (`board_korvo1.c`). It copies four flash partitions
+   to PSRAM and checks them: the kernel `Image` (size and CRC32 from a
+   manifest at `0xA1FFF4`), the initramfs, the persist partition, and
+   OpenSBI `fw_jump`. It starts Wi-Fi and Bluetooth.
 3. The loader writes the D-cache back, sets the PMA of hart 1 for PSRAM and
-   releases hart 1 at the OpenSBI entry.
+   releases hart 1 at the OpenSBI entry. Then it locks hart 0 out of PSRAM
+   and the DMA pool with PMP.
 4. Hart 0 stays in the loader. The loader is now the ESP-Hosted Wi-Fi
    firmware.
 5. OpenSBI sets up the CLIC, the timer, PMP, APM and the SBI extensions.
    Then it jumps to the kernel in S-mode.
-6. The kernel has a built-in DTB (`esp32s31_generic.dts`). The initramfs
-   mounts the ext4 root from the SD card and does `switch_root`.
+6. The kernel has a built-in DTB (`esp32s31_korvo1.dts` or
+   `esp32s31.dts`). On the Korvo-1, the initramfs mounts the ext4 root
+   from the SD card and does `switch_root`. On the esp32s31 board, the
+   initramfs is the root.
 
 ### Memory map
 
 | Address | Size | Use |
 | --- | --- | --- |
 | `0x2F040000` | 64 KiB | Coherent DMA pool for Linux (`shared-dma-pool`) |
-| `0x2F050000` | 52 KiB | ESP-Hosted shared memory (rings) |
-| `0x2F079000` | 4 KiB | LCD DMA descriptor ring |
-| `0x50000000` | 15 MiB | Linux RAM: the kernel image, then the initramfs at `0x50800000` (2 MiB, freed after boot) |
+| `0x2F050000` | 52 KiB | Shared block: requests, nvmem mailbox, ESP-Hosted rings |
+| `0x2F079000` | 4 KiB | LCD DMA descriptor ring (Korvo-1) |
+| `0x50000000` | 15 MiB | Linux RAM: the kernel image, then at `0x50800000` the initramfs and the persist partition (4 MiB together, freed after boot) |
 | `0x50F00000` | 256 KiB | OpenSBI (reserved, no-map) |
-| `0x50F40000` | 768 KiB | LCD frame buffer (reserved, no-map, uncached) |
+| `0x50F40000` | 768 KiB | LCD frame buffer (Korvo-1: reserved, no-map, uncached; esp32s31: Linux RAM) |
 
 The loader keeps its own copy of these numbers. The device tree
 (`esp32s31.dtsi`) must agree with it.
 
 ### Internal SRAM
 
-The HP SRAM is 512 KiB (`0x2F000000`-`0x2F080000`). Measured in v0.3.1,
-with Wi-Fi, Bluetooth and the IEEE 802.15.4 RCP of that release:
+The HP SRAM is 512 KiB (`0x2F000000`-`0x2F080000`). Measured on the
+Korvo-1 with Wi-Fi and Bluetooth:
 
 | Use | Size |
 | --- | --- |
-| Loader and ESP-Hosted firmware, static (`.text`, `.data`, `.bss`) | 185 KiB |
-| Linux: DMA pool and ESP-Hosted rings (`0x2F040000`-`0x2F05D000`) | 116 KiB |
+| Loader and ESP-Hosted firmware, static (`.text`, `.data`, `.bss`) | 165 KiB |
+| Linux: DMA pool and shared block (`0x2F040000`-`0x2F05D000`) | 116 KiB |
 | LCD descriptor ring and reserved blocks | 8 KiB |
-| ESP-IDF heap in HP SRAM | 203 KiB |
+| ESP-IDF heap in HP SRAM | 211 KiB |
 
 The heap also has 32 KiB of LP SRAM. Of the controllers, Bluetooth takes the
-most: 42 KiB of code in SRAM and 61 KiB of heap. The RCP took 23 KiB of
-code and 26 KiB of heap. 64 KiB of heap were free when hart 1 started.
-During iperf3 the minimum was 25 KiB, with 16 dynamic Wi-Fi buffers in each
-direction. With 32, it was 15 KiB. The RCP is now removed, and these
-numbers are not measured again yet.
+most: 42 KiB of code in SRAM and 61 KiB of heap. 100 KiB of heap are free
+when hart 1 starts. With 32 dynamic Wi-Fi buffers in each direction, the
+minimum was 35.9 KiB during iperf3 with a BLE scan and a BR/EDR inquiry.
+v0.3.1 also had the IEEE 802.15.4 RCP (23 KiB of code, 26 KiB of heap): it
+had only 16 buffers, and the minimum was 25 KiB.
 
 ## Why Linux uses only hart 1
 
@@ -274,9 +279,10 @@ the USB transport in shared SRAM. The layout is in
   come. At full load, Linux gets one interrupt for approximately 5 frames.
 - Linux writes a frame into the ring in `ndo_start_xmit`, and uses a worker
   only when the ring is full. When 64 frames wait, it stops the net queue.
-  iperf3 TCP gives approximately 46 Mbit/s TX and 41 to 43 Mbit/s RX. Linux
-  then has no idle time: the copy from SRAM, the RX worker and the network
-  stack use the full hart.
+  iperf3 TCP gives approximately 43 to 46 Mbit/s TX and 37 to 39 Mbit/s RX
+  on the Korvo-1, and 46 Mbit/s in each direction on the esp32s31 board.
+  Linux then has almost no idle time: the copy from SRAM, the RX worker
+  and the network stack use the hart.
 - A restart of the firmware also restarts Linux. Thus when the host driver
   opens or closes the data path, the firmware only sends its boot event
   again. Over USB, close restarts the firmware. Here the firmware keeps its
@@ -298,6 +304,36 @@ the USB transport in shared SRAM. The layout is in
   Without it, the ROM handles the received EAPOL frames, and the 4-way
   handshake fails. `scripts/patch-esp-idf.sh` applies it as a local
   commit.
+- With WPA3-SAE, `wpa_supplicant` on hart 1 needs approximately 2 s
+  between the SAE commit and the confirm. The closed Wi-Fi library on hart 0
+  can time out the authentication in between (`cnx_auth_timeout`), and the
+  first connection fails. The second try connects.
+
+## Persistent files without a card
+
+The root of the esp32s31 board is the initramfs, in RAM. Linux has no
+driver for the SPI flash, and it must not have one: hart 0 runs its code
+from the same flash, through the cache. So hart 0 writes the flash for
+Linux, through a mailbox in the shared block (`ESP_SHM_NV`).
+
+- **Restore.** The `persist` partition (64 KiB) follows the initramfs in
+  the flash. The loader copies the two to `0x50800000`, so the persist data
+  is at the end of the initrd range of the device tree. The kernel unpacks
+  a second archive after the first one by itself, and the saved files
+  replace the files of the image. An erased partition has no gzip magic:
+  then the loader gives the kernel zeros, which it skips.
+- **Save.** `esp_shm.c` registers the partition as the nvmem device
+  `esp32s31-persist`. A read or write goes through the mailbox in blocks of
+  2 KiB: Linux writes the address, the length, the data and then the
+  command, and rings. The firmware (`shm_nvmem.c`) writes the status and
+  clears the command, and Linux polls for that.
+- **Flash and cache.** A flash read, erase or write of ESP-IDF suspends the
+  external memory cache of the two harts. Linux runs from PSRAM through that
+  cache. So the firmware stalls hart 1 for each flash operation and waits
+  until `HP_SYSTEM_CPU_CORESTALLED_ST` shows the stall. A sector write with
+  its erase stops Linux for approximately 50 ms.
+- **Half writes.** `persist save` writes the start of the archive, with
+  the gzip magic, last. Until then the loader finds no archive.
 
 ## Silicon traps
 
@@ -315,6 +351,7 @@ the USB transport in shared SRAM. The layout is in
 | PMA entries overlap | No fault. The entry with the lowest index is used. |
 | FPU `EXT_ILL` | Cannot identify FLW/FSW. |
 | GPIO33/34 | LCD data pins and also the USB Serial/JTAG pins. |
+| Flash write | Suspends the cache of the two harts. Stall hart 1 first. |
 
 ## Where to start reading
 
@@ -326,4 +363,6 @@ the USB transport in shared SRAM. The layout is in
 | Interrupt controller | `linux/drivers/irqchip/irq-esp32s31-clic.c` |
 | DMA coherency | `linux/drivers/cache/esp32s31-cache.c`, `linux/patches/0007` |
 | Wi-Fi transport | `shared/esp32s31-hosted-shm.h` |
+| Persistent files | `bootloader/components/esp_hosted/shm_nvmem.c` |
+| The two boards | `bootloader/main/board_*.c`, `br2-external/configs/*_defconfig` |
 | Device tree | `linux/arch/riscv/boot/dts/espressif/esp32s31.dtsi` |
