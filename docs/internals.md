@@ -234,8 +234,11 @@ This is the part that is most different from other RISC-V SoCs.
   hart use the M-mode (TEE) path, and the APM protection above is gone.
 - **The APM registers themselves** (`0x20504000`) are M-mode only, through
   an OpenSBI domain region.
-- **The limit.** Hart 0 runs ESP-IDF in M-mode. Nothing can protect
-  OpenSBI or Linux from hart 0.
+- **Hart 0.** It runs ESP-IDF in M-mode, where only a locked PMP entry
+  applies. After the loader starts hart 1, it locks hart 0 out of PSRAM,
+  of the uncached PSRAM alias and of the DMA pool (PMP entries 13 to 15, no
+  access). The lock stays until the next reset. Hart 0 can still write the
+  rest of SRAM and all peripherals.
 
 ## Radios
 

@@ -313,7 +313,8 @@ and one on the LCD.
   soft-float (ilp32), but it is slower.
 - OpenSBI protects its memory and the TEE/APM registers from S-mode with
   PMP, and its memory from DMA with HP_APM. The radio firmware on hart 0
-  runs in M-mode, so nothing protects OpenSBI from hart 0.
+  runs in M-mode. After it starts hart 1, it locks itself out of PSRAM and
+  the DMA pool with PMP.
 - `poweroff` stops the hart. It does not remove power.
 - The coherent DMA pool is 64 KiB.
 - There is no I2C, audio or camera driver.

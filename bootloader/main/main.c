@@ -46,6 +46,7 @@
 #define INITRAMFS_PARTITION_SIZE    0x00200000U
 #define INITRAMFS_NEWC_MAGIC0       0x37303730U
 #define PSRAM_PMA_SIZE              0x01000000U
+#define PSRAM_UNCACHED_BASE         0xC0000000U
 #define LINUX_HART                  1U
 
 /*
@@ -207,6 +208,32 @@ static void disable_linux_hart_stack_protector(void)
     assist_debug_ll_sp_spill_interrupt_disable(LINUX_HART);
     assist_debug_ll_sp_spill_set_min(LINUX_HART, 0);
     assist_debug_ll_sp_spill_set_max(LINUX_HART, 0xffffffff);
+}
+
+/*
+ * Lock hart 0 out of the memory of hart 1: PSRAM, its uncached alias and the
+ * DMA pool.  The firmware runs in M-mode, where only a locked PMP entry stops
+ * a wild store.  The lock stays until the next reset.  ESP-IDF does not use
+ * the PMP of hart 0 on this chip, so read the entries back to be sure.
+ */
+#define PMP_NO_ACCESS               (PMP_L | PMP_NAPOT)
+
+static void protect_linux_memory(void)
+{
+    PMP_RESET_AND_ENTRY_SET(13, PMPADDR_NAPOT(PSRAM_BASE, PSRAM_BASE + PSRAM_PMA_SIZE),
+                            PMP_NO_ACCESS);
+    PMP_RESET_AND_ENTRY_SET(14, PMPADDR_NAPOT(PSRAM_UNCACHED_BASE,
+                                              PSRAM_UNCACHED_BASE + PSRAM_PMA_SIZE),
+                            PMP_NO_ACCESS);
+    PMP_RESET_AND_ENTRY_SET(15, PMPADDR_NAPOT(LINUX_DMA_POOL_ADDR,
+                                              LINUX_DMA_POOL_ADDR + LINUX_DMA_POOL_SIZE),
+                            PMP_NO_ACCESS);
+
+    if (PMP_ENTRY_CFG_READ(13) != PMP_NO_ACCESS ||
+        PMP_ENTRY_CFG_READ(14) != PMP_NO_ACCESS ||
+        PMP_ENTRY_CFG_READ(15) != PMP_NO_ACCESS) {
+        ESP_LOGW(TAG, "PMP entries 13-15 are in use: Linux memory not protected");
+    }
 }
 
 /*
@@ -445,6 +472,7 @@ void app_main(void)
     flush_l1_cache_before_handoff();
 
     start_linux_hart();
+    protect_linux_memory();
     ESP_LOGI(TAG, "hart 0 resident, heap: %u bytes free",
              (unsigned)heap_caps_get_free_size(MALLOC_CAP_8BIT));
 
