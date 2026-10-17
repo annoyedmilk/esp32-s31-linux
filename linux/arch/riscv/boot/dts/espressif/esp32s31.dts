@@ -1,0 +1,18 @@
+// SPDX-License-Identifier: GPL-2.0+
+/*
+ * A bare ESP32-S31 module with 16 MiB PSRAM: UART0 only.  The rootfs is the
+ * initramfs that the loader copies from the flash.
+ */
+/dts-v1/;
+#include "esp32s31.dtsi"
+
+/ {
+	model = "Espressif ESP32-S31 (UART only)";
+	compatible = "esp,esp32s31";
+
+	chosen {
+		linux,initrd-start = <0x50800000>;
+		linux,initrd-end = <0x50C00000>;
+		stdout-path = "serial0:115200n8";
+	};
+};

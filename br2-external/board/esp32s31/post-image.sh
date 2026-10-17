@@ -24,4 +24,7 @@ manifest = struct.pack("<III", 0x455A4953, len(data), zlib.crc32(data))
 print("linux.size: %d bytes, crc32 %#010x" % (len(data), zlib.crc32(data)))
 PY
 
-support/scripts/genimage.sh -c "${BOARD_DIR}/genimage.cfg"
+# Only a board with a card has an ext4 root and gets a card image.
+if [ -f "${BINARIES_DIR}/rootfs.ext2" ]; then
+	support/scripts/genimage.sh -c "${BOARD_DIR}/genimage.cfg"
+fi

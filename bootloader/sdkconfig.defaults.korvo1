@@ -1,0 +1,9 @@
+# ESP32-S31-Korvo-1.  The Makefile adds this file to sdkconfig.defaults for
+# BOARD=korvo1.
+CONFIG_S31_LINUX_BOARD_KORVO1=y
+# GPIO33/34 are LCD data pins and also the USB Serial/JTAG D-/D+ pins.  The
+# loader does not start the display when a secondary console uses them.
+# This selects the display.  For JTAG and no display, set
+# CONFIG_ESP_CONSOLE_SECONDARY_USB_SERIAL_JTAG=y.
+# Flash and the Linux console use the CP2102N bridge in the two cases.
+CONFIG_ESP_CONSOLE_SECONDARY_NONE=y

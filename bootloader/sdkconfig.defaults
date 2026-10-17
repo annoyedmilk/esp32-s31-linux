@@ -20,12 +20,6 @@ CONFIG_ESP_CONSOLE_UART_DEFAULT=y
 # NVS is off, so the PHY calibration data cannot be kept.  Request a full
 # calibration at each boot, and do not fail the NVS lookup.
 # CONFIG_ESP_PHY_CALIBRATION_AND_DATA_STORAGE is not set
-# GPIO33/34 are LCD data pins and also the USB Serial/JTAG D-/D+ pins.  The
-# loader does not start the display when a secondary console uses them.
-# This selects the display.  For JTAG and no display, set
-# CONFIG_ESP_CONSOLE_SECONDARY_USB_SERIAL_JTAG=y.
-# Flash and the Linux console use the CP2102N bridge in the two cases.
-CONFIG_ESP_CONSOLE_SECONDARY_NONE=y
 # The ESP-Hosted firmware runs the radios for Linux (components/esp_hosted):
 # Wi-Fi and a dual-mode Bluetooth controller with HCI in RAM.  Its frames are
 # the frames of the USB transport, but they go through shared memory.  The

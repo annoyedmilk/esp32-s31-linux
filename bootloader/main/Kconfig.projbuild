@@ -1,0 +1,18 @@
+menu "ESP32-S31 Linux loader"
+
+choice S31_LINUX_BOARD
+    prompt "Board"
+    default S31_LINUX_BOARD_KORVO1
+    help
+        The board selects the peripherals that the loader starts before
+        Linux.  The Makefile sets it from BOARD.
+
+config S31_LINUX_BOARD_KORVO1
+    bool "ESP32-S31-Korvo-1 (LCD, microSD, RGB LED)"
+
+config S31_LINUX_BOARD_ESP32S31
+    bool "ESP32-S31 module (UART0 only)"
+
+endchoice
+
+endmenu

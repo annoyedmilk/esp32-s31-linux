@@ -1,0 +1,6 @@
+# A bare ESP32-S31 module with UART0 only.  The Makefile adds this file to
+# sdkconfig.defaults for BOARD=esp32s31.
+CONFIG_S31_LINUX_BOARD_ESP32S31=y
+# No display uses GPIO33/34, so the native USB Serial/JTAG is free for a
+# second console and for JTAG.
+CONFIG_ESP_CONSOLE_SECONDARY_USB_SERIAL_JTAG=y

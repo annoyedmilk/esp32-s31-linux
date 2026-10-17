@@ -1,5 +1,7 @@
-# RV32 IMAC with Zba, Zbb and Zbs, Sv32, soft-float ilp32.  The hart has F
-# but no D, and Linux supports an FPU only with D.
+# A bare ESP32-S31 module with 16 MiB PSRAM: UART0 only, and the full rootfs
+# in the initramfs slot of the flash.  Nothing on it stays after a reboot.
+#
+# RV32 IMAC with Zba, Zbb and Zbs, Sv32, soft-float ilp32, as the Korvo-1.
 BR2_riscv=y
 BR2_riscv_custom=y
 BR2_RISCV_32=y
@@ -13,25 +15,19 @@ BR2_RISCV_ISA_RVC=y
 BR2_RISCV_ISA_EXTRA="zba_zbb_zbs"
 BR2_RISCV_ABI_ILP32=y
 BR2_TOOLCHAIN_BUILDROOT_MUSL=y
-# gdbserver needs the C++ runtime.  The full debugger stays in the container.
-BR2_TOOLCHAIN_BUILDROOT_CXX=y
-BR2_PACKAGE_HOST_GDB=y
 
-# A stock release with linux/patches/ applied to the Buildroot download.  To
-# change the version, change this value and update the series.
+# The Korvo-1 kernel config, without the display, the card, USB and the LED.
 BR2_LINUX_KERNEL=y
 BR2_LINUX_KERNEL_CUSTOM_VERSION=y
 BR2_LINUX_KERNEL_CUSTOM_VERSION_VALUE="7.2.11"
 BR2_LINUX_KERNEL_PATCH="$(BR2_EXTERNAL_ESP32S31_PATH)/../linux/patches"
 BR2_LINUX_KERNEL_USE_CUSTOM_CONFIG=y
 BR2_LINUX_KERNEL_CUSTOM_CONFIG_FILE="$(BR2_EXTERNAL_ESP32S31_PATH)/board/esp32s31/linux.config"
-# CONFIG_BUILTIN_DTB, so the loader copies only one file.
+BR2_LINUX_KERNEL_CONFIG_FRAGMENT_FILES="$(BR2_EXTERNAL_ESP32S31_PATH)/board/esp32s31/linux-esp32s31.fragment"
 BR2_LINUX_KERNEL_IMAGE=y
-# Headers from the same kernel.  Also set the header series.  The default is
-# "really old", which tells all packages that the headers are 2.6.  7.1 is
-# the newest series that this Buildroot knows, and it also covers 7.2.
 BR2_KERNEL_HEADERS_AS_KERNEL=y
 BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_7_1=y
+BR2_LINUX_KERNEL_EXT_ESP_HOSTED_LINUX=y
 
 BR2_INIT_BUSYBOX=y
 BR2_ROOTFS_DEVICE_CREATION_DYNAMIC_DEVTMPFS=y
@@ -40,73 +36,27 @@ BR2_TARGET_GENERIC_ISSUE="ESP32-S31 Linux"
 BR2_TARGET_GENERIC_ROOT_PASSWD="korvo-bringup"
 BR2_PACKAGE_BUSYBOX_SHOW_OTHERS=y
 BR2_PACKAGE_BUSYBOX_CONFIG_FRAGMENT_FILES="$(BR2_EXTERNAL_ESP32S31_PATH)/board/esp32s31/busybox.fragment"
-# /bin/sh is BusyBox ash.  post-build.sh makes bash the login shell of root.
 BR2_SYSTEM_BIN_SH_BUSYBOX=y
 BR2_TARGET_GENERIC_GETTY_PORT="ttyS0"
 BR2_TARGET_GENERIC_GETTY_BAUDRATE_115200=y
 BR2_TARGET_GENERIC_GETTY_OPTIONS="-n -l /sbin/serial-autologin"
-# Patches for Buildroot packages, in patches/<package>/.
 BR2_GLOBAL_PATCH_DIR="$(BR2_EXTERNAL_ESP32S31_PATH)/patches"
 BR2_ROOTFS_OVERLAY="$(BR2_EXTERNAL_ESP32S31_PATH)/board/esp32s31/rootfs-overlay"
 BR2_ROOTFS_POST_BUILD_SCRIPT="$(BR2_EXTERNAL_ESP32S31_PATH)/board/esp32s31/post-build.sh"
 BR2_ROOTFS_POST_IMAGE_SCRIPT="$(BR2_EXTERNAL_ESP32S31_PATH)/board/esp32s31/post-image.sh"
+# The loader copies the gzip archive to PSRAM, and the kernel unpacks it.
 # BR2_TARGET_ROOTFS_TAR is not set
-BR2_TARGET_ROOTFS_EXT2=y
-BR2_TARGET_ROOTFS_EXT2_4=y
-BR2_TARGET_ROOTFS_EXT2_SIZE="192M"
-BR2_PACKAGE_HOST_GENIMAGE=y
+BR2_TARGET_ROOTFS_CPIO=y
+BR2_TARGET_ROOTFS_CPIO_GZIP=y
 
-# The root is on a removable card, and a clean shutdown is not certain.
-BR2_PACKAGE_E2FSPROGS=y
-# fsck.fat clears the dirty flag of p1 after a reset.  S10sdcard runs it
-# when the cluster count of p1 fits in the free memory.
-BR2_PACKAGE_DOSFSTOOLS=y
-BR2_PACKAGE_DOSFSTOOLS_FSCK_FAT=y
+# Wi-Fi with WPA2: WPA3 needs OpenSSL, approximately 4 MiB in the RAM root.
 BR2_PACKAGE_IW=y
 BR2_PACKAGE_WIRELESS_REGDB=y
-# The kernel has only version 2 of the GPIO character device ABI.
-BR2_PACKAGE_LIBGPIOD2=y
-BR2_PACKAGE_LIBGPIOD2_TOOLS=y
-BR2_PACKAGE_DROPBEAR=y
-# Dropbear has no SFTP server.  scp of OpenSSH 9 and sftp need one.
-BR2_PACKAGE_GESFTPSERVER=y
-BR2_PACKAGE_BASH=y
-BR2_PACKAGE_COREUTILS=y
-BR2_PACKAGE_VIM=y
-BR2_PACKAGE_LESS=y
-BR2_PACKAGE_FILE=y
-BR2_PACKAGE_HTOP=y
-BR2_PACKAGE_FASTFETCH=y
-# Buildroot and strace 7.1 do not support RV32, so br2-external has a port.
-BR2_PACKAGE_STRACE_RV32=y
-BR2_PACKAGE_GDB=y
-BR2_PACKAGE_GDB_SERVER=y
-# BR2_PACKAGE_GDB_DEBUGGER is not set
-BR2_PACKAGE_TCPDUMP=y
-BR2_PACKAGE_IPERF3=y
-BR2_PACKAGE_LIBCURL=y
-BR2_PACKAGE_LIBCURL_CURL=y
-BR2_PACKAGE_GPM=y
-BR2_PACKAGE_LINKS=y
-BR2_PACKAGE_LINKS_GRAPHICS=y
-BR2_PACKAGE_JPEG=y
-BR2_PACKAGE_LUA=y
-BR2_PACKAGE_MICROPYTHON=y
-# This release installs a small set of necessary terminfo files.
-BR2_PACKAGE_NCURSES_ADDITIONAL_TERMINFO=""
-# Links needs these for HTTPS after the board clock is set.
-BR2_PACKAGE_OPENSSL=y
-BR2_PACKAGE_CA_CERTIFICATES=y
-# The ESP-Hosted host driver for the radio firmware on hart 0, built in.
-BR2_LINUX_KERNEL_EXT_ESP_HOSTED_LINUX=y
-BR2_PACKAGE_HOSTAPD=y
 BR2_PACKAGE_WPA_SUPPLICANT=y
 BR2_PACKAGE_WPA_SUPPLICANT_CLI=y
 BR2_PACKAGE_WPA_SUPPLICANT_PASSPHRASE=y
-BR2_PACKAGE_WPA_SUPPLICANT_WPA3=y
-# BlueZ for hci0, the Bluetooth controller of the ESP-Hosted firmware:
-# bluetoothd, bluetoothctl, and hciconfig and hcitool.
-BR2_PACKAGE_BLUEZ5_UTILS=y
-BR2_PACKAGE_BLUEZ5_UTILS_CLIENT=y
-BR2_PACKAGE_BLUEZ5_UTILS_TOOLS=y
-BR2_PACKAGE_BLUEZ5_UTILS_DEPRECATED=y
+BR2_PACKAGE_DROPBEAR=y
+BR2_PACKAGE_IPERF3=y
+# The kernel has only version 2 of the GPIO character device ABI.
+BR2_PACKAGE_LIBGPIOD2=y
+BR2_PACKAGE_LIBGPIOD2_TOOLS=y

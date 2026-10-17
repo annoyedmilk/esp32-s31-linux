@@ -2,9 +2,11 @@
 # SPDX-License-Identifier: MIT
 """Pack the initramfs for the flash partition.
 
-It has only the parts of the Buildroot target that are necessary to mount the
-rootfs on the card.  The loader reads the full partition and checks for the
-newc magic at offset 0.  Thus the output always fills the full partition.
+With --target, it has only the parts of the Buildroot target that are
+necessary to mount the rootfs on the card.  With --cpio, it is an archive
+that Buildroot made, such as the full rootfs of the esp32s31 board.  The loader
+reads the full partition and checks for the newc or gzip magic at offset 0.
+Thus the output always fills the full partition.
 """
 
 from __future__ import annotations
@@ -70,7 +72,7 @@ def elf_interpreter(path: Path) -> str | None:
     return None
 
 
-def build(target: Path, init: Path, size: int) -> bytes:
+def build(target: Path, init: Path) -> bytes:
     archive = bytearray()
     ino = 1
 
@@ -114,33 +116,35 @@ def build(target: Path, init: Path, size: int) -> bytes:
 
     add_entry(archive, "init", stat.S_IFREG | 0o755, init.read_bytes(), ino)
     add_entry(archive, "TRAILER!!!", 0, ino=ino + 1)
-
-    if len(archive) > size:
-        raise SystemExit(f"initramfs is {len(archive)} bytes; the partition is {size}")
-    archive.extend(b"\0" * (size - len(archive)))
     return bytes(archive)
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--target", type=Path, required=True,
-                        help="Buildroot target/ directory")
-    parser.add_argument("--init", type=Path, required=True)
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument("--target", type=Path, help="Buildroot target/ directory")
+    source.add_argument("--cpio", type=Path, help="archive to put into the partition")
+    parser.add_argument("--init", type=Path, help="init script, with --target")
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--size", type=lambda value: int(value, 0), default=0x200000)
+    parser.add_argument("--size", type=lambda value: int(value, 0), default=0x400000)
     args = parser.parse_args()
 
-    if not args.target.is_dir():
-        parser.error(f"Buildroot target directory not found: {args.target}")
-    if not args.init.is_file():
-        parser.error(f"init not found: {args.init}")
+    if args.cpio:
+        if not args.cpio.is_file():
+            parser.error(f"archive not found: {args.cpio}")
+        archive = args.cpio.read_bytes()
+    else:
+        if not args.target.is_dir():
+            parser.error(f"Buildroot target directory not found: {args.target}")
+        if args.init is None or not args.init.is_file():
+            parser.error(f"init not found: {args.init}")
+        archive = build(args.target, args.init)
 
-    image = build(args.target, args.init, args.size)
+    if len(archive) > args.size:
+        raise SystemExit(f"initramfs is {len(archive)} bytes; the partition is {args.size}")
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_bytes(image)
-
-    used = image.rfind(b"TRAILER!!!") + len("TRAILER!!!")
-    print(f"initramfs: {args.output} ({used} bytes used of {args.size})")
+    args.output.write_bytes(archive + b"\0" * (args.size - len(archive)))
+    print(f"initramfs: {args.output} ({len(archive)} bytes used of {args.size})")
     return 0
 
 

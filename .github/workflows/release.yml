@@ -16,6 +16,9 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        board: [korvo1, esp32s31]
     # Buildroot builds a toolchain, the kernel and the userspace: about 2 to 3
     # hours on a hosted runner.  The limit for a job is 6 hours.
     timeout-minutes: 350
@@ -50,28 +53,52 @@ jobs:
         uses: actions/cache@v4
         with:
           path: build/br-dl
-          key: br-dl-${{ hashFiles('br2-external/configs/esp32s31_defconfig', '.gitmodules') }}
-          restore-keys: br-dl-
+          key: br-dl-${{ matrix.board }}-${{ hashFiles(format('br2-external/configs/{0}_defconfig', matrix.board), '.gitmodules') }}
+          restore-keys: br-dl-${{ matrix.board }}-
 
       - name: Build
-        run: scripts/ci-build.sh
+        run: BOARD=${{ matrix.board }} scripts/ci-build.sh
 
       - name: Package
         run: |
           python=$(ls -d ~/.espressif/python_env/*/bin/python | tail -1)
           version=${GITHUB_REF_NAME}
           [ "$GITHUB_REF_TYPE" = tag ] || version=$(git describe --always --dirty)
-          ESPTOOL="$python -m esptool" scripts/package-release.sh "$version"
+          ESPTOOL="$python -m esptool" scripts/package-release.sh "$version" ${{ matrix.board }}
+          rm build/release/SHA256SUMS
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: esp32s31-linux-${{ matrix.board }}
+          path: build/release/*
+
+  publish:
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: release
+          merge-multiple: true
+
+      - name: Make the checksums
+        run: cd release && sha256sum * > SHA256SUMS
 
       - uses: actions/upload-artifact@v4
         with:
           name: esp32s31-linux
-          path: build/release/*
+          path: release/*
+
+      - uses: actions/checkout@v4
+        if: github.ref_type == 'tag'
+        with:
+          path: src
+          sparse-checkout: docs
 
       - name: Publish the release
         if: github.ref_type == 'tag'
         uses: softprops/action-gh-release@v2
         with:
-          files: build/release/*
-          body_path: docs/release-notes.md
+          files: release/*
+          body_path: src/docs/release-notes.md
           prerelease: ${{ contains(github.ref_name, '-') }}

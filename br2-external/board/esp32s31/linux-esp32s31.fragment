@@ -1,0 +1,21 @@
+# The esp32s31 board: linux.config without the parts of the Korvo-1.
+# Buildroot merges this fragment into linux.config for esp32s31_defconfig.
+CONFIG_BUILTIN_DTB_NAME="espressif/esp32s31"
+# The UART is the only console.  The rootfs is a tmpfs, which gets half of
+# the RAM by default: less than the unpacked rootfs.
+CONFIG_CMDLINE="earlycon=sbi console=ttyS0,115200 loglevel=5 esp32_shm.radio_service=bt rdinit=/init initramfs_options=size=75%"
+
+# No panel, VTs or input devices.
+# CONFIG_FB is not set
+# CONFIG_VT is not set
+# CONFIG_INPUT is not set
+# CONFIG_HID is not set
+
+# No card, USB or LED.  The root is the initramfs, zram stays.
+# CONFIG_MMC is not set
+# CONFIG_USB_SUPPORT is not set
+# CONFIG_PHY_ESP32S31_USB is not set
+# CONFIG_SCSI is not set
+# CONFIG_NEW_LEDS is not set
+# CONFIG_EXT4_FS is not set
+# CONFIG_VFAT_FS is not set

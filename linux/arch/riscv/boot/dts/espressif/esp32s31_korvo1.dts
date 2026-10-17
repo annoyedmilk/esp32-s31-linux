@@ -1,18 +1,35 @@
 // SPDX-License-Identifier: GPL-2.0+
 /*
- * ESP32-S31 Device Tree Source
+ * ESP32-S31-Korvo-1: 800x480 RGB panel, microSD slot, USB 2.0 host port
+ * and a WS2812 RGB LED.
  * Author: Marco Müller <hello@annoyedmilk.ch>
  */
 /dts-v1/;
 #include "esp32s31.dtsi"
 
 / {
-	model = "Espressif ESP32-S31 S-mode (generic)";
-	compatible = "esp,esp32s31";
+	model = "Espressif ESP32-S31-Korvo-1";
+	compatible = "esp,esp32s31-korvo-1", "esp,esp32s31";
+
+	reserved-memory {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges;
+
+		/*
+		 * The loader DMA reads this buffer also after the handoff.
+		 * OpenSBI makes this range uncached with two PMA entries, so
+		 * it goes to the end of PSRAM.
+		 */
+		fb_region: framebuffer@50f40000 {
+			reg = <0x50f40000 0xc0000>;
+			no-map;
+		};
+	};
 
 	chosen {
 		linux,initrd-start = <0x50800000>;
-		linux,initrd-end = <0x50A00000>;
+		linux,initrd-end = <0x50C00000>;
 		stdout-path = "serial0:115200n8";
 
 		/*
@@ -35,6 +52,15 @@
 };
 
 &sdmmc0 { status = "okay"; };
+
+/* The Type-A port: host only, with a TPS2051C switch for VBUS. */
+&usb_phy { status = "okay"; };
+
+&usb0 {
+	dr_mode = "host";
+	disable-over-current;
+	status = "okay";
+};
 
 /* WS2812 RGB LED on GPIO37. */
 &rgb_led { status = "okay"; };

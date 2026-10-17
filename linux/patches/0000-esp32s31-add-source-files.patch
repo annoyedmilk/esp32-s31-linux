@@ -409,12 +409,35 @@ new file mode 100644
 +++ b/arch/riscv/boot/dts/espressif/Makefile
 @@ -0,0 +1,2 @@
 +# SPDX-License-Identifier: GPL-2.0
-+dtb-$(CONFIG_ARCH_ESPRESSIF) += esp32s31_generic.dtb
++dtb-$(CONFIG_ARCH_ESPRESSIF) += esp32s31_korvo1.dtb esp32s31.dtb
+diff --git a/arch/riscv/boot/dts/espressif/esp32s31.dts b/arch/riscv/boot/dts/espressif/esp32s31.dts
+new file mode 100644
+--- /dev/null
++++ b/arch/riscv/boot/dts/espressif/esp32s31.dts
+@@ -0,0 +1,18 @@
++// SPDX-License-Identifier: GPL-2.0+
++/*
++ * A bare ESP32-S31 module with 16 MiB PSRAM: UART0 only.  The rootfs is the
++ * initramfs that the loader copies from the flash.
++ */
++/dts-v1/;
++#include "esp32s31.dtsi"
++
++/ {
++	model = "Espressif ESP32-S31 (UART only)";
++	compatible = "esp,esp32s31";
++
++	chosen {
++		linux,initrd-start = <0x50800000>;
++		linux,initrd-end = <0x50C00000>;
++		stdout-path = "serial0:115200n8";
++	};
++};
 diff --git a/arch/riscv/boot/dts/espressif/esp32s31.dtsi b/arch/riscv/boot/dts/espressif/esp32s31.dtsi
 new file mode 100644
 --- /dev/null
 +++ b/arch/riscv/boot/dts/espressif/esp32s31.dtsi
-@@ -0,0 +1,230 @@
+@@ -0,0 +1,220 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * Espressif ESP32-S31 minimal device tree.
@@ -439,16 +462,6 @@ new file mode 100644
 +		#address-cells = <1>;
 +		#size-cells = <1>;
 +		ranges;
-+
-+		/*
-+		 * The loader DMA reads this buffer also after the handoff.
-+		 * OpenSBI makes this range uncached with two PMA entries, so
-+		 * it goes to the end of PSRAM.
-+		 */
-+		fb_region: framebuffer@50f40000 {
-+			reg = <0x50f40000 0xc0000>;
-+			no-map;
-+		};
 +
 +		/* M-mode firmware.  Linux must never map or allocate it. */
 +		opensbi_region: opensbi@50f00000 {
@@ -624,6 +637,7 @@ new file mode 100644
 +			reg-names = "clkrst", "cnnt", "usb-ctrl", "otghs-ctrl",
 +				    "utmi-fc06";
 +			#phy-cells = <0>;
++			status = "disabled";
 +		};
 +
 +		usb0: usb@20300000 {
@@ -639,32 +653,48 @@ new file mode 100644
 +			clock-names = "otg";
 +			phys = <&usb_phy>;
 +			phy-names = "usb2-phy";
-+			dr_mode = "host";
-+			disable-over-current;
++			status = "disabled";
 +		};
 +
 +	};
 +};
-diff --git a/arch/riscv/boot/dts/espressif/esp32s31_generic.dts b/arch/riscv/boot/dts/espressif/esp32s31_generic.dts
+diff --git a/arch/riscv/boot/dts/espressif/esp32s31_korvo1.dts b/arch/riscv/boot/dts/espressif/esp32s31_korvo1.dts
 new file mode 100644
 --- /dev/null
-+++ b/arch/riscv/boot/dts/espressif/esp32s31_generic.dts
-@@ -0,0 +1,40 @@
++++ b/arch/riscv/boot/dts/espressif/esp32s31_korvo1.dts
+@@ -0,0 +1,66 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
-+ * ESP32-S31 Device Tree Source
++ * ESP32-S31-Korvo-1: 800x480 RGB panel, microSD slot, USB 2.0 host port
++ * and a WS2812 RGB LED.
 + * Author: Marco Müller <hello@annoyedmilk.ch>
 + */
 +/dts-v1/;
 +#include "esp32s31.dtsi"
 +
 +/ {
-+	model = "Espressif ESP32-S31 S-mode (generic)";
-+	compatible = "esp,esp32s31";
++	model = "Espressif ESP32-S31-Korvo-1";
++	compatible = "esp,esp32s31-korvo-1", "esp,esp32s31";
++
++	reserved-memory {
++		#address-cells = <1>;
++		#size-cells = <1>;
++		ranges;
++
++		/*
++		 * The loader DMA reads this buffer also after the handoff.
++		 * OpenSBI makes this range uncached with two PMA entries, so
++		 * it goes to the end of PSRAM.
++		 */
++		fb_region: framebuffer@50f40000 {
++			reg = <0x50f40000 0xc0000>;
++			no-map;
++		};
++	};
 +
 +	chosen {
 +		linux,initrd-start = <0x50800000>;
-+		linux,initrd-end = <0x50A00000>;
++		linux,initrd-end = <0x50C00000>;
 +		stdout-path = "serial0:115200n8";
 +
 +		/*
@@ -687,6 +717,15 @@ new file mode 100644
 +};
 +
 +&sdmmc0 { status = "okay"; };
++
++/* The Type-A port: host only, with a TPS2051C switch for VBUS. */
++&usb_phy { status = "okay"; };
++
++&usb0 {
++	dr_mode = "host";
++	disable-over-current;
++	status = "okay";
++};
 +
 +/* WS2812 RGB LED on GPIO37. */
 +&rgb_led { status = "okay"; };

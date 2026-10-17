@@ -30,7 +30,6 @@
 #include "soc/reg_base.h"
 #include "soc/spi_mem_c_reg.h"
 #include "adapter.h"
-#include "display.h"
 #include "interface.h"
 #include "loader.h"
 
@@ -43,8 +42,9 @@
 #define KERNEL_MAGIC2               0x05435352U
 #define KERNEL_SIZE_MAGIC           0x455A4953U
 #define INITRAMFS_LOAD_ADDR         0x50800000U
-#define INITRAMFS_PARTITION_SIZE    0x00200000U
+#define INITRAMFS_PARTITION_SIZE    0x00400000U
 #define INITRAMFS_NEWC_MAGIC0       0x37303730U
+#define INITRAMFS_GZIP_MAGIC        0x8B1FU
 #define PSRAM_PMA_SIZE              0x01000000U
 #define PSRAM_UNCACHED_BASE         0xC0000000U
 #define LINUX_HART                  1U
@@ -406,11 +406,12 @@ static bool load_initramfs_partition(void)
         return false;
     }
 
+    /* A newc archive, or the gzip rootfs of the esp32s31 board. */
     magic0 = *(const volatile uint32_t *)INITRAMFS_LOAD_ADDR;
-    if (magic0 != INITRAMFS_NEWC_MAGIC0) {
-        ESP_LOGE(TAG, "initramfs magic 0x%08" PRIx32
-                      " != newc prefix 0x%08" PRIx32,
-                 magic0, (uint32_t)INITRAMFS_NEWC_MAGIC0);
+    if (magic0 != INITRAMFS_NEWC_MAGIC0 &&
+        (magic0 & 0xFFFFU) != INITRAMFS_GZIP_MAGIC) {
+        ESP_LOGE(TAG, "initramfs magic 0x%08" PRIx32 " is not newc or gzip",
+                 magic0);
         return false;
     }
 
@@ -434,22 +435,14 @@ void app_main(void)
         ESP_LOGE(TAG, "PSRAM not initialized");
         esp_restart();
     }
-    init_sd_card();
-    init_rmt_led();
+    board_init();
 
     if (!load_opensbi_partition() || !load_kernel_partition() ||
         !load_initramfs_partition()) {
         esp_restart();
     }
 
-#if CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG_ENABLED
-    /* GPIO33/34 are the USB Serial/JTAG D-/D+ pins and also LCD data pins. */
-    ESP_LOGI(TAG, "display disabled: GPIO33/34 reserved for USB Serial/JTAG");
-#else
-    if (!display_init()) {
-        ESP_LOGW(TAG, "continuing without display");
-    }
-#endif
+    board_start_display();
 
     ESP_LOGI(TAG, "handoff: OpenSBI=0x%08" PRIx32 " kernel=0x%08" PRIx32
                   " initramfs=0x%08" PRIx32,

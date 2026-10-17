@@ -23,16 +23,6 @@
 		#size-cells = <1>;
 		ranges;
 
-		/*
-		 * The loader DMA reads this buffer also after the handoff.
-		 * OpenSBI makes this range uncached with two PMA entries, so
-		 * it goes to the end of PSRAM.
-		 */
-		fb_region: framebuffer@50f40000 {
-			reg = <0x50f40000 0xc0000>;
-			no-map;
-		};
-
 		/* M-mode firmware.  Linux must never map or allocate it. */
 		opensbi_region: opensbi@50f00000 {
 			reg = <0x50f00000 0x40000>;
@@ -207,6 +197,7 @@
 			reg-names = "clkrst", "cnnt", "usb-ctrl", "otghs-ctrl",
 				    "utmi-fc06";
 			#phy-cells = <0>;
+			status = "disabled";
 		};
 
 		usb0: usb@20300000 {
@@ -222,8 +213,7 @@
 			clock-names = "otg";
 			phys = <&usb_phy>;
 			phy-names = "usb2-phy";
-			dr_mode = "host";
-			disable-over-current;
+			status = "disabled";
 		};
 
 	};

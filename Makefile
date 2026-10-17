@@ -1,6 +1,13 @@
 SHELL := /bin/bash
 
-BUILD_DIR := build
+# The board to build for: korvo1 (ESP32-S31-Korvo-1: LCD, microSD, USB, LED)
+# or esp32s31 (a bare module with UART0 only, root in the flash initramfs).
+BOARD ?= korvo1
+ifeq ($(filter $(BOARD),korvo1 esp32s31),)
+$(error BOARD must be korvo1 or esp32s31, not "$(BOARD)")
+endif
+
+BUILD_DIR := build/$(BOARD)
 LOG_DIR := logs
 
 IDF_PATH ?= $(HOME)/esp/esp-idf
@@ -28,27 +35,31 @@ HOSTED_IDF_PATCHES := $(addprefix $(CURDIR)/external/esp-hosted-linux/esp/esp_dr
 OPENSBI_SRC := $(BUILD_DIR)/opensbi-src
 OPENSBI_OUT := $(CURDIR)/$(BUILD_DIR)/opensbi
 OPENSBI_PATCHES := $(sort $(wildcard opensbi/patches/*.patch))
+# The loader config of the board: the common defaults, then the board.
+SDKCONFIG_DEFAULTS := sdkconfig.defaults;sdkconfig.defaults.$(BOARD)
 # The LCD DMA reads PSRAM without the cache, so the frame buffer must not be
 # cached when the loader starts the LCD.
 FB_UNCACHED := $(shell grep -q '^CONFIG_ESP_CONSOLE_SECONDARY_NONE=y' \
-	bootloader/sdkconfig.defaults && echo 1 || echo 0)
+	bootloader/sdkconfig.defaults.$(BOARD) && echo 1 || echo 0)
 # The LCD has the pins of the USB Serial/JTAG, so OpenSBI copies its console
 # to USB only when the loader does not start the LCD.
 USB_CONSOLE := $(if $(filter 1,$(FB_UNCACHED)),0,1)
 
-# Buildroot cannot build on macOS, so it runs in a container.  Its output/
-# and dl/ are in a volume, because virtiofs is slow for many gigabytes.
+# Buildroot cannot build on macOS, so it runs in a container.  Its output
+# directory for each board and dl/ are in a volume, because virtiofs is slow
+# for many gigabytes.
 BR_DIR := external/buildroot
 BR_IMAGE ?= esp32s31-buildroot:bookworm
 BR_VOLUME ?= esp32s31-br
 BR_VOLUME_SIZE ?= 60G
-BR_DEFCONFIG := esp32s31_defconfig
+BR_DEFCONFIG := $(BOARD)_defconfig
 # The kernel release that Buildroot builds and that kernel-check uses.
 LINUX_VERSION := $(shell sed -n 's/^BR2_LINUX_KERNEL_CUSTOM_VERSION_VALUE="\(.*\)"/\1/p' \
-	br2-external/configs/esp32s31_defconfig)
+	br2-external/configs/$(BR_DEFCONFIG))
 BR_MEMORY ?= 8G
 BR_OUT := $(BUILD_DIR)/buildroot
-BR_MAKE := make O=/br/output BR2_EXTERNAL=/work/br2-external BR2_DL_DIR=/br/dl
+BR_O := /br/$(BOARD)
+BR_MAKE := make O=$(BR_O) BR2_EXTERNAL=/work/br2-external BR2_DL_DIR=/br/dl
 CONTAINER ?= $(shell command -v container 2>/dev/null)
 BR_RUN = "$(CONTAINER)" run --rm --cpus $(JOBS) --memory $(BR_MEMORY) \
 	--uid $(shell id -u) --gid $(shell id -g) -e HOME=/br/home \
@@ -57,7 +68,10 @@ BR_RUN = "$(CONTAINER)" run --rm --cpus $(JOBS) --memory $(BR_MEMORY) \
 BR_TOOLS = "$(CONTAINER)" run --rm --uid $(shell id -u) --gid $(shell id -g) \
 	-v "$(CURDIR)":/work "$(BR_IMAGE)"
 
-INITRAMFS_INIT := br2-external/board/esp32s31/init
+# The flash slot of the initramfs.  The Korvo-1 gets a small one that mounts
+# the root on the card.  The esp32s31 board gets the full rootfs of Buildroot.
+INITRAMFS_ARGS_korvo1 := --target $(BR_O)/target --init br2-external/board/esp32s31/init
+INITRAMFS_ARGS_esp32s31 := --cpio $(BR_O)/images/rootfs.cpio.gz
 SD_DISK ?=
 SD_RAW = $(subst /dev/disk,/dev/rdisk,$(SD_DISK))
 # Size of the FAT partition.  The rest of the card is the root partition.
@@ -137,8 +151,11 @@ help:
 		'board before monitoring when SERIAL_PORT cannot (BAUD, BOOT_TIMEOUT' \
 		'tune the monitor).' \
 		'' \
-		'The rootfs lives on the SD card; the flash slot carries only the' \
-		'initramfs that switch_roots into it.'
+		'BOARD selects the board, for each target: korvo1 (the default) or' \
+		'esp32s31.  The output of a board goes to build/BOARD.  On korvo1 the' \
+		'rootfs lives on the SD card, and the flash slot carries only the' \
+		'initramfs that switch_roots into it.  On esp32s31, the flash slot' \
+		'carries the full rootfs.'
 
 check:
 	@test "$$(uname -s)" = Darwin || { echo 'this build is supported on macOS only'; exit 1; }
@@ -161,11 +178,12 @@ build: bootloader opensbi rootfs initramfs
 # writes sdkconfig at each build, so it ignores changes to the defaults.
 # Here the defaults have priority, also over "idf.py menuconfig".
 bootloader:
-	@if test -f bootloader/sdkconfig && \
-		test bootloader/sdkconfig.defaults -nt bootloader/sdkconfig; then \
-		echo 'sdkconfig.defaults changed; regenerating bootloader/sdkconfig'; \
-		rm -f bootloader/sdkconfig; \
-	fi
+	@for f in bootloader/sdkconfig.defaults bootloader/sdkconfig.defaults.$(BOARD); do \
+		if test -f $(BUILD_DIR)/sdkconfig && test $$f -nt $(BUILD_DIR)/sdkconfig; then \
+			echo "$$f changed; regenerating $(BUILD_DIR)/sdkconfig"; \
+			rm -f $(BUILD_DIR)/sdkconfig; \
+		fi; \
+	done
 	@mkdir -p "$(BUILD_DIR)"
 	@for p in $(HOSTED_IDF_PATCHES); do \
 		git -C "$(IDF_PATH)" apply --recount --reverse --check "$$p" 2>/dev/null || exit 1; \
@@ -178,7 +196,9 @@ bootloader:
 		echo 'ESP-IDF environment setup failed (run $(IDF_PATH)/install.sh)'; \
 		exit 1; \
 	fi; \
-	cd bootloader && idf.py -B ../$(BUILD_DIR)/bootloader build
+	cd bootloader && idf.py -B ../$(BUILD_DIR)/bootloader \
+		-D SDKCONFIG="$(CURDIR)/$(BUILD_DIR)/sdkconfig" \
+		-D SDKCONFIG_DEFAULTS="$(SDKCONFIG_DEFAULTS)" build
 
 opensbi:
 	@rm -rf "$(OPENSBI_SRC)"
@@ -232,20 +252,20 @@ kernel-check: kernel-patches br-volume
 # patches and configures them again.  Runs in the container, in the Buildroot
 # directory.
 KERNEL_SYNC = sum=$$(cat /work/linux/patches/*.patch \
-		/work/br2-external/board/esp32s31/linux.config \
+		/work/br2-external/board/esp32s31/linux* \
 		/work/br2-external/configs/$(BR_DEFCONFIG) \
 		/work/shared/*.h /work/br2-external/package/esp-hosted-linux/* \
 		/work/external/esp-hosted-linux/host/*.c \
 		/work/external/esp-hosted-linux/host/include/*.h | \
 		sha256sum | cut -d" " -f1); \
-	stamp=/br/output/.esp32s31-kernel-inputs; \
-	if test -f /br/output/.config && \
+	stamp=$(BR_O)/.esp32s31-kernel-inputs; \
+	if test -f $(BR_O)/.config && \
 		test "$$(cat $$stamp 2>/dev/null)" != "$$sum"; then \
 		echo "kernel sources or config changed: extracting the kernel again"; \
 		$(BR_MAKE) linux-dirclean linux-headers-dirclean \
 			esp-hosted-linux-dirclean; \
 	fi; \
-	mkdir -p /br/output; echo "$$sum" > $$stamp
+	mkdir -p $(BR_O); echo "$$sum" > $$stamp
 
 kernel: kernel-patches br-volume
 	@$(BR_RUN) sh -c 'set -e; cd /work/$(BR_DIR); $(KERNEL_SYNC); \
@@ -259,7 +279,7 @@ kernel-clean: br-volume
 
 # vmlinux has 100 MB of DWARF, so copy it only when GDB needs it.
 kernel-vmlinux: br-volume
-	@$(BR_RUN) sh -c 'cp /br/output/build/linux-$(LINUX_VERSION)/vmlinux /work/$(BUILD_DIR)/'
+	@$(BR_RUN) sh -c 'cp $(BR_O)/build/linux-$(LINUX_VERSION)/vmlinux /work/$(BUILD_DIR)/'
 	@ls -l "$(BUILD_DIR)/vmlinux"
 
 kernel-menuconfig: br-volume
@@ -292,14 +312,14 @@ rootfs: kernel-patches br-volume
 	@$(MAKE) --no-print-directory br-artifacts
 
 # Copy the kernel and its manifest from the volume for flashing, next to the
-# loader and OpenSBI binaries.
+# loader and OpenSBI binaries, and the card images of a board with a card.
 br-artifacts:
 	@$(BR_RUN) sh -c 'set -e; \
 		mkdir -p /work/$(BR_OUT) /work/$(BUILD_DIR); \
-		cp /br/output/images/rootfs.ext2 /work/$(BR_OUT)/; \
-		cp /br/output/images/Image /br/output/images/linux.size /work/$(BUILD_DIR)/; \
-		if test -f /br/output/images/sdcard.img; then \
-			cp /br/output/images/sdcard.img /work/$(BR_OUT)/; fi'
+		cp $(BR_O)/images/Image $(BR_O)/images/linux.size /work/$(BUILD_DIR)/; \
+		for f in rootfs.ext2 sdcard.img; do \
+			if test -f $(BR_O)/images/$$f; then cp $(BR_O)/images/$$f /work/$(BR_OUT)/; fi; \
+		done'
 
 rootfs-menuconfig: br-volume
 	@$(BR_RUN) -i -t sh -c 'cd /work/$(BR_DIR) && $(BR_MAKE) $(BR_DEFCONFIG) && $(BR_MAKE) menuconfig'
@@ -307,8 +327,8 @@ rootfs-menuconfig: br-volume
 # Runs in the container, because the target tree is in the volume.
 initramfs: rootfs
 	@$(BR_RUN) sh -c 'cd /work && python3 scripts/mkinitramfs.py \
-		--target /br/output/target --init "$(INITRAMFS_INIT)" \
-		--output "$(BUILD_DIR)/initramfs.cpio" --size 0x200000'
+		$(INITRAMFS_ARGS_$(BOARD)) \
+		--output "$(BUILD_DIR)/initramfs.cpio" --size 0x400000'
 
 sdcard: rootfs
 	@test -f "$(BR_OUT)/sdcard.img" || { \
