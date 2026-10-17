@@ -6,6 +6,9 @@ CONFIG_NTPD=y
 # S05swap gives zram a higher priority than the swap file.
 CONFIG_FEATURE_SWAPON_PRI=y
 
+# The persist tool of the esp32s31 board packs its files with cpio.
+CONFIG_FEATURE_CPIO_O=y
+
 # nc to test sockets.
 CONFIG_NC=y
 CONFIG_NC_SERVER=y

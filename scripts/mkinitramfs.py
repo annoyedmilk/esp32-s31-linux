@@ -126,7 +126,7 @@ def main() -> int:
     source.add_argument("--cpio", type=Path, help="archive to put into the partition")
     parser.add_argument("--init", type=Path, help="init script, with --target")
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--size", type=lambda value: int(value, 0), default=0x400000)
+    parser.add_argument("--size", type=lambda value: int(value, 0), default=0x3F0000)
     args = parser.parse_args()
 
     if args.cpio:

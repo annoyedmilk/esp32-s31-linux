@@ -1,0 +1,5 @@
+# Files and directories that "persist save" keeps in the flash.  The loader
+# copies them back at each boot.  Add a path on a line of its own.
+/etc/wpa_supplicant.conf
+/etc/dropbear
+/etc/shadow

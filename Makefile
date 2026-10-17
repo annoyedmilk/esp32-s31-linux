@@ -328,7 +328,7 @@ rootfs-menuconfig: br-volume
 initramfs: rootfs
 	@$(BR_RUN) sh -c 'cd /work && python3 scripts/mkinitramfs.py \
 		$(INITRAMFS_ARGS_$(BOARD)) \
-		--output "$(BUILD_DIR)/initramfs.cpio" --size 0x400000'
+		--output "$(BUILD_DIR)/initramfs.cpio" --size 0x3F0000'
 
 sdcard: rootfs
 	@test -f "$(BR_OUT)/sdcard.img" || { \

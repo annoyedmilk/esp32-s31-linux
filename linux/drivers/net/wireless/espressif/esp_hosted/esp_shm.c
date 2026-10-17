@@ -9,7 +9,9 @@
 
 #include <linux/interrupt.h>
 #include <linux/io.h>
+#include <linux/iopoll.h>
 #include <linux/module.h>
+#include <linux/nvmem-provider.h>
 #include <linux/of.h>
 #include <linux/platform_device.h>
 #include <linux/skbuff.h>
@@ -25,6 +27,9 @@
 #define ESP_SHM_TX_PAUSE	64
 #define ESP_SHM_TX_RESUME	16
 #define ESP_SHM_TX_QUEUE_MAX	256
+
+/* An erase and write of one flash sector takes up to approximately 0.5 s. */
+#define ESP_SHM_NV_TIMEOUT_US	2000000
 
 /* Doorbell registers: FROM_CPU_1 to the firmware, FROM_CPU_2 to Linux. */
 #define ESP_SHM_DOORBELL_TO_FW	0x0
@@ -51,6 +56,7 @@ struct esp_shm_context {
 	struct sk_buff_head tx_queue;
 	struct work_struct tx_work;
 	spinlock_t tx_lock;		/* running, tx_quiesced, tx_paused, tx_queue */
+	struct mutex nv_lock;		/* the nvmem mailbox */
 	bool running;
 	bool tx_quiesced;
 	bool tx_paused;
@@ -370,6 +376,95 @@ static int esp_shm_recover_transport(struct esp_adapter *adapter)
 	return 0;
 }
 
+/* One mailbox transfer, inside one ESP_SHM_NV_DATA_SIZE block. */
+static int esp_shm_nv_xfer(struct esp_shm_context *ctx, u32 cmd, u32 addr,
+			   void *buf, u32 len)
+{
+	u32 val;
+	int ret;
+
+	/* After a timeout, the firmware can still work on the old request. */
+	if (shm_read32(ctx, ESP_SHM_NV + ESP_SHM_NV_CMD_OFF))
+		return -EBUSY;
+	shm_write32(ctx, ESP_SHM_NV + ESP_SHM_NV_ADDR_OFF, addr);
+	shm_write32(ctx, ESP_SHM_NV + ESP_SHM_NV_LEN_OFF, len);
+	if (cmd == ESP_SHM_NV_WRITE)
+		memcpy_toio(ctx->shm + ESP_SHM_NV_DATA, buf, len);
+	/* The firmware reads the request when it sees the command. */
+	wmb();
+	shm_write32(ctx, ESP_SHM_NV + ESP_SHM_NV_CMD_OFF, cmd);
+	esp_shm_ring_firmware(ctx);
+
+	ret = readl_poll_timeout(ctx->shm + ESP_SHM_NV + ESP_SHM_NV_CMD_OFF, val,
+				 !val, 1000, ESP_SHM_NV_TIMEOUT_US);
+	if (ret)
+		return ret;
+	rmb();
+	if (shm_read32(ctx, ESP_SHM_NV + ESP_SHM_NV_STATUS_OFF))
+		return -EIO;
+	if (cmd == ESP_SHM_NV_READ)
+		memcpy_fromio(buf, ctx->shm + ESP_SHM_NV_DATA, len);
+	return 0;
+}
+
+static int esp_shm_nv_access(struct esp_shm_context *ctx, u32 cmd,
+			     unsigned int off, void *buf, size_t bytes)
+{
+	int ret = 0;
+
+	mutex_lock(&ctx->nv_lock);
+	while (bytes && !ret) {
+		u32 len = min_t(size_t, bytes,
+				ESP_SHM_NV_DATA_SIZE - off % ESP_SHM_NV_DATA_SIZE);
+
+		ret = esp_shm_nv_xfer(ctx, cmd, off, buf, len);
+		off += len;
+		buf += len;
+		bytes -= len;
+	}
+	mutex_unlock(&ctx->nv_lock);
+	return ret;
+}
+
+static int esp_shm_nv_read(void *priv, unsigned int off, void *val, size_t bytes)
+{
+	return esp_shm_nv_access(priv, ESP_SHM_NV_READ, off, val, bytes);
+}
+
+static int esp_shm_nv_write(void *priv, unsigned int off, void *val, size_t bytes)
+{
+	return esp_shm_nv_access(priv, ESP_SHM_NV_WRITE, off, val, bytes);
+}
+
+/*
+ * The persist flash partition of the firmware, as an nvmem device.  The
+ * loader copies it after the initramfs, so its contents are back at boot.
+ * Linux stops while the firmware erases or writes a flash sector.
+ */
+static void esp_shm_register_nvmem(struct esp_shm_context *ctx)
+{
+	struct nvmem_config config = {
+		.dev = ctx->dev,
+		.name = "esp32s31-persist",
+		.id = NVMEM_DEVID_NONE,
+		.owner = THIS_MODULE,
+		.root_only = true,
+		.word_size = 1,
+		.stride = 1,
+		.size = shm_read32(ctx, ESP_SHM_NV + ESP_SHM_NV_SIZE_OFF),
+		.reg_read = esp_shm_nv_read,
+		.reg_write = esp_shm_nv_write,
+		.priv = ctx,
+	};
+	struct nvmem_device *nvmem;
+
+	if (!config.size)
+		return;
+	nvmem = devm_nvmem_register(ctx->dev, &config);
+	if (IS_ERR(nvmem))
+		dev_warn(ctx->dev, "no persist partition: %pe\n", nvmem);
+}
+
 static struct esp_if_ops esp_shm_if_ops = {
 	.read = esp_shm_read,
 	.write = esp_shm_write,
@@ -415,6 +510,7 @@ static int esp_shm_probe(struct platform_device *pdev)
 	ctx->dev = dev;
 	skb_queue_head_init(&ctx->tx_queue);
 	spin_lock_init(&ctx->tx_lock);
+	mutex_init(&ctx->nv_lock);
 	INIT_WORK(&ctx->tx_work, esp_shm_tx_work);
 
 	adapter->if_context = ctx;
@@ -443,6 +539,7 @@ static int esp_shm_probe(struct platform_device *pdev)
 	 * one through recover_transport().
 	 */
 	esp_process_new_packet_intr(adapter);
+	esp_shm_register_nvmem(ctx);
 	schedule_delayed_work(&adapter->fw_recovery_work,
 			      msecs_to_jiffies(ESP_FW_RECOVERY_WATCHDOG_MS));
 	dev_info(dev, "ESP32-S31 shared-memory transport bound\n");

@@ -42,7 +42,9 @@
 #define KERNEL_MAGIC2               0x05435352U
 #define KERNEL_SIZE_MAGIC           0x455A4953U
 #define INITRAMFS_LOAD_ADDR         0x50800000U
-#define INITRAMFS_PARTITION_SIZE    0x00400000U
+#define INITRAMFS_PARTITION_SIZE    0x003F0000U
+#define PERSIST_LOAD_ADDR           (INITRAMFS_LOAD_ADDR + INITRAMFS_PARTITION_SIZE)
+#define PERSIST_PARTITION_SIZE      0x00010000U
 #define INITRAMFS_NEWC_MAGIC0       0x37303730U
 #define INITRAMFS_GZIP_MAGIC        0x8B1FU
 #define PSRAM_PMA_SIZE              0x01000000U
@@ -421,6 +423,29 @@ static bool load_initramfs_partition(void)
     return true;
 }
 
+/*
+ * The files that Linux saved in the persist partition: a gzip cpio archive
+ * directly after the initramfs, in the initrd range of the device tree.  The
+ * kernel unpacks it over the files of the initramfs.  An erased partition,
+ * or one that a save did not complete, has no gzip magic.  Then give the
+ * kernel zeros, which it skips.
+ */
+static void load_persist_partition(void)
+{
+    const esp_partition_t *part = find_partition("persist");
+    uint32_t magic0 = 0;
+
+    if (part && part->size == PERSIST_PARTITION_SIZE &&
+        read_partition(part, PERSIST_LOAD_ADDR, PERSIST_PARTITION_SIZE)) {
+        magic0 = *(const volatile uint32_t *)PERSIST_LOAD_ADDR;
+    }
+    if ((magic0 & 0xFFFFU) != INITRAMFS_GZIP_MAGIC) {
+        memset((void *)PERSIST_LOAD_ADDR, 0, PERSIST_PARTITION_SIZE);
+        return;
+    }
+    ESP_LOGI(TAG, "persist copied: psram=0x%08" PRIx32, (uint32_t)PERSIST_LOAD_ADDR);
+}
+
 void app_main(void)
 {
     open_apm();
@@ -441,6 +466,7 @@ void app_main(void)
         !load_initramfs_partition()) {
         esp_restart();
     }
+    load_persist_partition();
 
     board_start_display();
 

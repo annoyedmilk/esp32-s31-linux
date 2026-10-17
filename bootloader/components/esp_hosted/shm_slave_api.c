@@ -26,6 +26,7 @@
 #include "soc/soc.h"
 #include "interface.h"
 #include "esp32s31-hosted-shm.h"
+#include "shm_nvmem.h"
 
 /*
  * The largest frames.  To the host: the same as on USB.  To the firmware: the
@@ -178,6 +179,7 @@ static void shm_service_host_requests(void)
 	if ((req & ESP_SHM_REQ_READY_REPLAY) && s_boot_cap_valid &&
 	    send_bootup_event_to_host(s_boot_cap, s_boot_ext_cap) != ESP_OK)
 		ESP_LOGW(TAG, "READY replay enqueue failed");
+	shm_nvmem_service();
 	/* Linux is off.  Without a wake-up source, only a reset starts the chip. */
 	if (req & ESP_SHM_REQ_POWEROFF) {
 		esp_wifi_stop();
@@ -193,6 +195,7 @@ static interface_handle_t *shm_init(void)
 		goto fail;
 
 	memset((void *)ESP_SHM_ADDR, 0, ESP_SHM_SIZE);
+	shm_nvmem_init();
 	shm_store(ESP_SHM_CTRL + ESP_SHM_VERSION_OFF, ESP_SHM_VERSION);
 	shm_store(ESP_SHM_CTRL + ESP_SHM_MAGIC_OFF, ESP_SHM_MAGIC);
 

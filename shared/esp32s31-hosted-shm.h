@@ -40,6 +40,25 @@
 #define ESP_SHM_TAIL_OFF	0x40
 #define ESP_SHM_WAIT_OFF	0x80	/* producer waits for space */
 
+/*
+ * The nvmem mailbox, at ESP_SHM_NV: Linux reads and writes the persist flash
+ * partition through it, at most ESP_SHM_NV_DATA_SIZE bytes in one 4 KiB
+ * sector at a time.  The firmware writes the partition size at start (0
+ * when there is none).  Linux writes ADDR, LEN and the data, then CMD, and
+ * rings.  The firmware writes STATUS (0 or an esp_err_t), then clears CMD.
+ */
+#define ESP_SHM_NV		0x0300
+#define ESP_SHM_NV_SIZE_OFF	0x00
+#define ESP_SHM_NV_CMD_OFF	0x04
+#define ESP_SHM_NV_STATUS_OFF	0x08
+#define ESP_SHM_NV_ADDR_OFF	0x0c
+#define ESP_SHM_NV_LEN_OFF	0x10
+#define ESP_SHM_NV_DATA		0x0800
+#define ESP_SHM_NV_DATA_SIZE	0x0800
+
+#define ESP_SHM_NV_READ		1
+#define ESP_SHM_NV_WRITE	2
+
 /* Host request bits.  OpenSBI sets POWEROFF when Linux powers off. */
 #define ESP_SHM_REQ_READY_REPLAY	(1U << 0)
 #define ESP_SHM_REQ_POWEROFF		(1U << 1)

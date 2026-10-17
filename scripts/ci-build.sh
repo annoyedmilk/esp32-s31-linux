@@ -50,4 +50,4 @@ case $BOARD in
 korvo1)	src="--target $BR_OUTPUT/target --init br2-external/board/esp32s31/init" ;;
 esp32s31)	src="--cpio $BR_OUTPUT/images/rootfs.cpio.gz" ;;
 esac
-python3 scripts/mkinitramfs.py $src --output "$out/initramfs.cpio" --size 0x400000
+python3 scripts/mkinitramfs.py $src --output "$out/initramfs.cpio" --size 0x3F0000

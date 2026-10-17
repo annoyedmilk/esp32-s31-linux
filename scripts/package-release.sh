@@ -45,7 +45,8 @@ with balenaEtcher, or with dd on Linux or macOS:
   xz -dc $name-sdcard.img.xz | sudo dd of=/dev/sdX bs=4M conv=fsync" ;;
 esp32s31)
 	title="a bare ESP32-S31 module with 16 MiB PSRAM (UART only)"
-	usage="The full system is in the flash.  Nothing stays after a reboot." ;;
+	usage="The full system is in the flash.  To keep files such as the Wi-Fi
+network after a reboot, run: persist save" ;;
 esac
 
 cat > "$stage/FLASH.txt" <<TXT
