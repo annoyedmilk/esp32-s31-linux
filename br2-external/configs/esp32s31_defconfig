@@ -55,6 +55,8 @@ BR2_PACKAGE_WIRELESS_REGDB=y
 BR2_PACKAGE_WPA_SUPPLICANT=y
 BR2_PACKAGE_WPA_SUPPLICANT_CLI=y
 BR2_PACKAGE_WPA_SUPPLICANT_PASSPHRASE=y
+# S40wifi starts it with -s: its notes go to syslog, not to the console.
+BR2_PACKAGE_WPA_SUPPLICANT_DEBUG_SYSLOG=y
 BR2_PACKAGE_DROPBEAR=y
 BR2_PACKAGE_IPERF3=y
 # The kernel has only version 2 of the GPIO character device ABI.

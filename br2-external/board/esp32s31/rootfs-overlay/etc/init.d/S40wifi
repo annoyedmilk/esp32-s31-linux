@@ -12,8 +12,13 @@ CONF=/etc/wpa_supplicant.conf
 case "$1" in
 start)
 	[ -d /sys/class/net/$IFACE ] || exit 0
-	wpa_supplicant -B -D nl80211 -i $IFACE -c "$CONF" \
-		-P /var/run/wpa_supplicant.$IFACE.pid || exit 1
+	# Log to syslog: on the console, the notes about frame types that the
+	# ESP-Hosted driver does not register fill the screen at each boot.
+	if ! wpa_supplicant -B -s -D nl80211 -i $IFACE -c "$CONF" \
+		-P /var/run/wpa_supplicant.$IFACE.pid; then
+		echo "wifi: wpa_supplicant did not start, see /var/log/messages"
+		exit 1
+	fi
 	wpa_cli -B -i $IFACE -a /usr/sbin/wpa-dhcp-action \
 		-P /var/run/wpa_cli.$IFACE.pid
 	echo "wifi: wpa_supplicant on $IFACE with $CONF"

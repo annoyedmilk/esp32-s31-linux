@@ -107,6 +107,8 @@ BR2_PACKAGE_HOSTAPD=y
 BR2_PACKAGE_WPA_SUPPLICANT=y
 BR2_PACKAGE_WPA_SUPPLICANT_CLI=y
 BR2_PACKAGE_WPA_SUPPLICANT_PASSPHRASE=y
+# S40wifi starts it with -s: its notes go to syslog, not to the console.
+BR2_PACKAGE_WPA_SUPPLICANT_DEBUG_SYSLOG=y
 BR2_PACKAGE_WPA_SUPPLICANT_WPA3=y
 # BlueZ for hci0, the Bluetooth controller of the ESP-Hosted firmware:
 # bluetoothd, bluetoothctl, and hciconfig and hcitool.
