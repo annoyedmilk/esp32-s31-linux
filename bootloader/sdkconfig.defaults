@@ -52,7 +52,8 @@ CONFIG_ESP_COEX_SW_COEXIST_ENABLE=y
 # CONFIG_ESP_WIFI_ENABLE_WPA3_OWE_STA is not set
 # CONFIG_ESP_WIFI_ENABLE_WPA3_OWE_SOFTAP is not set
 # CONFIG_ESP_WIFI_ENTERPRISE_SUPPORT is not set
-# 16 dynamic buffers, not 32: with Bluetooth and the RCP, the heap fell to
-# 15 KiB during iperf3.  Wi-Fi still gives approximately 40 Mbit/s.
-CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM=16
-CONFIG_ESP_WIFI_DYNAMIC_TX_BUFFER_NUM=16
+# 32 dynamic buffers in each direction, as before Bluetooth and the RCP.
+# With the RCP, the heap fell to 15 KiB during iperf3 with 32 buffers.  The
+# RCP took 23 KiB of code and 26 KiB of heap.
+CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM=32
+CONFIG_ESP_WIFI_DYNAMIC_TX_BUFFER_NUM=32
