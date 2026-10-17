@@ -1,40 +1,50 @@
 From: Marco Müller <hello@annoyedmilk.ch>
-Subject: [PATCH] riscv: esp32s31: sync only the new page for new user code
+Subject: [PATCH] riscv: esp32s31: sync the caches for new code
 
-Each new executable user page called flush_icache_mm(), which on this
-SoC writes back the full D-cache two times and invalidates the full
-I-cache.  The first run of a fresh copy of iperf3 and the musl loader
-took 8 to 9 ms more than the second run.  The page cache knows the
+The I-cache of each ESP32-S31 core refills from PSRAM, not from the
+shared D-cache.  With write-back PSRAM, new code can stay in the
+D-cache.  fence.i also does not invalidate the I-cache: a write, a
+flush and a call of the same address gave the old code in 292 of 300
+runs, until a timer tick replaced the line.
+
+Ask the firmware to write back the D-cache and to invalidate the
+I-cache.
+
+A new executable user page needs only its own range.  A sync of the
+full caches made the first run of a fresh copy of iperf3 and the musl
+loader 8 to 9 ms slower than the second run.  The page cache knows the
 folio, and the sync engine takes a range, so sync only the folio: now
 2 to 4 ms.  The other callers still sync the full caches.
 
+Signed-off-by: Marco Müller <hello@annoyedmilk.ch>
 ---
 diff --git a/arch/riscv/include/asm/cacheflush.h b/arch/riscv/include/asm/cacheflush.h
 --- a/arch/riscv/include/asm/cacheflush.h
 +++ b/arch/riscv/include/asm/cacheflush.h
-@@ -9,7 +9,7 @@
+@@ -8,8 +8,19 @@
+ 
  #include <linux/mm.h>
  
- #ifdef CONFIG_ESP32S31_CACHE
--void esp32s31_icache_sync(void);
++#ifdef CONFIG_ESP32S31_CACHE
 +void esp32s31_icache_sync(phys_addr_t paddr, size_t size);
- #endif
- 
++#endif
++
  static inline void local_flush_icache_all(void)
-@@ -19,7 +19,7 @@
- 	 * The ESP32-S31 I-cache refills from PSRAM, not from the shared
- 	 * D-cache, and fence.i does not invalidate it.
- 	 */
--	esp32s31_icache_sync();
+ {
++#ifdef CONFIG_ESP32S31_CACHE
++	/*
++	 * The ESP32-S31 I-cache refills from PSRAM, not from the shared
++	 * D-cache, and fence.i does not invalidate it.
++	 */
 +	esp32s31_icache_sync(0, 0);
- #endif
++#endif
  	asm volatile ("fence.i" ::: "memory");
  }
-@@ -85,6 +85,19 @@
- void flush_icache_mm(struct mm_struct *mm, bool local);
+ 
+@@ -75,6 +86,19 @@
  
  #endif /* CONFIG_SMP */
-+
+ 
 +/* Make the code in a new user page visible. */
 +static inline void flush_icache_folio(struct mm_struct *mm,
 +				      struct folio *folio)
@@ -47,9 +57,10 @@ diff --git a/arch/riscv/include/asm/cacheflush.h b/arch/riscv/include/asm/cachef
 +	flush_icache_mm(mm, false);
 +#endif
 +}
- 
++
  /*
   * RISC-V doesn't have an instruction to flush parts of the instruction cache,
+  * so instead we just flush the whole thing.
 diff --git a/arch/riscv/mm/cacheflush.c b/arch/riscv/mm/cacheflush.c
 --- a/arch/riscv/mm/cacheflush.c
 +++ b/arch/riscv/mm/cacheflush.c

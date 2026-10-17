@@ -192,9 +192,9 @@ This is the part that is most different from other RISC-V SoCs.
   it. Measured from user space: a write, a flush with `fence.i` and a call of
   the same address gave the old code in 292 of 300 runs. So
   `local_flush_icache_all()` asks OpenSBI to write the D-cache back and to
-  invalidate the I-cache of the hart (`patches/0012`, vendor SBI function 4).
+  invalidate the I-cache of the hart (`patches/0011`, vendor SBI function 4).
   For a new user code page, `flush_icache_pte()` gives only the range of the
-  folio (`patches/0013`). The first run of fresh copies of `iperf3` and the
+  folio (same patch). The first run of fresh copies of `iperf3` and the
   musl loader then costs 2 to 4 ms more than the second run, not 8 to 9 ms.
   A test that changes the code in a file page, maps it again and calls it
   gets the new code in 2300 of 2300 runs. Without a new mapping (no sync) it
