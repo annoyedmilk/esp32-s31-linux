@@ -12,6 +12,9 @@ CONF=/etc/wpa_supplicant.conf
 case "$1" in
 start)
 	[ -d /sys/class/net/$IFACE ] || exit 0
+	# cfg80211 asks for regulatory.db before a root without initramfs is
+	# mounted.  Load it now.
+	iw reg reload 2>/dev/null
 	# Log to syslog: on the console, the notes about frame types that the
 	# ESP-Hosted driver does not register fill the screen at each boot.
 	if ! wpa_supplicant -B -s -D nl80211 -i $IFACE -c "$CONF" \
