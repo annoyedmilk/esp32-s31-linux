@@ -2,6 +2,7 @@
 // Author: Marco Müller <hello@annoyedmilk.ch>
 
 #include <sbi/riscv_asm.h>
+#include <sbi/riscv_atomic.h>
 #include <sbi/sbi_console.h>
 #include <sbi/sbi_domain.h>
 #include <sbi/sbi_ecall_interface.h>
@@ -11,6 +12,7 @@
 #include <sbi/riscv_locks.h>
 #include <sbi/sbi_system.h>
 #include <sbi/sbi_timer.h>
+#include "esp32s31-hosted-shm.h"
 
 #define ESP32S31_UART0_BASE		0x2038a000UL
 #define ESP32S31_UART_FIFO		0x00UL
@@ -222,6 +224,9 @@ static struct sbi_console_device esp32s31_console = {
 #define ESP32S31_LP_SYS_CTRL		0x20700008UL
 #define ESP32S31_LP_SYS_SW_RST		(1UL << 1)
 
+/* The doorbell of the firmware on hart 0: FROM_CPU_1, as Linux uses it. */
+#define ESP32S31_DOORBELL_TO_FW		0x20586014UL
+
 static int esp32s31_system_reset_check(u32 type, u32 reason)
 {
 	return type == SBI_SRST_RESET_TYPE_SHUTDOWN ||
@@ -229,10 +234,24 @@ static int esp32s31_system_reset_check(u32 type, u32 reason)
 	       type == SBI_SRST_RESET_TYPE_WARM_REBOOT;
 }
 
+/*
+ * The chip has no power switch.  Ask the firmware on hart 0 to put the chip
+ * into deep sleep, through the request word that Linux also uses.  If the
+ * firmware does not answer, this hart only stops.
+ */
+static void esp32s31_request_poweroff(void)
+{
+	atomic_raw_set_bit(__builtin_ctz(ESP_SHM_REQ_POWEROFF),
+			   (volatile unsigned long *)(ESP_SHM_ADDR + ESP_SHM_CTRL +
+						      ESP_SHM_HOST_REQ_OFF));
+	reg_write(ESP32S31_DOORBELL_TO_FW, 1);
+}
+
 static void esp32s31_system_reset(u32 type, u32 reason)
 {
-	/* The chip has no power switch, so shutdown stops the hart. */
-	if (type != SBI_SRST_RESET_TYPE_SHUTDOWN)
+	if (type == SBI_SRST_RESET_TYPE_SHUTDOWN)
+		esp32s31_request_poweroff();
+	else
 		reg_write(ESP32S31_LP_SYS_CTRL,
 			  reg_read(ESP32S31_LP_SYS_CTRL) |
 			  ESP32S31_LP_SYS_SW_RST);

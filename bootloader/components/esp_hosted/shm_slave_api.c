@@ -15,6 +15,8 @@
 #include "esp_heap_caps.h"
 #include "esp_intr_alloc.h"
 #include "esp_log.h"
+#include "esp_sleep.h"
+#include "esp_wifi.h"
 #include "esp_fw_version.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
@@ -176,6 +178,11 @@ static void shm_service_host_requests(void)
 	if ((req & ESP_SHM_REQ_READY_REPLAY) && s_boot_cap_valid &&
 	    send_bootup_event_to_host(s_boot_cap, s_boot_ext_cap) != ESP_OK)
 		ESP_LOGW(TAG, "READY replay enqueue failed");
+	/* Linux is off.  Without a wake-up source, only a reset starts the chip. */
+	if (req & ESP_SHM_REQ_POWEROFF) {
+		esp_wifi_stop();
+		esp_deep_sleep_start();
+	}
 }
 
 static interface_handle_t *shm_init(void)

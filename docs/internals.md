@@ -263,6 +263,10 @@ the USB transport in shared SRAM. The layout is in
 - Two cross-core interrupts are the doorbells. Linux sets `FROM_CPU_1`, and
   the firmware sets `FROM_CPU_2`. `FROM_CPU_0` is not usable: the ESP-IDF
   cross-core handler on hart 0 clears it.
+- A request word in the control block carries the requests to the
+  firmware: a new boot event from Linux, and poweroff from OpenSBI. At
+  poweroff, the firmware stops Wi-Fi and puts the chip into deep sleep
+  without a wake-up source.
 - A producer rings only when the consumer has read all frames, because only
   then the consumer can wait. Each side stores its index, then does a full
   fence, then loads the index of the other side. Thus one of the two sides

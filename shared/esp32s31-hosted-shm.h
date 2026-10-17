@@ -40,8 +40,9 @@
 #define ESP_SHM_TAIL_OFF	0x40
 #define ESP_SHM_WAIT_OFF	0x80	/* producer waits for space */
 
-/* Host request bits. */
+/* Host request bits.  OpenSBI sets POWEROFF when Linux powers off. */
 #define ESP_SHM_REQ_READY_REPLAY	(1U << 0)
+#define ESP_SHM_REQ_POWEROFF		(1U << 1)
 
 #define ESP_SHM_RECORD_LEN(frame_len)	(4 + (((frame_len) + 3) & ~3U))
 

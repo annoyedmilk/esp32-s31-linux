@@ -318,7 +318,8 @@ and one on the LCD.
   PMP, and its memory from DMA with HP_APM. The radio firmware on hart 0
   runs in M-mode. After it starts hart 1, it locks itself out of PSRAM and
   the DMA pool with PMP.
-- `poweroff` stops the hart. It does not remove power.
+- `poweroff` puts the chip into deep sleep. Only the reset button starts
+  it again. The board itself stays powered.
 - The coherent DMA pool is 64 KiB.
 - There is no I2C, audio or camera driver.
 - The firmware heap is small: see "Internal SRAM" in
