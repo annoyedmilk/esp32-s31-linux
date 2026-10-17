@@ -24,7 +24,7 @@ JOBS ?= $(shell sysctl -n hw.ncpu 2>/dev/null || nproc 2>/dev/null || echo 4)
 OPENSBI_DIR := external/opensbi
 # The ESP-Hosted firmware needs these patches in ESP-IDF (scripts/patch-esp-idf.sh).
 HOSTED_IDF_PATCHES := $(addprefix $(CURDIR)/external/esp-hosted-linux/esp/esp_driver/lib/, \
-	rom.patch idf-openthread-custom-rcp-v6.1.patch)
+	rom.patch)
 OPENSBI_SRC := $(BUILD_DIR)/opensbi-src
 OPENSBI_OUT := $(CURDIR)/$(BUILD_DIR)/opensbi
 OPENSBI_PATCHES := $(sort $(wildcard opensbi/patches/*.patch))

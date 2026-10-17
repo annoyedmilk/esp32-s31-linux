@@ -67,9 +67,6 @@ commit for a local build.
   direction.
 - Bluetooth as `hci0` through the same firmware: BR/EDR and LE, with
   `bluetoothd` and `bluetoothctl`.
-- IEEE 802.15.4 as an OpenThread radio co-processor: the Spinel stream is
-  `/dev/esp_rcp0`, for a Thread host such as `ot-daemon`. The image has no
-  Thread host.
 - Hardware RNG, GPIO, `reboot` and `poweroff`.
 
 ## Tested hardware
@@ -320,12 +317,9 @@ and one on the LCD.
 - `poweroff` stops the hart. It does not remove power.
 - The coherent DMA pool is 64 KiB.
 - There is no I2C, audio or camera driver.
-- The firmware turns the Wi-Fi/802.15.4 coexistence scheme off, because
-  it halves the Wi-Fi throughput also when no Thread host runs. A Thread
-  network on the RCP can lose frames while Wi-Fi is busy.
-- With the three radios, the firmware heap has approximately 64 KiB free
-  when idle and 25 KiB during iperf3. Bluetooth connections and Thread
-  traffic need more, which is not measured.
+- The firmware heap is small: see "Internal SRAM" in
+  [docs/internals.md](docs/internals.md). Bluetooth connections need more
+  heap, which is not measured.
 - BR/EDR is tested up to the inquiry: no discoverable device was near.
 - WPA2/WPA3 Enterprise is not tested.
 

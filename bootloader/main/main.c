@@ -9,7 +9,6 @@
 #include "esp_log.h"
 #include "esp_err.h"
 #include "esp_heap_caps.h"
-#include "esp_coex_i154.h"
 #include "esp_system.h"
 #include "esp_partition.h"
 #include "esp_psram.h"
@@ -434,18 +433,13 @@ void app_main(void)
      * The radio start reads the flash, and NVS can write it.  A flash
      * transaction disables the cache that Linux executes from.  Thus this
      * must be complete before hart 1 starts.  ESP-Hosted starts Bluetooth
-     * and the 802.15.4 RCP at the first request of the host, so start them
-     * here.  The request of the host then changes nothing.
+     * at the first request of the host, so start it here.  The request of
+     * the host then changes nothing.
      */
     esp_hosted_main();
-    if (esp_radio_service_apply(ESP_RADIO_SERVICE_ALL, NULL, NULL, NULL) != ESP_OK) {
-        ESP_LOGW(TAG, "Bluetooth or 802.15.4 did not start");
+    if (esp_radio_service_apply(ESP_RADIO_SERVICE_BT, NULL, NULL, NULL) != ESP_OK) {
+        ESP_LOGW(TAG, "Bluetooth did not start");
     }
-    /*
-     * The Wi-Fi/802.15.4 coexistence scheme halves the Wi-Fi throughput, also
-     * when no Thread host uses the 802.15.4 radio.  Wi-Fi has priority.
-     */
-    esp_coex_ieee802154_status_disable();
 
     disable_linux_hart_stack_protector();
     flush_l1_cache_before_handoff();

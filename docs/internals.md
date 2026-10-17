@@ -60,8 +60,8 @@ The loader keeps its own copy of these numbers. The device tree
 
 ### Internal SRAM
 
-The HP SRAM is 512 KiB (`0x2F000000`-`0x2F080000`). Measured with Wi-Fi,
-Bluetooth and the 802.15.4 RCP:
+The HP SRAM is 512 KiB (`0x2F000000`-`0x2F080000`). Measured in v0.3.1,
+with Wi-Fi, Bluetooth and the IEEE 802.15.4 RCP of that release:
 
 | Use | Size |
 | --- | --- |
@@ -71,10 +71,11 @@ Bluetooth and the 802.15.4 RCP:
 | ESP-IDF heap in HP SRAM | 203 KiB |
 
 The heap also has 32 KiB of LP SRAM. Of the controllers, Bluetooth takes the
-most: 42 KiB of code in SRAM and 61 KiB of heap. The RCP takes 23 KiB of
-code and 26 KiB of heap. 64 KiB of heap are free when hart 1 starts. During
-iperf3 the minimum was 25 KiB, with 16 dynamic Wi-Fi buffers in each
-direction. With 32, it was 15 KiB.
+most: 42 KiB of code in SRAM and 61 KiB of heap. The RCP took 23 KiB of
+code and 26 KiB of heap. 64 KiB of heap were free when hart 1 started.
+During iperf3 the minimum was 25 KiB, with 16 dynamic Wi-Fi buffers in each
+direction. With 32, it was 15 KiB. The RCP is now removed, and these
+numbers are not measured again yet.
 
 ## Why Linux uses only hart 1
 
@@ -278,24 +279,18 @@ the USB transport in shared SRAM. The layout is in
   event loop. The host waited 5 s for such a disconnect event and then asked
   for a firmware restart. A patch of the host driver stops that wait when
   `DEINIT` succeeds (`br2-external/package/esp-hosted-linux/0003-*`).
-- The loader starts Bluetooth and the RCP before hart 1, as Wi-Fi: a
-  radio start can access the flash. Linux then asks for the same services
-  (`esp32_shm.radio_service=bt+154`), which changes nothing.
-- The Wi-Fi/802.15.4 coexistence scheme of ESP-IDF halves the Wi-Fi
-  throughput, also when the 802.15.4 radio only listens. The loader turns
-  it off (`esp_coex_ieee802154_status_disable()`). With Bluetooth idle,
-  the Wi-Fi throughput does not change.
-- The ESP-Hosted host driver restarts the firmware when the RCP stream
-  closes, to reset OpenThread. Here that restart only replays the boot
-  event, so a host patch keeps the firmware (`0007-*`).
+- The loader starts Bluetooth before hart 1, as Wi-Fi: a radio start can
+  access the flash. Linux then asks for the same service
+  (`esp32_shm.radio_service=bt`), which changes nothing.
+- The IEEE 802.15.4 radio is not used. Its RCP took SRAM from the Wi-Fi
+  buffers, and its coexistence scheme halved the Wi-Fi throughput.
 - The Bluetooth controller reports "BR/EDR Not Supported" in its LMP
   features, although it has BR/EDR. A host patch clears the bit
   (`0006-*`).
 - The ESP-Hosted Wi-Fi libraries need `rom.patch` of ESP-Hosted in ESP-IDF.
   Without it, the ROM handles the received EAPOL frames, and the 4-way
-  handshake fails. The OpenThread RCP needs
-  `idf-openthread-custom-rcp-v6.1.patch`. `scripts/patch-esp-idf.sh` applies
-  the two as one local commit.
+  handshake fails. `scripts/patch-esp-idf.sh` applies it as a local
+  commit.
 
 ## Silicon traps
 
