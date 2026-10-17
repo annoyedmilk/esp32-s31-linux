@@ -10,7 +10,7 @@ Signed-off-by: Marco Müller <hello@annoyedmilk.ch>
 diff --git a/drivers/net/wireless/Kconfig b/drivers/net/wireless/Kconfig
 --- a/drivers/net/wireless/Kconfig
 +++ b/drivers/net/wireless/Kconfig
-@@ -21,6 +21,7 @@ if WLAN
+@@ -22,6 +22,7 @@ if WLAN
  source "drivers/net/wireless/ath/Kconfig"
  source "drivers/net/wireless/atmel/Kconfig"
  source "drivers/net/wireless/broadcom/Kconfig"
@@ -21,7 +21,7 @@ diff --git a/drivers/net/wireless/Kconfig b/drivers/net/wireless/Kconfig
 diff --git a/drivers/net/wireless/Makefile b/drivers/net/wireless/Makefile
 --- a/drivers/net/wireless/Makefile
 +++ b/drivers/net/wireless/Makefile
-@@ -6,6 +6,7 @@
+@@ -7,6 +7,7 @@
  obj-$(CONFIG_WLAN_VENDOR_ATH) += ath/
  obj-$(CONFIG_WLAN_VENDOR_ATMEL) += atmel/
  obj-$(CONFIG_WLAN_VENDOR_BROADCOM) += broadcom/
