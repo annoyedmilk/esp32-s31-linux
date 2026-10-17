@@ -1,8 +1,8 @@
 # ESP32-S31 Linux
 
 Linux 7.2 and OpenSBI 1.9 on the ESP32-S31: on the ESP32-S31-Korvo-1 board,
-and on a bare ESP32-S31 module with UART only. Linux uses the 16 MiB octal
-PSRAM as its memory.
+and on the ESP32-S31-WROOM-3-N16R16V module alone (the module of the Korvo-1).
+Linux uses the 16 MiB octal PSRAM as its memory.
 
 ```text
 ESP ROM -> ESP-IDF 2nd stage -> loader -> OpenSBI -> Linux -> initramfs -> Buildroot rootfs (SD)
@@ -34,21 +34,21 @@ There are two builds. Select one with `BOARD` for each `make` target.
 
 | | `korvo1` (the default) | `esp32s31` |
 | --- | --- | --- |
-| Hardware | ESP32-S31-Korvo-1 | An ESP32-S31 module with 16 MiB PSRAM, on any board with UART0 |
-| Root | ext4 on the microSD card | The initramfs in the flash, in RAM |
-| Persistence | All files on the card | Only what `persist save` keeps (see [Persist](#persist)) |
+| Hardware | ESP32-S31-Korvo-1, with the ESP32-S31-WROOM-3-N16R16V | The ESP32-S31-WROOM-3-N16R16V alone (16 MB flash, 16 MB PSRAM), on any board with UART0 |
+| Root | ext4 on the microSD card | squashfs in the flash, with a writable UBIFS overlay (see [Flash root](#flash-root-esp32s31)) |
+| Persistence | All files on the card | All files: the overlay is in the flash |
 | Consoles | UART, and the LCD with a USB keyboard | UART |
 | Hardware for Linux | LCD, microSD, USB host, RGB LED, GPIO, RNG | GPIO, RNG |
 | Wi-Fi and Bluetooth | `wlan0` and `hci0`, WPA2 and WPA3, BlueZ | `wlan0` and `hci0`, WPA2 only, no BlueZ |
 | RAM for Linux | 10.8 MiB | 12.6 MiB |
-| Userspace | bash, vim, gdb, strace, MicroPython, Lua, links, curl, tcpdump, htop and more | BusyBox, Dropbear, wpa_supplicant, iw, iperf3, the GPIO tools |
+| Userspace | bash, vim, gdb, strace, MicroPython, Lua, links, curl, tcpdump, htop and more | BusyBox, Dropbear, wpa_supplicant, iw, iperf3, the GPIO tools, flash_erase |
 
 ## Try it
 
 1. Get the files of your board from the newest release on the
    [releases page](https://github.com/annoyedmilk/esp32-s31-linux/releases):
-   `*-korvo1-flash.zip` and `*-korvo1-sdcard.img.xz`, or
-   `*-esp32s31-flash.zip`.
+   `*-korvo1-flash.zip` and `*-korvo1-sdcard.img.xz` for the Korvo-1, or
+   `*-esp32s31-flash.zip` for the ESP32-S31-WROOM-3-N16R16V alone.
 2. Flash: `pip install "esptool>=5.4"`, connect the UART port, then
    `esptool --chip esp32s31 -p PORT -b 921600 write-flash 0x0 flash.bin`.
 3. Korvo-1 only: write `*-sdcard.img.xz` to a microSD card (for example
@@ -110,8 +110,8 @@ python -m espefuse --chip esp32s31 -p PORT summary
 - **Harts.** Hart 0 stays in M-mode. It runs the ESP-IDF loader, which stays
   resident as the radio firmware. Linux runs on hart 1 only.
 - **Loader.** The loader checks the size and CRC of the kernel. It copies the
-  kernel to `0x50000000`, the initramfs and the persist partition to
-  `0x50800000` and OpenSBI to `0x50F00000`. It starts Wi-Fi and Bluetooth,
+  kernel to `0x50000000`, on the Korvo-1 the initramfs to `0x50800000`, and
+  OpenSBI to `0x50F00000`. It starts Wi-Fi and Bluetooth,
   and on the Korvo-1 also the LCD, the SD slot and the LED. Then it releases
   hart 1 into OpenSBI, and locks hart 0 out of PSRAM with PMP.
 - **Interrupts.** OpenSBI gives the CLIC inputs to S-mode. If an input is not
@@ -179,7 +179,7 @@ make flash   FLASH_PORT=/dev/cu.usbserial-XXXX
 make monitor SERIAL_PORT=/dev/cu.usbserial-XXXX
 ```
 
-- Add `BOARD=esp32s31` for the bare module. The output of a board goes to
+- Add `BOARD=esp32s31` for the ESP32-S31-WROOM-3-N16R16V alone. The output of a board goes to
   `build/<board>/`.
 - `make build` builds the loader and OpenSBI on the Mac. Buildroot builds the
   kernel, the rootfs and the card images in the container.
@@ -248,26 +248,29 @@ Boot scripts in `br2-external/board/esp32s31/rootfs-overlay`:
 
 The shell is bash, with a history that stays after a reset.
 
-### Persist
+### Flash root (esp32s31)
 
-The root of the esp32s31 board is in RAM. `persist save` keeps the files
-in `/etc/persist.list` in the 64 KiB `persist` flash partition: by default
-`/etc/wpa_supplicant.conf`, the Dropbear host keys and `/etc/shadow`. At
-each boot, the loader puts the partition after the initramfs, and the
-kernel unpacks it over the files of the image.
+The ESP32-S31-WROOM-3-N16R16V alone has no card. Its root is in the flash,
+as in OpenWrt: a read-only squashfs on `/dev/mtdblock0` (`rootfs`, 6 MiB),
+and UBIFS on the `data` partition (`/dev/mtd1`, 2.9 MiB) as a writable
+overlay over it. `/sbin/overlay-init` mounts the two, then starts init. So all of `/`
+is writable, and each change stays: `/etc/wpa_supplicant.conf`, the SSH
+host keys, `/root/.ssh` and your own files. The squashfs is at `/rom`, the
+data partition at `/overlay`.
 
 ```sh
-wpa_passphrase "<ssid>" "<passphrase>" >> /etc/wpa_supplicant.conf
-persist save      # keep the files of /etc/persist.list
-persist list      # show the saved files
-persist clear     # the image defaults at the next boot
+mtdinfo -a                 # the two partitions
+df -h /overlay             # free space in the overlay
+flash_erase /dev/mtd1 0 0  # then reboot: back to the image
 ```
 
-The partition is the nvmem device `esp32s31-persist`. Hart 0 erases and
-writes the flash, and Linux stops for approximately 50 ms for each 4 KiB
-sector. The archive header is written last: a save that stops half way
-gives the image defaults at the next boot. `make flash` and `flash.bin` do
-not change the partition, so the files stay after an update.
+Linux cannot access the SPI flash itself: hart 0 runs its code from it.
+The firmware on hart 0 reads, programs and erases the flash for Linux, and
+Linux stops while it does: approximately 20 ms for each 4 KiB sector of an
+erase. A 64 KiB erase block of UBI is 16 such stops, with Linux running
+between them.
+`make flash` and `flash.bin` do not write `data`, so the overlay stays
+after an update.
 
 ### Files and scripts
 
@@ -306,7 +309,7 @@ The default configuration has `pmf=1`: protected management frames when
 the access point offers them. Without them, a WPA2/WPA3 router gave less
 than half of the TX throughput.
 
-On the esp32s31 board, save the network with `persist save`. It has no
+On the esp32s31 board, the network stays in the overlay. It has no
 SAE, so use `key_mgmt=WPA-PSK` also for a WPA2/WPA3 network: WPA3 needs
 OpenSSL, which does not fit in its RAM root. A network block with `SAE`
 stops `wpa_supplicant`, and `S40wifi` then points to `/var/log/messages`.
@@ -351,15 +354,16 @@ in `br2-external/configs/<board>_defconfig`) with `linux/patches/`.
 | `0x008000` | Partition table |
 | `0x020000` | Loader and radio firmware |
 | `0x220000` | OpenSBI `fw_jump` |
-| `0x2A0000` | Linux Image (with built-in DTB) |
-| `0xA1FFF4` | Linux size and CRC manifest |
-| `0xA20000` | 4032 KiB initramfs |
-| `0xE10000` | 64 KiB persist partition |
+| `0x2A0000` | Linux Image (with built-in DTB): 7.5 MiB on the Korvo-1, 4.5 MiB on the esp32s31 board |
+| `0xA1FFF4` / `0x71FFF4` | Linux size and CRC manifest, at the end of the kernel partition |
+| `0xA20000` | Korvo-1: 4 MiB initramfs |
+| `0x720000` | esp32s31: 6 MiB squashfs root (`rootfs`) |
+| `0xD20000` | esp32s31: 2.9 MiB UBIFS overlay (`data`) |
 
-On the Korvo-1, the initramfs holds BusyBox and an `init` that mounts
+The partition tables are `bootloader/partitions-<board>.csv`. On the
+Korvo-1, the initramfs holds BusyBox and an `init` that mounts
 `/dev/mmcblk0p2` and does `switch_root`. If the card is not there, it starts
-a shell on the UART and one on the LCD. On the esp32s31 board, the
-initramfs is the gzip rootfs of Buildroot.
+a shell on the UART and one on the LCD.
 
 ## Debugging
 

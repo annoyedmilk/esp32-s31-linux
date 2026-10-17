@@ -3,7 +3,7 @@
 
 #include "loader.h"
 
-/* A bare ESP32-S31 module: only UART0.  Leave all other pins alone. */
+/* The ESP32-S31-WROOM-3-N16R16V module alone: UART0.  Leave all other pins alone. */
 
 void board_init(void)
 {

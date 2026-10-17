@@ -1,4 +1,5 @@
-# ESP32-S31-Korvo-1: root on the microSD card.
+# ESP32-S31-Korvo-1, with the ESP32-S31-WROOM-3-N16R16V module: root on the
+# microSD card.
 #
 # RV32 IMAC with Zba, Zbb and Zbs, Sv32, soft-float ilp32.  The hart has F
 # but no D, and Linux supports an FPU only with D.

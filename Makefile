@@ -1,7 +1,7 @@
 SHELL := /bin/bash
 
 # The board to build for: korvo1 (ESP32-S31-Korvo-1: LCD, microSD, USB, LED)
-# or esp32s31 (a bare module with UART0 only, root in the flash initramfs).
+# or esp32s31 (the ESP32-S31-WROOM-3-N16R16V alone: UART0, root in the flash).
 BOARD ?= korvo1
 ifeq ($(filter $(BOARD),korvo1 esp32s31),)
 $(error BOARD must be korvo1 or esp32s31, not "$(BOARD)")
@@ -74,10 +74,20 @@ BR_RUN = "$(CONTAINER)" run --rm --cpus $(JOBS) --memory $(BR_MEMORY) \
 BR_TOOLS = "$(CONTAINER)" run --rm --uid $(shell id -u) --gid $(shell id -g) \
 	-v "$(CURDIR)":/work "$(BR_IMAGE)"
 
-# The flash slot of the initramfs.  The Korvo-1 gets a small one that mounts
-# the root on the card.  The esp32s31 board gets the full rootfs of Buildroot.
+# The flash layout of the board, from its partition table: field 4 is the
+# offset, field 5 the size.
+PARTITIONS := bootloader/partitions-$(BOARD).csv
+part_field = $(shell awk -F'[ ,]+' '$$1 == "$(1)" { print $$$(2) }' $(PARTITIONS))
+
+# The root in the flash: on the Korvo-1, a small initramfs that mounts the
+# root on the card; on the module alone, the squashfs root of Buildroot.
+ROOT_PART_korvo1 := initramfs
+ROOT_IMAGE_korvo1 := initramfs.cpio
+ROOT_PART_esp32s31 := rootfs
+ROOT_IMAGE_esp32s31 := rootfs.squashfs
+ROOT_OFFSET := $(call part_field,$(ROOT_PART_$(BOARD)),4)
+ROOT_SIZE := $(call part_field,$(ROOT_PART_$(BOARD)),5)
 INITRAMFS_ARGS_korvo1 := --target $(BR_O)/target --init br2-external/board/esp32s31/init
-INITRAMFS_ARGS_esp32s31 := --cpio $(BR_O)/images/rootfs.cpio.gz
 SD_DISK ?=
 SD_RAW = $(subst /dev/disk,/dev/rdisk,$(SD_DISK))
 # Size of the FAT partition.  The rest of the card is the root partition.
@@ -96,9 +106,9 @@ BOOTLOADER_OFFSET := 0x2000
 PARTITION_TABLE_OFFSET := 0x8000
 APP_OFFSET := 0x20000
 OPENSBI_OFFSET := 0x220000
-LINUX_OFFSET := 0x2a0000
-LINUX_SIZE_OFFSET := 0xa1fff4
-INITRAMFS_OFFSET := 0xa20000
+LINUX_OFFSET := $(call part_field,linux,4)
+# The size manifest is at the end of the kernel partition.
+LINUX_SIZE_OFFSET := $(shell printf '0x%x' $$(( $(LINUX_OFFSET) + $(call part_field,linux,5) - 12 )))
 
 .DEFAULT_GOAL := help
 
@@ -318,11 +328,17 @@ rootfs: kernel-patches br-volume
 	@$(MAKE) --no-print-directory br-artifacts
 
 # Copy the kernel and its manifest from the volume for flashing, next to the
-# loader and OpenSBI binaries, and the card images of a board with a card.
+# loader and OpenSBI binaries: also the squashfs root of a board without a
+# card, and the card images of a board with a card.
 br-artifacts:
 	@$(BR_RUN) sh -c 'set -e; \
 		mkdir -p /work/$(BR_OUT) /work/$(BUILD_DIR); \
 		cp $(BR_O)/images/Image $(BR_O)/images/linux.size /work/$(BUILD_DIR)/; \
+		if test -f $(BR_O)/images/rootfs.squashfs; then \
+			test $$(wc -c < $(BR_O)/images/rootfs.squashfs) -le $$(( $(ROOT_SIZE) )) || \
+				{ echo "rootfs.squashfs is larger than the $(ROOT_SIZE) partition"; exit 1; }; \
+			cp $(BR_O)/images/rootfs.squashfs /work/$(BUILD_DIR)/; \
+		fi; \
 		for f in rootfs.ext2 sdcard.img; do \
 			if test -f $(BR_O)/images/$$f; then cp $(BR_O)/images/$$f /work/$(BR_OUT)/; fi; \
 		done'
@@ -330,11 +346,14 @@ br-artifacts:
 rootfs-menuconfig: br-volume
 	@$(BR_RUN) -i -t sh -c 'cd /work/$(BR_DIR) && $(BR_MAKE) $(BR_DEFCONFIG) && $(BR_MAKE) menuconfig'
 
-# Runs in the container, because the target tree is in the volume.
+# Runs in the container, because the target tree is in the volume.  Only a
+# board with an initramfs partition has one.
 initramfs: rootfs
+ifneq ($(INITRAMFS_ARGS_$(BOARD)),)
 	@$(BR_RUN) sh -c 'cd /work && python3 scripts/mkinitramfs.py \
 		$(INITRAMFS_ARGS_$(BOARD)) \
-		--output "$(BUILD_DIR)/initramfs.cpio" --size 0x3F0000'
+		--output "$(BUILD_DIR)/initramfs.cpio" --size $(ROOT_SIZE)'
+endif
 
 sdcard: rootfs
 	@test -f "$(BR_OUT)/sdcard.img" || { \
@@ -407,7 +426,7 @@ FLASH_IMAGES = \
 	$(OPENSBI_OFFSET) $(BUILD_DIR)/opensbi.bin \
 	$(LINUX_OFFSET) $(BUILD_DIR)/Image \
 	$(LINUX_SIZE_OFFSET) $(BUILD_DIR)/linux.size \
-	$(INITRAMFS_OFFSET) $(BUILD_DIR)/initramfs.cpio
+	$(ROOT_OFFSET) $(BUILD_DIR)/$(ROOT_IMAGE_$(BOARD))
 
 flash: build
 	@test -n "$(FLASH_PORT)" || { echo 'set FLASH_PORT=/dev/cu.<flash-port>'; exit 1; }

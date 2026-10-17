@@ -1,5 +1,6 @@
-# A bare ESP32-S31 module with 16 MiB PSRAM: UART0 only, and the full rootfs
-# in the initramfs slot of the flash.  Nothing on it stays after a reboot.
+# The ESP32-S31-WROOM-3-N16R16V module alone (16 MB flash, 16 MB PSRAM): UART0
+# only.  The root is a squashfs in the flash, with a UBIFS overlay that keeps
+# all changes (overlay-init).
 #
 # RV32 IMAC with Zba, Zbb and Zbs, Sv32, soft-float ilp32, as the Korvo-1.
 BR2_riscv=y
@@ -19,7 +20,8 @@ BR2_TOOLCHAIN_BUILDROOT_MUSL=y
 # cache in $(HOME) (the build volume) makes such a rebuild take minutes.
 BR2_CCACHE=y
 
-# The Korvo-1 kernel config, without the display, the card, USB and the LED.
+# The Korvo-1 kernel config, without the display, the card, USB and the LED,
+# and with the flash window as MTD.
 BR2_LINUX_KERNEL=y
 BR2_LINUX_KERNEL_CUSTOM_VERSION=y
 BR2_LINUX_KERNEL_CUSTOM_VERSION_VALUE="7.2.11"
@@ -47,10 +49,32 @@ BR2_GLOBAL_PATCH_DIR="$(BR2_EXTERNAL_ESP32S31_PATH)/patches"
 BR2_ROOTFS_OVERLAY="$(BR2_EXTERNAL_ESP32S31_PATH)/board/esp32s31/rootfs-overlay $(BR2_EXTERNAL_ESP32S31_PATH)/board/esp32s31/rootfs-overlay-esp32s31"
 BR2_ROOTFS_POST_BUILD_SCRIPT="$(BR2_EXTERNAL_ESP32S31_PATH)/board/esp32s31/post-build.sh"
 BR2_ROOTFS_POST_IMAGE_SCRIPT="$(BR2_EXTERNAL_ESP32S31_PATH)/board/esp32s31/post-image.sh"
-# The loader copies the gzip archive to PSRAM, and the kernel unpacks it.
+# The read-only root on the flash.  64 KiB blocks keep the decompression
+# cache of the kernel small.
 # BR2_TARGET_ROOTFS_TAR is not set
-BR2_TARGET_ROOTFS_CPIO=y
-BR2_TARGET_ROOTFS_CPIO_GZIP=y
+BR2_TARGET_ROOTFS_SQUASHFS=y
+BR2_TARGET_ROOTFS_SQUASHFS4_GZIP=y
+BR2_TARGET_ROOTFS_SQUASHFS_BS_64K=y
+# flash_erase resets the overlay to the image.  The NAND and UBI tools do
+# not apply to the NOR flash.
+BR2_PACKAGE_MTD=y
+# BR2_PACKAGE_MTD_FLASH_LOCK is not set
+# BR2_PACKAGE_MTD_FLASH_UNLOCK is not set
+# BR2_PACKAGE_MTD_MTD_DEBUG is not set
+# BR2_PACKAGE_MTD_NANDDUMP is not set
+# BR2_PACKAGE_MTD_NANDTEST is not set
+# BR2_PACKAGE_MTD_NANDWRITE is not set
+# BR2_PACKAGE_MTD_UBIBLOCK is not set
+# BR2_PACKAGE_MTD_UBICRC32 is not set
+# BR2_PACKAGE_MTD_UBIDETACH is not set
+# BR2_PACKAGE_MTD_UBIFORMAT is not set
+# BR2_PACKAGE_MTD_UBIHEALTHD is not set
+# BR2_PACKAGE_MTD_UBINFO is not set
+# BR2_PACKAGE_MTD_UBINIZE is not set
+# BR2_PACKAGE_MTD_UBIRENAME is not set
+# BR2_PACKAGE_MTD_UBIRMVOL is not set
+# BR2_PACKAGE_MTD_UBIRSVOL is not set
+# BR2_PACKAGE_MTD_UBIUPDATEVOL is not set
 
 # Wi-Fi with WPA2: WPA3 needs OpenSSL, approximately 4 MiB in the RAM root.
 BR2_PACKAGE_IW=y

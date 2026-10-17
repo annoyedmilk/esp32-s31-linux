@@ -8,10 +8,10 @@ choice S31_LINUX_BOARD
         Linux.  The Makefile sets it from BOARD.
 
 config S31_LINUX_BOARD_KORVO1
-    bool "ESP32-S31-Korvo-1 (LCD, microSD, RGB LED)"
+    bool "ESP32-S31-Korvo-1 (LCD, microSD, USB, RGB LED)"
 
 config S31_LINUX_BOARD_ESP32S31
-    bool "ESP32-S31 module (UART0 only)"
+    bool "ESP32-S31-WROOM-3-N16R16V module alone (UART0 only)"
 
 endchoice
 

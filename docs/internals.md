@@ -4,7 +4,8 @@ This document tells how Linux runs on the ESP32-S31, and why the port has
 its current form. It is for developers who know the RISC-V Linux kernel and
 want to understand this SoC. All facts are from chip revision v0.0 on the
 ESP32-S31-Korvo-1 board. The port has two builds: `korvo1` for that board,
-and `esp32s31` for a bare module with UART only. Most of them were measured with JTAG, because
+and `esp32s31` for the ESP32-S31-WROOM-3-N16R16V module alone, which is the
+module of the Korvo-1. Most of them were measured with JTAG, because
 Espressif does not publish a technical reference manual for this chip yet.
 
 The ESP-IDF register headers (`components/soc/esp32s31/register/soc/`) are
@@ -35,8 +36,8 @@ ROM -> ESP-IDF 2nd stage -> loader (hart 0) -> OpenSBI (hart 1, M) -> Linux (har
 2. The loader starts PSRAM, and on the Korvo-1 the SD slot pins, the RMT for
    the LED and the LCD (`board_korvo1.c`). It copies four flash partitions
    to PSRAM and checks them: the kernel `Image` (size and CRC32 from a
-   manifest at `0xA1FFF4`), the initramfs, the persist partition, and
-   OpenSBI `fw_jump`. It starts Wi-Fi and Bluetooth.
+   manifest at the end of the kernel partition), on the Korvo-1 the
+   initramfs, and OpenSBI `fw_jump`. It starts Wi-Fi and Bluetooth.
 3. The loader writes the D-cache back, sets the PMA of hart 1 for PSRAM and
    releases hart 1 at the OpenSBI entry. Then it locks hart 0 out of PSRAM
    and the DMA pool with PMP.
@@ -46,17 +47,17 @@ ROM -> ESP-IDF 2nd stage -> loader (hart 0) -> OpenSBI (hart 1, M) -> Linux (har
    Then it jumps to the kernel in S-mode.
 6. The kernel has a built-in DTB (`esp32s31_korvo1.dts` or
    `esp32s31.dts`). On the Korvo-1, the initramfs mounts the ext4 root
-   from the SD card and does `switch_root`. On the esp32s31 board, the
-   initramfs is the root.
+   from the SD card and does `switch_root`. On the esp32s31 board, the root
+   is the squashfs in the flash, with a UBIFS overlay.
 
 ### Memory map
 
 | Address | Size | Use |
 | --- | --- | --- |
 | `0x2F040000` | 64 KiB | Coherent DMA pool for Linux (`shared-dma-pool`) |
-| `0x2F050000` | 52 KiB | Shared block: requests, nvmem mailbox, ESP-Hosted rings |
+| `0x2F050000` | 52 KiB | Shared block: requests, flash mailbox, ESP-Hosted rings |
 | `0x2F079000` | 4 KiB | LCD DMA descriptor ring (Korvo-1) |
-| `0x50000000` | 15 MiB | Linux RAM: the kernel image, then at `0x50800000` the initramfs and the persist partition (4 MiB together, freed after boot) |
+| `0x50000000` | 15 MiB | Linux RAM: the kernel image, then on the Korvo-1 the initramfs at `0x50800000` (4 MiB, freed after boot) |
 | `0x50F00000` | 256 KiB | OpenSBI (reserved, no-map) |
 | `0x50F40000` | 768 KiB | LCD frame buffer (Korvo-1: reserved, no-map, uncached; esp32s31: Linux RAM) |
 
@@ -309,31 +310,39 @@ the USB transport in shared SRAM. The layout is in
   can time out the authentication in between (`cnx_auth_timeout`), and the
   first connection fails. The second try connects.
 
-## Persistent files without a card
+## The flash root without a card
 
-The root of the esp32s31 board is the initramfs, in RAM. Linux has no
-driver for the SPI flash, and it must not have one: hart 0 runs its code
-from the same flash, through the cache. So hart 0 writes the flash for
-Linux, through a mailbox in the shared block (`ESP_SHM_NV`).
+The ESP32-S31-WROOM-3-N16R16V alone has no card. Linux has no driver for the
+SPI flash, and it must not have one: hart 0 runs its code from the same
+flash, through the cache. So hart 0 accesses the flash for Linux, through a
+mailbox in the shared block (`ESP_SHM_FLASH`), and Linux sees a standard
+MTD device.
 
-- **Restore.** The `persist` partition (64 KiB) follows the initramfs in
-  the flash. The loader copies the two to `0x50800000`, so the persist data
-  is at the end of the initrd range of the device tree. The kernel unpacks
-  a second archive after the first one by itself, and the saved files
-  replace the files of the image. An erased partition has no gzip magic:
-  then the loader gives the kernel zeros, which it skips.
-- **Save.** `esp_shm.c` registers the partition as the nvmem device
-  `esp32s31-persist`. A read or write goes through the mailbox in blocks of
-  2 KiB: Linux writes the address, the length, the data and then the
-  command, and rings. The firmware (`shm_nvmem.c`) writes the status and
-  clears the command, and Linux polls for that.
-- **Flash and cache.** A flash read, erase or write of ESP-IDF suspends the
-  external memory cache of the two harts. Linux runs from PSRAM through that
-  cache. So the firmware stalls hart 1 for each flash operation and waits
-  until `HP_SYSTEM_CPU_CORESTALLED_ST` shows the stall. A sector write with
-  its erase stops Linux for approximately 50 ms.
-- **Half writes.** `persist save` writes the start of the archive, with
-  the gzip magic, last. Until then the loader finds no archive.
+- **The window.** The firmware gives Linux the `rootfs` and `data`
+  partitions of its partition table, which must be adjacent, and nothing
+  else. `esp32s31.dts` describes the same layout as `fixed-partitions`
+  under the `flash` node.
+- **The commands.** Read and program (at most 2 KiB, in one 4 KiB sector)
+  and erase (one 64 KiB block). Linux writes the address, the length, the
+  data and then the command, and rings. The firmware (`shm_flash.c`) writes
+  the status, clears the command and rings back. The driver
+  (`esp_shm_flash.c`) sleeps until then.
+- **Flash and cache.** A flash read, program or erase of ESP-IDF suspends
+  the external memory cache of the two harts. Linux runs from PSRAM through
+  that cache. So the firmware stalls hart 1 for each flash operation and
+  waits until `HP_SYSTEM_CPU_CORESTALLED_ST` shows the stall. The firmware
+  erases a block one 4 KiB sector at a time, with one FreeRTOS tick (10 ms)
+  between the sectors, so that each stop is 20 to 30 ms. In one stop the
+  block erase would stop Linux for approximately 350 ms. Linux never reads the window through the
+  cached flash mapping, so no cache line of it can be stale after a write.
+- **The root.** A squashfs on `mtdblock0`, and UBIFS on `mtd1` as an
+  overlayfs over it (`/sbin/overlay-init`, as in OpenWrt). UBI attaches an
+  erased partition and formats it. The upper layer is UBIFS and not jffs2,
+  because jffs2 has no `RENAME_WHITEOUT`: overlayfs then cannot make a
+  directory where a lower directory was deleted (`EINVAL`).
+- **The erase block.** The flash erases 4 KiB sectors, but the MTD device
+  shows 64 KiB erase blocks: UBIFS needs a logical erase block of at least
+  15 KiB, and UBI takes 128 bytes of each block for its headers.
 
 ## Silicon traps
 
@@ -351,7 +360,7 @@ Linux, through a mailbox in the shared block (`ESP_SHM_NV`).
 | PMA entries overlap | No fault. The entry with the lowest index is used. |
 | FPU `EXT_ILL` | Cannot identify FLW/FSW. |
 | GPIO33/34 | LCD data pins and also the USB Serial/JTAG pins. |
-| Flash write | Suspends the cache of the two harts. Stall hart 1 first. |
+| Flash access | Suspends the cache of the two harts. Stall hart 1 first. |
 
 ## Where to start reading
 
@@ -363,6 +372,6 @@ Linux, through a mailbox in the shared block (`ESP_SHM_NV`).
 | Interrupt controller | `linux/drivers/irqchip/irq-esp32s31-clic.c` |
 | DMA coherency | `linux/drivers/cache/esp32s31-cache.c`, `linux/patches/0007` |
 | Wi-Fi transport | `shared/esp32s31-hosted-shm.h` |
-| Persistent files | `bootloader/components/esp_hosted/shm_nvmem.c` |
+| The flash root | `bootloader/components/esp_hosted/shm_flash.c`, `linux/drivers/net/wireless/espressif/esp_hosted/esp_shm_flash.c` |
 | The two boards | `bootloader/main/board_*.c`, `br2-external/configs/*_defconfig` |
 | Device tree | `linux/arch/riscv/boot/dts/espressif/esp32s31.dtsi` |

@@ -1,6 +1,7 @@
-# ESP32-S31-Korvo-1.  The Makefile adds this file to sdkconfig.defaults for
-# BOARD=korvo1.
+# ESP32-S31-Korvo-1, with the ESP32-S31-WROOM-3-N16R16V module.  The Makefile
+# adds this file to sdkconfig.defaults for BOARD=korvo1.
 CONFIG_S31_LINUX_BOARD_KORVO1=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions-korvo1.csv"
 # GPIO33/34 are LCD data pins and also the USB Serial/JTAG D-/D+ pins.  The
 # loader does not start the display when a secondary console uses them.
 # This selects the display.  For JTAG and no display, set

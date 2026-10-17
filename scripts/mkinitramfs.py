@@ -2,11 +2,10 @@
 # SPDX-License-Identifier: MIT
 """Pack the initramfs for the flash partition.
 
-With --target, it has only the parts of the Buildroot target that are
-necessary to mount the rootfs on the card.  With --cpio, it is an archive
-that Buildroot made, such as the full rootfs of the esp32s31 board.  The loader
-reads the full partition and checks for the newc or gzip magic at offset 0.
-Thus the output always fills the full partition.
+It has only the parts of the Buildroot target that are necessary to mount
+the rootfs on the card of the Korvo-1.  The loader reads the full partition
+and checks for the newc magic at offset 0.  Thus the output always fills the
+full partition.
 """
 
 from __future__ import annotations
@@ -121,24 +120,18 @@ def build(target: Path, init: Path) -> bytes:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    source = parser.add_mutually_exclusive_group(required=True)
-    source.add_argument("--target", type=Path, help="Buildroot target/ directory")
-    source.add_argument("--cpio", type=Path, help="archive to put into the partition")
-    parser.add_argument("--init", type=Path, help="init script, with --target")
+    parser.add_argument("--target", type=Path, required=True,
+                        help="Buildroot target/ directory")
+    parser.add_argument("--init", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--size", type=lambda value: int(value, 0), default=0x3F0000)
+    parser.add_argument("--size", type=lambda value: int(value, 0), required=True)
     args = parser.parse_args()
 
-    if args.cpio:
-        if not args.cpio.is_file():
-            parser.error(f"archive not found: {args.cpio}")
-        archive = args.cpio.read_bytes()
-    else:
-        if not args.target.is_dir():
-            parser.error(f"Buildroot target directory not found: {args.target}")
-        if args.init is None or not args.init.is_file():
-            parser.error(f"init not found: {args.init}")
-        archive = build(args.target, args.init)
+    if not args.target.is_dir():
+        parser.error(f"Buildroot target directory not found: {args.target}")
+    if not args.init.is_file():
+        parser.error(f"init not found: {args.init}")
+    archive = build(args.target, args.init)
 
     if len(archive) > args.size:
         raise SystemExit(f"initramfs is {len(archive)} bytes; the partition is {args.size}")

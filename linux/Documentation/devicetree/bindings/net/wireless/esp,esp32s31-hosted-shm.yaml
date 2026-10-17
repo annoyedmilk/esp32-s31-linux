@@ -14,7 +14,9 @@ description: >
   WLAN modem of the ESP32-S31. Linux is the ESP-Hosted host. The two sides
   send ESP-Hosted frames through two byte rings in internal SRAM. One
   cross-core interrupt register signals each direction. Linux sets the
-  first. The firmware sets the second and Linux clears it.
+  first. The firmware sets the second and Linux clears it. The firmware
+  also reads, programs and erases a window of the SPI flash for Linux,
+  which Linux cannot access itself.
 
 properties:
   compatible:
@@ -33,6 +35,17 @@ properties:
   interrupts:
     maxItems: 1
     description: doorbell that the firmware sets when it adds frames
+
+  flash:
+    type: object
+    description: >
+      The flash window of the firmware, as an MTD device. Its partitions
+      node describes the layout of the window.
+    properties:
+      partitions:
+        type: object
+        $ref: /schemas/mtd/partitions/partitions.yaml
+    additionalProperties: false
 
 required:
   - compatible

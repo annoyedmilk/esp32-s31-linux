@@ -1,0 +1,11 @@
+
+ESP32-S31 Linux on the ESP32-S31-WROOM-3-N16R16V: RV32 at 320 MHz, 16 MiB PSRAM.
+
+Wi-Fi     wpa_passphrase "<ssid>" "<passphrase>" >> /etc/wpa_supplicant.conf
+          /etc/init.d/S40wifi restart          (WPA2, no WPA3)
+          iw dev wlan0 link; iw dev wlan0 scan | grep SSID
+System    free, df -h, dmesg, mtdinfo
+Network   ssh, scp, iperf3
+GPIO      gpiodetect, gpioinfo, gpioget, gpioset
+Storage   The root is writable and stays in the flash (UBIFS on /dev/mtd1).
+          flash_erase /dev/mtd1 0 0, then reboot: back to the image.

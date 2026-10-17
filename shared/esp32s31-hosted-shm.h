@@ -41,23 +41,30 @@
 #define ESP_SHM_WAIT_OFF	0x80	/* producer waits for space */
 
 /*
- * The nvmem mailbox, at ESP_SHM_NV: Linux reads and writes the persist flash
- * partition through it, at most ESP_SHM_NV_DATA_SIZE bytes in one 4 KiB
- * sector at a time.  The firmware writes the partition size at start (0
- * when there is none).  Linux writes ADDR, LEN and the data, then CMD, and
- * rings.  The firmware writes STATUS (0 or an esp_err_t), then clears CMD.
+ * The flash mailbox, at ESP_SHM_FLASH: Linux reads, programs and erases a
+ * window of the flash through it, as an MTD device.  The window is the
+ * "rootfs" and "data" partitions of the firmware.  The firmware writes the
+ * window size at start (0 when there is none).  Linux writes ADDR (in the
+ * window), LEN and for a program the data, then CMD, and rings.  The
+ * firmware writes STATUS (0 or an esp_err_t), clears CMD and rings.  A read
+ * or program is at most ESP_SHM_FLASH_DATA_SIZE bytes in one 4 KiB sector.
+ * An erase is one block of ESP_SHM_FLASH_BLOCK bytes: the firmware erases its
+ * 4 KiB sectors one at a time.
  */
-#define ESP_SHM_NV		0x0300
-#define ESP_SHM_NV_SIZE_OFF	0x00
-#define ESP_SHM_NV_CMD_OFF	0x04
-#define ESP_SHM_NV_STATUS_OFF	0x08
-#define ESP_SHM_NV_ADDR_OFF	0x0c
-#define ESP_SHM_NV_LEN_OFF	0x10
-#define ESP_SHM_NV_DATA		0x0800
-#define ESP_SHM_NV_DATA_SIZE	0x0800
+#define ESP_SHM_FLASH		0x0300
+#define ESP_SHM_FLASH_SIZE_OFF	0x00
+#define ESP_SHM_FLASH_CMD_OFF	0x04
+#define ESP_SHM_FLASH_STATUS_OFF	0x08
+#define ESP_SHM_FLASH_ADDR_OFF	0x0c
+#define ESP_SHM_FLASH_LEN_OFF	0x10
+#define ESP_SHM_FLASH_DATA	0x0800
+#define ESP_SHM_FLASH_DATA_SIZE	0x0800
+#define ESP_SHM_FLASH_SECTOR	0x1000
+#define ESP_SHM_FLASH_BLOCK	0x10000
 
-#define ESP_SHM_NV_READ		1
-#define ESP_SHM_NV_WRITE	2
+#define ESP_SHM_FLASH_READ	1
+#define ESP_SHM_FLASH_PROGRAM	2
+#define ESP_SHM_FLASH_ERASE	3
 
 /* Host request bits.  OpenSBI sets POWEROFF when Linux powers off. */
 #define ESP_SHM_REQ_READY_REPLAY	(1U << 0)

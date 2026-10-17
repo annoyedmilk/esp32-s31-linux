@@ -1,9 +1,10 @@
-# The esp32s31 board: linux.config without the parts of the Korvo-1.
-# Buildroot merges this fragment into linux.config for esp32s31_defconfig.
+# The ESP32-S31-WROOM-3-N16R16V module alone: linux.config without the parts
+# of the Korvo-1.  Buildroot merges this fragment into linux.config for
+# esp32s31_defconfig.
 CONFIG_BUILTIN_DTB_NAME="espressif/esp32s31"
-# The UART is the only console.  The rootfs is a tmpfs, which gets half of
-# the RAM by default: less than the unpacked rootfs.
-CONFIG_CMDLINE="earlycon=sbi console=ttyS0,115200 loglevel=5 esp32_shm.radio_service=bt rdinit=/init initramfs_options=size=75%"
+# The UART is the only console.  The root is the squashfs partition of the
+# flash window.  overlay-init puts the data partition over it.
+CONFIG_CMDLINE="earlycon=sbi console=ttyS0,115200 loglevel=5 esp32_shm.radio_service=bt root=/dev/mtdblock0 rootfstype=squashfs ro rootwait init=/sbin/overlay-init"
 
 # No panel, VTs or input devices.
 # CONFIG_FB is not set
@@ -11,7 +12,7 @@ CONFIG_CMDLINE="earlycon=sbi console=ttyS0,115200 loglevel=5 esp32_shm.radio_ser
 # CONFIG_INPUT is not set
 # CONFIG_HID is not set
 
-# No card, USB or LED.  The root is the initramfs, zram stays.
+# No card, USB or LED.  zram stays.
 # CONFIG_MMC is not set
 # CONFIG_USB_SUPPORT is not set
 # CONFIG_PHY_ESP32S31_USB is not set
@@ -19,3 +20,22 @@ CONFIG_CMDLINE="earlycon=sbi console=ttyS0,115200 loglevel=5 esp32_shm.radio_ser
 # CONFIG_NEW_LEDS is not set
 # CONFIG_EXT4_FS is not set
 # CONFIG_VFAT_FS is not set
+# CONFIG_BLK_DEV_INITRD is not set
+
+# The flash window of the firmware: a read-only squashfs root, and UBIFS on
+# the data partition as the writable overlay over it.  jffs2 cannot be the
+# upper layer: it has no RENAME_WHITEOUT, so overlayfs cannot make a
+# directory where a lower one was deleted.
+CONFIG_MTD=y
+CONFIG_MTD_BLOCK=y
+CONFIG_MTD_OF_PARTS=y
+CONFIG_MTD_UBI=y
+# squashfs and UBIFS are in this menu, which linux.config turns off.
+CONFIG_MISC_FILESYSTEMS=y
+CONFIG_SQUASHFS=y
+CONFIG_UBIFS_FS=y
+# Each compressor keeps a workspace for all time.  LZO is the default.
+CONFIG_UBIFS_FS_ADVANCED_COMPR=y
+# CONFIG_UBIFS_FS_ZLIB is not set
+# CONFIG_UBIFS_FS_ZSTD is not set
+CONFIG_OVERLAY_FS=y

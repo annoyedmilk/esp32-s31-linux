@@ -38,15 +38,16 @@ echo "$flash_args" | sed 's/^ //' > "$stage/flash_args"
 
 case $board in
 korvo1)
-	title="the ESP32-S31-Korvo-1"
+	title="the ESP32-S31-Korvo-1 (with the ESP32-S31-WROOM-3-N16R16V)"
 	usage="Write the card image to a microSD card (it erases the card), for example
 with balenaEtcher, or with dd on Linux or macOS:
 
   xz -dc $name-sdcard.img.xz | sudo dd of=/dev/sdX bs=4M conv=fsync" ;;
 esp32s31)
-	title="a bare ESP32-S31 module with 16 MiB PSRAM (UART only)"
-	usage="The full system is in the flash.  To keep files such as the Wi-Fi
-network after a reboot, run: persist save" ;;
+	title="the ESP32-S31-WROOM-3-N16R16V module alone (UART only)"
+	usage="The full system is in the flash.  The root is writable, and the files
+stay after a reboot and after a new flash.bin.  To go back to the image, run
+flash_erase /dev/mtd1 0 0 and reboot." ;;
 esac
 
 cat > "$stage/FLASH.txt" <<TXT

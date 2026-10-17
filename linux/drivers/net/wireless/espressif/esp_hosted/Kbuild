@@ -5,5 +5,7 @@
 obj-y := esp32_shm.o
 esp32_shm-y := esp_shm.o esp_bt.o esp_rcp.o main.o esp_cmd.o esp_utils.o \
 	esp_cfg80211.o esp_stats.o esp_debugfs.o esp_log.o
+# The flash window of the firmware, as an MTD device.
+esp32_shm-$(CONFIG_MTD) += esp_shm_flash.o
 ccflags-y += -I$(src) -I$(src)/include -DCONFIG_AP_MODE
 CFLAGS_esp_log.o = -DDEBUG

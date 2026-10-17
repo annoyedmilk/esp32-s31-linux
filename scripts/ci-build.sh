@@ -45,9 +45,15 @@ for f in rootfs.ext2 sdcard.img; do
 	fi
 done
 
-# The same initramfs as the Makefile makes for the board.
+# The root in the flash, as the Makefile makes it for the board.
+size=$(awk -F'[ ,]+' '$1 == "initramfs" || $1 == "rootfs" { print $5 }' \
+	"bootloader/partitions-$BOARD.csv")
 case $BOARD in
-korvo1)	src="--target $BR_OUTPUT/target --init br2-external/board/esp32s31/init" ;;
-esp32s31)	src="--cpio $BR_OUTPUT/images/rootfs.cpio.gz" ;;
+korvo1)
+	python3 scripts/mkinitramfs.py --target "$BR_OUTPUT/target" \
+		--init br2-external/board/esp32s31/init \
+		--output "$out/initramfs.cpio" --size "$size" ;;
+esp32s31)
+	test "$(wc -c < "$BR_OUTPUT/images/rootfs.squashfs")" -le $((size))
+	cp "$BR_OUTPUT/images/rootfs.squashfs" "$out/" ;;
 esac
-python3 scripts/mkinitramfs.py $src --output "$out/initramfs.cpio" --size 0x3F0000

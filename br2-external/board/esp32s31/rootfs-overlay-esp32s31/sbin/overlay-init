@@ -1,0 +1,38 @@
+#!/bin/sh
+# SPDX-License-Identifier: MIT
+# The kernel starts this as init.  The root is a read-only squashfs on
+# mtdblock0.  Put UBIFS on the data partition over it as an overlay, so that
+# the full root is writable and keeps its changes, then start init in it.  The
+# squashfs stays at /rom, the data partition at /overlay.  UBI formats an
+# erased partition.  A partition that UBI cannot attach is erased first.
+# If a step fails, init starts on the read-only root.
+#
+# Back to the image: flash_erase /dev/mtd1 0 0, then reboot.
+
+fail()
+{
+	umount /sys 2>/dev/null
+	echo "overlay-init: $*; the root is read-only" > /dev/console
+	exec /sbin/init
+}
+
+# The UBI tools find their devices in sysfs.
+mount -t sysfs sysfs /sys
+if ! ubiattach -p /dev/mtd1 > /dev/null 2>&1; then
+	echo "overlay-init: no UBI on the data partition; erasing it" > /dev/console
+	flash_erase -q /dev/mtd1 0 0
+	ubiattach -p /dev/mtd1 > /dev/null || fail "cannot attach the data partition"
+fi
+if [ ! -e /sys/class/ubi/ubi0_0 ]; then
+	ubimkvol /dev/ubi0 -N data -m > /dev/null || fail "cannot make the data volume"
+fi
+umount /sys
+mount -t ubifs ubi0:data /mnt || fail "cannot mount the data volume"
+mkdir -p /mnt/upper /mnt/work
+mount -t overlay overlay -o lowerdir=/,upperdir=/mnt/upper,workdir=/mnt/work \
+	/media || fail "cannot mount the overlay"
+mkdir -p /media/rom /media/overlay
+cd /media && pivot_root . rom || fail "pivot_root failed"
+mount -o move /rom/dev /dev
+mount -o move /rom/mnt /overlay
+exec chroot . /sbin/init

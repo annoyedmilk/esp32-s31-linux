@@ -42,11 +42,8 @@
 #define KERNEL_MAGIC2               0x05435352U
 #define KERNEL_SIZE_MAGIC           0x455A4953U
 #define INITRAMFS_LOAD_ADDR         0x50800000U
-#define INITRAMFS_PARTITION_SIZE    0x003F0000U
-#define PERSIST_LOAD_ADDR           (INITRAMFS_LOAD_ADDR + INITRAMFS_PARTITION_SIZE)
-#define PERSIST_PARTITION_SIZE      0x00010000U
+#define INITRAMFS_MAX_SIZE          (OPENSBI_LOAD_ADDR - INITRAMFS_LOAD_ADDR)
 #define INITRAMFS_NEWC_MAGIC0       0x37303730U
-#define INITRAMFS_GZIP_MAGIC        0x8B1FU
 #define PSRAM_PMA_SIZE              0x01000000U
 #define PSRAM_UNCACHED_BASE         0xC0000000U
 #define LINUX_HART                  1U
@@ -388,19 +385,25 @@ static bool load_opensbi_partition(void)
     return true;
 }
 
+/*
+ * The Korvo-1 has an initramfs, which mounts the root on the card.  The
+ * module alone has none: its root is in the flash window of the firmware.
+ * The initrd range of the device tree is the full partition.
+ */
 static bool load_initramfs_partition(void)
 {
-    const esp_partition_t *part = find_partition("initramfs");
+    const esp_partition_t *part = esp_partition_find_first(
+        ESP_PARTITION_TYPE_DATA, 0x40, "initramfs");
     uint32_t magic0;
 
     if (!part) {
-        return false;
+        return true;
     }
 
-    if (part->size != INITRAMFS_PARTITION_SIZE) {
+    if (part->size > INITRAMFS_MAX_SIZE) {
         ESP_LOGE(TAG, "initramfs partition size 0x%08" PRIx32
-                      " != expected 0x%08" PRIx32,
-                 part->size, (uint32_t)INITRAMFS_PARTITION_SIZE);
+                      " > maximum 0x%08" PRIx32,
+                 part->size, (uint32_t)INITRAMFS_MAX_SIZE);
         return false;
     }
 
@@ -408,12 +411,11 @@ static bool load_initramfs_partition(void)
         return false;
     }
 
-    /* A newc archive, or the gzip rootfs of the esp32s31 board. */
     magic0 = *(const volatile uint32_t *)INITRAMFS_LOAD_ADDR;
-    if (magic0 != INITRAMFS_NEWC_MAGIC0 &&
-        (magic0 & 0xFFFFU) != INITRAMFS_GZIP_MAGIC) {
-        ESP_LOGE(TAG, "initramfs magic 0x%08" PRIx32 " is not newc or gzip",
-                 magic0);
+    if (magic0 != INITRAMFS_NEWC_MAGIC0) {
+        ESP_LOGE(TAG, "initramfs magic 0x%08" PRIx32
+                      " != newc prefix 0x%08" PRIx32,
+                 magic0, (uint32_t)INITRAMFS_NEWC_MAGIC0);
         return false;
     }
 
@@ -421,29 +423,6 @@ static bool load_initramfs_partition(void)
                   " psram=0x%08" PRIx32,
              part->address, part->size, (uint32_t)INITRAMFS_LOAD_ADDR);
     return true;
-}
-
-/*
- * The files that Linux saved in the persist partition: a gzip cpio archive
- * directly after the initramfs, in the initrd range of the device tree.  The
- * kernel unpacks it over the files of the initramfs.  An erased partition,
- * or one that a save did not complete, has no gzip magic.  Then give the
- * kernel zeros, which it skips.
- */
-static void load_persist_partition(void)
-{
-    const esp_partition_t *part = find_partition("persist");
-    uint32_t magic0 = 0;
-
-    if (part && part->size == PERSIST_PARTITION_SIZE &&
-        read_partition(part, PERSIST_LOAD_ADDR, PERSIST_PARTITION_SIZE)) {
-        magic0 = *(const volatile uint32_t *)PERSIST_LOAD_ADDR;
-    }
-    if ((magic0 & 0xFFFFU) != INITRAMFS_GZIP_MAGIC) {
-        memset((void *)PERSIST_LOAD_ADDR, 0, PERSIST_PARTITION_SIZE);
-        return;
-    }
-    ESP_LOGI(TAG, "persist copied: psram=0x%08" PRIx32, (uint32_t)PERSIST_LOAD_ADDR);
 }
 
 void app_main(void)
@@ -466,7 +445,6 @@ void app_main(void)
         !load_initramfs_partition()) {
         esp_restart();
     }
-    load_persist_partition();
 
     board_start_display();
 
