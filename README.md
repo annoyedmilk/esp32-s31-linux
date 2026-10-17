@@ -43,18 +43,6 @@ You can use it in two ways:
 The root password is `korvo-bringup`. Change it before you connect the board
 to a network that you do not control.
 
-## Releases
-
-A tag `v*` starts `.github/workflows/release.yml`. It builds everything on
-a Linux runner (`scripts/ci-build.sh`), packages the files
-(`scripts/package-release.sh`) and publishes a GitHub release. A tag with
-a `-` (for example `v0.2.0-rc1`) makes a pre-release. Usual commits do not
-start a build. To test the workflow without a release, run it by hand from
-the Actions tab: the files are then workflow artifacts only.
-
-The ESP-IDF commit is pinned in `bootloader/esp-idf.version`. Use the same
-commit for a local build.
-
 ## What works
 
 - UART console (`ttyS0`) on the CP2102N bridge.
