@@ -1,0 +1,3 @@
+# Read by /etc/init.d/S50dropbear.  -g: root logs in over SSH with a key
+# only.  Put the public key into /root/.ssh/authorized_keys from the console.
+DROPBEAR_ARGS="-g"

@@ -60,7 +60,8 @@ Connect the UART port of UART0. Then flash one of the two ways:
 
 $usage
 
-Console: the same UART port, 115200 8N1. Root password: korvo-bringup.
+Console: the same UART port, 115200 8N1, logged in as root. SSH takes root
+only with a key: add it to /root/.ssh/authorized_keys from the console.
 TXT
 
 (cd "$out" && zip -qr "$name-flash.zip" "$name-flash")

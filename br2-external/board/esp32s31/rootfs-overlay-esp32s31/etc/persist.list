@@ -3,3 +3,4 @@
 /etc/wpa_supplicant.conf
 /etc/dropbear
 /etc/shadow
+/root/.ssh

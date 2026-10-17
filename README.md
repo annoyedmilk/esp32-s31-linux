@@ -57,8 +57,8 @@ There are two builds. Select one with `BOARD` for each `make` target.
    approximately 15 seconds (Korvo-1) or 6 seconds (esp32s31) you are root.
 5. Connect to Wi-Fi (see [Wi-Fi](#wi-fi)), then try `ssh` or `iperf3`.
 
-The root password is `korvo-bringup`. Change it before you connect the board
-to a network that you do not control.
+The consoles log in as root. SSH takes root only with a key: add your
+public key to `/root/.ssh/authorized_keys` from the console first.
 
 ## What works
 
@@ -217,8 +217,9 @@ camera formatted: check such a card on the host.
 
 ## Userspace
 
-The root password is `korvo-bringup`. The serial and panel consoles log in
-automatically. Dropbear SSH asks for the password. The esp32s31 board has
+The serial and panel consoles log in as root automatically. Dropbear takes
+root only with a key (`-g` in `/etc/default/dropbear`): put the public key
+into `/root/.ssh/authorized_keys`. The root password is `korvo-bringup`. The esp32s31 board has
 only the BusyBox tools and the programs in [Boards](#boards). The rest of
 this section is for the Korvo-1.
 
@@ -270,8 +271,8 @@ not change the partition, so the files stay after an update.
 
 ### Files and scripts
 
-- **Copy files.** From a computer, `scp` and `sftp` work with the root
-  password: `scp file root@<address>:/mnt/sd/`.
+- **Copy files.** From a computer, `scp` and `sftp` work with the key in
+  `/root/.ssh/authorized_keys`: `scp file root@<address>:/mnt/sd/`.
 - **Web server.** `httpd -f -p 8080 -h /mnt/sd` gives the files of the card
   to a browser, at `http://<address>:8080/<file name>`. It shows no list of
   the files: a directory needs an `index.html`. Stop it with Ctrl-C.
