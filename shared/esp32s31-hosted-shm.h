@@ -16,7 +16,7 @@
 #define _ESP32S31_HOSTED_SHM_H
 
 #define ESP_SHM_MAGIC		0x4d485345	/* "ESHM" */
-#define ESP_SHM_VERSION		1
+#define ESP_SHM_VERSION		2
 
 #define ESP_SHM_ADDR		0x2f050000
 #define ESP_SHM_SIZE		0x0000d000
@@ -41,14 +41,15 @@
 #define ESP_SHM_WAIT_OFF	0x80	/* producer waits for space */
 
 /*
- * The flash mailbox, at ESP_SHM_FLASH: Linux reads, programs and erases a
- * window of the flash through it, as an MTD device.  The window is the
- * "rootfs" and "data" partitions of the firmware.  The firmware writes the
- * window size at start (0 when there is none).  Linux writes ADDR (in the
+ * The flash mailbox, at ESP_SHM_FLASH: a window of the flash for Linux, as an
+ * MTD device.  The window is the "rootfs" and "data" partitions of the
+ * firmware.  At start, the firmware maps the window in the flash cache and
+ * writes its size and address (size 0 when there is none).  Linux reads the
+ * window there.  For a program or an erase, Linux writes ADDR (in the
  * window), LEN and for a program the data, then CMD, and rings.  The
- * firmware writes STATUS (0 or an esp_err_t), clears CMD and rings.  A read
- * or program is at most ESP_SHM_FLASH_DATA_SIZE bytes in one 4 KiB sector.
- * An erase is one block of ESP_SHM_FLASH_BLOCK bytes: the firmware erases its
+ * firmware writes STATUS (0 or an esp_err_t), clears CMD and rings.  A
+ * program is at most ESP_SHM_FLASH_DATA_SIZE bytes in one 4 KiB sector.  An
+ * erase is one block of ESP_SHM_FLASH_BLOCK bytes: the firmware erases its
  * 4 KiB sectors one at a time.
  */
 #define ESP_SHM_FLASH		0x0300
@@ -57,12 +58,12 @@
 #define ESP_SHM_FLASH_STATUS_OFF	0x08
 #define ESP_SHM_FLASH_ADDR_OFF	0x0c
 #define ESP_SHM_FLASH_LEN_OFF	0x10
+#define ESP_SHM_FLASH_MAP_OFF	0x14
 #define ESP_SHM_FLASH_DATA	0x0800
 #define ESP_SHM_FLASH_DATA_SIZE	0x0800
 #define ESP_SHM_FLASH_SECTOR	0x1000
 #define ESP_SHM_FLASH_BLOCK	0x10000
 
-#define ESP_SHM_FLASH_READ	1
 #define ESP_SHM_FLASH_PROGRAM	2
 #define ESP_SHM_FLASH_ERASE	3
 

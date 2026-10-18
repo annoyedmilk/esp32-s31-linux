@@ -314,27 +314,37 @@ the USB transport in shared SRAM. The layout is in
 
 The ESP32-S31-WROOM-3-N16R16V alone has no card. Linux has no driver for the
 SPI flash, and it must not have one: hart 0 runs its code from the same
-flash, through the cache. So hart 0 accesses the flash for Linux, through a
-mailbox in the shared block (`ESP_SHM_FLASH`), and Linux sees a standard
-MTD device.
+flash, through the cache. So hart 0 maps the flash for Linux and writes it
+for Linux, through a mailbox in the shared block (`ESP_SHM_FLASH`), and
+Linux sees a standard MTD device.
 
 - **The window.** The firmware gives Linux the `rootfs` and `data`
   partitions of its partition table, which must be adjacent, and nothing
   else. `esp32s31.dts` describes the same layout as `fixed-partitions`
   under the `flash` node.
-- **The commands.** Read and program (at most 2 KiB, in one 4 KiB sector)
+- **Reads.** At start, the firmware maps the window in the flash cache
+  (`spi_flash_mmap`) and writes the address to the mailbox. Linux maps it
+  write-back and reads it with `memcpy`, without hart 0: 15.5 MB/s. A read
+  through the mailbox gave 3.9 MB/s, because it needed two cross-core
+  interrupts and a stall for each 2 KiB.
+- **Programs and erases.** Program (at most 2 KiB, in one 4 KiB sector)
   and erase (one 64 KiB block). Linux writes the address, the length, the
   data and then the command, and rings. The firmware (`shm_flash.c`) writes
   the status, clears the command and rings back. The driver
   (`esp_shm_flash.c`) sleeps until then.
-- **Flash and cache.** A flash read, program or erase of ESP-IDF suspends
-  the external memory cache of the two harts. Linux runs from PSRAM through
+- **Flash and cache.** A flash program or erase of ESP-IDF suspends the
+  external memory cache of the two harts. Linux runs from PSRAM through
   that cache. So the firmware stalls hart 1 for each flash operation and
-  waits until `HP_SYSTEM_CPU_CORESTALLED_ST` shows the stall. The firmware
-  erases a block one 4 KiB sector at a time, with one FreeRTOS tick (10 ms)
-  between the sectors, so that each stop is 20 to 30 ms. In one stop the
-  block erase would stop Linux for approximately 350 ms. Linux never reads the window through the
-  cached flash mapping, so no cache line of it can be stale after a write.
+  waits until `HP_SYSTEM_CPU_CORESTALLED_ST` shows the stall. A hart in WFI
+  shows it only when it wakes up, so the firmware rings Linux after the
+  stall request. The firmware erases a block one 4 KiB sector at a time,
+  with one FreeRTOS tick (10 ms) between the sectors, so that each stop is
+  20 to 30 ms. In one stop the block erase would stop Linux for
+  approximately 350 ms.
+- **Coherency.** After a program or erase, ESP-IDF invalidates the cache
+  lines of each mapped page that it changed. The two harts share the data
+  cache, so Linux reads the new data. The driver holds its lock in reads
+  too, so that a read does not see half of a program.
 - **The root.** A squashfs on `mtdblock0`, and UBIFS on `mtd1` as an
   overlayfs over it (`/sbin/overlay-init`, as in OpenWrt). UBI attaches an
   erased partition and formats it. The upper layer is UBIFS and not jffs2,

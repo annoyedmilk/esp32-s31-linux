@@ -15,8 +15,8 @@ description: >
   send ESP-Hosted frames through two byte rings in internal SRAM. One
   cross-core interrupt register signals each direction. Linux sets the
   first. The firmware sets the second and Linux clears it. The firmware
-  also reads, programs and erases a window of the SPI flash for Linux,
-  which Linux cannot access itself.
+  also maps a window of the SPI flash for Linux to read, and programs and
+  erases it for Linux, which cannot drive the flash itself.
 
 properties:
   compatible:

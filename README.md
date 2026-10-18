@@ -264,11 +264,12 @@ df -h /overlay             # free space in the overlay
 flash_erase /dev/mtd1 0 0  # then reboot: back to the image
 ```
 
-Linux cannot access the SPI flash itself: hart 0 runs its code from it.
-The firmware on hart 0 reads, programs and erases the flash for Linux, and
-Linux stops while it does: approximately 20 ms for each 4 KiB sector of an
-erase. A 64 KiB erase block of UBI is 16 such stops, with Linux running
-between them.
+Linux cannot drive the SPI flash itself: hart 0 runs its code from it.
+Linux reads the partitions through the flash cache, where the firmware on
+hart 0 maps them. The firmware programs and erases the flash for Linux,
+and Linux stops while it does: approximately 20 ms for each 4 KiB sector
+of an erase. A 64 KiB erase block of UBI is 16 such stops, with Linux
+running between them.
 `make flash` and `flash.bin` do not write `data`, so the overlay stays
 after an update.
 

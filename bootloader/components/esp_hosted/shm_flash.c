@@ -4,12 +4,13 @@
  * block (esp32s31-hosted-shm.h).  Linux makes an MTD device of it.  The
  * window is the "rootfs" and "data" partitions, which must be adjacent.
  *
- * A flash read, program or erase of ESP-IDF suspends the external memory
- * cache of the two harts, and Linux runs from PSRAM through it.  Thus hart 1
- * is stalled during each flash operation.  A block erase is 16 sector erases,
- * with one tick between them, so that Linux runs.  Linux does not read the
- * window through the cache, so no cache line of it can be stale after a
- * write.
+ * Linux reads the window through the flash cache, where this file maps it.
+ * It programs and erases through the mailbox.  A program or erase of ESP-IDF
+ * suspends the external memory cache of the two harts, and Linux runs from
+ * PSRAM through it.  Thus hart 1 is stalled during each operation.  After
+ * the operation, ESP-IDF invalidates the cache lines of the mapped window,
+ * and the two harts share the data cache.  A block erase is 16 sector
+ * erases, with one tick between them, so that Linux runs.
  */
 
 #include "esp_err.h"
@@ -18,6 +19,7 @@
 #include "esp_partition.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "spi_flash_mmap.h"
 #include "hal/cpu_utility_ll.h"
 #include "soc/hp_system_reg.h"
 #include "esp32s31-hosted-shm.h"
@@ -62,9 +64,7 @@ static esp_err_t flash_op(uint32_t cmd, uint32_t addr, uint32_t len)
 	esp_err_t err;
 
 	stall_linux();
-	if (cmd == ESP_SHM_FLASH_READ)
-		err = esp_flash_read(NULL, data, s_base + addr, len);
-	else if (cmd == ESP_SHM_FLASH_PROGRAM)
+	if (cmd == ESP_SHM_FLASH_PROGRAM)
 		err = esp_flash_write(NULL, data, s_base + addr, len);
 	else
 		err = esp_flash_erase_region(NULL, s_base + addr, len);
@@ -90,8 +90,7 @@ static bool flash_request_valid(uint32_t cmd, uint32_t addr, uint32_t len)
 		return false;
 	if (cmd == ESP_SHM_FLASH_ERASE)
 		return addr % ESP_SHM_FLASH_BLOCK == 0 && len == ESP_SHM_FLASH_BLOCK;
-	return (cmd == ESP_SHM_FLASH_READ || cmd == ESP_SHM_FLASH_PROGRAM) &&
-	       len <= ESP_SHM_FLASH_DATA_SIZE &&
+	return cmd == ESP_SHM_FLASH_PROGRAM && len <= ESP_SHM_FLASH_DATA_SIZE &&
 	       addr % ESP_SHM_FLASH_SECTOR + len <= ESP_SHM_FLASH_SECTOR;
 }
 
@@ -102,12 +101,18 @@ void shm_flash_init(void)
 	const esp_partition_t *data = esp_partition_find_first(ESP_PARTITION_TYPE_DATA,
 							      0x40, "data");
 
+	const void *map = NULL;
+	spi_flash_mmap_handle_t handle;
+
 	s_base = 0;
 	s_size = 0;
-	if (root && data && data->address == root->address + root->size) {
+	if (root && data && data->address == root->address + root->size &&
+	    spi_flash_mmap(root->address, root->size + data->size,
+			   SPI_FLASH_MMAP_DATA, &map, &handle) == ESP_OK) {
 		s_base = root->address;
 		s_size = root->size + data->size;
 	}
+	*flash_word(ESP_SHM_FLASH_MAP_OFF) = (uint32_t)map;
 	*flash_word(ESP_SHM_FLASH_SIZE_OFF) = s_size;
 }
 

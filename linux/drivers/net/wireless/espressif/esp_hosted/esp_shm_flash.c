@@ -2,11 +2,12 @@
 /*
  * The flash window of the ESP32-S31 firmware, as an MTD device with the
  * partitions of the "flash" child node.  Linux cannot use the SPI flash
- * itself: hart 0 runs its code from it.  So the firmware reads, programs and
- * erases the window for Linux, through the flash mailbox of the shared block
- * (esp32s31-hosted-shm.h).  Linux stops while the firmware accesses the
- * flash.  An erase block is 64 KiB, for UBI, but the firmware erases it one
- * 4 KiB sector at a time, so that the stops stay short.
+ * itself: hart 0 runs its code from it.  The firmware maps the window in the
+ * flash cache, and Linux reads it there.  The firmware programs and erases
+ * the window for Linux, through the flash mailbox of the shared block
+ * (esp32s31-hosted-shm.h), and Linux stops while it does.  An erase block is
+ * 64 KiB, for UBI, but the firmware erases it one 4 KiB sector at a time, so
+ * that the stops stay short.
  */
 
 #include <linux/device.h>
@@ -26,6 +27,7 @@
 
 struct esp_shm_flash {
 	struct mtd_info mtd;
+	void *window;			/* the window in the flash cache */
 	void __iomem *mbox;		/* ESP_SHM_FLASH in the shared block */
 	void __iomem *data;		/* ESP_SHM_FLASH_DATA */
 	void __iomem *doorbell;
@@ -40,7 +42,7 @@ static u32 mbox_read(struct esp_shm_flash *flash, u32 off)
 
 /* One command of the mailbox.  Called with the lock held. */
 static int esp_shm_flash_cmd(struct esp_shm_flash *flash, u32 cmd, u32 addr,
-			     void *buf, u32 len)
+			     const void *buf, u32 len)
 {
 	/* After a timeout, the firmware can still work on the old command. */
 	if (mbox_read(flash, ESP_SHM_FLASH_CMD_OFF))
@@ -59,16 +61,25 @@ static int esp_shm_flash_cmd(struct esp_shm_flash *flash, u32 cmd, u32 addr,
 		return -ETIMEDOUT;
 	/* Read the status and the data only after the cleared command. */
 	rmb();
-	if (mbox_read(flash, ESP_SHM_FLASH_STATUS_OFF))
-		return -EIO;
-	if (cmd == ESP_SHM_FLASH_READ)
-		memcpy_fromio(buf, flash->data, len);
+	return mbox_read(flash, ESP_SHM_FLASH_STATUS_OFF) ? -EIO : 0;
+}
+
+/* The lock keeps a read from seeing half of a program or erase. */
+static int esp_shm_flash_read(struct mtd_info *mtd, loff_t from, size_t len,
+			      size_t *retlen, u_char *buf)
+{
+	struct esp_shm_flash *flash = container_of(mtd, struct esp_shm_flash, mtd);
+
+	mutex_lock(&flash->lock);
+	memcpy(buf, flash->window + from, len);
+	mutex_unlock(&flash->lock);
+	*retlen = len;
 	return 0;
 }
 
-/* A read or program, in mailbox blocks that do not cross a sector. */
-static int esp_shm_flash_xfer(struct mtd_info *mtd, u32 cmd, loff_t ofs,
-			      size_t len, size_t *retlen, u8 *buf)
+/* In mailbox blocks that do not cross a sector. */
+static int esp_shm_flash_write(struct mtd_info *mtd, loff_t to, size_t len,
+			       size_t *retlen, const u_char *buf)
 {
 	struct esp_shm_flash *flash = container_of(mtd, struct esp_shm_flash, mtd);
 	int ret = 0;
@@ -76,31 +87,18 @@ static int esp_shm_flash_xfer(struct mtd_info *mtd, u32 cmd, loff_t ofs,
 	mutex_lock(&flash->lock);
 	while (len) {
 		u32 n = min_t(size_t, len,
-			      ESP_SHM_FLASH_DATA_SIZE - ofs % ESP_SHM_FLASH_DATA_SIZE);
+			      ESP_SHM_FLASH_DATA_SIZE - to % ESP_SHM_FLASH_DATA_SIZE);
 
-		ret = esp_shm_flash_cmd(flash, cmd, ofs, buf, n);
+		ret = esp_shm_flash_cmd(flash, ESP_SHM_FLASH_PROGRAM, to, buf, n);
 		if (ret)
 			break;
 		*retlen += n;
-		ofs += n;
+		to += n;
 		buf += n;
 		len -= n;
 	}
 	mutex_unlock(&flash->lock);
 	return ret;
-}
-
-static int esp_shm_flash_read(struct mtd_info *mtd, loff_t from, size_t len,
-			      size_t *retlen, u_char *buf)
-{
-	return esp_shm_flash_xfer(mtd, ESP_SHM_FLASH_READ, from, len, retlen, buf);
-}
-
-static int esp_shm_flash_write(struct mtd_info *mtd, loff_t to, size_t len,
-			       size_t *retlen, const u_char *buf)
-{
-	return esp_shm_flash_xfer(mtd, ESP_SHM_FLASH_PROGRAM, to, len, retlen,
-				  (u8 *)buf);
 }
 
 static int esp_shm_flash_erase(struct mtd_info *mtd, struct erase_info *instr)
@@ -127,6 +125,7 @@ struct esp_shm_flash *esp_shm_flash_probe(struct device *dev, void __iomem *shm,
 					  void __iomem *doorbell)
 {
 	u32 size = ioread32(shm + ESP_SHM_FLASH + ESP_SHM_FLASH_SIZE_OFF);
+	u32 map = ioread32(shm + ESP_SHM_FLASH + ESP_SHM_FLASH_MAP_OFF);
 	struct device_node *np;
 	struct esp_shm_flash *flash;
 	struct mtd_info *mtd;
@@ -138,6 +137,9 @@ struct esp_shm_flash *esp_shm_flash_probe(struct device *dev, void __iomem *shm,
 	flash = kzalloc_obj(*flash);
 	if (!flash)
 		goto none;
+	flash->window = memremap(map, size, MEMREMAP_WB);
+	if (!flash->window)
+		goto free;
 
 	flash->mbox = shm + ESP_SHM_FLASH;
 	flash->data = shm + ESP_SHM_FLASH_DATA;
@@ -164,6 +166,8 @@ struct esp_shm_flash *esp_shm_flash_probe(struct device *dev, void __iomem *shm,
 	if (!ret)
 		return flash;
 	dev_warn(dev, "no flash device: %d\n", ret);
+	memunmap(flash->window);
+free:
 	kfree(flash);
 none:
 	of_node_put(np);
@@ -182,5 +186,6 @@ void esp_shm_flash_remove(struct esp_shm_flash *flash)
 		return;
 	mtd_device_unregister(&flash->mtd);
 	of_node_put(mtd_get_of_node(&flash->mtd));
+	memunmap(flash->window);
 	kfree(flash);
 }
