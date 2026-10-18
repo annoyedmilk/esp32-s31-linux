@@ -12,7 +12,7 @@ for a bare ESP32-S31 module with 16 MiB PSRAM and UART only.
 
 ## Quick start
 
-1. `pip install "esptool>=5.4"`
+1. `pip install "esptool==5.5.0"` (the tested version)
 2. Connect the UART port of the board (the UART Type-C port on the Korvo-1).
 3. `esptool --chip esp32s31 -p PORT -b 921600 write-flash 0x0 flash.bin`
 4. Korvo-1 only: write the card image to a microSD card (all data on the
@@ -22,11 +22,37 @@ for a bare ESP32-S31 module with 16 MiB PSRAM and UART only.
    button. The board logs in as root.
 6. Wi-Fi: `wpa_passphrase "<ssid>" "<passphrase>" >> /etc/wpa_supplicant.conf`,
    then `/etc/init.d/S40wifi restart`. On the bare module, use
-   `key_mgmt=WPA-PSK` (it has no WPA3), then `persist save`, or the
-   network is lost at the next boot.
+   `key_mgmt=WPA-PSK` (it has no WPA3). The file stays after a reboot.
 
 On the Korvo-1, the LCD shows the Tux logo, the kernel warnings and a
 login. A USB keyboard works on it.
+
+## New since v0.4.0
+
+- The bare build keeps its root in the flash as OpenWrt does: a read-only
+  squashfs with a writable UBIFS overlay. All changes stay, and
+  `persist save` is gone. `flash_erase /dev/mtd1 0 0` and a reboot go back
+  to the image.
+- Linux reads the flash through the cache, and it runs on while the
+  firmware programs or erases the flash. Writes in the overlay no longer
+  stop Linux, and they are faster.
+- SSH takes root only with a key. Put your public key into
+  `/root/.ssh/authorized_keys` from the console.
+- The Korvo-1 kernel mounts the root on the card directly, without an
+  initramfs. The boot is faster, and `flash.bin` is smaller. Without a
+  card, the kernel waits for one: there is no recovery shell.
+- The regulatory database is in the kernel, so the country of the access
+  point applies from the first connection.
+- Swap goes to zram only. A swap file in `/etc/fstab` still works.
+- DHCP uses the udhcpc script of Buildroot: search domains and static
+  routes of the lease work.
+- For your own builds: files in `local-overlay/` go into the root, for
+  example an SSH key and the Wi-Fi network.
+- The esptool version that flashes the board is pinned
+  (`bootloader/esptool.version`).
+
+The next release needs the new `flash.bin`: the partition tables of both
+builds changed. On the bare build, the first boot formats `data`.
 
 ## New in v0.4.0
 
