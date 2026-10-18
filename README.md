@@ -5,7 +5,7 @@ and on the ESP32-S31-WROOM-3-N16R16V module alone (the module of the Korvo-1).
 Linux uses the 16 MiB octal PSRAM as its memory.
 
 ```text
-ESP ROM -> ESP-IDF 2nd stage -> loader -> OpenSBI -> Linux -> initramfs -> Buildroot rootfs (SD)
+ESP ROM -> ESP-IDF 2nd stage -> loader -> OpenSBI -> Linux -> Buildroot rootfs (SD)
 ```
 
 ![fastfetch on the ESP32-S31-Korvo-1](docs/fastfetch.svg)
@@ -110,8 +110,7 @@ python -m espefuse --chip esp32s31 -p PORT summary
 - **Harts.** Hart 0 stays in M-mode. It runs the ESP-IDF loader, which stays
   resident as the radio firmware. Linux runs on hart 1 only.
 - **Loader.** The loader checks the size and CRC of the kernel. It copies the
-  kernel to `0x50000000`, on the Korvo-1 the initramfs to `0x50800000`, and
-  OpenSBI to `0x50F00000`. It starts Wi-Fi and Bluetooth,
+  kernel to `0x50000000` and OpenSBI to `0x50F00000`. It starts Wi-Fi and Bluetooth,
   and on the Korvo-1 also the LCD, the SD slot and the LED. Then it releases
   hart 1 into OpenSBI, and locks hart 0 out of PSRAM with PMP.
 - **Interrupts.** OpenSBI gives the CLIC inputs to S-mode. If an input is not
@@ -189,8 +188,8 @@ make monitor SERIAL_PORT=/dev/cu.usbserial-XXXX
 - Set `RESET_PORT` if the RTS line of `SERIAL_PORT` cannot reset the board.
 - `make help` shows all targets.
 
-Without a prepared SD card, the Korvo-1 initramfs starts a recovery shell
-on the UART and one on the LCD.
+The Korvo-1 kernel mounts `/dev/mmcblk0p2` as the root (`rootwait`).
+Without a prepared SD card, it waits for the card.
 
 ## SD card (Korvo-1)
 
@@ -357,14 +356,10 @@ in `br2-external/configs/<board>_defconfig`) with `linux/patches/`.
 | `0x220000` | OpenSBI `fw_jump` |
 | `0x2A0000` | Linux Image (with built-in DTB): 7.5 MiB on the Korvo-1, 4.5 MiB on the esp32s31 board |
 | `0xA1FFF4` / `0x71FFF4` | Linux size and CRC manifest, at the end of the kernel partition |
-| `0xA20000` | Korvo-1: 4 MiB initramfs |
 | `0x720000` | esp32s31: 6 MiB squashfs root (`rootfs`) |
 | `0xD20000` | esp32s31: 2.9 MiB UBIFS overlay (`data`) |
 
-The partition tables are `bootloader/partitions-<board>.csv`. On the
-Korvo-1, the initramfs holds BusyBox and an `init` that mounts
-`/dev/mmcblk0p2` and does `switch_root`. If the card is not there, it starts
-a shell on the UART and one on the LCD.
+The partition tables are `bootloader/partitions-<board>.csv`.
 
 ## Debugging
 

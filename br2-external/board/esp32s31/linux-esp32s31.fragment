@@ -20,7 +20,6 @@ CONFIG_CMDLINE="earlycon=sbi console=ttyS0,115200 loglevel=5 esp32_shm.radio_ser
 # CONFIG_NEW_LEDS is not set
 # CONFIG_EXT4_FS is not set
 # CONFIG_VFAT_FS is not set
-# CONFIG_BLK_DEV_INITRD is not set
 
 # The flash window of the firmware: a read-only squashfs root, and UBIFS on
 # the data partition as the writable overlay over it.  jffs2 cannot be the

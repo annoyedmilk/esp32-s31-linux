@@ -79,15 +79,10 @@ BR_TOOLS = "$(CONTAINER)" run --rm --uid $(shell id -u) --gid $(shell id -g) \
 PARTITIONS := bootloader/partitions-$(BOARD).csv
 part_field = $(shell awk -F'[ ,]+' '$$1 == "$(1)" { print $$$(2) }' $(PARTITIONS))
 
-# The root in the flash: on the Korvo-1, a small initramfs that mounts the
-# root on the card; on the module alone, the squashfs root of Buildroot.
-ROOT_PART_korvo1 := initramfs
-ROOT_IMAGE_korvo1 := initramfs.cpio
-ROOT_PART_esp32s31 := rootfs
-ROOT_IMAGE_esp32s31 := rootfs.squashfs
-ROOT_OFFSET := $(call part_field,$(ROOT_PART_$(BOARD)),4)
-ROOT_SIZE := $(call part_field,$(ROOT_PART_$(BOARD)),5)
-INITRAMFS_ARGS_korvo1 := --target $(BR_O)/target --init br2-external/board/esp32s31/init
+# The squashfs root in the flash, on the module alone.  The Korvo-1 has its
+# root on the card and no rootfs partition.
+ROOT_OFFSET := $(call part_field,rootfs,4)
+ROOT_SIZE := $(call part_field,rootfs,5)
 SD_DISK ?=
 SD_RAW = $(subst /dev/disk,/dev/rdisk,$(SD_DISK))
 # Size of the FAT partition.  The rest of the card is the root partition.
@@ -116,7 +111,7 @@ LINUX_SIZE_OFFSET := $(shell printf '0x%x' $$(( $(LINUX_OFFSET) + $(call part_fi
 	kernel-check kernel-clean kernel-vmlinux kernel-menuconfig \
 	kernel-saveconfig \
 	container-image \
-	br-volume br-artifacts rootfs rootfs-menuconfig initramfs sdcard sdpart \
+	br-volume br-artifacts rootfs rootfs-menuconfig sdcard sdpart \
 	sdwrite sdroot flash flash-args monitor openocd clean
 
 help:
@@ -136,7 +131,6 @@ help:
 		'  make bootloader                    ESP-IDF loader application' \
 		'  make opensbi                       patched OpenSBI fw_jump' \
 		'  make rootfs                        Buildroot: kernel, userspace, images' \
-		'  make initramfs                     the flash slot'\''s early userspace' \
 		'' \
 		'Kernel, which Buildroot builds from a stock release:' \
 		'' \
@@ -169,9 +163,7 @@ help:
 		'' \
 		'BOARD selects the board, for each target: korvo1 (the default) or' \
 		'esp32s31.  The output of a board goes to build/BOARD.  On korvo1 the' \
-		'rootfs lives on the SD card, and the flash slot carries only the' \
-		'initramfs that switch_roots into it.  On esp32s31, the flash slot' \
-		'carries the full rootfs.'
+		'rootfs is on the SD card.  On esp32s31, it is in the flash.'
 
 check:
 	@test "$$(uname -s)" = Darwin || { echo 'this build is supported on macOS only'; exit 1; }
@@ -188,7 +180,7 @@ check:
 ports:
 	@"$(PYTHON)" -m serial.tools.list_ports -v
 
-build: bootloader opensbi rootfs initramfs
+build: bootloader opensbi rootfs
 
 # idf.py reads sdkconfig.defaults only when it creates sdkconfig.  Then it
 # writes sdkconfig at each build, so it ignores changes to the defaults.
@@ -346,15 +338,6 @@ br-artifacts:
 rootfs-menuconfig: br-volume
 	@$(BR_RUN) -i -t sh -c 'cd /work/$(BR_DIR) && $(BR_MAKE) $(BR_DEFCONFIG) && $(BR_MAKE) menuconfig'
 
-# Runs in the container, because the target tree is in the volume.  Only a
-# board with an initramfs partition has one.
-initramfs: rootfs
-ifneq ($(INITRAMFS_ARGS_$(BOARD)),)
-	@$(BR_RUN) sh -c 'cd /work && python3 scripts/mkinitramfs.py \
-		$(INITRAMFS_ARGS_$(BOARD)) \
-		--output "$(BUILD_DIR)/initramfs.cpio" --size $(ROOT_SIZE)'
-endif
-
 sdcard: rootfs
 	@test -f "$(BR_OUT)/sdcard.img" || { \
 		echo 'Buildroot produced no sdcard.img; check post-image.sh'; exit 1; }
@@ -426,7 +409,7 @@ FLASH_IMAGES = \
 	$(OPENSBI_OFFSET) $(BUILD_DIR)/opensbi.bin \
 	$(LINUX_OFFSET) $(BUILD_DIR)/Image \
 	$(LINUX_SIZE_OFFSET) $(BUILD_DIR)/linux.size \
-	$(ROOT_OFFSET) $(BUILD_DIR)/$(ROOT_IMAGE_$(BOARD))
+	$(if $(ROOT_OFFSET),$(ROOT_OFFSET) $(BUILD_DIR)/rootfs.squashfs)
 
 flash: build
 	@test -n "$(FLASH_PORT)" || { echo 'set FLASH_PORT=/dev/cu.<flash-port>'; exit 1; }

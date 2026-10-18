@@ -28,8 +28,6 @@
 	};
 
 	chosen {
-		linux,initrd-start = <0x50800000>;
-		linux,initrd-end = <0x50C00000>;
 		stdout-path = "serial0:115200n8";
 
 		/*

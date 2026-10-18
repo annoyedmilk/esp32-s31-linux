@@ -34,10 +34,9 @@ ROM -> ESP-IDF 2nd stage -> loader (hart 0) -> OpenSBI (hart 1, M) -> Linux (har
 1. The ESP-IDF second-stage bootloader starts the loader application
    (`bootloader/main/`) on hart 0.
 2. The loader starts PSRAM, and on the Korvo-1 the SD slot pins, the RMT for
-   the LED and the LCD (`board_korvo1.c`). It copies four flash partitions
+   the LED and the LCD (`board_korvo1.c`). It copies two flash partitions
    to PSRAM and checks them: the kernel `Image` (size and CRC32 from a
-   manifest at the end of the kernel partition), on the Korvo-1 the
-   initramfs, and OpenSBI `fw_jump`. It starts Wi-Fi and Bluetooth.
+   manifest at the end of the kernel partition) and OpenSBI `fw_jump`. It starts Wi-Fi and Bluetooth.
 3. The loader writes the D-cache back, sets the PMA of hart 1 for PSRAM and
    releases hart 1 at the OpenSBI entry. Then it locks hart 0 out of PSRAM
    and the DMA pool with PMP.
@@ -46,9 +45,10 @@ ROM -> ESP-IDF 2nd stage -> loader (hart 0) -> OpenSBI (hart 1, M) -> Linux (har
 5. OpenSBI sets up the CLIC, the timer, PMP, APM and the SBI extensions.
    Then it jumps to the kernel in S-mode.
 6. The kernel has a built-in DTB (`esp32s31_korvo1.dts` or
-   `esp32s31.dts`). On the Korvo-1, the initramfs mounts the ext4 root
-   from the SD card and does `switch_root`. On the esp32s31 board, the root
-   is the squashfs in the flash, with a UBIFS overlay.
+   `esp32s31.dts`). On the Korvo-1, the root is the ext4 partition
+   `/dev/mmcblk0p2` on the SD card (`root=` and `rootwait`). On the
+   esp32s31 board, the root is the squashfs in the flash, with a UBIFS
+   overlay.
 
 ### Memory map
 
@@ -57,7 +57,7 @@ ROM -> ESP-IDF 2nd stage -> loader (hart 0) -> OpenSBI (hart 1, M) -> Linux (har
 | `0x2F040000` | 64 KiB | Coherent DMA pool for Linux (`shared-dma-pool`) |
 | `0x2F050000` | 52 KiB | Shared block: requests, flash mailbox, ESP-Hosted rings |
 | `0x2F079000` | 4 KiB | LCD DMA descriptor ring (Korvo-1) |
-| `0x50000000` | 15 MiB | Linux RAM: the kernel image, then on the Korvo-1 the initramfs at `0x50800000` (4 MiB, freed after boot) |
+| `0x50000000` | 15 MiB | Linux RAM, from the kernel image |
 | `0x50F00000` | 256 KiB | OpenSBI (reserved, no-map) |
 | `0x50F40000` | 768 KiB | LCD frame buffer (Korvo-1: reserved, no-map, uncached; esp32s31: Linux RAM) |
 

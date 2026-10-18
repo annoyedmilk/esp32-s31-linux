@@ -699,7 +699,7 @@ diff --git a/arch/riscv/boot/dts/espressif/esp32s31_korvo1.dts b/arch/riscv/boot
 new file mode 100644
 --- /dev/null
 +++ b/arch/riscv/boot/dts/espressif/esp32s31_korvo1.dts
-@@ -0,0 +1,66 @@
+@@ -0,0 +1,64 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * ESP32-S31-Korvo-1: 800x480 RGB panel, microSD slot, USB 2.0 host port
@@ -730,8 +730,6 @@ new file mode 100644
 +	};
 +
 +	chosen {
-+		linux,initrd-start = <0x50800000>;
-+		linux,initrd-end = <0x50C00000>;
 +		stdout-path = "serial0:115200n8";
 +
 +		/*

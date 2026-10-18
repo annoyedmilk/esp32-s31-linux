@@ -41,9 +41,6 @@
 #define KERNEL_MAGIC2_OFFSET        0x38U
 #define KERNEL_MAGIC2               0x05435352U
 #define KERNEL_SIZE_MAGIC           0x455A4953U
-#define INITRAMFS_LOAD_ADDR         0x50800000U
-#define INITRAMFS_MAX_SIZE          (OPENSBI_LOAD_ADDR - INITRAMFS_LOAD_ADDR)
-#define INITRAMFS_NEWC_MAGIC0       0x37303730U
 #define PSRAM_PMA_SIZE              0x01000000U
 #define PSRAM_UNCACHED_BASE         0xC0000000U
 #define LINUX_HART                  1U
@@ -340,7 +337,7 @@ static bool load_kernel_partition(void)
            (const void *)(KERNEL_LOAD_ADDR + KERNEL_IMAGE_SIZE_OFFSET),
            sizeof(memory_size));
     if (memory_size < image_size ||
-        KERNEL_LOAD_ADDR + memory_size > INITRAMFS_LOAD_ADDR) {
+        KERNEL_LOAD_ADDR + memory_size > OPENSBI_LOAD_ADDR) {
         ESP_LOGE(TAG, "invalid kernel memory size 0x%08" PRIx32,
                  (uint32_t)memory_size);
         return false;
@@ -385,46 +382,6 @@ static bool load_opensbi_partition(void)
     return true;
 }
 
-/*
- * The Korvo-1 has an initramfs, which mounts the root on the card.  The
- * module alone has none: its root is in the flash window of the firmware.
- * The initrd range of the device tree is the full partition.
- */
-static bool load_initramfs_partition(void)
-{
-    const esp_partition_t *part = esp_partition_find_first(
-        ESP_PARTITION_TYPE_DATA, 0x40, "initramfs");
-    uint32_t magic0;
-
-    if (!part) {
-        return true;
-    }
-
-    if (part->size > INITRAMFS_MAX_SIZE) {
-        ESP_LOGE(TAG, "initramfs partition size 0x%08" PRIx32
-                      " > maximum 0x%08" PRIx32,
-                 part->size, (uint32_t)INITRAMFS_MAX_SIZE);
-        return false;
-    }
-
-    if (!read_partition(part, INITRAMFS_LOAD_ADDR, part->size)) {
-        return false;
-    }
-
-    magic0 = *(const volatile uint32_t *)INITRAMFS_LOAD_ADDR;
-    if (magic0 != INITRAMFS_NEWC_MAGIC0) {
-        ESP_LOGE(TAG, "initramfs magic 0x%08" PRIx32
-                      " != newc prefix 0x%08" PRIx32,
-                 magic0, (uint32_t)INITRAMFS_NEWC_MAGIC0);
-        return false;
-    }
-
-    ESP_LOGI(TAG, "initramfs copied: flash=0x%08" PRIx32 " size=0x%08" PRIx32
-                  " psram=0x%08" PRIx32,
-             part->address, part->size, (uint32_t)INITRAMFS_LOAD_ADDR);
-    return true;
-}
-
 void app_main(void)
 {
     open_apm();
@@ -441,17 +398,14 @@ void app_main(void)
     }
     board_init();
 
-    if (!load_opensbi_partition() || !load_kernel_partition() ||
-        !load_initramfs_partition()) {
+    if (!load_opensbi_partition() || !load_kernel_partition()) {
         esp_restart();
     }
 
     board_start_display();
 
-    ESP_LOGI(TAG, "handoff: OpenSBI=0x%08" PRIx32 " kernel=0x%08" PRIx32
-                  " initramfs=0x%08" PRIx32,
-             (uint32_t)OPENSBI_LOAD_ADDR, (uint32_t)KERNEL_LOAD_ADDR,
-             (uint32_t)INITRAMFS_LOAD_ADDR);
+    ESP_LOGI(TAG, "handoff: OpenSBI=0x%08" PRIx32 " kernel=0x%08" PRIx32,
+             (uint32_t)OPENSBI_LOAD_ADDR, (uint32_t)KERNEL_LOAD_ADDR);
 
     /*
      * The radio start reads the flash, and NVS can write it.  A flash

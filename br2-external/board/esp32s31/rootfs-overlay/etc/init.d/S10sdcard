@@ -1,6 +1,6 @@
 #!/bin/sh
 # SPDX-License-Identifier: MIT
-# p2 on the card is the root.  The initramfs mounts it.  p1 is the FAT area
+# p2 on the card is the root.  The kernel mounts it.  p1 is the FAT area
 # that the Mac also writes.  It is optional: never stop the boot for it.
 
 P1=/dev/mmcblk0p1

@@ -3,7 +3,7 @@
 FROM debian:bookworm
 
 # Buildroot host dependencies, plus dosfstools/mtools for genimage and
-# python3 for post-image.sh and mkinitramfs.py.
+# python3 for post-image.sh.
 RUN apt-get update && apt-get install -y --no-install-recommends \
         bc binutils build-essential bzip2 ca-certificates cpio diffutils \
         dosfstools file findutils git gzip libncurses-dev make \
