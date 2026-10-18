@@ -1,62 +1,19 @@
 #!/bin/sh
 # SPDX-License-Identifier: MIT
-# Swap to LZ4-compressed RAM first, then to a file on the card.  The file is
-# not a partition, so all card layouts work.  After "make sdroot", this
-# script makes the file again.
+# Swap to LZ4-compressed RAM.  zram needs its size in sysfs, so fstab cannot
+# start it.  A swap file in /etc/fstab starts earlier, from "swapon -a" in
+# inittab, and the higher priority of zram puts it first.
 
 ZRAM=/sys/block/zram0
 ZRAM_SIZE=6M	# uncompressed
-SWAPFILE=/swapfile
-WANT=65536	# KiB
-KEEP=32768	# KiB left free on /
-MIN=16384	# KiB, a smaller swap file is not worth the SD wear
 
-start_zram()
-{
+case "$1" in
+start)
 	echo lz4 > $ZRAM/comp_algorithm &&
 		echo $ZRAM_SIZE > $ZRAM/disksize &&
 		mkswap /dev/zram0 >/dev/null &&
 		swapon -p 100 /dev/zram0 &&
 		echo "swap: /dev/zram0 ($ZRAM_SIZE, lz4) active"
-}
-
-start_file()
-{
-	if [ -f "$SWAPFILE" ]; then
-		swapon -p 10 "$SWAPFILE" && echo "swap: $SWAPFILE active"
-		return
-	fi
-
-	size=$(($(df -k / | awk 'NR == 2 { print $4 }') - KEEP))
-	[ "$size" -gt "$WANT" ] && size=$WANT
-	if [ "$size" -lt "$MIN" ]; then
-		echo "swap: too little space on / for a swap file"
-		return
-	fi
-
-	# dd takes approximately 30 seconds.  The system does not wait for it.
-	echo "swap: creating $SWAPFILE ($((size / 1024))M) in the background"
-	(
-		# swapon does not accept holes, so the file cannot be sparse.
-		if dd if=/dev/zero of="$SWAPFILE" bs=1024 count="$size" 2>/dev/null; then
-			chmod 600 "$SWAPFILE"
-			mkswap "$SWAPFILE" >/dev/null
-			swapon -p 10 "$SWAPFILE" && echo "swap: $SWAPFILE active"
-		else
-			rm -f "$SWAPFILE"
-			echo "swap: cannot create $SWAPFILE" >&2
-		fi
-	) &
-}
-
-case "$1" in
-start)
-	start_zram
-	start_file
-	;;
-stop)
-	swapoff "$SWAPFILE" 2>/dev/null
-	swapoff /dev/zram0 2>/dev/null && echo 1 > $ZRAM/reset
 	;;
 esac
 

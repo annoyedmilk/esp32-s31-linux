@@ -3,7 +3,7 @@ CONFIG_NTPD=y
 # CONFIG_FEATURE_NTPD_SERVER is not set
 # CONFIG_FEATURE_NTPD_CONF is not set
 
-# S05swap gives zram a higher priority than the swap file.
+# S05swap gives zram a higher priority than a swap file in /etc/fstab.
 CONFIG_FEATURE_SWAPON_PRI=y
 
 # nc to test sockets.
