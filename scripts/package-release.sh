@@ -10,6 +10,11 @@
 set -eu
 
 cd "$(dirname "$0")/.."
+# The images of a local build contain the files of local-overlay/.
+if [ -n "$(ls -A local-overlay | grep -vx .empty)" ]; then
+	echo "local-overlay/ has files, which can be keys: do not release this build" >&2
+	exit 1
+fi
 version=${1:?usage: $0 VERSION BOARD}
 board=${2:?usage: $0 VERSION BOARD}
 name=esp32s31-linux-$version-$board

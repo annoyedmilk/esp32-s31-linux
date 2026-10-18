@@ -24,6 +24,10 @@ rm -f "$1/etc/init.d/S90httpd" "$1/etc/init.d/S11modules"
 
 mkdir -p "$1/mnt/sd"
 
+# Buildroot copies the overlays with go=rX.  local-overlay/ can give this file
+# a network key.
+chmod 600 "$1/etc/wpa_supplicant.conf"
+
 # The boot scripts run as /bin/sh, BusyBox ash, which needs much less memory
 # than bash.  The interactive shell of root is bash, where the image has it.
 if [ -x "$1/bin/bash" ]; then

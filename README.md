@@ -186,6 +186,11 @@ make monitor SERIAL_PORT=/dev/cu.usbserial-XXXX
   `=== ESP32-S31 Linux / Buildroot ===`. Then it stays open as a terminal.
   Push `Ctrl-]` to exit. It writes a log to `logs/`.
 - Set `RESET_PORT` if the RTS line of `SERIAL_PORT` cannot reset the board.
+- Files in `local-overlay/` go into the root of both builds, for example
+  `root/.ssh/authorized_keys` and `etc/wpa_supplicant.conf`. git ignores
+  them, and `scripts/package-release.sh` stops when the directory has files.
+  A file that you remove from it stays in the Buildroot output until a
+  clean build.
 - `make help` shows all targets.
 
 The Korvo-1 kernel mounts `/dev/mmcblk0p2` as the root (`rootwait`).
