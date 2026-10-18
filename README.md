@@ -49,7 +49,8 @@ There are two builds. Select one with `BOARD` for each `make` target.
    [releases page](https://github.com/annoyedmilk/esp32-s31-linux/releases):
    `*-korvo1-flash.zip` and `*-korvo1-sdcard.img.xz` for the Korvo-1, or
    `*-esp32s31-flash.zip` for the ESP32-S31-WROOM-3-N16R16V alone.
-2. Flash: `pip install "esptool>=5.4"`, connect the UART port, then
+2. Flash: `pip install "esptool==5.5.0"` (the tested version, in
+   `bootloader/esptool.version`), connect the UART port, then
    `esptool --chip esp32s31 -p PORT -b 921600 write-flash 0x0 flash.bin`.
 3. Korvo-1 only: write `*-sdcard.img.xz` to a microSD card (for example
    with balenaEtcher), and put the card into the board.
@@ -154,6 +155,9 @@ board always gives GPIO33/34 to the USB Serial/JTAG.
 - ESP-IDF at `~/esp/esp-idf`, at the commit in `bootloader/esp-idf.version`,
   with the `riscv32-esp-elf` toolchain and the ESP-Hosted patches
   (`make bootloader` gives the command).
+- esptool at the version in `bootloader/esptool.version`, in the Python
+  environment of ESP-IDF (`make check` gives the command). Move both pins
+  together, and test a `make flash` and a boot on the board.
 - Apple `container` CLI. Run `container system start` first.
 
 On Linux, `scripts/ci-build.sh` builds everything without a container.

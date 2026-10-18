@@ -16,6 +16,13 @@ IDF_VERSION := $(shell sed -n 's/^set(IDF_VERSION_M[AI][JN]OR \([0-9]*\))/\1/p' 
 	"$(IDF_PATH)/tools/cmake/version.cmake" 2>/dev/null | paste -sd. -)
 PYTHON ?= $(lastword $(foreach p,$(sort $(wildcard $(IDF_TOOLS_PATH)/python_env/idf$(IDF_VERSION)_*/bin/python)),$(if $(realpath $(p)),$(p))))
 ESPTOOL := $(PYTHON) -m esptool
+# The tested esptool.  Its flasher stub for the chip comes with it, so a new
+# esptool can change how the board is flashed.  Move it with the ESP-IDF pin.
+ESPTOOL_VERSION := $(shell cat bootloader/esptool.version)
+ESPTOOL_CHECK = @v=$$($(ESPTOOL) version 2>/dev/null | tail -1); \
+	test "$$v" = "$(ESPTOOL_VERSION)" || { \
+	echo "esptool is $$v, but bootloader/esptool.version wants $(ESPTOOL_VERSION):"; \
+	echo '  $(PYTHON) -m pip install esptool==$(ESPTOOL_VERSION)'; exit 1; }
 # export.sh names its virtualenv after the python3 that it finds.  After a
 # host Python upgrade, that virtualenv does not exist, and the old one can
 # have a broken python link.  PYTHON is the newest one that works, for the
@@ -175,6 +182,7 @@ check:
 	@"$(CONTAINER)" system status >/dev/null 2>&1 || { echo 'container services are not running: container system start'; exit 1; }
 	@"$(CONTAINER)" image inspect "$(BR_IMAGE)" >/dev/null 2>&1 || { echo 'missing the $(BR_IMAGE) image: make container-image'; exit 1; }
 	@"$(PYTHON)" -c 'import serial' || { echo 'missing pyserial in ESP-IDF Python environment'; exit 1; }
+	$(ESPTOOL_CHECK)
 	@git submodule status --recursive
 
 ports:
@@ -413,6 +421,7 @@ FLASH_IMAGES = \
 
 flash: build
 	@test -n "$(FLASH_PORT)" || { echo 'set FLASH_PORT=/dev/cu.<flash-port>'; exit 1; }
+	$(ESPTOOL_CHECK)
 	@$(ESPTOOL) --chip esp32s31 -p "$(FLASH_PORT)" -b 921600 \
 		--before default-reset --after hard-reset write-flash $(FLASH_IMAGES)
 

@@ -22,6 +22,12 @@ out=build/release
 stage=$out/$name-flash
 card=build/$board/buildroot/sdcard.img
 esptool=${ESPTOOL:-python3 -m esptool}
+esptool_version=$(cat bootloader/esptool.version)
+have=$($esptool version 2>/dev/null | tail -1)
+if [ "$have" != "$esptool_version" ]; then
+	echo "esptool is $have, but bootloader/esptool.version wants $esptool_version" >&2
+	exit 1
+fi
 
 rm -rf "$stage"
 mkdir -p "$stage"
@@ -58,7 +64,7 @@ esac
 cat > "$stage/FLASH.txt" <<TXT
 ESP32-S31 Linux $version for $title
 
-Install esptool 5.4 or later:  pip install "esptool>=5.4"
+Install the tested esptool:  pip install "esptool==$esptool_version"
 Connect the UART port of UART0. Then flash one of the two ways:
 
   esptool --chip esp32s31 -p PORT -b 921600 write-flash 0x0 flash.bin

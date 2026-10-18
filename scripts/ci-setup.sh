@@ -29,3 +29,6 @@ idf checkout -q -f --detach "$commit"
 idf submodule update --init --recursive --filter=blob:none
 IDF_PATH=$IDF_PATH scripts/patch-esp-idf.sh
 "$IDF_PATH/install.sh" esp32s31
+# The tested esptool, in the Python environment of ESP-IDF.
+python=$(ls -d "$HOME"/.espressif/python_env/*/bin/python | tail -1)
+"$python" -m pip install "esptool==$(cat bootloader/esptool.version)"
