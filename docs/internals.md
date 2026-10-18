@@ -332,15 +332,17 @@ Linux sees a standard MTD device.
   data and then the command, and rings. The firmware (`shm_flash.c`) writes
   the status, clears the command and rings back. The driver
   (`esp_shm_flash.c`) sleeps until then.
-- **Flash and cache.** A flash program or erase of ESP-IDF suspends the
-  external memory cache of the two harts. Linux runs from PSRAM through
-  that cache. So the firmware stalls hart 1 for each flash operation and
-  waits until `HP_SYSTEM_CPU_CORESTALLED_ST` shows the stall. A hart in WFI
-  shows it only when it wakes up, so the firmware rings Linux after the
-  stall request. The firmware erases a block one 4 KiB sector at a time,
-  with one FreeRTOS tick (10 ms) between the sectors, so that each stop is
-  20 to 30 ms. In one stop the block erase would stop Linux for
-  approximately 350 ms.
+- **Flash and cache.** Without flash auto-suspend, a program or erase of
+  ESP-IDF freezes the cache of the two harts, and Linux runs from PSRAM
+  through that cache. With `CONFIG_SPI_FLASH_AUTO_SUSPEND`, the cache stays
+  on, and each cache miss to the flash suspends the operation. Linux runs
+  on, and the firmware erases a 64 KiB block in one operation.
+- **Bus timeouts.** A cache miss of hart 1 to PSRAM can wait behind the
+  suspends longer than the core bus timeout (`HP_SYSTEM_CORE_IBUS/DBUS_TIMEOUT_CONF`,
+  65535 cycles at most). The bus then gives an error, and Linux gets an
+  access fault on a correct address (`CORE1_DBUS_TIMEOUT` in
+  `HP_SYSTEM_CORE_TIMEOUT_INT_RAW`, seen with JTAG). The firmware turns
+  both timeouts off before it starts hart 1.
 - **Coherency.** After a program or erase, ESP-IDF invalidates the cache
   lines of each mapped page that it changed. The two harts share the data
   cache, so Linux reads the new data. The driver holds its lock in reads
@@ -370,7 +372,8 @@ Linux sees a standard MTD device.
 | PMA entries overlap | No fault. The entry with the lowest index is used. |
 | FPU `EXT_ILL` | Cannot identify FLW/FSW. |
 | GPIO33/34 | LCD data pins and also the USB Serial/JTAG pins. |
-| Flash access | Suspends the cache of the two harts. Stall hart 1 first. |
+| Flash program or erase | Freezes the cache of the two harts. Use auto-suspend. |
+| Core bus timeout | Fires behind flash suspends: access fault on PSRAM. Turn it off. |
 
 ## Where to start reading
 

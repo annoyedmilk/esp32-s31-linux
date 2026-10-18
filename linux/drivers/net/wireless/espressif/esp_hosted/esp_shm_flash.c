@@ -5,9 +5,8 @@
  * itself: hart 0 runs its code from it.  The firmware maps the window in the
  * flash cache, and Linux reads it there.  The firmware programs and erases
  * the window for Linux, through the flash mailbox of the shared block
- * (esp32s31-hosted-shm.h), and Linux stops while it does.  An erase block is
- * 64 KiB, for UBI, but the firmware erases it one 4 KiB sector at a time, so
- * that the stops stay short.
+ * (esp32s31-hosted-shm.h).  Linux runs on while it does: the firmware uses
+ * flash auto-suspend.  An erase block is 64 KiB, for UBI.
  */
 
 #include <linux/device.h>
@@ -22,7 +21,7 @@
 #include "esp32s31-hosted-shm.h"
 #include "esp_shm_flash.h"
 
-/* A sector erase takes up to approximately 0.5 s, and a block has 16. */
+/* A block erase takes longer when cache misses suspend it often. */
 #define ESP_SHM_FLASH_TIMEOUT_MS	10000
 
 struct esp_shm_flash {

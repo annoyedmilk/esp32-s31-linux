@@ -5,28 +5,27 @@
  * window is the "rootfs" and "data" partitions, which must be adjacent.
  *
  * Linux reads the window through the flash cache, where this file maps it.
- * It programs and erases through the mailbox.  A program or erase of ESP-IDF
- * suspends the external memory cache of the two harts, and Linux runs from
- * PSRAM through it.  Thus hart 1 is stalled during each operation.  After
- * the operation, ESP-IDF invalidates the cache lines of the mapped window,
- * and the two harts share the data cache.  A block erase is 16 sector
- * erases, with one tick between them, so that Linux runs.
+ * It programs and erases through the mailbox.  With flash auto-suspend, the
+ * cache stays on during a program or erase, and Linux runs on from PSRAM.
+ * Each cache miss to the flash suspends the operation.  After the operation,
+ * ESP-IDF invalidates the cache lines of the mapped window, and the two harts
+ * share the data cache.
  */
 
+#include "sdkconfig.h"
 #include "esp_err.h"
 #include "esp_flash.h"
 #include "esp_log.h"
 #include "esp_partition.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
 #include "spi_flash_mmap.h"
-#include "hal/cpu_utility_ll.h"
 #include "soc/hp_system_reg.h"
 #include "esp32s31-hosted-shm.h"
 #include "shm_flash.h"
 
-#define LINUX_HART		1
-#define LINUX_DOORBELL_REG	HP_SYSTEM_CPU_INT_FROM_CPU_2_REG
+/* Without auto-suspend, a program or erase freezes the cache under Linux. */
+#if !CONFIG_SPI_FLASH_AUTO_SUSPEND
+#error "the flash window needs CONFIG_SPI_FLASH_AUTO_SUSPEND"
+#endif
 
 _Static_assert(ESP_SHM_FLASH >= ESP_SHM_TO_FW_CTRL + 0x100,
 	       "the mailbox must come after the ring control words");
@@ -44,44 +43,26 @@ static volatile uint32_t *flash_word(uint32_t off)
 	return (volatile uint32_t *)(ESP_SHM_ADDR + ESP_SHM_FLASH + off);
 }
 
-/*
- * The stall takes effect only when the hart reports it.  A hart in WFI
- * reports it only when it wakes up, so ring Linux.  Linux then sees one more
- * doorbell, which it can always take.
- */
-static void stall_linux(void)
-{
-	cpu_utility_ll_stall_cpu(LINUX_HART);
-	REG_WRITE(LINUX_DOORBELL_REG, 1);
-	while (!REG_GET_BIT(HP_SYSTEM_CPU_CORESTALLED_ST_REG,
-			    HP_SYSTEM_REG_CORE1_CORESTALLED_ST))
-		;
-}
-
 static esp_err_t flash_op(uint32_t cmd, uint32_t addr, uint32_t len)
 {
 	uint8_t *data = (uint8_t *)(ESP_SHM_ADDR + ESP_SHM_FLASH_DATA);
-	esp_err_t err;
 
-	stall_linux();
 	if (cmd == ESP_SHM_FLASH_PROGRAM)
-		err = esp_flash_write(NULL, data, s_base + addr, len);
-	else
-		err = esp_flash_erase_region(NULL, s_base + addr, len);
-	cpu_utility_ll_unstall_cpu(LINUX_HART);
-	return err;
+		return esp_flash_write(NULL, data, s_base + addr, len);
+	return esp_flash_erase_region(NULL, s_base + addr, len);
 }
 
-static esp_err_t flash_erase_block(uint32_t addr)
+/*
+ * A cache miss of hart 1 can wait behind the suspends of a program or erase
+ * longer than the core bus timeout (65535 cycles at most).  The bus then
+ * answers with an error, and Linux gets an access fault on a correct PSRAM
+ * address.  Turn the timeout off for the two harts: the access then gets its
+ * data later.
+ */
+static void disable_bus_timeouts(void)
 {
-	uint32_t end = addr + ESP_SHM_FLASH_BLOCK;
-	esp_err_t err = ESP_OK;
-
-	for (; addr < end && err == ESP_OK; addr += ESP_SHM_FLASH_SECTOR) {
-		err = flash_op(ESP_SHM_FLASH_ERASE, addr, ESP_SHM_FLASH_SECTOR);
-		vTaskDelay(1);
-	}
-	return err;
+	REG_CLR_BIT(HP_SYSTEM_CORE_IBUS_TIMEOUT_CONF_REG, HP_SYSTEM_CORE_IBUS_TIMEOUT_PROTECT_EN);
+	REG_CLR_BIT(HP_SYSTEM_CORE_DBUS_TIMEOUT_CONF_REG, HP_SYSTEM_CORE_DBUS_TIMEOUT_PROTECT_EN);
 }
 
 static bool flash_request_valid(uint32_t cmd, uint32_t addr, uint32_t len)
@@ -104,6 +85,7 @@ void shm_flash_init(void)
 	const void *map = NULL;
 	spi_flash_mmap_handle_t handle;
 
+	disable_bus_timeouts();
 	s_base = 0;
 	s_size = 0;
 	if (root && data && data->address == root->address + root->size &&
@@ -129,8 +111,6 @@ bool shm_flash_service(void)
 
 	if (!flash_request_valid(cmd, addr, len))
 		err = ESP_ERR_INVALID_ARG;
-	else if (cmd == ESP_SHM_FLASH_ERASE)
-		err = flash_erase_block(addr);
 	else
 		err = flash_op(cmd, addr, len);
 	if (err != ESP_OK)

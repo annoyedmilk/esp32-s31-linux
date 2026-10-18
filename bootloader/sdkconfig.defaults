@@ -38,7 +38,7 @@ CONFIG_BT_LE_HCI_EVT_LO_BUF_COUNT=4
 # The ESP-Hosted default for the ESP32-S31 adds the IEEE 802.15.4 RCP.
 # CONFIG_ESP_HOSTED_RCP is not set
 CONFIG_ESP_COEX_SW_COEXIST_ENABLE=y
-# The supplicant runs on Linux.  Nothing writes the flash after Linux starts.
+# The supplicant runs on Linux, so Wi-Fi keeps nothing in NVS.
 # CONFIG_ESP_WIFI_NVS_ENABLED is not set
 # CONFIG_ESP_WIFI_ENABLE_WPA3_SAE is not set
 # CONFIG_ESP_WIFI_ENABLE_SAE_PK is not set
@@ -50,3 +50,7 @@ CONFIG_ESP_COEX_SW_COEXIST_ENABLE=y
 # RCP took 23 KiB of code and 26 KiB of heap.
 CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM=32
 CONFIG_ESP_WIFI_DYNAMIC_TX_BUFFER_NUM=32
+# The cache stays on during a program or erase, and Linux runs on from
+# PSRAM (shm_flash.c needs it).  The flash of the module (XMC, 0x46) has
+# suspend and resume.
+CONFIG_SPI_FLASH_AUTO_SUSPEND=y

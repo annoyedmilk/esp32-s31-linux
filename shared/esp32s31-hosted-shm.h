@@ -49,8 +49,7 @@
  * window), LEN and for a program the data, then CMD, and rings.  The
  * firmware writes STATUS (0 or an esp_err_t), clears CMD and rings.  A
  * program is at most ESP_SHM_FLASH_DATA_SIZE bytes in one 4 KiB sector.  An
- * erase is one block of ESP_SHM_FLASH_BLOCK bytes: the firmware erases its
- * 4 KiB sectors one at a time.
+ * erase is one block of ESP_SHM_FLASH_BLOCK bytes.
  */
 #define ESP_SHM_FLASH		0x0300
 #define ESP_SHM_FLASH_SIZE_OFF	0x00
