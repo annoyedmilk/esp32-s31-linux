@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT
 set -eu
 
-# Log in on the serial console automatically.  SSH still needs the root password.
+# Log in on the serial console automatically.  SSH takes a key only.
 grep -qF 'ttyS0::respawn:/sbin/getty -L -n -l /sbin/serial-autologin ttyS0 115200' "$1/etc/inittab"
 test -x "$1/sbin/serial-autologin"
 
