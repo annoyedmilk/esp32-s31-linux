@@ -371,10 +371,13 @@ The partition tables are `bootloader/partitions-<board>.csv`.
 ## Debugging
 
 1. Set the loader to JTAG (see above). The LCD then stays dark.
-2. Run `make flash`, then `make openocd`.
+2. Run `make flash`, then `make openocd`. It attaches to the running
+   board without a reset.
 3. Connect `riscv32-esp-elf-gdb` to port 3333. Use `build/korvo1/opensbi.elf`,
    `build/korvo1/bootloader/s31-linux-loader.elf` or `build/korvo1/vmlinux`
-   (`make kernel-vmlinux`).
+   (`make kernel-vmlinux`). GDB shows only the hart of the connection
+   (hart 0). Read hart 1 on the OpenOCD telnet port 4444:
+   `targets esp32s31.hp.cpu1`, then `reg pc` or `reg mepc`.
 
 ## Limits
 
