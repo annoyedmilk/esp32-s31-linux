@@ -12,3 +12,12 @@ define WPA_SUPPLICANT_DISABLE_UNUSED
 		$(WPA_SUPPLICANT_CONFIG)
 endef
 WPA_SUPPLICANT_POST_CONFIGURE_HOOKS += WPA_SUPPLICANT_DISABLE_UNUSED
+
+# libgpiod builds its glib bindings and gpio-manager when glib is in the
+# build (BlueZ brings it).  No program here uses them, and the bindings keep
+# libgio, libgobject and libffi in the image.
+LIBGPIOD2_CONF_OPTS += -Dbindings-glib=disabled -Ddbus=disabled
+
+# iperf3 links OpenSSL for its rarely used authentication when OpenSSL is in
+# the build, and then loads libcrypto at each start.
+IPERF3_CONF_OPTS += --without-openssl
