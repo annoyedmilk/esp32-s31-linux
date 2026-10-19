@@ -324,6 +324,13 @@ block. `make` stops when the image is larger than the `rootfs` partition.
   MicroPython, `gpio.sh` reads or sets a pin, `www/` is a web page with a CGI
   script for the LED, and `autostart.sh` is a start script.
 
+The module alone has its own examples in `/usr/share/examples`:
+`gpio.sh` reads or sets a pin, `www/` is a web page that sets and reads
+pins (`httpd -p 8080 -h /usr/share/examples/www`), `report.sh` sends the
+uptime and the free memory with HTTPS (for `crontab`), `ble-scan.sh` lists
+the Bluetooth LE devices nearby, `ap.sh` starts an access point, and
+`autostart.sh` is a start script for `/root/autostart.sh`.
+
 ## Wi-Fi
 
 `wlan0` works with the standard `wpa_supplicant`. `S40wifi` starts it with
