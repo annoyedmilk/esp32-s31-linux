@@ -114,7 +114,7 @@ LINUX_SIZE_OFFSET := $(shell printf '0x%x' $$(( $(LINUX_OFFSET) + $(call part_fi
 
 .DEFAULT_GOAL := help
 
-.PHONY: help check ports build bootloader opensbi kernel kernel-patches \
+.PHONY: help check ports build bootloader opensbi kernel kernel-patches defconfigs \
 	kernel-check kernel-clean kernel-vmlinux kernel-menuconfig \
 	kernel-saveconfig \
 	container-image \
@@ -143,6 +143,7 @@ help:
 		'' \
 		'  make kernel                        rebuild just the kernel' \
 		'  make kernel-patches                regenerate linux/patches from linux/' \
+		'  make defconfigs                    regenerate br2-external/configs from the fragments' \
 		'  make kernel-check                  dry-run the series on a pristine tree' \
 		'  make kernel-clean                  re-extract the kernel after a patch change' \
 		'  make kernel-vmlinux                fetch vmlinux from the build volume for GDB' \
@@ -183,6 +184,7 @@ check:
 	@"$(CONTAINER)" image inspect "$(BR_IMAGE)" >/dev/null 2>&1 || { echo 'missing the $(BR_IMAGE) image: make container-image'; exit 1; }
 	@"$(PYTHON)" -c 'import serial' || { echo 'missing pyserial in ESP-IDF Python environment'; exit 1; }
 	$(ESPTOOL_CHECK)
+	@$(BR_TOOLS) sh -c 'cd /work && scripts/mkdefconfigs.sh --check'
 	@git submodule status --recursive
 
 ports:
@@ -238,6 +240,10 @@ opensbi:
 # All files under linux/ are new to the kernel, so a generated patch (0000)
 # adds them.  The other patches change existing files.  Each kernel build
 # makes 0000 again, so an edit of 0000 itself is always lost.
+# The defconfigs are made from a common fragment and one for each board.
+defconfigs:
+	@$(BR_TOOLS) sh -c 'cd /work && scripts/mkdefconfigs.sh'
+
 kernel-patches:
 	@"$(PYTHON)" scripts/mkkernelpatches.py
 

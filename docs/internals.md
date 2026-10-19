@@ -386,5 +386,5 @@ Linux sees a standard MTD device.
 | DMA coherency | `linux/drivers/cache/esp32s31-cache.c`, `linux/patches/0007` |
 | Wi-Fi transport | `shared/esp32s31-hosted-shm.h` |
 | The flash root | `bootloader/components/esp_hosted/shm_flash.c`, `linux/drivers/net/wireless/espressif/esp_hosted/esp_shm_flash.c` |
-| The two boards | `bootloader/main/board_*.c`, `br2-external/configs/*_defconfig` |
+| The two boards | `bootloader/main/board_*.c`, `br2-external/board/esp32s31/defconfig/*.fragment` (`make defconfigs` makes `br2-external/configs/*_defconfig`) |
 | Device tree | `linux/arch/riscv/boot/dts/espressif/esp32s31.dtsi` |

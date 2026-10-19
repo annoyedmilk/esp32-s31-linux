@@ -354,7 +354,8 @@ access point, not the two at the same time.
 ## Kernel
 
 Buildroot builds a stock kernel release (`BR2_LINUX_KERNEL_CUSTOM_VERSION_VALUE`
-in `br2-external/configs/<board>_defconfig`) with `linux/patches/`.
+in `br2-external/board/esp32s31/defconfig/common.fragment`) with
+`linux/patches/`.
 
 - `0000-esp32s31-add-source-files.patch` is generated from the new files
   under `linux/`. Edit those files, not the patch. Each

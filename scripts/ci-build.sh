@@ -27,6 +27,7 @@ if [ "$want" != "$have" ]; then
 	exit 1
 fi
 
+scripts/mkdefconfigs.sh --check
 make kernel-patches
 make bootloader BOARD="$BOARD"
 make opensbi BOARD="$BOARD"
