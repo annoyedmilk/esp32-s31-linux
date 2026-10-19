@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0+
 /*
  * ESP32-S31-Function-CoreBoard-1, with the ESP32-S31-WROOM-3-N16R16V module:
- * UART0 on the USB-UART bridge, a USB 2.0 host port and a WS2812 RGB LED.
+ * UART0 on the USB-UART bridge, Gigabit Ethernet, a USB 2.0 host port and a
+ * WS2812 RGB LED.
  * The root is in the flash window of the firmware.
  * Author: Roan Brand <brandroan@gmail.com>
  */
@@ -12,8 +13,32 @@
 	model = "Espressif ESP32-S31-Function-CoreBoard-1";
 	compatible = "esp,esp32s31-function-coreboard-1", "esp,esp32s31";
 
+	aliases {
+		ethernet0 = &gmac;
+	};
+
 	chosen {
 		stdout-path = "serial0:115200n8";
+	};
+};
+
+/*
+ * A Motorcomm YT8531 on RGMII, with its own crystal.  The loader resets it on
+ * GPIO7.  The PHY adds the RX and TX clock delays.
+ */
+&gmac {
+	phy-mode = "rgmii-id";
+	phy-handle = <&phy0>;
+	status = "okay";
+
+	mdio {
+		compatible = "snps,dwmac-mdio";
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		phy0: ethernet-phy@0 {
+			reg = <0>;
+		};
 	};
 };
 

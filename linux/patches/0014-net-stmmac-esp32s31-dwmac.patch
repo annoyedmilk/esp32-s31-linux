@@ -1,0 +1,36 @@
+From: Roan Brand <brandroan@gmail.com>
+Subject: [PATCH] net: stmmac: add the ESP32-S31 DWMAC glue
+
+The ESP32-S31 has a DesignWare GMAC 3.70a with RGMII.  Add its glue
+driver to the stmmac Kconfig and Makefile.
+
+Signed-off-by: Roan Brand <brandroan@gmail.com>
+---
+diff --git a/drivers/net/ethernet/stmicro/stmmac/Kconfig b/drivers/net/ethernet/stmicro/stmmac/Kconfig
+--- a/drivers/net/ethernet/stmicro/stmmac/Kconfig
++++ b/drivers/net/ethernet/stmicro/stmmac/Kconfig
+@@ -75,6 +75,13 @@
+ 	  high-speed networking with DMA acceleration and is optimized
+ 	  for embedded systems.
+ 
++config DWMAC_ESP32S31
++	tristate "Espressif ESP32-S31 DWMAC support"
++	depends on OF && (SOC_ESP32S31 || COMPILE_TEST)
++	help
++	  Support for the RGMII Gigabit Ethernet MAC of the Espressif
++	  ESP32-S31.
++
+ config DWMAC_INGENIC
+ 	tristate "Ingenic MAC support"
+ 	default MACH_INGENIC
+diff --git a/drivers/net/ethernet/stmicro/stmmac/Makefile b/drivers/net/ethernet/stmicro/stmmac/Makefile
+--- a/drivers/net/ethernet/stmicro/stmmac/Makefile
++++ b/drivers/net/ethernet/stmicro/stmmac/Makefile
+@@ -15,6 +15,7 @@
+ obj-$(CONFIG_STMMAC_PLATFORM)	+= stmmac-platform.o
+ obj-$(CONFIG_DWMAC_ANARION)	+= dwmac-anarion.o
+ obj-$(CONFIG_DWMAC_EIC7700)	+= dwmac-eic7700.o
++obj-$(CONFIG_DWMAC_ESP32S31)	+= dwmac-esp32s31.o
+ obj-$(CONFIG_DWMAC_INGENIC)	+= dwmac-ingenic.o
+ obj-$(CONFIG_DWMAC_IPQ806X)	+= dwmac-ipq806x.o
+ obj-$(CONFIG_DWMAC_LPC18XX)	+= dwmac-lpc18xx.o

@@ -1,11 +1,11 @@
 if(CONFIG_S31_LINUX_BOARD_KORVO1)
     set(board_srcs board_korvo1.c display.c rmt.c sd.c)
 elseif(CONFIG_S31_LINUX_BOARD_COREBOARD1)
-    set(board_srcs board_coreboard1.c rmt.c)
+    set(board_srcs board_coreboard1.c emac.c rmt.c)
 else()
     set(board_srcs board_esp32s31.c)
 endif()
 
 idf_component_register(SRCS main.c ${board_srcs}
-                       REQUIRES freertos esp_partition esp_psram esp_hw_support esp_rom hal esp_hal_wdt esp_lcd esp_hal_lcd esp_hal_dma esp_hal_sd esp_hal_rmt esp_driver_gpio heap esp_hosted bootloader_support
+                       REQUIRES freertos esp_partition esp_psram esp_hw_support esp_rom hal esp_hal_wdt esp_lcd esp_hal_lcd esp_hal_dma esp_hal_sd esp_hal_rmt esp_driver_gpio esp_hal_emac heap esp_hosted bootloader_support
                        INCLUDE_DIRS ".")

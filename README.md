@@ -34,7 +34,8 @@ You can use it in two ways:
 There are three builds. Select one with `BOARD` for each `make` target. The
 Korvo-1 has a card with much space, so it gets the full set of tools. The
 module alone has only its 16 MB flash, so it gets a small set. The
-CoreBoard-1 build is the build of the module alone, with USB and the LED.
+CoreBoard-1 build is the build of the module alone, with Ethernet, USB and
+the LED.
 The builds share one base configuration
 (`br2-external/board/esp32s31/defconfig/common.fragment`): the kernel, the
 toolchain, BusyBox, Dropbear, OpenSSL, `wpa_supplicant`, curl, iperf3,
@@ -47,9 +48,9 @@ libgpiod and BlueZ. Each board fragment adds only its own parts.
 | Persistence | All files on the card | All files: the overlay is in the flash | The same |
 | Swap | zram (6 MiB), then 64 MiB on p3 of the card | zram (6 MiB) only | zram (6 MiB) only |
 | Consoles | UART, and the LCD with a USB keyboard | UART | UART |
-| Hardware for Linux | LCD, microSD, USB host, RGB LED, GPIO, RNG | GPIO, RNG | USB host, RGB LED, GPIO, RNG |
+| Hardware for Linux | LCD, microSD, USB host, RGB LED, GPIO, RNG | GPIO, RNG | Ethernet, USB host, RGB LED, GPIO, RNG |
 | Wi-Fi and Bluetooth | `wlan0` and `hci0`, WPA2 and WPA3, Personal and Enterprise, AP with `hostapd`, BlueZ with its classic tools | `wlan0` and `hci0`, WPA2 and WPA3, Personal and Enterprise, AP with `wpa_supplicant`, BlueZ (`bluetoothd`, `bluetoothctl`) | The same as `esp32s31` |
-| RAM for Linux | 10.8 MiB | 12.6 MiB | 11.4 MiB |
+| RAM for Linux | 10.8 MiB | 12.6 MiB | 10.9 MiB |
 | Userspace | bash, vim, gdb, strace, MicroPython, Lua, links, curl, tcpdump, htop and more | BusyBox, Dropbear, wpa_supplicant, iw, curl, bluetoothctl, iperf3, the GPIO tools, flash_erase | The same as `esp32s31` |
 
 ## Try it
@@ -98,6 +99,7 @@ On the Korvo-1 also:
 
 On the CoreBoard-1 also:
 
+- Gigabit Ethernet as `eth0` (stmmac), with DHCP at boot.
 - USB host (DWC2): keyboards, mice, `hidraw` and mass storage with FAT.
 - The RGB LED as `/sys/class/leds/rgb:status`.
 
