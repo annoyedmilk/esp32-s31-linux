@@ -1,9 +1,11 @@
 #!/bin/sh
 # SPDX-License-Identifier: MIT
-# Run autostart.sh from p1 at each boot.  p1 stays after "make sdroot", and
-# a Mac or PC can write it.
+# Run autostart.sh at each boot: from p1 of the card, which stays after
+# "make sdroot" and which a Mac or PC can write, else from /root, which the
+# overlay of the standalone build keeps.
 
 SCRIPT=/mnt/sd/autostart.sh
+[ -f "$SCRIPT" ] || SCRIPT=/root/autostart.sh
 
 [ "$1" = start ] && [ -f "$SCRIPT" ] || exit 0
 
