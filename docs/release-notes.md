@@ -1,4 +1,4 @@
-Linux 7.2 on the ESP32-S31, ready to flash: for the ESP32-S31-Korvo-1, and
+Linux 7.3 on the ESP32-S31, ready to flash: for the ESP32-S31-Korvo-1, and
 for a bare ESP32-S31 module with 16 MiB PSRAM and UART only.
 
 ## Files
@@ -29,6 +29,7 @@ login. A USB keyboard works on it.
 
 ## New since v0.4.0
 
+- Linux 7.3.
 - The bare build keeps its root in the flash as OpenWrt does: a read-only
   squashfs with a writable UBIFS overlay. All changes stay, and
   `persist save` is gone. `flash_erase /dev/mtd1 0 0` and a reboot go back

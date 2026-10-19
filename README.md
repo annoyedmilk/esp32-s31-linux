@@ -1,6 +1,6 @@
 # ESP32-S31 Linux
 
-Linux 7.2 and OpenSBI 1.9 on the ESP32-S31: on the ESP32-S31-Korvo-1 board,
+Linux 7.3 and OpenSBI 1.9 on the ESP32-S31: on the ESP32-S31-Korvo-1 board,
 and on the ESP32-S31-WROOM-3-N16R16V module alone (the module of the Korvo-1).
 Linux uses the 16 MiB octal PSRAM as its memory.
 
@@ -14,7 +14,7 @@ ESP ROM -> ESP-IDF 2nd stage -> loader -> OpenSBI -> Linux -> Buildroot root (ca
 
 The ESP32-S31 is a microcontroller: two RV32 harts at 320 MHz, 512 KiB of
 SRAM, Wi-Fi 6 and Bluetooth. It was not made for Linux. This project runs a
-stock Linux 7.2 kernel with a small patch set on it, with a real userspace:
+stock Linux 7.3 kernel with a small patch set on it, with a real userspace:
 a shell on the LCD, Wi-Fi with `wpa_supplicant`, Bluetooth with BlueZ, SSH,
 USB keyboards and sticks, `vim`, `gdb`, `strace`, MicroPython and a text-mode web browser
 (`links`).

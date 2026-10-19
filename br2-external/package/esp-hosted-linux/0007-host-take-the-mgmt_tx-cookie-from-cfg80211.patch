@@ -1,0 +1,93 @@
+From: Marco Müller <hello@annoyedmilk.ch>
+Subject: [PATCH] host: take the mgmt_tx cookie from cfg80211
+
+Since Linux 7.3, cfg80211 makes the cookie of a management frame and
+gives it to mgmt_tx by value.  The driver must report the TX status
+with that cookie, not with one of its own.  Use the cookie of cfg80211
+for the pending frame.
+
+Linux 7.3 also removes the probe_client operation.  The driver only
+returned -EOPNOTSUPP for it, which is also the result without the
+operation, so remove it.
+
+This needs Linux 7.3 or later.
+
+Upstream: not sent
+---
+--- a/host/esp_cfg80211.c
++++ b/host/esp_cfg80211.c
+@@ -1190,7 +1190,7 @@
+ #else
+ 				struct cfg80211_mgmt_tx_params *params,
+ #endif
+-		u64 *cookie)
++		u64 cookie)
+ {
+ 	struct esp_wifi_device *priv = NULL;
+ 
+@@ -2444,12 +2444,6 @@
+ }
+ #endif
+ 
+-static int esp_cfg80211_probe_client(struct wiphy *wiphy, struct net_device *dev,
+-                                  const u8 *peer, u64 *cookie)
+-{
+-	return -EOPNOTSUPP;
+-}
+-
+ #if (LINUX_VERSION_CODE >= KERNEL_VERSION(7, 1, 0))
+ static int esp_cfg80211_del_station(struct wiphy *wiphy, struct wireless_dev *wdev,
+ 					struct station_del_parameters *params)
+@@ -2675,7 +2669,6 @@
+ #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 8, 0))
+ 	.update_mgmt_frame_registrations = esp_cfg80211_mgmt_frame_registrations,
+ #endif
+-	.probe_client = esp_cfg80211_probe_client,
+ 	.del_station = esp_cfg80211_del_station,
+ 	.add_station = esp_cfg80211_add_station,
+ 	.change_station = esp_cfg80211_change_station,
+--- a/host/esp_cmd.c
++++ b/host/esp_cmd.c
+@@ -2898,7 +2898,7 @@
+ }
+ 
+ int cmd_mgmt_request(struct esp_wifi_device *priv,
+-		     struct cfg80211_mgmt_tx_params *req, u64 *cookie)
++		     struct cfg80211_mgmt_tx_params *req, u64 cookie)
+ {
+ 	struct command_node *cmd_node;
+ 	struct cmd_mgmt_tx *cmd;
+@@ -2906,7 +2906,7 @@
+ 	u64 tx_id;
+ 	int ret;
+ 
+-	if (!priv || !priv->adapter || !req || !cookie || !req->buf || !req->len)
++	if (!priv || !priv->adapter || !req || !req->buf || !req->len)
+ 		return -EINVAL;
+ 	if (req->len > U32_MAX ||
+ 	    esp_size_add_overflow(sizeof(struct cmd_mgmt_tx), req->len, &total_len) ||
+@@ -2944,11 +2944,10 @@
+ 	}
+ 
+ 	spin_lock_bh(&priv->bss_lock);
+-	priv->pending_mgmt_cookie = (u64)cmd_node->cmd_seq;
++	priv->pending_mgmt_cookie = cookie;
+ 	spin_unlock_bh(&priv->bss_lock);
+ 
+-	cmd_node->cookie = (u64)cmd_node->cmd_seq;
+-	*cookie = cmd_node->cookie;
++	cmd_node->cookie = cookie;
+ 	cmd_node->mgmt_dont_wait_for_ack = req->dont_wait_for_ack;
+ 	cmd_node->mgmt_frame = kmemdup(req->buf, req->len, GFP_KERNEL);
+ 	if (!cmd_node->mgmt_frame) {
+--- a/host/include/esp_cmd.h
++++ b/host/include/esp_cmd.h
+@@ -75,7 +75,7 @@
+ int cmd_set_ap_config(struct esp_wifi_device *priv, struct esp_ap_config *ap_config);
+ int cmd_stop_ap(struct esp_wifi_device *priv);
+ int cmd_mgmt_request(struct esp_wifi_device *priv,
+-		     struct cfg80211_mgmt_tx_params *req, u64 *cookie);
++		     struct cfg80211_mgmt_tx_params *req, u64 cookie);
+ int cmd_sta_change(struct esp_wifi_device *priv,
+ 		     struct station_parameters *sta_info);
+ int cmd_update_fw_time(struct esp_wifi_device *priv);

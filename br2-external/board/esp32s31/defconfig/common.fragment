@@ -25,7 +25,7 @@ BR2_CCACHE=y
 # change the version, change this value and update the series.
 BR2_LINUX_KERNEL=y
 BR2_LINUX_KERNEL_CUSTOM_VERSION=y
-BR2_LINUX_KERNEL_CUSTOM_VERSION_VALUE="7.2.11"
+BR2_LINUX_KERNEL_CUSTOM_VERSION_VALUE="7.3"
 BR2_LINUX_KERNEL_PATCH="$(BR2_EXTERNAL_ESP32S31_PATH)/../linux/patches"
 BR2_LINUX_KERNEL_USE_CUSTOM_CONFIG=y
 BR2_LINUX_KERNEL_CUSTOM_CONFIG_FILE="$(BR2_EXTERNAL_ESP32S31_PATH)/board/esp32s31/linux.config"
@@ -33,7 +33,7 @@ BR2_LINUX_KERNEL_CUSTOM_CONFIG_FILE="$(BR2_EXTERNAL_ESP32S31_PATH)/board/esp32s3
 BR2_LINUX_KERNEL_IMAGE=y
 # Headers from the same kernel.  Also set the header series.  The default is
 # "really old", which tells all packages that the headers are 2.6.  7.1 is
-# the newest series that this Buildroot knows, and it also covers 7.2.
+# the newest series that this Buildroot knows, and it also covers 7.3.
 BR2_KERNEL_HEADERS_AS_KERNEL=y
 BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_7_1=y
 # The ESP-Hosted host driver for the radio firmware on hart 0, built in.
