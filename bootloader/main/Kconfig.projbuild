@@ -13,6 +13,9 @@ config S31_LINUX_BOARD_KORVO1
 config S31_LINUX_BOARD_ESP32S31
     bool "ESP32-S31-WROOM-3-N16R16V module alone (UART0 only)"
 
+config S31_LINUX_BOARD_COREBOARD1
+    bool "ESP32-S31-Function-CoreBoard-1 (USB, RGB LED)"
+
 endchoice
 
 endmenu
