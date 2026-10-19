@@ -48,6 +48,7 @@ BR2_TARGET_GENERIC_GETTY_OPTIONS="-n -l /sbin/serial-autologin"
 BR2_GLOBAL_PATCH_DIR="$(BR2_EXTERNAL_ESP32S31_PATH)/patches"
 BR2_ROOTFS_OVERLAY="$(BR2_EXTERNAL_ESP32S31_PATH)/board/esp32s31/rootfs-overlay $(BR2_EXTERNAL_ESP32S31_PATH)/board/esp32s31/rootfs-overlay-esp32s31 $(BR2_EXTERNAL_ESP32S31_PATH)/../local-overlay"
 BR2_ROOTFS_POST_BUILD_SCRIPT="$(BR2_EXTERNAL_ESP32S31_PATH)/board/esp32s31/post-build.sh"
+BR2_ROOTFS_POST_FAKEROOT_SCRIPT="$(BR2_EXTERNAL_ESP32S31_PATH)/board/esp32s31/post-fakeroot.sh"
 BR2_ROOTFS_POST_IMAGE_SCRIPT="$(BR2_EXTERNAL_ESP32S31_PATH)/board/esp32s31/post-image.sh"
 # The read-only root on the flash.  64 KiB blocks keep the decompression
 # cache of the kernel small.
