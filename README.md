@@ -39,9 +39,9 @@ There are two builds. Select one with `BOARD` for each `make` target.
 | Persistence | All files on the card | All files: the overlay is in the flash |
 | Consoles | UART, and the LCD with a USB keyboard | UART |
 | Hardware for Linux | LCD, microSD, USB host, RGB LED, GPIO, RNG | GPIO, RNG |
-| Wi-Fi and Bluetooth | `wlan0` and `hci0`, WPA2 and WPA3, Personal and Enterprise, BlueZ | `wlan0` and `hci0`, WPA2 and WPA3, Personal and Enterprise, no BlueZ |
+| Wi-Fi and Bluetooth | `wlan0` and `hci0`, WPA2 and WPA3, Personal and Enterprise, AP with `hostapd`, BlueZ with its classic tools | `wlan0` and `hci0`, WPA2 and WPA3, Personal and Enterprise, AP with `wpa_supplicant`, BlueZ (`bluetoothd`, `bluetoothctl`) |
 | RAM for Linux | 10.8 MiB | 12.6 MiB |
-| Userspace | bash, vim, gdb, strace, MicroPython, Lua, links, curl, tcpdump, htop and more | BusyBox, Dropbear, wpa_supplicant, iw, curl, iperf3, the GPIO tools, flash_erase |
+| Userspace | bash, vim, gdb, strace, MicroPython, Lua, links, curl, tcpdump, htop and more | BusyBox, Dropbear, wpa_supplicant, iw, curl, bluetoothctl, iperf3, the GPIO tools, flash_erase |
 
 ## Try it
 
@@ -69,8 +69,11 @@ On the two boards:
 - Wi-Fi as `wlan0` (cfg80211 full-MAC) through the ESP-Hosted firmware on
   hart 0: station with `wpa_supplicant`. iperf3 TCP gives approximately 43
   to 46 Mbit/s TX and 37 to 39 Mbit/s RX on the Korvo-1, and 46 Mbit/s in
-  each direction on the esp32s31 board.
-- Bluetooth as `hci0` through the same firmware: BR/EDR and LE.
+  each direction on the esp32s31 board. WPA2 and WPA3-SAE, Personal and
+  Enterprise (PEAP, TTLS, TLS).
+- Bluetooth as `hci0` through the same firmware: BR/EDR and LE. BlueZ:
+  `bluetoothd` and `bluetoothctl`, LE scan and BR/EDR inquiry.
+- HTTPS with `curl`, which verifies certificates against the CA bundle.
 - Hardware RNG, GPIO, zram swap, `reboot`, and `poweroff` into deep sleep.
 
 On the Korvo-1 also:
@@ -78,9 +81,9 @@ On the Korvo-1 also:
 - 800x480 LCD as `/dev/fb0` with `fbcon`, and a login on `tty1`.
 - USB host (DWC2): keyboards, mice, `hidraw` and mass storage.
 - microSD (`dw_mmc` with internal DMA): FAT on p1, ext4 root on p2.
-- WPA3-SAE, and an access point with `hostapd`.
-- BlueZ: `bluetoothd` and `bluetoothctl`, LE scan, BR/EDR inquiry and
-  pairing with Secure Simple Pairing.
+- An access point with `hostapd`.
+- The classic BlueZ tools (`hciconfig`, `hcitool`), and pairing with
+  Secure Simple Pairing.
 - The RGB LED as `/sys/class/leds/rgb:status`.
 
 ## Tested hardware
@@ -259,8 +262,8 @@ The shell is bash, with a history that stays after a reset.
 ### Flash root (esp32s31)
 
 The ESP32-S31-WROOM-3-N16R16V alone has no card. Its root is in the flash,
-as in OpenWrt: a read-only squashfs on `/dev/mtdblock0` (`rootfs`, 6 MiB),
-and UBIFS on the `data` partition (`/dev/mtd1`, 2.9 MiB) as a writable
+as in OpenWrt: a read-only squashfs on `/dev/mtdblock0` (`rootfs`, 7.5 MiB),
+and UBIFS on the `data` partition (`/dev/mtd1`, 2.4 MiB) as a writable
 overlay over it. `/sbin/overlay-init` mounts the two, then starts init. So all of `/`
 is writable, and each change stays: `/etc/wpa_supplicant.conf`, the SSH
 host keys, `/root/.ssh` and your own files. The squashfs is at `/rom`, the
@@ -277,7 +280,22 @@ Linux reads the partitions through the flash cache, where the firmware on
 hart 0 maps them. The firmware programs and erases the flash for Linux
 with flash auto-suspend, so Linux runs on while it does.
 `make flash` and `flash.bin` do not write `data`, so the overlay stays
-after an update.
+after an update. After a change of the partition layout, erase `data`
+(for example `esptool erase-region` with its offset and size), so that UBI
+formats it again.
+
+The squashfs is zstd at level 22 with 32 KiB blocks: gzip does not fit
+with BlueZ, and xz decompresses too slowly. The cost is time, because the
+kernel decompresses at approximately 1.9 MB/s on this core. Measured on
+the board:
+
+| | Value |
+| --- | --- |
+| `rootfs.squashfs` | 7.3 MiB of 7.5 MiB |
+| UBIFS overlay (`df`) | approximately 1 MB |
+| Boot to the banner | approximately 11.7 s |
+| Cold start of `wpa_supplicant` / `curl` / `bluetoothctl` | approximately 0.75 / 2.1 / 1.05 s |
+| MemAvailable after boot | approximately 3.5 MB |
 
 ### Files and scripts
 
@@ -310,16 +328,21 @@ wpa_cli scan; wpa_cli scan_results
 
 For WPA3 and WPA2/WPA3 networks, the network block needs
 `key_mgmt=WPA-PSK SAE`, `ieee80211w=1` and the passphrase as `psk="..."`.
-The hex PSK from `wpa_passphrase` is not sufficient for SAE.
+The hex PSK from `wpa_passphrase` is not sufficient for SAE. For WPA3 only,
+use `key_mgmt=SAE` with `ieee80211w=2`. Keep the default `sae_pwe=0`: with
+`sae_pwe=2`, an access point that answers without H2E is not accepted.
+
+For WPA2-Enterprise (for example eduroam), `wpa_supplicant` has PEAP,
+TTLS and TLS, with MSCHAPv2, GTC and MD5 inside. The other EAP methods,
+DPP, P2P and TDLS are not built, for flash.
 
 The default configuration has `pmf=1`: protected management frames when
 the access point offers them. Without them, a WPA2/WPA3 router gave less
 than half of the TX throughput.
 
 On the esp32s31 board, the network stays in the overlay. It has no
-SAE, so use `key_mgmt=WPA-PSK` also for a WPA2/WPA3 network: WPA3 needs
-OpenSSL, which does not fit in its RAM root. A network block with `SAE`
-stops `wpa_supplicant`, and `S40wifi` then points to `/var/log/messages`.
+`hostapd`: for an access point, stop `S40wifi` and start `wpa_supplicant`
+with a network block that has `mode=2`.
 
 The ESP-Hosted firmware on hart 0 runs the 802.11 MAC. The ESP-Hosted host
 driver (`esp32_shm`) is built into the kernel. `wpa_supplicant` runs the
@@ -357,16 +380,20 @@ in `br2-external/configs/<board>_defconfig`) with `linux/patches/`.
 
 | Offset | Contents |
 | ---: | --- |
-| `0x002000` | ESP-IDF second-stage bootloader |
-| `0x008000` | Partition table |
-| `0x020000` | Loader and radio firmware |
-| `0x220000` | OpenSBI `fw_jump` |
-| `0x2A0000` | Linux Image (with built-in DTB): 7.5 MiB on the Korvo-1, 4.5 MiB on the esp32s31 board |
-| `0xA1FFF4` / `0x71FFF4` | Linux size and CRC manifest, at the end of the kernel partition |
-| `0x720000` | esp32s31: 6 MiB squashfs root (`rootfs`) |
-| `0xD20000` | esp32s31: 2.9 MiB UBIFS overlay (`data`) |
+| Korvo-1 | esp32s31 | Contents |
+| ---: | ---: | --- |
+| `0x002000` | `0x002000` | ESP-IDF second-stage bootloader |
+| `0x008000` | `0x008000` | Partition table |
+| `0x011000` | `0x009000` | NVS |
+| `0x220000` | `0x010000` | OpenSBI `fw_jump` (512 KiB, 256 KiB) |
+| `0x020000` | `0x050000` | Loader and radio firmware (2 MiB, 1.75 MiB) |
+| `0x2A0000` | `0x210000` | Linux Image with built-in DTB (7.5 MiB, 4 MiB) |
+| `0xA1FFF4` | `0x60FFF4` | Linux size and CRC manifest, at the end of the kernel partition |
+| | `0x610000` | squashfs root `rootfs` (7.5 MiB) |
+| | `0xD90000` | UBIFS overlay `data` (2.4375 MiB, to the end of the flash) |
 
-The partition tables are `bootloader/partitions-<board>.csv`.
+The partition tables are `bootloader/partitions-<board>.csv`. The Makefile
+takes all offsets from them.
 
 ## Debugging
 
@@ -399,6 +426,9 @@ The partition tables are `bootloader/partitions-<board>.csv`.
   on hart 1, and the closed Wi-Fi library on hart 0 times out the
   authentication. `wpa_supplicant` tries again and connects approximately
   10 s later. WPA2 is not affected.
+- On the esp32s31 board, a cold program start is slower than on the
+  Korvo-1, because the root is zstd-compressed (see
+  [Flash root](#flash-root-esp32s31)).
 - `bluetoothctl` with a command on its command line (`bluetoothctl list`)
   can exit before it is connected to `bluetoothd`, and prints nothing. Use
   it interactively, or pipe the commands into it.

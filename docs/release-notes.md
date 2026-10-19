@@ -55,9 +55,18 @@ login. A USB keyboard works on it.
   without old ciphers and protocols, so it takes less flash.
 - The kernel keeps a larger free reserve, so that swap to zram does not
   fail when memory is low.
+- The bare build has BlueZ (`bluetoothd`, `bluetoothctl`) and an access
+  point mode with `wpa_supplicant`. Its flash layout is new, and its root
+  is zstd-compressed, so that BlueZ fits. A cold program start is slower.
+- wpa_supplicant has PEAP, TTLS and TLS for Enterprise networks, but no
+  longer the other EAP methods, DPP, P2P or TDLS. curl has HTTP, HTTPS and
+  FTP only.
+- On the bare build, `/root/autostart.sh` runs at each boot, as
+  `autostart.sh` on p1 of the card does on the Korvo-1.
 
 The next release needs the new `flash.bin`: the partition tables of both
-builds changed. On the bare build, the first boot formats `data`.
+builds changed. On the bare build, erase `data` first, so that the first
+boot formats it.
 
 ## New in v0.4.0
 
@@ -199,6 +208,7 @@ card image erases the card, so save your files from the FAT partition first.
 - No I2C, audio or camera driver.
 - `poweroff` puts the chip into deep sleep. It does not remove power.
 - With WPA3-SAE, the first connection can fail, and the second one works.
-- The bare build has no BlueZ.
+- WPA2-Enterprise has PEAP, TTLS and TLS only. It is not tested with a
+  real network.
 
 See the README for the full list, and `docs/internals.md` for the details.
