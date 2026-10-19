@@ -347,14 +347,37 @@ Linux sees a standard MTD device.
   lines of each mapped page that it changed. The two harts share the data
   cache, so Linux reads the new data. The driver holds its lock in reads
   too, so that a read does not see half of a program.
-- **The root.** A squashfs on `mtdblock0`, and UBIFS on `mtd1` as an
-  overlayfs over it (`/sbin/overlay-init`, as in OpenWrt). UBI attaches an
+- **The root.** A squashfs on `mtdblock0` (`rootfs`, 7.5 MiB), and UBIFS
+  on `mtd1` (`data`, 2.4375 MiB) as an overlayfs over it
+  (`/sbin/overlay-init`, as in OpenWrt). UBI attaches an
   erased partition and formats it. The upper layer is UBIFS and not jffs2,
   because jffs2 has no `RENAME_WHITEOUT`: overlayfs then cannot make a
   directory where a lower directory was deleted (`EINVAL`).
+- **Compression.** The squashfs is zstd at level 22 with 32 KiB blocks.
+  gzip does not fit with BlueZ. xz is smaller, but the kernel decompresses
+  it at approximately 1.2 MB/s on this core, and zstd at 1.9 MB/s. Smaller
+  blocks decompress less data for each page fault.
 - **The erase block.** The flash erases 4 KiB sectors, but the MTD device
   shows 64 KiB erase blocks: UBIFS needs a logical erase block of at least
   15 KiB, and UBI takes 128 bytes of each block for its headers.
+
+## The two builds
+
+The two builds share one Buildroot base
+(`br2-external/board/esp32s31/defconfig/common.fragment`), and
+`scripts/mkdefconfigs.sh` merges it with the fragment of the board. A
+setting is in one fragment only, and `make check` fails when a defconfig
+in `br2-external/configs/` differs from its fragments.
+
+| | Korvo-1 | Module alone |
+| --- | --- | --- |
+| Base | Kernel, toolchain, BusyBox, Dropbear, OpenSSL, `wpa_supplicant` (WPA3, PEAP/TTLS/TLS, AP mode), curl, iperf3, libgpiod, BlueZ (`bluetoothd`, `bluetoothctl`) | The same |
+| Board parts | ext4 root on the card, `hostapd`, the classic BlueZ tools, bash, vim, gdb, strace, tcpdump, links, MicroPython, Lua, htop, USB and filesystem tools | squashfs root in the flash, UBIFS overlay, the MTD tools |
+| Swap | zram, then p3 of the card | zram only |
+
+The Korvo-1 has a card with much space, and the module alone has only its
+flash. The base keeps the network, security and Bluetooth stack the same
+on the two boards.
 
 ## Silicon traps
 

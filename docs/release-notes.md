@@ -6,7 +6,7 @@ for a bare ESP32-S31 module with 16 MiB PSRAM and UART only.
 | File | Use |
 | --- | --- |
 | `esp32s31-linux-*-korvo1-flash.zip` | Korvo-1 flash images. `flash.bin` goes to offset 0. `FLASH.txt` tells how. |
-| `esp32s31-linux-*-korvo1-sdcard.img.xz` | Korvo-1 microSD card image: FAT for your files and the ext4 root. |
+| `esp32s31-linux-*-korvo1-sdcard.img.xz` | Korvo-1 microSD card image: FAT for your files, the ext4 root and swap. |
 | `esp32s31-linux-*-esp32s31-flash.zip` | Flash images for a bare module. The full system is in the flash. |
 | `SHA256SUMS` | Checksums of the files. |
 
@@ -43,7 +43,10 @@ login. A USB keyboard works on it.
   card, the kernel waits for one: there is no recovery shell.
 - The regulatory database is in the kernel, so the country of the access
   point applies from the first connection.
-- Swap goes to zram only. A swap file in `/etc/fstab` still works.
+- Swap goes to zram first. On the Korvo-1, the card image has a swap
+  partition (p3), which the kernel uses when zram is full. The bare build
+  swaps to zram only.
+- The root partition of the Korvo-1 card image is 512 MiB.
 - DHCP uses the udhcpc script of Buildroot: search domains and static
   routes of the lease work.
 - For your own builds: files in `local-overlay/` go into the root, for
@@ -63,10 +66,13 @@ login. A USB keyboard works on it.
   FTP only.
 - On the bare build, `/root/autostart.sh` runs at each boot, as
   `autostart.sh` on p1 of the card does on the Korvo-1.
+- The Korvo-1 also has the access point mode of `wpa_supplicant`.
+- `@reboot` jobs of `crond` run at each boot, not only at the first.
 
 The next release needs the new `flash.bin`: the partition tables of both
-builds changed. On the bare build, erase `data` first, so that the first
-boot formats it.
+builds changed. On the Korvo-1, also write the new card image: the root
+of the old image is too small for the new one. On the bare build, erase
+`data` first, so that the first boot formats it.
 
 ## New in v0.4.0
 
