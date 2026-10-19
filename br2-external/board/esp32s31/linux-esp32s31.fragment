@@ -32,6 +32,9 @@ CONFIG_MTD_UBI=y
 # squashfs and UBIFS are in this menu, which linux.config turns off.
 CONFIG_MISC_FILESYSTEMS=y
 CONFIG_SQUASHFS=y
+# The root is squashfs with zstd.
+CONFIG_SQUASHFS_ZSTD=y
+# CONFIG_SQUASHFS_ZLIB is not set
 CONFIG_UBIFS_FS=y
 # Each compressor keeps a workspace for all time.  LZO is the default.
 CONFIG_UBIFS_FS_ADVANCED_COMPR=y

@@ -51,11 +51,13 @@ BR2_ROOTFS_POST_BUILD_SCRIPT="$(BR2_EXTERNAL_ESP32S31_PATH)/board/esp32s31/post-
 BR2_ROOTFS_POST_FAKEROOT_SCRIPT="$(BR2_EXTERNAL_ESP32S31_PATH)/board/esp32s31/post-fakeroot.sh"
 BR2_ROOTFS_POST_IMAGE_SCRIPT="$(BR2_EXTERNAL_ESP32S31_PATH)/board/esp32s31/post-image.sh"
 # The read-only root on the flash.  64 KiB blocks keep the decompression
-# cache of the kernel small.
+# cache of the kernel small.  zstd at level 22 (extreme) makes the image
+# smaller than gzip, and it decompresses faster than xz.
 # BR2_TARGET_ROOTFS_TAR is not set
 BR2_TARGET_ROOTFS_SQUASHFS=y
-BR2_TARGET_ROOTFS_SQUASHFS4_GZIP=y
-BR2_TARGET_ROOTFS_SQUASHFS_BS_64K=y
+BR2_TARGET_ROOTFS_SQUASHFS4_ZSTD=y
+BR2_TARGET_ROOTFS_SQUASHFS_EXTREME_COMP=y
+BR2_TARGET_ROOTFS_SQUASHFS_BS_32K=y
 # flash_erase resets the overlay to the image.  The NAND and UBI tools do
 # not apply to the NOR flash.
 BR2_PACKAGE_MTD=y
