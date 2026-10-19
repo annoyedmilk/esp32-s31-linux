@@ -1,0 +1,28 @@
+#!/bin/sh
+# SPDX-License-Identifier: MIT
+# Start a DHCP client on eth0, on a board with Ethernet.  udhcpc goes to the
+# background at once and keeps trying, so the boot does not wait for a cable.
+
+IFACE=eth0
+PID=/var/run/udhcpc.$IFACE.pid
+
+case "$1" in
+start)
+	[ -d /sys/class/net/$IFACE ] || exit 0
+	ip link set $IFACE up
+	udhcpc -b -S -i $IFACE -p $PID
+	;;
+stop)
+	[ -r $PID ] && kill "$(cat $PID)" 2>/dev/null
+	rm -f $PID
+	ip addr flush dev $IFACE 2>/dev/null
+	ip link set $IFACE down 2>/dev/null
+	;;
+restart)
+	"$0" stop
+	sleep 1
+	"$0" start
+	;;
+esac
+
+exit 0

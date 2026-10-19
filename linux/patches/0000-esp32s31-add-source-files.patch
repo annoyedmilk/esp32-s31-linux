@@ -235,6 +235,106 @@ new file mode 100644
 +            function = LED_FUNCTION_STATUS;
 +        };
 +    };
+diff --git a/Documentation/devicetree/bindings/net/esp,esp32s31-gmac.yaml b/Documentation/devicetree/bindings/net/esp,esp32s31-gmac.yaml
+new file mode 100644
+--- /dev/null
++++ b/Documentation/devicetree/bindings/net/esp,esp32s31-gmac.yaml
+@@ -0,0 +1,95 @@
++# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
++%YAML 1.2
++---
++$id: http://devicetree.org/schemas/net/esp,esp32s31-gmac.yaml#
++$schema: http://devicetree.org/meta-schemas/core.yaml#
++
++title: Espressif ESP32-S31 DWMAC glue layer
++
++maintainers:
++  - Roan Brand <brandroan@gmail.com>
++
++description: >
++  The DesignWare GMAC 3.70a of the ESP32-S31, with RGMII. The firmware sets
++  the pins, clocks, reset and interface mode. The operating system sets the
++  divider of the TX clock for the link speed.
++
++select:
++  properties:
++    compatible:
++      contains:
++        const: esp,esp32s31-gmac
++  required:
++    - compatible
++
++properties:
++  compatible:
++    items:
++      - const: esp,esp32s31-gmac
++      - const: snps,dwmac-3.70a
++
++  reg:
++    items:
++      - description: MAC and DMA registers
++      - description: HP_EMAC_REF_CTRL, the TX clock divider
++
++  reg-names:
++    items:
++      - const: stmmaceth
++      - const: tx-clk
++
++  clocks:
++    items:
++      - description: Bus clock, which also makes the MDC clock
++      - description: MPLL, the source of the TX clock
++
++  clock-names:
++    items:
++      - const: stmmaceth
++      - const: mpll
++
++  interrupts:
++    maxItems: 1
++
++  interrupt-names:
++    const: macirq
++
++  phy-mode:
++    enum:
++      - rgmii
++      - rgmii-id
++      - rgmii-rxid
++      - rgmii-txid
++
++required:
++  - compatible
++  - reg
++  - reg-names
++  - clocks
++  - clock-names
++  - interrupts
++  - interrupt-names
++
++allOf:
++  - $ref: snps,dwmac.yaml#
++
++unevaluatedProperties: false
++
++examples:
++  - |
++    #include <dt-bindings/interrupt-controller/irq.h>
++
++    ethernet@20350000 {
++      compatible = "esp,esp32s31-gmac", "snps,dwmac-3.70a";
++      reg = <0x20350000 0x4000>, <0x20359040 0x4>;
++      reg-names = "stmmaceth", "tx-clk";
++      interrupt-parent = <&clic>;
++      interrupts = <36 98 IRQ_TYPE_LEVEL_HIGH>;
++      interrupt-names = "macirq";
++      clocks = <&sys_clk>, <&mpll>;
++      clock-names = "stmmaceth", "mpll";
++      phy-mode = "rgmii-id";
++      snps,pbl = <16>;
++      snps,no-pbl-x8;
++      snps,force_thresh_dma_mode;
++    };
 diff --git a/Documentation/devicetree/bindings/net/wireless/esp,esp32s31-hosted-shm.yaml b/Documentation/devicetree/bindings/net/wireless/esp,esp32s31-hosted-shm.yaml
 new file mode 100644
 --- /dev/null
@@ -420,9 +520,10 @@ diff --git a/arch/riscv/boot/dts/espressif/Makefile b/arch/riscv/boot/dts/espres
 new file mode 100644
 --- /dev/null
 +++ b/arch/riscv/boot/dts/espressif/Makefile
-@@ -0,0 +1,2 @@
+@@ -0,0 +1,3 @@
 +# SPDX-License-Identifier: GPL-2.0
-+dtb-$(CONFIG_ARCH_ESPRESSIF) += esp32s31_korvo1.dtb esp32s31.dtb
++dtb-$(CONFIG_ARCH_ESPRESSIF) += esp32s31_korvo1.dtb esp32s31.dtb \
++	esp32s31_coreboard1.dtb
 diff --git a/arch/riscv/boot/dts/espressif/esp32s31.dts b/arch/riscv/boot/dts/espressif/esp32s31.dts
 new file mode 100644
 --- /dev/null
@@ -474,7 +575,7 @@ diff --git a/arch/riscv/boot/dts/espressif/esp32s31.dtsi b/arch/riscv/boot/dts/e
 new file mode 100644
 --- /dev/null
 +++ b/arch/riscv/boot/dts/espressif/esp32s31.dtsi
-@@ -0,0 +1,220 @@
+@@ -0,0 +1,256 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * Espressif ESP32-S31 minimal device tree.
@@ -567,6 +668,20 @@ new file mode 100644
 +		compatible = "fixed-clock";
 +		#clock-cells = <0>;
 +		clock-frequency = <50000000>;
++	};
++
++	/* The GMAC bus clock, which also makes the MDC clock. */
++	sys_clk: sys-clock {
++		compatible = "fixed-clock";
++		#clock-cells = <0>;
++		clock-frequency = <106666666>;
++	};
++
++	/* The loader sets the MPLL to 500 MHz for the GMAC TX clock. */
++	mpll: mpll-clock {
++		compatible = "fixed-clock";
++		#clock-cells = <0>;
++		clock-frequency = <500000000>;
 +	};
 +
 +	soc {
@@ -693,6 +808,113 @@ new file mode 100644
 +			status = "disabled";
 +		};
 +
++		/*
++		 * The loader sets the pins, clocks, reset and RGMII mode.  The
++		 * RX FIFO has only 256 bytes, so the DMA uses thresholds.  A
++		 * burst of more than 16 beats to PSRAM stops hart 0 with an
++		 * MSPI error, so the PBL must not be multiplied by 8.
++		 */
++		gmac: ethernet@20350000 {
++			compatible = "esp,esp32s31-gmac", "snps,dwmac-3.70a";
++			reg = <0x20350000 0x4000>, <0x20359040 0x4>;
++			reg-names = "stmmaceth", "tx-clk";
++			interrupt-parent = <&clic>;
++			interrupts = <36 98 IRQ_TYPE_LEVEL_HIGH>;
++			interrupt-names = "macirq";
++			clocks = <&sys_clk>, <&mpll>;
++			clock-names = "stmmaceth", "mpll";
++			snps,pbl = <16>;
++			snps,no-pbl-x8;
++			snps,aal;
++			snps,force_thresh_dma_mode;
++			status = "disabled";
++		};
++
++	};
++};
+diff --git a/arch/riscv/boot/dts/espressif/esp32s31_coreboard1.dts b/arch/riscv/boot/dts/espressif/esp32s31_coreboard1.dts
+new file mode 100644
+--- /dev/null
++++ b/arch/riscv/boot/dts/espressif/esp32s31_coreboard1.dts
+@@ -0,0 +1,80 @@
++// SPDX-License-Identifier: GPL-2.0+
++/*
++ * ESP32-S31-Function-CoreBoard-1, with the ESP32-S31-WROOM-3-N16R16V module:
++ * UART0 on the USB-UART bridge, Gigabit Ethernet, a USB 2.0 host port and a
++ * WS2812 RGB LED.
++ * The root is in the flash window of the firmware.
++ * Author: Roan Brand <brandroan@gmail.com>
++ */
++/dts-v1/;
++#include "esp32s31.dtsi"
++
++/ {
++	model = "Espressif ESP32-S31-Function-CoreBoard-1";
++	compatible = "esp,esp32s31-function-coreboard-1", "esp,esp32s31";
++
++	aliases {
++		ethernet0 = &gmac;
++	};
++
++	chosen {
++		stdout-path = "serial0:115200n8";
++	};
++};
++
++/*
++ * A Motorcomm YT8531 on RGMII, with its own crystal.  The loader resets it on
++ * GPIO7.  The PHY adds the RX and TX clock delays.
++ */
++&gmac {
++	phy-mode = "rgmii-id";
++	phy-handle = <&phy0>;
++	status = "okay";
++
++	mdio {
++		compatible = "snps,dwmac-mdio";
++		#address-cells = <1>;
++		#size-cells = <0>;
++
++		phy0: ethernet-phy@0 {
++			reg = <0>;
++		};
++	};
++};
++
++/* The Type-A port: host only, with a TPS2051C switch for VBUS. */
++&usb_phy { status = "okay"; };
++
++&usb0 {
++	dr_mode = "host";
++	disable-over-current;
++	status = "okay";
++};
++
++/* WS2812 RGB LED on GPIO60. */
++&rgb_led { status = "okay"; };
++
++/*
++ * The "rootfs" and "data" partitions of bootloader/partitions-coreboard1.csv,
++ * from the start of "rootfs".
++ */
++&wifi {
++	flash {
++		partitions {
++			compatible = "fixed-partitions";
++			#address-cells = <1>;
++			#size-cells = <1>;
++
++			partition@0 {
++				label = "rootfs";
++				reg = <0x0 0x780000>;
++				read-only;
++			};
++
++			partition@780000 {
++				label = "data";
++				reg = <0x780000 0x170000>;
++			};
++		};
 +	};
 +};
 diff --git a/arch/riscv/boot/dts/espressif/esp32s31_korvo1.dts b/arch/riscv/boot/dts/espressif/esp32s31_korvo1.dts
@@ -2398,6 +2620,125 @@ new file mode 100644
 +
 +MODULE_DESCRIPTION("ESP32-S31 RMT WS2812 RGB LED driver");
 +MODULE_AUTHOR("Marco Müller <hello@annoyedmilk.ch>");
++MODULE_LICENSE("GPL");
+diff --git a/drivers/net/ethernet/stmicro/stmmac/dwmac-esp32s31.c b/drivers/net/ethernet/stmicro/stmmac/dwmac-esp32s31.c
+new file mode 100644
+--- /dev/null
++++ b/drivers/net/ethernet/stmicro/stmmac/dwmac-esp32s31.c
+@@ -0,0 +1,114 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * Author: Roan Brand <brandroan@gmail.com>
++ *
++ * DWMAC glue of the ESP32-S31: a DesignWare GMAC 3.70a with RGMII.  The
++ * loader sets the pins, clocks, reset and RGMII mode.  This driver only sets
++ * the divider of the TX clock (the MPLL) for the link speed.
++ */
++
++#include <linux/bitfield.h>
++#include <linux/clk.h>
++#include <linux/io.h>
++#include <linux/module.h>
++#include <linux/of.h>
++#include <linux/phy.h>
++#include <linux/platform_device.h>
++
++#include "stmmac.h"
++#include "stmmac_platform.h"
++
++#define ESP32S31_REF_CLK_DIV		GENMASK(15, 8)
++
++/* The default RX ring of 512 pages would take 2 MiB of the 16 MiB. */
++#define ESP32S31_DMA_RING_SIZE		64
++
++struct esp32s31_dwmac {
++	void __iomem *ref_ctrl;
++	unsigned long mpll_rate;
++};
++
++static int esp32s31_set_clk_tx_rate(void *bsp_priv, struct clk *clk_tx_i,
++				    phy_interface_t interface, int speed)
++{
++	struct esp32s31_dwmac *dwmac = bsp_priv;
++	long rate = rgmii_clock(speed);
++	u32 val;
++
++	if (rate < 0 || dwmac->mpll_rate % rate ||
++	    dwmac->mpll_rate / rate > FIELD_MAX(ESP32S31_REF_CLK_DIV) + 1)
++		return -EINVAL;
++
++	val = readl(dwmac->ref_ctrl);
++	val &= ~ESP32S31_REF_CLK_DIV;
++	val |= FIELD_PREP(ESP32S31_REF_CLK_DIV, dwmac->mpll_rate / rate - 1);
++	writel(val, dwmac->ref_ctrl);
++	return 0;
++}
++
++static int esp32s31_dwmac_probe(struct platform_device *pdev)
++{
++	struct plat_stmmacenet_data *plat_dat;
++	struct stmmac_resources stmmac_res;
++	struct device *dev = &pdev->dev;
++	struct esp32s31_dwmac *dwmac;
++	struct stmmac_priv *priv;
++	struct clk *mpll;
++	int ret;
++
++	ret = stmmac_get_platform_resources(pdev, &stmmac_res);
++	if (ret)
++		return ret;
++
++	plat_dat = devm_stmmac_probe_config_dt(pdev, stmmac_res.mac);
++	if (IS_ERR(plat_dat))
++		return dev_err_probe(dev, PTR_ERR(plat_dat),
++				     "failed to parse DT parameters\n");
++
++	dwmac = devm_kzalloc(dev, sizeof(*dwmac), GFP_KERNEL);
++	if (!dwmac)
++		return -ENOMEM;
++
++	dwmac->ref_ctrl = devm_platform_ioremap_resource_byname(pdev, "tx-clk");
++	if (IS_ERR(dwmac->ref_ctrl))
++		return PTR_ERR(dwmac->ref_ctrl);
++
++	mpll = devm_clk_get_enabled(dev, "mpll");
++	if (IS_ERR(mpll))
++		return dev_err_probe(dev, PTR_ERR(mpll), "failed to get MPLL\n");
++	dwmac->mpll_rate = clk_get_rate(mpll);
++
++	plat_dat->bsp_priv = dwmac;
++	plat_dat->set_clk_tx_rate = esp32s31_set_clk_tx_rate;
++
++	ret = stmmac_dvr_probe(dev, plat_dat, &stmmac_res);
++	if (ret)
++		return ret;
++
++	/* The first open allocates the rings, after the probe. */
++	priv = netdev_priv(dev_get_drvdata(dev));
++	priv->dma_conf.dma_rx_size = ESP32S31_DMA_RING_SIZE;
++	priv->dma_conf.dma_tx_size = ESP32S31_DMA_RING_SIZE;
++	return 0;
++}
++
++static const struct of_device_id esp32s31_dwmac_match[] = {
++	{ .compatible = "esp,esp32s31-gmac" },
++	{ }
++};
++MODULE_DEVICE_TABLE(of, esp32s31_dwmac_match);
++
++static struct platform_driver esp32s31_dwmac_driver = {
++	.probe = esp32s31_dwmac_probe,
++	.remove = stmmac_pltfr_remove,
++	.driver = {
++		.name = "esp32s31-dwmac",
++		.pm = &stmmac_pltfr_pm_ops,
++		.of_match_table = esp32s31_dwmac_match,
++	},
++};
++module_platform_driver(esp32s31_dwmac_driver);
++
++MODULE_DESCRIPTION("ESP32-S31 DWMAC glue driver");
++MODULE_AUTHOR("Roan Brand <brandroan@gmail.com>");
 +MODULE_LICENSE("GPL");
 diff --git a/drivers/net/wireless/espressif/Kconfig b/drivers/net/wireless/espressif/Kconfig
 new file mode 100644

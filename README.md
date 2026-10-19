@@ -1,7 +1,8 @@
 # ESP32-S31 Linux
 
-Linux 7.3 and OpenSBI 1.9 on the ESP32-S31: on the ESP32-S31-Korvo-1 board,
-and on the ESP32-S31-WROOM-3-N16R16V module alone (the module of the Korvo-1).
+Linux 7.3 and OpenSBI 1.9 on the ESP32-S31: on the ESP32-S31-Korvo-1 and
+ESP32-S31-Function-CoreBoard-1 boards, and on the ESP32-S31-WROOM-3-N16R16V
+module alone (the module of the two boards).
 Linux uses the 16 MiB octal PSRAM as its memory.
 
 ```text
@@ -30,31 +31,34 @@ You can use it in two ways:
 
 ## Boards
 
-There are two builds. Select one with `BOARD` for each `make` target. The
+There are three builds. Select one with `BOARD` for each `make` target. The
 Korvo-1 has a card with much space, so it gets the full set of tools. The
-module alone has only its 16 MB flash, so it gets a small set. The two
-builds share one base configuration
+module alone has only its 16 MB flash, so it gets a small set. The
+CoreBoard-1 build is the build of the module alone, with Ethernet, USB and
+the LED.
+The builds share one base configuration
 (`br2-external/board/esp32s31/defconfig/common.fragment`): the kernel, the
 toolchain, BusyBox, Dropbear, OpenSSL, `wpa_supplicant`, curl, iperf3,
 libgpiod and BlueZ. Each board fragment adds only its own parts.
 
-| | `korvo1` (the default) | `esp32s31` |
-| --- | --- | --- |
-| Hardware | ESP32-S31-Korvo-1, with the ESP32-S31-WROOM-3-N16R16V | The ESP32-S31-WROOM-3-N16R16V alone (16 MB flash, 16 MB PSRAM), on any board with UART0 |
-| Root | ext4 on the microSD card | squashfs in the flash, with a writable UBIFS overlay (see [Flash root](#flash-root-esp32s31)) |
-| Persistence | All files on the card | All files: the overlay is in the flash |
-| Swap | zram (6 MiB), then 64 MiB on p3 of the card | zram (6 MiB) only |
-| Consoles | UART, and the LCD with a USB keyboard | UART |
-| Hardware for Linux | LCD, microSD, USB host, RGB LED, GPIO, RNG | GPIO, RNG |
-| Wi-Fi and Bluetooth | `wlan0` and `hci0`, WPA2 and WPA3, Personal and Enterprise, AP with `hostapd`, BlueZ with its classic tools | `wlan0` and `hci0`, WPA2 and WPA3, Personal and Enterprise, AP with `wpa_supplicant`, BlueZ (`bluetoothd`, `bluetoothctl`) |
-| RAM for Linux | 10.8 MiB | 12.6 MiB |
-| Userspace | bash, vim, gdb, strace, MicroPython, Lua, links, curl, tcpdump, htop and more | BusyBox, Dropbear, wpa_supplicant, iw, curl, bluetoothctl, iperf3, the GPIO tools, flash_erase |
+| | `korvo1` (the default) | `esp32s31` | `coreboard1` |
+| --- | --- | --- | --- |
+| Hardware | ESP32-S31-Korvo-1, with the ESP32-S31-WROOM-3-N16R16V | The ESP32-S31-WROOM-3-N16R16V alone (16 MB flash, 16 MB PSRAM), on any board with UART0 | ESP32-S31-Function-CoreBoard-1 |
+| Root | ext4 on the microSD card | squashfs in the flash, with a writable UBIFS overlay (see [Flash root](#flash-root-esp32s31)) | The same, with a smaller overlay |
+| Persistence | All files on the card | All files: the overlay is in the flash | The same |
+| Swap | zram (6 MiB), then 64 MiB on p3 of the card | zram (6 MiB) only | zram (6 MiB) only |
+| Consoles | UART, and the LCD with a USB keyboard | UART | UART |
+| Hardware for Linux | LCD, microSD, USB host, RGB LED, GPIO, RNG | GPIO, RNG | Ethernet, USB host, RGB LED, GPIO, RNG |
+| Wi-Fi and Bluetooth | `wlan0` and `hci0`, WPA2 and WPA3, Personal and Enterprise, AP with `hostapd`, BlueZ with its classic tools | `wlan0` and `hci0`, WPA2 and WPA3, Personal and Enterprise, AP with `wpa_supplicant`, BlueZ (`bluetoothd`, `bluetoothctl`) | The same as `esp32s31` |
+| RAM for Linux | 10.8 MiB | 12.6 MiB | 10.9 MiB |
+| Userspace | bash, vim, gdb, strace, MicroPython, Lua, links, curl, tcpdump, htop and more | BusyBox, Dropbear, wpa_supplicant, iw, curl, bluetoothctl, iperf3, the GPIO tools, flash_erase | The same as `esp32s31` |
 
 ## Try it
 
 1. Get the files of your board from the newest release on the
    [releases page](https://github.com/annoyedmilk/esp32-s31-linux/releases):
-   `*-korvo1-flash.zip` and `*-korvo1-sdcard.img.xz` for the Korvo-1, or
+   `*-korvo1-flash.zip` and `*-korvo1-sdcard.img.xz` for the Korvo-1,
+   `*-coreboard1-flash.zip` for the CoreBoard-1, or
    `*-esp32s31-flash.zip` for the ESP32-S31-WROOM-3-N16R16V alone.
 2. Flash: `pip install "esptool==5.5.0"` (the tested version, in
    `bootloader/esptool.version`), connect the UART port, then
@@ -91,6 +95,12 @@ On the Korvo-1 also:
 - An access point with `hostapd`.
 - The classic BlueZ tools (`hciconfig`, `hcitool`), and pairing with
   Secure Simple Pairing.
+- The RGB LED as `/sys/class/leds/rgb:status`.
+
+On the CoreBoard-1 also:
+
+- Gigabit Ethernet as `eth0` (stmmac), with DHCP at boot.
+- USB host (DWC2): keyboards, mice, `hidraw` and mass storage with FAT.
 - The RGB LED as `/sys/class/leds/rgb:status`.
 
 ## Tested hardware
@@ -161,7 +171,7 @@ board always gives GPIO33/34 to the USB Serial/JTAG.
 
 ## Host requirements
 
-- macOS with Homebrew and GNU make (`brew install make`).
+- macOS with Homebrew, GNU make and coreutils (`brew install make coreutils`).
 - ESP-IDF at `~/esp/esp-idf`, at the commit in `bootloader/esp-idf.version`,
   with the `riscv32-esp-elf` toolchain and the ESP-Hosted patches
   (`make bootloader` gives the command).
@@ -192,7 +202,8 @@ make flash   FLASH_PORT=/dev/cu.usbserial-XXXX
 make monitor SERIAL_PORT=/dev/cu.usbserial-XXXX
 ```
 
-- Add `BOARD=esp32s31` for the ESP32-S31-WROOM-3-N16R16V alone. The output of a board goes to
+- Add `BOARD=esp32s31` for the ESP32-S31-WROOM-3-N16R16V alone, or
+  `BOARD=coreboard1` for the CoreBoard-1. The output of a board goes to
   `build/<board>/`.
 - `make build` builds the loader and OpenSBI on the Mac. Buildroot builds the
   kernel, the rootfs and the card images in the container.
@@ -310,6 +321,9 @@ The squashfs is zstd at the highest level that Buildroot gives, with
 slowly. The cost is time: each page fault of a program decompresses one
 block. `make` stops when the image is larger than the `rootfs` partition.
 
+The CoreBoard-1 has the same flash root, but its kernel needs 5 MiB, so its
+`data` partition is 1.4375 MiB: the overlay has approximately 110 KiB free.
+
 ### Files and scripts
 
 - **Copy files.** From a computer, `scp` and `sftp` work with the key in
@@ -396,18 +410,18 @@ in `br2-external/board/esp32s31/defconfig/common.fragment`) with
 
 ## Flash layout
 
-| Korvo-1 | esp32s31 | Contents |
-| ---: | ---: | --- |
-| `0x002000` | `0x002000` | ESP-IDF second-stage bootloader |
-| `0x008000` | `0x008000` | Partition table |
-| `0x011000` | `0x009000` | NVS |
-| `0x019000` | `0x00F000` | PHY calibration data |
-| `0x220000` | `0x010000` | OpenSBI `fw_jump` (512 KiB, 256 KiB) |
-| `0x020000` | `0x050000` | Loader and radio firmware (2 MiB, 1.75 MiB) |
-| `0x2A0000` | `0x210000` | Linux Image with built-in DTB (7.5 MiB, 4 MiB) |
-| `0xA1FFF4` | `0x60FFF4` | Linux size and CRC manifest, at the end of the kernel partition |
-| | `0x610000` | squashfs root `rootfs` (7.5 MiB) |
-| | `0xD90000` | UBIFS overlay `data` (2.4375 MiB, to the end of the flash) |
+| Korvo-1 | esp32s31 | coreboard1 | Contents |
+| ---: | ---: | ---: | --- |
+| `0x002000` | `0x002000` | `0x002000` | ESP-IDF second-stage bootloader |
+| `0x008000` | `0x008000` | `0x008000` | Partition table |
+| `0x011000` | `0x009000` | `0x009000` | NVS |
+| `0x019000` | `0x00F000` | `0x00F000` | PHY calibration data |
+| `0x220000` | `0x010000` | `0x010000` | OpenSBI `fw_jump` (512 KiB, 256 KiB, 256 KiB) |
+| `0x020000` | `0x050000` | `0x050000` | Loader and radio firmware (2 MiB, 1.75 MiB, 1.75 MiB) |
+| `0x2A0000` | `0x210000` | `0x210000` | Linux Image with built-in DTB (7.5 MiB, 4 MiB, 5 MiB) |
+| `0xA1FFF4` | `0x60FFF4` | `0x70FFF4` | Linux size and CRC manifest, at the end of the kernel partition |
+| | `0x610000` | `0x710000` | squashfs root `rootfs` (7.5 MiB) |
+| | `0xD90000` | `0xE90000` | UBIFS overlay `data` (2.4375 MiB, 1.4375 MiB, to the end of the flash) |
 
 The partition tables are `bootloader/partitions-<board>.csv`. The Makefile
 takes all offsets from them.

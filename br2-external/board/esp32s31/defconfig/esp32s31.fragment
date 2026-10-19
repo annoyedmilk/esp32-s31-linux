@@ -1,36 +1,6 @@
-
 # The ESP32-S31-WROOM-3-N16R16V module alone (16 MB flash, 16 MB PSRAM): UART0
-# only.  The root is a squashfs in the flash, with a UBIFS overlay that keeps
-# all changes (overlay-init).  The flash is small, so this build is lean.
+# only.  The root is in the flash (flashroot.fragment).
 #
 # The Korvo-1 kernel config, without the display, the card, USB and the LED,
 # and with the flash window as MTD.
 BR2_LINUX_KERNEL_CONFIG_FRAGMENT_FILES="$(BR2_EXTERNAL_ESP32S31_PATH)/board/esp32s31/linux-esp32s31.fragment"
-BR2_ROOTFS_OVERLAY="$(BR2_EXTERNAL_ESP32S31_PATH)/board/esp32s31/rootfs-overlay $(BR2_EXTERNAL_ESP32S31_PATH)/board/esp32s31/rootfs-overlay-esp32s31 $(BR2_EXTERNAL_ESP32S31_PATH)/../local-overlay"
-# The read-only root on the flash.  Small blocks keep the decompression
-# cache of the kernel small.  zstd with the extreme setting makes the image
-# smaller than gzip, and it decompresses faster than xz.
-BR2_TARGET_ROOTFS_SQUASHFS=y
-BR2_TARGET_ROOTFS_SQUASHFS4_ZSTD=y
-BR2_TARGET_ROOTFS_SQUASHFS_EXTREME_COMP=y
-BR2_TARGET_ROOTFS_SQUASHFS_BS_32K=y
-# flash_erase resets the overlay to the image.  The NAND and UBI tools do
-# not apply to the NOR flash.
-BR2_PACKAGE_MTD=y
-# BR2_PACKAGE_MTD_FLASH_LOCK is not set
-# BR2_PACKAGE_MTD_FLASH_UNLOCK is not set
-# BR2_PACKAGE_MTD_MTD_DEBUG is not set
-# BR2_PACKAGE_MTD_NANDDUMP is not set
-# BR2_PACKAGE_MTD_NANDTEST is not set
-# BR2_PACKAGE_MTD_NANDWRITE is not set
-# BR2_PACKAGE_MTD_UBIBLOCK is not set
-# BR2_PACKAGE_MTD_UBICRC32 is not set
-# BR2_PACKAGE_MTD_UBIDETACH is not set
-# BR2_PACKAGE_MTD_UBIFORMAT is not set
-# BR2_PACKAGE_MTD_UBIHEALTHD is not set
-# BR2_PACKAGE_MTD_UBINFO is not set
-# BR2_PACKAGE_MTD_UBINIZE is not set
-# BR2_PACKAGE_MTD_UBIRENAME is not set
-# BR2_PACKAGE_MTD_UBIRMVOL is not set
-# BR2_PACKAGE_MTD_UBIRSVOL is not set
-# BR2_PACKAGE_MTD_UBIUPDATEVOL is not set

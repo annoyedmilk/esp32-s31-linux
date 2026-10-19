@@ -1,10 +1,11 @@
 SHELL := /bin/bash
 
-# The board to build for: korvo1 (ESP32-S31-Korvo-1: LCD, microSD, USB, LED)
-# or esp32s31 (the ESP32-S31-WROOM-3-N16R16V alone: UART0, root in the flash).
+# The board to build for: korvo1 (ESP32-S31-Korvo-1: LCD, microSD, USB, LED),
+# esp32s31 (the ESP32-S31-WROOM-3-N16R16V alone: UART0, root in the flash) or
+# coreboard1 (ESP32-S31-Function-CoreBoard-1: USB, LED, root in the flash).
 BOARD ?= korvo1
-ifeq ($(filter $(BOARD),korvo1 esp32s31),)
-$(error BOARD must be korvo1 or esp32s31, not "$(BOARD)")
+ifeq ($(filter $(BOARD),korvo1 esp32s31 coreboard1),)
+$(error BOARD must be korvo1, esp32s31 or coreboard1, not "$(BOARD)")
 endif
 
 BUILD_DIR := build/$(BOARD)
@@ -86,8 +87,8 @@ BR_TOOLS = "$(CONTAINER)" run --rm --uid $(shell id -u) --gid $(shell id -g) \
 PARTITIONS := bootloader/partitions-$(BOARD).csv
 part_field = $(shell awk -F'[ ,]+' '$$1 == "$(1)" { print $$$(2) }' $(PARTITIONS))
 
-# The squashfs root in the flash, on the module alone.  The Korvo-1 has its
-# root on the card and no rootfs partition.
+# The squashfs root in the flash, on the module alone and the CoreBoard-1.
+# The Korvo-1 has its root on the card and no rootfs partition.
 ROOT_OFFSET := $(call part_field,rootfs,4)
 ROOT_SIZE := $(call part_field,rootfs,5)
 SD_DISK ?=
@@ -170,9 +171,10 @@ help:
 		'board before monitoring when SERIAL_PORT cannot (BAUD, BOOT_TIMEOUT' \
 		'tune the monitor).' \
 		'' \
-		'BOARD selects the board, for each target: korvo1 (the default) or' \
-		'esp32s31.  The output of a board goes to build/BOARD.  On korvo1 the' \
-		'rootfs is on the SD card.  On esp32s31, it is in the flash.'
+		'BOARD selects the board, for each target: korvo1 (the default),' \
+		'esp32s31 or coreboard1.  The output of a board goes to build/BOARD.' \
+		'On korvo1 the rootfs is on the SD card.  On esp32s31 and coreboard1,' \
+		'it is in the flash.'
 
 check:
 	@test "$$(uname -s)" = Darwin || { echo 'this build is supported on macOS only'; exit 1; }

@@ -13,7 +13,7 @@ static const char *TAG = "s31-linux-korvo1";
 void board_init(void)
 {
     init_sd_card();
-    init_rmt_led();
+    init_rmt_led(GPIO_NUM_37);
 }
 
 void board_start_display(void)
