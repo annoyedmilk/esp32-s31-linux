@@ -407,6 +407,9 @@ sdroot:
 	@test -f "$(BR_OUT)/rootfs.ext2" || { echo 'no $(BR_OUT)/rootfs.ext2; run make rootfs'; exit 1; }
 	@test -e "$(SD_DISK)s2" || { \
 		echo '$(SD_DISK)s2 does not exist; run make sdpart first'; exit 1; }
+	@part=$$(diskutil info -plist "$(SD_DISK)s2" | plutil -extract TotalSize raw -) && \
+		test "$$part" -ge $$(stat -f %z "$(BR_OUT)/rootfs.ext2") || { \
+		echo '$(SD_DISK)s2 is smaller than rootfs.ext2; run make sdpart or sdwrite'; exit 1; }
 	@echo "This overwrites the root partition $(SD_DISK)s2."
 	$(call SD_CONFIRM,WRITE)
 	@diskutil unmountDisk "$(SD_DISK)"
