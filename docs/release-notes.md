@@ -50,6 +50,8 @@ login. A USB keyboard works on it.
   example an SSH key and the Wi-Fi network.
 - The esptool version that flashes the board is pinned
   (`bootloader/esptool.version`).
+- The kernel keeps a larger free reserve, so that swap to zram does not
+  fail when memory is low.
 
 The next release needs the new `flash.bin`: the partition tables of both
 builds changed. On the bare build, the first boot formats `data`.
