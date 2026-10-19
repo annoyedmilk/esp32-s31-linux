@@ -252,9 +252,8 @@ and the overlay of each board:
   Then, when the MBR gives p3 the type `0x82`, it formats p3 and swaps to
   it at priority 10. The kernel uses the card only when zram is full. A
   card without such a p3 swaps to zram only.
-- `/etc/sysctl.d/10-reserve.conf` keeps free memory for the zram writes:
-  512 KiB on the Korvo-1, 1024 KiB on the module alone. A larger reserve
-  takes memory from the page cache.
+- `/etc/sysctl.d/10-reserve.conf` keeps 512 KiB free for the zram writes.
+  A larger reserve takes memory from the page cache.
 - `S10sdcard` mounts p1 on `/mnt/sd`.
 - `S40wifi` starts `wpa_supplicant` on `wlan0`, and `S40bluetoothd` starts
   BlueZ for `hci0`.
@@ -459,6 +458,10 @@ takes all offsets from them.
   can exit before it is connected to `bluetoothd`, and prints nothing. Use
   it interactively, or pipe the commands into it.
 - WPA2/WPA3 Enterprise is not tested.
+- `hcitool lescan` fails with "Set scan parameters failed". The controller
+  is Bluetooth 6.0, and after the kernel used the extended scan commands,
+  it rejects the legacy ones that `hcitool` sends (Command Disallowed). Use
+  `bluetoothctl` and `scan le`.
 
 ## License
 
