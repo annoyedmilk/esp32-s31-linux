@@ -185,6 +185,7 @@ static void esp_shm_tx_flush(struct esp_shm_context *ctx)
 		 */
 		if (!esp_shm_push(ctx, skb, &kick)) {
 			shm_write32(ctx, to_fw.ctrl + ESP_SHM_WAIT_OFF, 1);
+			/* The flag before the second read of the ring index. */
 			mb();
 			if (!esp_shm_push(ctx, skb, &kick))
 				break;

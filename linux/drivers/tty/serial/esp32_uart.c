@@ -28,7 +28,6 @@
 #define ESP32_UART_TX_FIFO_SIZE	127
 
 #define UART_FIFO_REG			0x00
-#define UART_INT_RAW_REG		0x04
 #define UART_INT_ST_REG			0x08
 #define UART_INT_ENA_REG		0x0c
 #define UART_INT_CLR_REG		0x10
@@ -57,7 +56,6 @@
 #define UART_SW_RTS				BIT(6)
 #define UART_SW_DTR				BIT(7)
 #define UART_LOOPBACK				BIT(14)
-#define UART_TX_FLOW_EN				BIT(15)
 #define UART_RTS_INV				BIT(23)
 #define UART_DTR_INV				BIT(24)
 #define UART_CONF1_REG			0x24
@@ -65,19 +63,12 @@
 #define UART_TXFIFO_EMPTY_THRHD_SHIFT		10
 #define UART_RX_FLOW_EN				BIT(22)
 #define ESP32S3_UART_CLK_CONF_REG	0x78
-#define ESP32S3_UART_SCLK_DIV_B			GENMASK(5, 0)
-#define ESP32S3_UART_SCLK_DIV_A			GENMASK(11, 6)
 #define ESP32S3_UART_SCLK_DIV_NUM		GENMASK(19, 12)
 #define ESP32S3_UART_SCLK_SEL			GENMASK(21, 20)
-#define APB_CLK					1
-#define RC_FAST_CLK				2
 #define XTAL_CLK				3
 #define ESP32S3_UART_SCLK_EN			BIT(22)
-#define ESP32S3_UART_RST_CORE			BIT(23)
 #define ESP32S3_UART_TX_SCLK_EN			BIT(24)
 #define ESP32S3_UART_RX_SCLK_EN			BIT(25)
-#define ESP32S3_UART_TX_RST_CORE		BIT(26)
-#define ESP32S3_UART_RX_RST_CORE		BIT(27)
 
 #define ESP32S3_UART_CLK_CONF_DEFAULT \
 	(ESP32S3_UART_RX_SCLK_EN | \
@@ -122,7 +113,6 @@ static u32 esp32_uart_rx_fifo_cnt(struct uart_port *port)
 	return FIELD_GET(UART_RXFIFO_CNT, status);
 }
 
-/* Return TIOCSER_TEMT when the transmitter is idle. */
 static unsigned int esp32_uart_tx_empty(struct uart_port *port)
 {
 	return esp32_uart_tx_fifo_cnt(port) ? 0 : TIOCSER_TEMT;
@@ -407,7 +397,6 @@ static const char *esp32_uart_type(struct uart_port *port)
 	return "ESP32S3 UART";
 }
 
-/* Configure the port. */
 static void esp32_uart_config_port(struct uart_port *port, int flags)
 {
 	if (flags & UART_CONFIG_TYPE)
@@ -480,7 +469,6 @@ static int __init esp32_uart_console_setup(struct console *co, char *options)
 	int flow = 'n';
 	int ret;
 
-	/* If the UART number is not valid, use port 0. */
 	if (co->index == -1 || co->index >= ARRAY_SIZE(esp32_uart_ports))
 		co->index = 0;
 

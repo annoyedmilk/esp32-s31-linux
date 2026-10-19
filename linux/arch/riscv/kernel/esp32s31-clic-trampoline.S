@@ -41,10 +41,6 @@
  * struct pt_regs, with the generated PT_* asm-offsets, as in entry.S.
  */
 
-#ifndef CONFIG_MMU
-#define do_page_fault do_trap_unknown
-#endif
-
 /* scause[23:16] is the CLIC previous-interrupt-level (spil) field. */
 #define CLIC_CAUSE_SPIL_MASK (0xff << 16)
 
