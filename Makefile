@@ -237,13 +237,13 @@ opensbi:
 	@cp "$(OPENSBI_OUT)/platform/esp32s31/firmware/fw_jump.elf" "$(BUILD_DIR)/opensbi.elf"
 	@cp "$(OPENSBI_OUT)/platform/esp32s31/firmware/fw_jump.bin" "$(BUILD_DIR)/opensbi.bin"
 
-# All files under linux/ are new to the kernel, so a generated patch (0000)
-# adds them.  The other patches change existing files.  Each kernel build
-# makes 0000 again, so an edit of 0000 itself is always lost.
 # The defconfigs are made from a common fragment and one for each board.
 defconfigs:
 	@$(BR_TOOLS) sh -c 'cd /work && scripts/mkdefconfigs.sh'
 
+# All files under linux/ are new to the kernel, so a generated patch (0000)
+# adds them.  The other patches change existing files.  Each kernel build
+# makes 0000 again, so an edit of 0000 itself is always lost.
 kernel-patches:
 	@"$(PYTHON)" scripts/mkkernelpatches.py
 
