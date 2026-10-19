@@ -17,6 +17,8 @@
 #include "esp_flash.h"
 #include "esp_log.h"
 #include "esp_partition.h"
+#include "esp_attr.h"
+#include "freertos/FreeRTOS.h"
 #include "spi_flash_mmap.h"
 #include "soc/hp_system_reg.h"
 #include "esp32s31-hosted-shm.h"
@@ -34,9 +36,13 @@ _Static_assert(ESP_SHM_FLASH_DATA + ESP_SHM_FLASH_DATA_SIZE <= ESP_SHM_TO_FW_DAT
 _Static_assert(ESP_SHM_FLASH_SECTOR % ESP_SHM_FLASH_DATA_SIZE == 0,
 	       "a mailbox transfer must not cross a sector");
 
+int __real_Cache_Invalidate_Addr(uint32_t map, uint32_t addr, uint32_t size);
+int __real_Cache_WriteBack_Addr(uint32_t map, uint32_t addr, uint32_t size);
+
 static const char *TAG = "FW_FLASH";
 static uint32_t s_base;
 static uint32_t s_size;
+static bool s_cache_shared;
 
 static volatile uint32_t *flash_word(uint32_t off)
 {
@@ -63,6 +69,50 @@ static void disable_bus_timeouts(void)
 {
 	REG_CLR_BIT(HP_SYSTEM_CORE_IBUS_TIMEOUT_CONF_REG, HP_SYSTEM_CORE_IBUS_TIMEOUT_PROTECT_EN);
 	REG_CLR_BIT(HP_SYSTEM_CORE_DBUS_TIMEOUT_CONF_REG, HP_SYSTEM_CORE_DBUS_TIMEOUT_PROTECT_EN);
+}
+
+/*
+ * After each program or erase, ESP-IDF invalidates the window through the
+ * ROM, which uses the cache sync engine.  OpenSBI programs the same engine
+ * for Linux at any time, so the two take the lock word of the shared block
+ * for each operation.  The lock covers the short ROM call, not the program
+ * or erase, so Linux does not wait for the flash.  The firmware calls no
+ * other ROM sync function after hart 1 starts (see the CMakeLists.txt).
+ * Before that, the lock word is not set up, and no other hart uses the engine.
+ */
+#define CACHE_LOCK ((uint32_t *)(ESP_SHM_ADDR + ESP_SHM_CTRL + ESP_SHM_CACHE_LOCK_OFF))
+
+void shm_flash_share_cache(void)
+{
+	*CACHE_LOCK = 0;
+	s_cache_shared = true;
+}
+
+static int IRAM_ATTR cache_locked(int (*op)(uint32_t, uint32_t, uint32_t),
+				  uint32_t map, uint32_t addr, uint32_t size)
+{
+	unsigned int irq;
+	int ret;
+
+	if (!s_cache_shared)
+		return op(map, addr, size);
+	irq = portSET_INTERRUPT_MASK_FROM_ISR();
+	while (__atomic_exchange_n(CACHE_LOCK, 1, __ATOMIC_ACQUIRE))
+		;
+	ret = op(map, addr, size);
+	__atomic_store_n(CACHE_LOCK, 0, __ATOMIC_RELEASE);
+	portCLEAR_INTERRUPT_MASK_FROM_ISR(irq);
+	return ret;
+}
+
+int IRAM_ATTR __wrap_Cache_Invalidate_Addr(uint32_t map, uint32_t addr, uint32_t size)
+{
+	return cache_locked(__real_Cache_Invalidate_Addr, map, addr, size);
+}
+
+int IRAM_ATTR __wrap_Cache_WriteBack_Addr(uint32_t map, uint32_t addr, uint32_t size)
+{
+	return cache_locked(__real_Cache_WriteBack_Addr, map, addr, size);
 }
 
 static bool flash_request_valid(uint32_t cmd, uint32_t addr, uint32_t len)

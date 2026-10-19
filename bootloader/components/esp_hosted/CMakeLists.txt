@@ -9,7 +9,7 @@ idf_component_register(
     SRCS ${hosted_main}/app_main.c ${hosted_main}/slave_bt.c
          ${hosted_main}/cmd.c ${hosted_main}/stats.c
          shm_slave_api.c shm_flash.c
-    INCLUDE_DIRS ${hosted_main}/include ../../../shared
+    INCLUDE_DIRS . ${hosted_main}/include ../../../shared
     REQUIRES esp_wifi esp_event nvs_flash app_update protocomm
              wpa_supplicant esp_timer esp_driver_gpio esp_driver_uart
              esp_hw_support esp_system heap freertos log bt
@@ -34,6 +34,10 @@ foreach(blob core espnow mesh net80211 pp smartconfig wapi target)
 endforeach()
 
 # The supplicant runs on Linux.  Only the IE parser of esp_wpa_main.o stays.
+# The ROM functions of the cache sync engine that run after hart 1 starts
+# take the lock of OpenSBI (shm_flash.c).
 target_link_libraries(${COMPONENT_LIB} INTERFACE
     "-Wl,--wrap=esp_supplicant_init"
-    "-Wl,--wrap=esp_supplicant_deinit")
+    "-Wl,--wrap=esp_supplicant_deinit"
+    "-Wl,--wrap=Cache_Invalidate_Addr"
+    "-Wl,--wrap=Cache_WriteBack_Addr")

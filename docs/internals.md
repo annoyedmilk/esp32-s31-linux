@@ -177,11 +177,12 @@ This is the part that is most different from other RISC-V SoCs.
 - **The cache controller has a sync engine.** It writes back or invalidates
   an address range, one operation at a time, through global registers. Two
   masters that use it at the same time corrupt each other. OpenSBI programs
-  it for Linux, under a lock. The firmware on hart 0 also uses it, through
-  the ROM, when ESP-IDF invalidates the flash window after a program or
-  erase for Linux. That path does not take the lock of OpenSBI (an open
-  point; a stress test of writes and new programs at the same time showed
-  no error). Linux asks through a vendor SBI extension
+  it for Linux. The firmware on hart 0 also uses it, through the ROM, when
+  ESP-IDF invalidates the flash window after a program or erase for Linux.
+  So the two take a lock word in the shared block for each operation
+  (`ESP_SHM_CACHE_LOCK_OFF`); the firmware wraps the two ROM functions with
+  `--wrap`. The lock covers only the short engine operation, never the
+  program or erase. Linux asks through a vendor SBI extension
   (`0x09000612`, functions: write back all, invalidate, write back,
   write back and invalidate, I-cache sync). See
   `drivers/cache/esp32s31-cache.c`. An

@@ -34,6 +34,11 @@
 #define ESP_SHM_MAGIC_OFF	0x00
 #define ESP_SHM_VERSION_OFF	0x04
 #define ESP_SHM_HOST_REQ_OFF	0x08	/* host requests, firmware clears */
+/*
+ * The cache sync engine holds one operation at a time.  OpenSBI and the
+ * firmware hold this word at 1 for each operation.
+ */
+#define ESP_SHM_CACHE_LOCK_OFF	0x0c
 
 /* Ring control words, at ESP_SHM_TO_*_CTRL. */
 #define ESP_SHM_HEAD_OFF	0x00

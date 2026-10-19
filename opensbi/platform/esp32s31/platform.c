@@ -9,7 +9,6 @@
 #include <sbi/sbi_error.h>
 #include <sbi/sbi_ipi.h>
 #include <sbi/sbi_platform.h>
-#include <sbi/riscv_locks.h>
 #include <sbi/sbi_system.h>
 #include <sbi/sbi_timer.h>
 #include "esp32s31-hosted-shm.h"
@@ -499,7 +498,8 @@ static int esp32s31_timer_init(void)
  * at a time.  OpenSBI programs them for Linux under one lock.  The ESP-IDF
  * firmware on hart 0 also programs them, through the ROM, when it
  * invalidates the flash window after a program or erase for Linux
- * (shm_flash.c), and that path does not take this lock.  Linux asks for
+ * (shm_flash.c).  So the lock is a word in the shared block, which the
+ * firmware also takes.  OpenSBI runs only on hart 1.  Linux asks for
  * operations through the vendor SBI extension (0x09000000 + mvendorid).  A size of 0 selects the full
  * cache, as the ROM Cache_WriteBack_All() does.  Linux also needs the
  * operations before it can map the cache registers: to make new code
@@ -524,7 +524,8 @@ static int esp32s31_timer_init(void)
 #define ESP32S31_SBI_CACHE_WBACK_INV	3
 #define ESP32S31_SBI_ICACHE_SYNC	4
 
-static spinlock_t esp32s31_cache_lock = SPIN_LOCK_INITIALIZER;
+#define ESP32S31_CACHE_LOCK \
+	((volatile unsigned long *)(ESP_SHM_ADDR + ESP_SHM_CTRL + ESP_SHM_CACHE_LOCK_OFF))
 
 /*
  * Erratum: a writeback can lose part of the range if it runs only once.  The
@@ -535,7 +536,8 @@ static void esp32s31_cache_sync(unsigned long map, unsigned long op,
 {
 	int pass, passes = op == ESP32S31_CACHE_INVALIDATE ? 1 : 2;
 
-	spin_lock(&esp32s31_cache_lock);
+	while (atomic_raw_xchg_ulong(ESP32S31_CACHE_LOCK, 1))
+		;
 	reg_write(ESP32S31_CACHE_SYNC_MAP, map);
 	reg_write(ESP32S31_CACHE_SYNC_ADDR, addr);
 	reg_write(ESP32S31_CACHE_SYNC_SIZE, size);
@@ -545,7 +547,7 @@ static void esp32s31_cache_sync(unsigned long map, unsigned long op,
 			 ESP32S31_CACHE_SYNC_DONE))
 			;
 	}
-	spin_unlock(&esp32s31_cache_lock);
+	atomic_raw_xchg_ulong(ESP32S31_CACHE_LOCK, 0);
 }
 
 /*

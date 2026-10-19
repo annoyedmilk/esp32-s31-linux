@@ -31,6 +31,7 @@
 #include "soc/spi_mem_c_reg.h"
 #include "adapter.h"
 #include "interface.h"
+#include "shm_flash.h"
 #include "loader.h"
 
 #define PSRAM_BASE                  0x50000000U
@@ -422,6 +423,7 @@ void app_main(void)
     disable_linux_hart_stack_protector();
     flush_l1_cache_before_handoff();
 
+    shm_flash_share_cache();
     start_linux_hart();
     protect_linux_memory();
     ESP_LOGI(TAG, "hart 0 resident, heap: %u bytes free",
