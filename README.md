@@ -254,8 +254,9 @@ and the overlay of each board:
 - `/etc/sysctl.d/10-reserve.conf` keeps 512 KiB free for the zram writes.
   A larger reserve takes memory from the page cache.
 - `S10sdcard` mounts p1 on `/mnt/sd`.
-- `S40wifi` starts `wpa_supplicant` on `wlan0`, and `S40bluetoothd` starts
-  BlueZ for `hci0`.
+- `S40wifi` starts `wpa_supplicant` on `wlan0` in the background, so that
+  the console does not wait for it. `S40wifi restart` waits. `S40bluetoothd`
+  starts BlueZ for `hci0`.
 - The udhcpc hook sets the clock with NTP on each new lease.
 - `S95autostart` runs `/mnt/sd/autostart.sh`, or `/root/autostart.sh`
   when the card has none.
@@ -445,9 +446,6 @@ takes all offsets from them.
 - On the esp32s31 board, a cold program start is slower than on the
   Korvo-1, because the root is zstd-compressed (see
   [Flash root](#flash-root-esp32s31)).
-- `bluetoothctl` with a command on its command line (`bluetoothctl list`)
-  can exit before it is connected to `bluetoothd`, and prints nothing. Use
-  it interactively, or pipe the commands into it.
 - WPA2/WPA3 Enterprise is not tested.
 - `hcitool lescan` fails with "Set scan parameters failed". The controller
   is Bluetooth 6.0, and after the kernel used the extended scan commands,

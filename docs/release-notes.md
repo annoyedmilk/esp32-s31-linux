@@ -69,6 +69,12 @@ login. A USB keyboard works on it.
   `autostart.sh` on p1 of the card does on the Korvo-1.
 - The Korvo-1 also has the access point mode of `wpa_supplicant`.
 - `@reboot` jobs of `crond` run at each boot, not only at the first.
+- Wi-Fi starts in the background, so the console comes seconds earlier,
+  most on the bare build. The network comes a little later than before.
+- The cache sync engine has one lock for the two harts: the firmware and
+  OpenSBI could program it at the same time.
+- `bluetoothctl` with a command (`bluetoothctl list`) prints its output
+  again (an upstream BlueZ fix).
 
 The next release needs the new `flash.bin`: the partition tables of both
 builds changed. On the Korvo-1, also write the new card image: the root
