@@ -39,9 +39,9 @@ There are two builds. Select one with `BOARD` for each `make` target.
 | Persistence | All files on the card | All files: the overlay is in the flash |
 | Consoles | UART, and the LCD with a USB keyboard | UART |
 | Hardware for Linux | LCD, microSD, USB host, RGB LED, GPIO, RNG | GPIO, RNG |
-| Wi-Fi and Bluetooth | `wlan0` and `hci0`, WPA2 and WPA3, BlueZ | `wlan0` and `hci0`, WPA2 only, no BlueZ |
+| Wi-Fi and Bluetooth | `wlan0` and `hci0`, WPA2 and WPA3, Personal and Enterprise, BlueZ | `wlan0` and `hci0`, WPA2 and WPA3, Personal and Enterprise, no BlueZ |
 | RAM for Linux | 10.8 MiB | 12.6 MiB |
-| Userspace | bash, vim, gdb, strace, MicroPython, Lua, links, curl, tcpdump, htop and more | BusyBox, Dropbear, wpa_supplicant, iw, iperf3, the GPIO tools, flash_erase |
+| Userspace | bash, vim, gdb, strace, MicroPython, Lua, links, curl, tcpdump, htop and more | BusyBox, Dropbear, wpa_supplicant, iw, curl, iperf3, the GPIO tools, flash_erase |
 
 ## Try it
 

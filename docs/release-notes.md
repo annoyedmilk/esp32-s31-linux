@@ -21,8 +21,8 @@ for a bare ESP32-S31 module with 16 MiB PSRAM and UART only.
 5. Open the console on the same port at 115200 baud, and push the reset
    button. The board logs in as root.
 6. Wi-Fi: `wpa_passphrase "<ssid>" "<passphrase>" >> /etc/wpa_supplicant.conf`,
-   then `/etc/init.d/S40wifi restart`. On the bare module, use
-   `key_mgmt=WPA-PSK` (it has no WPA3). The file stays after a reboot.
+   then `/etc/init.d/S40wifi restart`. For WPA3, see the comment in
+   `/etc/wpa_supplicant.conf`. The file stays after a reboot.
 
 On the Korvo-1, the LCD shows the Tux logo, the kernel warnings and a
 login. A USB keyboard works on it.
@@ -50,6 +50,9 @@ login. A USB keyboard works on it.
   example an SSH key and the Wi-Fi network.
 - The esptool version that flashes the board is pinned
   (`bootloader/esptool.version`).
+- Both builds have WPA3 (SAE) and WPA2-Enterprise (EAP, for example
+  eduroam). The bare build also has `curl` with HTTPS. OpenSSL is built
+  without old ciphers and protocols, so it takes less flash.
 - The kernel keeps a larger free reserve, so that swap to zram does not
   fail when memory is low.
 
@@ -196,6 +199,6 @@ card image erases the card, so save your files from the FAT partition first.
 - No I2C, audio or camera driver.
 - `poweroff` puts the chip into deep sleep. It does not remove power.
 - With WPA3-SAE, the first connection can fail, and the second one works.
-- The bare build has WPA2 only and no BlueZ.
+- The bare build has no BlueZ.
 
 See the README for the full list, and `docs/internals.md` for the details.
