@@ -106,8 +106,8 @@ OPENOCD_CFG ?= openocd/esp32s31-linux.cfg
 
 BOOTLOADER_OFFSET := 0x2000
 PARTITION_TABLE_OFFSET := 0x8000
-APP_OFFSET := 0x20000
-OPENSBI_OFFSET := 0x220000
+APP_OFFSET := $(call part_field,factory,4)
+OPENSBI_OFFSET := $(call part_field,opensbi,4)
 LINUX_OFFSET := $(call part_field,linux,4)
 # The size manifest is at the end of the kernel partition.
 LINUX_SIZE_OFFSET := $(shell printf '0x%x' $$(( $(LINUX_OFFSET) + $(call part_field,linux,5) - 12 )))
