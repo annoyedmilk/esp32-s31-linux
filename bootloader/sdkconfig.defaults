@@ -13,7 +13,7 @@ CONFIG_SPIRAM_SPEED_250M=y
 CONFIG_SPIRAM_BOOT_HW_INIT=y
 CONFIG_SPIRAM_BOOT_INIT=y
 CONFIG_SPIRAM_USE_MEMMAP=y
-# The test writes all 16 MiB and takes 330 ms of each boot.
+# The test writes all of the PSRAM at each boot, which makes the boot slower.
 # CONFIG_SPIRAM_MEMTEST is not set
 CONFIG_ESP_CONSOLE_UART_DEFAULT=y
 # NVS is off, so the PHY calibration data cannot be kept.  Request a full
@@ -41,15 +41,9 @@ CONFIG_ESP_COEX_SW_COEXIST_ENABLE=y
 # The supplicant runs on Linux, so Wi-Fi keeps nothing in NVS.
 # CONFIG_ESP_WIFI_NVS_ENABLED is not set
 # CONFIG_ESP_WIFI_ENABLE_WPA3_SAE is not set
-# CONFIG_ESP_WIFI_ENABLE_SAE_PK is not set
 # CONFIG_ESP_WIFI_ENABLE_WPA3_OWE_STA is not set
 # CONFIG_ESP_WIFI_ENABLE_WPA3_OWE_SOFTAP is not set
 # CONFIG_ESP_WIFI_ENTERPRISE_SUPPORT is not set
-# 32 dynamic buffers in each direction, as before Bluetooth and the RCP.
-# With the RCP, the heap fell to 15 KiB during iperf3 with 32 buffers.  The
-# RCP took 23 KiB of code and 26 KiB of heap.
-CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM=32
-CONFIG_ESP_WIFI_DYNAMIC_TX_BUFFER_NUM=32
 # The cache stays on during a program or erase, and Linux runs on from
 # PSRAM (shm_flash.c needs it).  The flash of the module (XMC, 0x46) has
 # suspend and resume.

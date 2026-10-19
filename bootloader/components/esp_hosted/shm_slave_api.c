@@ -269,7 +269,7 @@ static int shm_read(interface_handle_t *handle,
 		return ESP_FAIL;
 
 	/*
-	 * Wait for a frame.  recv_task sleeps 10 ms after each empty read, so
+	 * Wait for a frame.  recv_task sleeps one tick after each empty read, so
 	 * do not return without one.  The host rings for each request.
 	 */
 	tail = *shm_word(to_fw.ctrl + ESP_SHM_TAIL_OFF);

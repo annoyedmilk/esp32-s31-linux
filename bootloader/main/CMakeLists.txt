@@ -5,5 +5,5 @@ else()
 endif()
 
 idf_component_register(SRCS main.c ${board_srcs}
-                       REQUIRES freertos spi_flash esp_partition esp_psram esp_hw_support esp_rom hal esp_mm esp_hal_wdt esp_lcd esp_hal_lcd esp_hal_dma esp_hal_sd esp_hal_rmt esp_driver_gpio heap esp_hosted bootloader_support esp_coex
+                       REQUIRES freertos esp_partition esp_psram esp_hw_support esp_rom hal esp_hal_wdt esp_lcd esp_hal_lcd esp_hal_dma esp_hal_sd esp_hal_rmt esp_driver_gpio heap esp_hosted bootloader_support
                        INCLUDE_DIRS ".")

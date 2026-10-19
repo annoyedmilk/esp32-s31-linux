@@ -83,7 +83,6 @@ static void build_dma_link(void)
         if (chunk > LCD_DMA_CHUNK_SIZE) {
             chunk = LCD_DMA_CHUNK_SIZE;
         }
-        /* Give each node to the DMA engine.  Set end-of-frame on the last node. */
         link[i].dw0.size = chunk;
         link[i].dw0.length = chunk;
         link[i].dw0.suc_eof = (i == LCD_DMA_NODE_COUNT - 1U);
