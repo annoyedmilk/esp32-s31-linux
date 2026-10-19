@@ -75,8 +75,8 @@
  * buffer is cached, dirty lines stay in L1, the panel does not see them, and
  * the text is corrupted.  Thus the frame buffer is not cached: bit 27 of a
  * PMA cfg makes a range uncached, and the entry with the lowest index has
- * priority.  The two NAPOT ranges together are the framebuffer node in
- * esp32s31.dtsi.  The Makefile sets ESP32S31_FB_UNCACHED when the loader
+ * priority.  The two NAPOT ranges together are the fb_region node in
+ * esp32s31_korvo1.dts.  The Makefile sets ESP32S31_FB_UNCACHED when the loader
  * starts the LCD.  SD and USB use the DMA API, and the esp32s31-cache driver
  * does their cache maintenance.
  *
@@ -496,10 +496,11 @@ static int esp32s31_timer_init(void)
 
 /*
  * Cache sync engine.  Its SYNC_* registers are global and hold one operation
- * at a time, so only OpenSBI programs them, under one lock.  The ESP-IDF
- * firmware on hart 0 does not use the engine: its heap is not in PSRAM, and
- * it does not write the flash.  Linux asks for operations through the vendor
- * SBI extension (0x09000000 + mvendorid).  A size of 0 selects the full
+ * at a time.  OpenSBI programs them for Linux under one lock.  The ESP-IDF
+ * firmware on hart 0 also programs them, through the ROM, when it
+ * invalidates the flash window after a program or erase for Linux
+ * (shm_flash.c), and that path does not take this lock.  Linux asks for
+ * operations through the vendor SBI extension (0x09000000 + mvendorid).  A size of 0 selects the full
  * cache, as the ROM Cache_WriteBack_All() does.  Linux also needs the
  * operations before it can map the cache registers: to make new code
  * visible to the I-cache.
@@ -599,7 +600,7 @@ static const u32 esp32s31_hart_index2id[] = { 1 };
 const struct sbi_platform platform = {
 	.opensbi_version = OPENSBI_VERSION,
 	.platform_version = SBI_PLATFORM_VERSION(0x0, 0x01),
-	.name = "ESP32-S31 Korvo-1",
+	.name = "ESP32-S31",
 	.features = SBI_PLATFORM_DEFAULT_FEATURES,
 	.hart_count = 1,
 	.hart_index2id = esp32s31_hart_index2id,
