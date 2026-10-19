@@ -1,0 +1,3 @@
+# ESP32-S31-Function-CoreBoard-1: the module alone (flashroot.fragment), and
+# in the kernel the parts of the board.
+BR2_LINUX_KERNEL_CONFIG_FRAGMENT_FILES="$(BR2_EXTERNAL_ESP32S31_PATH)/board/esp32s31/linux-esp32s31.fragment $(BR2_EXTERNAL_ESP32S31_PATH)/board/esp32s31/linux-coreboard1.fragment"

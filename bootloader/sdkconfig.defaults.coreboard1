@@ -1,0 +1,7 @@
+# ESP32-S31-Function-CoreBoard-1, with the ESP32-S31-WROOM-3-N16R16V module.
+# The Makefile adds this file to sdkconfig.defaults for BOARD=coreboard1.
+CONFIG_S31_LINUX_BOARD_COREBOARD1=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions-coreboard1.csv"
+# The board has a Type-C port for the native USB Serial/JTAG: a second
+# console and JTAG.  Flash and the Linux console use the USB-UART bridge.
+CONFIG_ESP_CONSOLE_SECONDARY_USB_SERIAL_JTAG=y

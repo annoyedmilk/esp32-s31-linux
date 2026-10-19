@@ -54,8 +54,11 @@ korvo1)
 with balenaEtcher, or with dd on Linux or macOS:
 
   xz -dc $name-sdcard.img.xz | sudo dd of=/dev/sdX bs=4M conv=fsync" ;;
-esp32s31)
-	title="the ESP32-S31-WROOM-3-N16R16V module alone (UART only)"
+esp32s31|coreboard1)
+	case $board in
+	esp32s31) title="the ESP32-S31-WROOM-3-N16R16V module alone (UART only)" ;;
+	coreboard1) title="the ESP32-S31-Function-CoreBoard-1" ;;
+	esac
 	usage="The full system is in the flash.  The root is writable, and the files
 stay after a reboot and after a new flash.bin.  A data partition without UBI
 (a new board, or a board from v0.4.0) is erased and formatted at the first

@@ -1,0 +1,31 @@
+# The root in the flash, for the boards without a card: esp32s31 and
+# coreboard1.  The root is a squashfs, with a UBIFS overlay that keeps all
+# changes (overlay-init).  The flash is small, so these builds are lean.
+BR2_ROOTFS_OVERLAY="$(BR2_EXTERNAL_ESP32S31_PATH)/board/esp32s31/rootfs-overlay $(BR2_EXTERNAL_ESP32S31_PATH)/board/esp32s31/rootfs-overlay-esp32s31 $(BR2_EXTERNAL_ESP32S31_PATH)/../local-overlay"
+# The read-only root on the flash.  Small blocks keep the decompression
+# cache of the kernel small.  zstd with the extreme setting makes the image
+# smaller than gzip, and it decompresses faster than xz.
+BR2_TARGET_ROOTFS_SQUASHFS=y
+BR2_TARGET_ROOTFS_SQUASHFS4_ZSTD=y
+BR2_TARGET_ROOTFS_SQUASHFS_EXTREME_COMP=y
+BR2_TARGET_ROOTFS_SQUASHFS_BS_32K=y
+# flash_erase resets the overlay to the image.  The NAND and UBI tools do
+# not apply to the NOR flash.
+BR2_PACKAGE_MTD=y
+# BR2_PACKAGE_MTD_FLASH_LOCK is not set
+# BR2_PACKAGE_MTD_FLASH_UNLOCK is not set
+# BR2_PACKAGE_MTD_MTD_DEBUG is not set
+# BR2_PACKAGE_MTD_NANDDUMP is not set
+# BR2_PACKAGE_MTD_NANDTEST is not set
+# BR2_PACKAGE_MTD_NANDWRITE is not set
+# BR2_PACKAGE_MTD_UBIBLOCK is not set
+# BR2_PACKAGE_MTD_UBICRC32 is not set
+# BR2_PACKAGE_MTD_UBIDETACH is not set
+# BR2_PACKAGE_MTD_UBIFORMAT is not set
+# BR2_PACKAGE_MTD_UBIHEALTHD is not set
+# BR2_PACKAGE_MTD_UBINFO is not set
+# BR2_PACKAGE_MTD_UBINIZE is not set
+# BR2_PACKAGE_MTD_UBIRENAME is not set
+# BR2_PACKAGE_MTD_UBIRMVOL is not set
+# BR2_PACKAGE_MTD_UBIRSVOL is not set
+# BR2_PACKAGE_MTD_UBIUPDATEVOL is not set

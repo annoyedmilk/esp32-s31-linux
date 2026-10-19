@@ -1,0 +1,14 @@
+# ESP32-S31-Function-CoreBoard-1: after linux-esp32s31.fragment.  linux.config
+# keeps the drivers under these menus, so only the menus are turned on again.
+CONFIG_BUILTIN_DTB_NAME="espressif/esp32s31_coreboard1"
+
+# USB host: keyboards and mice (evdev, hidraw) and mass storage with FAT.
+CONFIG_INPUT=y
+CONFIG_HID=y
+CONFIG_USB_SUPPORT=y
+CONFIG_PHY_ESP32S31_USB=y
+CONFIG_SCSI=y
+CONFIG_VFAT_FS=y
+
+# WS2812 RGB LED on GPIO60.
+CONFIG_NEW_LEDS=y
