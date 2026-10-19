@@ -75,6 +75,10 @@ login. A USB keyboard works on it.
   OpenSBI could program it at the same time.
 - `bluetoothctl` with a command (`bluetoothctl list`) prints its output
   again (an upstream BlueZ fix).
+- The kernel has no I/O scheduler. On the Korvo-1, this frees about
+  1.4 MiB of RAM, and the card is not slower.
+- The image of the bare build is the same for a clean and a normal build:
+  libgpiod without its glib bindings and iperf3 without OpenSSL.
 
 The next release needs the new `flash.bin`: the partition tables of both
 builds changed. On the Korvo-1, also write the new card image: the root
