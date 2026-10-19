@@ -129,7 +129,7 @@ BR2_PACKAGE_BLUEZ5_UTILS_CLIENT=y
 BR2_LINUX_KERNEL_CONFIG_FRAGMENT_FILES="$(BR2_EXTERNAL_ESP32S31_PATH)/board/esp32s31/linux-esp32s31.fragment"
 BR2_ROOTFS_OVERLAY="$(BR2_EXTERNAL_ESP32S31_PATH)/board/esp32s31/rootfs-overlay $(BR2_EXTERNAL_ESP32S31_PATH)/board/esp32s31/rootfs-overlay-esp32s31 $(BR2_EXTERNAL_ESP32S31_PATH)/../local-overlay"
 # The read-only root on the flash.  Small blocks keep the decompression
-# cache of the kernel small.  zstd at level 22 (extreme) makes the image
+# cache of the kernel small.  zstd with the extreme setting makes the image
 # smaller than gzip, and it decompresses faster than xz.
 BR2_TARGET_ROOTFS_SQUASHFS=y
 BR2_TARGET_ROOTFS_SQUASHFS4_ZSTD=y

@@ -3,10 +3,10 @@
 This document tells how Linux runs on the ESP32-S31, and why the port has
 its current form. It is for developers who know the RISC-V Linux kernel and
 want to understand this SoC. All facts are from chip revision v0.0 on the
-ESP32-S31-Korvo-1 board. The port has two builds: `korvo1` for that board,
-and `esp32s31` for the ESP32-S31-WROOM-3-N16R16V module alone, which is the
-module of the Korvo-1. Most of them were measured with JTAG, because
+ESP32-S31-Korvo-1 board. Most of them were measured with JTAG, because
 Espressif does not publish a technical reference manual for this chip yet.
+The port has two builds: `korvo1` for that board, and `esp32s31` for the
+ESP32-S31-WROOM-3-N16R16V module alone, which is the module of the Korvo-1.
 
 The ESP-IDF register headers (`components/soc/esp32s31/register/soc/`) are
 the best public reference for addresses and fields.
@@ -67,7 +67,8 @@ The loader keeps its own copy of these numbers. The device tree
 ### Internal SRAM
 
 The HP SRAM is 512 KiB (`0x2F000000`-`0x2F080000`). Measured on the
-Korvo-1 with Wi-Fi and Bluetooth:
+Korvo-1 with Wi-Fi and Bluetooth, at v0.4.0 (the numbers change with the
+firmware):
 
 | Use | Size |
 | --- | --- |
@@ -80,8 +81,6 @@ The heap also has 32 KiB of LP SRAM. Of the controllers, Bluetooth takes the
 most: 42 KiB of code in SRAM and 61 KiB of heap. 100 KiB of heap are free
 when hart 1 starts. With 32 dynamic Wi-Fi buffers in each direction, the
 minimum was 35.9 KiB during iperf3 with a BLE scan and a BR/EDR inquiry.
-v0.3.1 also had the IEEE 802.15.4 RCP (23 KiB of code, 26 KiB of heap): it
-had only 16 buffers, and the minimum was 25 KiB.
 
 ## Why Linux uses only hart 1
 
@@ -177,8 +176,12 @@ This is the part that is most different from other RISC-V SoCs.
   writes back and invalidates the full cache before the handoff.
 - **The cache controller has a sync engine.** It writes back or invalidates
   an address range, one operation at a time, through global registers. Two
-  masters that use it at the same time corrupt each other. So only OpenSBI
-  programs it, under a lock. Linux asks through a vendor SBI extension
+  masters that use it at the same time corrupt each other. OpenSBI programs
+  it for Linux, under a lock. The firmware on hart 0 also uses it, through
+  the ROM, when ESP-IDF invalidates the flash window after a program or
+  erase for Linux. That path does not take the lock of OpenSBI (an open
+  point; a stress test of writes and new programs at the same time showed
+  no error). Linux asks through a vendor SBI extension
   (`0x09000612`, functions: write back all, invalidate, write back,
   write back and invalidate, I-cache sync). See
   `drivers/cache/esp32s31-cache.c`. An
@@ -200,11 +203,9 @@ This is the part that is most different from other RISC-V SoCs.
   `local_flush_icache_all()` asks OpenSBI to write the D-cache back and to
   invalidate the I-cache of the hart (`patches/0011`, vendor SBI function 4).
   For a new user code page, `flush_icache_pte()` gives only the range of the
-  folio (same patch). The first run of fresh copies of `iperf3` and the
-  musl loader then costs 2 to 4 ms more than the second run, not 8 to 9 ms.
-  A test that changes the code in a file page, maps it again and calls it
-  gets the new code in 2300 of 2300 runs. Without a new mapping (no sync) it
-  gets the old code in 299 of 300 runs.
+  folio (same patch). A test that changes the code in a file page, maps it
+  again and calls it gets the new code. Without a new mapping (no sync), it
+  gets the old code.
 - **The frame buffer is uncached.** PSRAM is write-back. The LCD DMA reads
   the frame buffer from PSRAM with no cache maintenance, so OpenSBI makes
   that range uncached with two PMA entries. Write-through for all of PSRAM
@@ -280,10 +281,9 @@ the USB transport in shared SRAM. The layout is in
   come. At full load, Linux gets one interrupt for approximately 5 frames.
 - Linux writes a frame into the ring in `ndo_start_xmit`, and uses a worker
   only when the ring is full. When 64 frames wait, it stops the net queue.
-  iperf3 TCP gives approximately 43 to 46 Mbit/s TX and 37 to 39 Mbit/s RX
-  on the Korvo-1, and 46 Mbit/s in each direction on the esp32s31 board.
-  Linux then has almost no idle time: the copy from SRAM, the RX worker
-  and the network stack use the hart.
+  At full iperf3 TCP load, Linux has almost no idle time: the copy from
+  SRAM, the RX worker and the network stack use the hart. The release
+  notes give the throughput of each release.
 - A restart of the firmware also restarts Linux. Thus when the host driver
   opens or closes the data path, the firmware only sends its boot event
   again. Over USB, close restarts the firmware. Here the firmware keeps its
@@ -305,10 +305,10 @@ the USB transport in shared SRAM. The layout is in
   Without it, the ROM handles the received EAPOL frames, and the 4-way
   handshake fails. `scripts/patch-esp-idf.sh` applies it as a local
   commit.
-- With WPA3-SAE, `wpa_supplicant` on hart 1 needs approximately 2 s
-  between the SAE commit and the confirm. The closed Wi-Fi library on hart 0
-  can time out the authentication in between (`cnx_auth_timeout`), and the
-  first connection fails. The second try connects.
+- With WPA3-SAE, `wpa_supplicant` on hart 1 can need more time between the
+  SAE commit and the confirm than the closed Wi-Fi library on hart 0 allows
+  (`cnx_auth_timeout`). Then the first connection fails, and the second try
+  connects.
 
 ## The flash root without a card
 
@@ -353,10 +353,11 @@ Linux sees a standard MTD device.
   erased partition and formats it. The upper layer is UBIFS and not jffs2,
   because jffs2 has no `RENAME_WHITEOUT`: overlayfs then cannot make a
   directory where a lower directory was deleted (`EINVAL`).
-- **Compression.** The squashfs is zstd at level 22 with 32 KiB blocks.
-  gzip does not fit with BlueZ. xz is smaller, but the kernel decompresses
-  it at approximately 1.2 MB/s on this core, and zstd at 1.9 MB/s. Smaller
-  blocks decompress less data for each page fault.
+- **Compression.** The squashfs is zstd at the highest level that
+  Buildroot gives (`BR2_TARGET_ROOTFS_SQUASHFS_EXTREME_COMP`), with 32 KiB
+  blocks. gzip does not fit with BlueZ. xz is smaller, but the kernel
+  decompresses it more slowly on this core. Smaller blocks decompress less
+  data for each page fault.
 - **The erase block.** The flash erases 4 KiB sectors, but the MTD device
   shows 64 KiB erase blocks: UBIFS needs a logical erase block of at least
   15 KiB, and UBI takes 128 bytes of each block for its headers.

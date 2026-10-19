@@ -61,8 +61,8 @@ libgpiod and BlueZ. Each board fragment adds only its own parts.
    `esptool --chip esp32s31 -p PORT -b 921600 write-flash 0x0 flash.bin`.
 3. Korvo-1 only: write `*-sdcard.img.xz` to a microSD card (for example
    with balenaEtcher), and put the card into the board.
-4. Open the console on the UART port at 115200 baud. Push reset. After
-   approximately 8 seconds (Korvo-1) or 12 seconds (esp32s31) you are root.
+4. Open the console on the UART port at 115200 baud. Push reset. When the
+   console shows `=== ESP32-S31 Linux / Buildroot ===`, you are root.
 5. Connect to Wi-Fi (see [Wi-Fi](#wi-fi)), then try `ssh` or `iperf3`.
 
 The consoles log in as root. SSH takes root only with a key: add your
@@ -74,10 +74,9 @@ On the two boards:
 
 - UART console (`ttyS0`), on the CP2102N bridge of the Korvo-1.
 - Wi-Fi as `wlan0` (cfg80211 full-MAC) through the ESP-Hosted firmware on
-  hart 0: station, and access point with `wpa_supplicant` (`mode=2`). iperf3 TCP gives approximately 43
-  to 46 Mbit/s TX and 37 to 39 Mbit/s RX on the Korvo-1, and 46 Mbit/s in
-  each direction on the esp32s31 board. WPA2 and WPA3-SAE, Personal and
-  Enterprise (PEAP, TTLS, TLS).
+  hart 0: station, and access point with `wpa_supplicant` (`mode=2`). WPA2
+  and WPA3-SAE, Personal and Enterprise (PEAP, TTLS, TLS). The release notes
+  give the iperf3 throughput of each release.
 - Bluetooth as `hci0` through the same firmware: BR/EDR and LE. BlueZ:
   `bluetoothd` and `bluetoothctl`, LE scan and BR/EDR inquiry.
 - HTTPS with `curl`, which verifies certificates against the CA bundle.
@@ -305,18 +304,10 @@ after an update. After a change of the partition layout, erase `data`
 (for example `esptool erase-region` with its offset and size), so that UBI
 formats it again.
 
-The squashfs is zstd at level 22 with 32 KiB blocks: gzip does not fit
-with BlueZ, and xz decompresses too slowly. The cost is time, because the
-kernel decompresses at approximately 1.9 MB/s on this core. Measured on
-the board:
-
-| | Value |
-| --- | --- |
-| `rootfs.squashfs` | 7.3 MiB of 7.5 MiB |
-| UBIFS overlay (`df`) | approximately 1 MB |
-| Boot to the banner | approximately 12 s |
-| Cold start of `wpa_supplicant` / `curl` / `bluetoothctl` | approximately 0.75 / 2.1 / 1.05 s |
-| MemAvailable after boot | approximately 3.4 MB |
+The squashfs is zstd at the highest level that Buildroot gives, with
+32 KiB blocks: gzip does not fit with BlueZ, and xz decompresses too
+slowly. The cost is time: each page fault of a program decompresses one
+block. `make` stops when the image is larger than the `rootfs` partition.
 
 ### Files and scripts
 
@@ -447,10 +438,10 @@ takes all offsets from them.
 - There is no I2C, audio or camera driver.
 - The firmware heap is small: see "Internal SRAM" in
   [docs/internals.md](docs/internals.md).
-- With WPA3-SAE, the first connection can fail: SAE takes approximately 2 s
-  on hart 1, and the closed Wi-Fi library on hart 0 times out the
-  authentication. `wpa_supplicant` tries again and connects approximately
-  10 s later. WPA2 is not affected.
+- With WPA3-SAE, the first connection can fail: SAE on hart 1 can take
+  longer than the closed Wi-Fi library on hart 0 waits for the
+  authentication. `wpa_supplicant` tries again and connects. WPA2 is not
+  affected.
 - On the esp32s31 board, a cold program start is slower than on the
   Korvo-1, because the root is zstd-compressed (see
   [Flash root](#flash-root-esp32s31)).
