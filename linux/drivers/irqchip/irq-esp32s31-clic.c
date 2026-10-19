@@ -571,8 +571,9 @@ static int __init esp32s31_clic_probe(struct device_node *node,
 		goto err_unmap;
 	}
 
-	clic->domain = irq_domain_add_linear(node, CLIC_NR_IRQS,
-					     &esp32s31_clic_domain_ops, clic);
+	clic->domain = irq_domain_create_linear(of_fwnode_handle(node),
+						CLIC_NR_IRQS,
+						&esp32s31_clic_domain_ops, clic);
 	if (!clic->domain) {
 		pr_err("CLIC: Failed to create IRQ domain\n");
 		ret = -ENOMEM;

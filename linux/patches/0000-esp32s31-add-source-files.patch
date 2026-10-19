@@ -1599,7 +1599,7 @@ diff --git a/drivers/irqchip/irq-esp32s31-clic.c b/drivers/irqchip/irq-esp32s31-
 new file mode 100644
 --- /dev/null
 +++ b/drivers/irqchip/irq-esp32s31-clic.c
-@@ -0,0 +1,615 @@
+@@ -0,0 +1,616 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * Author: Marco Müller <hello@annoyedmilk.ch>
@@ -2173,8 +2173,9 @@ new file mode 100644
 +		goto err_unmap;
 +	}
 +
-+	clic->domain = irq_domain_add_linear(node, CLIC_NR_IRQS,
-+					     &esp32s31_clic_domain_ops, clic);
++	clic->domain = irq_domain_create_linear(of_fwnode_handle(node),
++						CLIC_NR_IRQS,
++						&esp32s31_clic_domain_ops, clic);
 +	if (!clic->domain) {
 +		pr_err("CLIC: Failed to create IRQ domain\n");
 +		ret = -ENOMEM;
