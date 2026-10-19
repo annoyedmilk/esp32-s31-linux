@@ -9,7 +9,8 @@ cat > "${BINARIES_DIR}/sd-readme.txt" <<'TXT'
 ESP32-S31 Linux SD card.
 
 The board mounts this FAT32 partition on /mnt/sd.  Use it for your files.
-The second partition is the ext4 root.  macOS cannot read it.
+The second partition is the ext4 root, the third is swap.  macOS cannot
+read them.
 TXT
 
 # The loader checks the Image with this manifest before it copies the Image

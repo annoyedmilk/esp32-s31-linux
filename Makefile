@@ -92,7 +92,8 @@ ROOT_OFFSET := $(call part_field,rootfs,4)
 ROOT_SIZE := $(call part_field,rootfs,5)
 SD_DISK ?=
 SD_RAW = $(subst /dev/disk,/dev/rdisk,$(SD_DISK))
-# Size of the FAT partition.  The rest of the card is the root partition.
+# Size of the FAT partition.  The root partition gets the rest of the card,
+# except 64 MB of swap at the end.
 # Make it smaller for a small card, but not below 4G.  diskutil stops if it
 # does not fit.
 SD_DATA_SIZE ?= 28G
@@ -376,15 +377,18 @@ sdpart:
 	$(call SD_CONFIRM,ERASE)
 	@diskutil unmountDisk "$(SD_DISK)"
 	@diskutil partitionDisk "$(SD_DISK)" MBR \
-		"MS-DOS FAT32" KORVO_SD $(SD_DATA_SIZE) "MS-DOS FAT32" ROOTFS R
+		"MS-DOS FAT32" KORVO_SD $(SD_DATA_SIZE) "MS-DOS FAT32" ROOTFS R \
+		"MS-DOS FAT32" SWAP 64M
 	@diskutil unmountDisk "$(SD_DISK)"
 	@sudo newfs_msdos -F 32 -c 128 -v KORVO_SD "$(SD_RAW)s1"
-# Linux ignores the type byte.  With 0x83, macOS does not try to mount the
-# ext4 partition as FAT at each insertion.
+# The kernel ignores the type byte of p2.  With 0x83, macOS does not try to
+# mount the ext4 partition as FAT at each insertion.  S05swap uses p3 only
+# with 0x82.
 	@sudo sh -c 'dd if="$(SD_RAW)" of="$(BUILD_DIR)/mbr.bin" bs=512 count=1 && \
 		printf "\\x83" | dd of="$(BUILD_DIR)/mbr.bin" bs=1 seek=466 conv=notrunc && \
+		printf "\\x82" | dd of="$(BUILD_DIR)/mbr.bin" bs=1 seek=482 conv=notrunc && \
 		dd if="$(BUILD_DIR)/mbr.bin" of="$(SD_RAW)" bs=512 count=1' \
-		|| echo 'warning: p2 type byte unchanged; the board boots either way'
+		|| echo 'warning: type bytes unchanged; the board boots without card swap'
 	@rm -f "$(BUILD_DIR)/mbr.bin"
 	@diskutil list "$(SD_DISK)"
 	@echo 'now: make sdroot SD_DISK=$(SD_DISK)'
