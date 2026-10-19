@@ -57,8 +57,9 @@ with balenaEtcher, or with dd on Linux or macOS:
 esp32s31)
 	title="the ESP32-S31-WROOM-3-N16R16V module alone (UART only)"
 	usage="The full system is in the flash.  The root is writable, and the files
-stay after a reboot and after a new flash.bin.  To go back to the image, run
-flash_erase /dev/mtd1 0 0 and reboot." ;;
+stay after a reboot and after a new flash.bin.  A data partition without UBI
+(a new board, or a board from v0.4.0) is erased and formatted at the first
+boot.  To go back to the image, run flash_erase /dev/mtd1 0 0 and reboot." ;;
 esac
 
 cat > "$stage/FLASH.txt" <<TXT

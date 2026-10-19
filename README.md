@@ -447,6 +447,8 @@ takes all offsets from them.
   Korvo-1, because the root is zstd-compressed (see
   [Flash root](#flash-root-esp32s31)).
 - WPA2/WPA3 Enterprise is not tested.
+- The access point mode is tested up to the started access point. No
+  client has connected to it.
 - `hcitool lescan` fails with "Set scan parameters failed". The controller
   is Bluetooth 6.0, and after the kernel used the extended scan commands,
   it rejects the legacy ones that `hcitool` sends (Command Disallowed). Use

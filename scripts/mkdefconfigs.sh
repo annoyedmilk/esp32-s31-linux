@@ -8,8 +8,8 @@
 #
 #   scripts/mkdefconfigs.sh [--check]
 #
-# merge_config.sh needs GNU sed: run this on Linux or in the build container
-# (make defconfigs).
+# merge_config.sh needs GNU sed and coreutils: run this on Linux or in the
+# build container (make defconfigs).
 set -eu
 
 cd "$(dirname "$0")/.."

@@ -27,9 +27,12 @@ for a bare ESP32-S31 module with 16 MiB PSRAM and UART only.
 On the Korvo-1, the LCD shows the Tux logo, the kernel warnings and a
 login. A USB keyboard works on it.
 
-## New since v0.4.0
+## New in v0.5.0
 
 - Linux 7.3.
+- Wi-Fi gives approximately 44 Mbit/s TX and 38 Mbit/s RX with iperf3 TCP
+  on the Korvo-1 (v0.4.0: 43 to 46 and 37 to 39). The bare build was not
+  measured again.
 - The bare build keeps its root in the flash as OpenWrt does: a read-only
   squashfs with a writable UBIFS overlay. All changes stay, and
   `persist save` is gone. `flash_erase /dev/mtd1 0 0` and a reboot go back
@@ -80,10 +83,15 @@ login. A USB keyboard works on it.
 - The image of the bare build is the same for a clean and a normal build:
   libgpiod without its glib bindings and iperf3 without OpenSSL.
 
-The next release needs the new `flash.bin`: the partition tables of both
-builds changed. On the Korvo-1, also write the new card image: the root
-of the old image is too small for the new one. On the bare build, erase
-`data` first, so that the first boot formats it.
+v0.5.0 needs the new `flash.bin`: the partition tables of both builds
+changed. On the Korvo-1, also write the new card image: the root of the
+old image is too small for the new one, and the new image has the swap
+partition p3. A card from `make sdpart` keeps its root; `make sdroot`
+writes the new one, and the board swaps to zram only without p3. On the
+bare build, the first boot finds no UBI on `data`, erases it and formats
+it. Files that `persist save` kept in v0.4.0 are gone. To erase it
+yourself before the boot:
+`esptool --chip esp32s31 -p PORT erase-region 0xD90000 0x270000`.
 
 ## New in v0.4.0
 
@@ -227,5 +235,11 @@ card image erases the card, so save your files from the FAT partition first.
 - With WPA3-SAE, the first connection can fail, and the second one works.
 - WPA2-Enterprise has PEAP, TTLS and TLS only. It is not tested with a
   real network.
+- The access point mode of `wpa_supplicant` is tested up to the started
+  access point. No client has connected to it.
+- `hcitool lescan` fails: the controller rejects the legacy scan commands.
+  Use `bluetoothctl` and `scan le`.
+- After `/etc/init.d/S40wifi restart`, the firmware can log "CCMP replay
+  detected" once. The connection works.
 
 See the README for the full list, and `docs/internals.md` for the details.
