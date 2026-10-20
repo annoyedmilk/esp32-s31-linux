@@ -368,20 +368,23 @@ Linux sees a standard MTD device.
 
 The three builds share one Buildroot base
 (`br2-external/board/esp32s31/defconfig/common.fragment`), and
-`scripts/mkdefconfigs.sh` merges it with the fragment of the board. The
-builds with the root in the flash (`esp32s31` and `coreboard1`) also get
-`flashroot.fragment`. A
-setting is in one fragment only, and `make check` fails when a defconfig
+`scripts/mkdefconfigs.sh` merges it with the fragment of the root and the
+fragment of the board. The module alone has its root in the flash
+(`flashroot.fragment`). The Korvo-1 and the Function-CoreBoard-1 have it on
+a disk, the card or a USB stick (`diskroot.fragment`). A setting is in one
+fragment only, and `make check` fails when a defconfig
 in `br2-external/configs/` differs from its fragments.
 
 | | Module alone | Function-CoreBoard-1 | Korvo-1 |
 | --- | --- | --- | --- |
 | Base | Kernel, toolchain, BusyBox, Dropbear, OpenSSL, `wpa_supplicant` (WPA3, PEAP/TTLS/TLS, AP mode), curl, iperf3, libgpiod, BlueZ (`bluetoothd`, `bluetoothctl`) | The same | The same |
-| Board parts | squashfs root in the flash, UBIFS overlay, the MTD tools | The parts of the module alone, and in the kernel Ethernet, USB and the LED | ext4 root on the card, `hostapd`, the classic BlueZ tools, bash, vim, gdb, strace, tcpdump, links, MicroPython, Lua, htop, USB and filesystem tools |
-| Swap | zram only | zram only | zram, then p3 of the card |
+| Root | squashfs root in the flash, UBIFS overlay, the MTD tools | ext4 root on the USB stick | ext4 root on the card |
+| Board parts | | Ethernet, USB, the LED | LCD, touch, the card, USB, the LED |
+| Tools | The base only | `hostapd`, the classic BlueZ tools, bash, vim, gdb, strace, tcpdump, links, MicroPython, Lua, htop, filesystem tools, ethtool | The same as the Function-CoreBoard-1, without ethtool, and with the LCD tools |
+| Swap | zram only | zram, then p3 of the stick | zram, then p3 of the card |
 
-The Korvo-1 has a card with much space, and the module alone has only its
-flash. The base keeps the network, security and Bluetooth stack the same
+The Korvo-1 and the Function-CoreBoard-1 have a disk with much space, and
+the module alone has only its flash. The base keeps the network, security and Bluetooth stack the same
 on all boards.
 
 ## Silicon traps

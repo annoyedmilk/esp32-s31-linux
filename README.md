@@ -6,7 +6,7 @@ module alone (the module of the two boards).
 Linux uses the 16 MiB octal PSRAM as its memory.
 
 ```text
-ESP ROM -> ESP-IDF 2nd stage -> loader -> OpenSBI -> Linux -> Buildroot root (card or flash)
+ESP ROM -> ESP-IDF 2nd stage -> loader -> OpenSBI -> Linux -> Buildroot root (card, USB stick or flash)
 ```
 
 ![fastfetch on the ESP32-S31-Korvo-1](docs/fastfetch.svg)
@@ -22,8 +22,8 @@ USB keyboards and sticks, `vim`, `gdb`, `strace`, MicroPython and a text-mode we
 
 You can use it in two ways:
 
-- **To try it.** Flash a release, write the card image (Korvo-1 only), and
-  log in. It takes about ten minutes.
+- **To try it.** Flash a release, write the disk image (not for the
+  module alone), and log in. It takes about ten minutes.
 - **To learn from it.** The SoC has no PLIC, no Zicbom and no coherent DMA.
   Each of these has a solution here that you can read in a few hundred
   lines. [docs/internals.md](docs/internals.md)
@@ -32,10 +32,10 @@ You can use it in two ways:
 ## Boards
 
 There are three builds. Select one with `BOARD` for each `make` target. The
-Korvo-1 has a card with much space, so it gets the full set of tools. The
-module alone has only its 16 MB flash, so it gets a small set. The
-Function-CoreBoard-1 build is the build of the module alone, with Ethernet,
-USB and the LED.
+Korvo-1 has its root on a microSD card and the Function-CoreBoard-1 on a USB
+stick. The disk has much space, so these two get the full set of tools. The
+module alone has only its 16 MB flash, so it gets a small set.
+
 The builds share one base configuration
 (`br2-external/board/esp32s31/defconfig/common.fragment`): the kernel, the
 toolchain, BusyBox, Dropbear, OpenSSL, `wpa_supplicant`, curl, iperf3,
@@ -44,27 +44,29 @@ libgpiod and BlueZ. Each board fragment adds only its own parts.
 | | `esp32s31` (the default) | `coreboard1` | `korvo1` |
 | --- | --- | --- | --- |
 | Hardware | The ESP32-S31-WROOM-3-N16R16V alone (16 MB flash, 16 MB PSRAM), on any board with UART0 | ESP32-S31-Function-CoreBoard-1 | ESP32-S31-Korvo-1, with the ESP32-S31-WROOM-3-N16R16V |
-| Root | squashfs in the flash, with a writable UBIFS overlay (see [Flash root](#flash-root-esp32s31)) | The same, with a smaller overlay | ext4 on the microSD card |
-| Persistence | All files: the overlay is in the flash | The same | All files on the card |
-| Swap | zram (6 MiB) only | zram (6 MiB) only | zram (6 MiB), then 64 MiB on p3 of the card |
+| Root | squashfs in the flash, with a writable UBIFS overlay (see [Flash root](#flash-root-esp32s31)) | ext4 on the USB stick | ext4 on the microSD card |
+| Persistence | All files: the overlay is in the flash | All files on the stick | All files on the card |
+| Swap | zram (6 MiB) only | zram (6 MiB), then 64 MiB on p3 of the stick | zram (6 MiB), then 64 MiB on p3 of the card |
 | Consoles | UART | UART | UART, and the LCD with a USB keyboard |
-| Hardware for Linux | GPIO, RNG | Ethernet, USB host, RGB LED, GPIO, RNG | LCD, touch (I2C), microSD, USB host, RGB LED, GPIO, RNG |
-| Wi-Fi and Bluetooth | `wlan0` and `hci0`, WPA2 and WPA3, Personal and Enterprise, AP with `wpa_supplicant`, BlueZ (`bluetoothd`, `bluetoothctl`) | The same as `esp32s31` | `wlan0` and `hci0`, WPA2 and WPA3, Personal and Enterprise, AP with `hostapd`, BlueZ with its classic tools |
-| RAM for Linux | 12.6 MiB | 10.9 MiB | 10.8 MiB |
-| Userspace | BusyBox, Dropbear, wpa_supplicant, iw, curl, bluetoothctl, iperf3, the GPIO tools, flash_erase | The same as `esp32s31`, and ethtool | bash, vim, gdb, strace, MicroPython, Lua, links, curl, tcpdump, htop and more |
+| Hardware for Linux | GPIO, RNG | Ethernet, USB host (the root stick), RGB LED, GPIO, RNG | LCD, touch (I2C), microSD, USB host, RGB LED, GPIO, RNG |
+| Wi-Fi and Bluetooth | `wlan0` and `hci0`, WPA2 and WPA3, Personal and Enterprise, AP with `wpa_supplicant`, BlueZ (`bluetoothd`, `bluetoothctl`) | The same as `korvo1` | `wlan0` and `hci0`, WPA2 and WPA3, Personal and Enterprise, AP with `hostapd`, BlueZ with its classic tools |
+| RAM for Linux | 12.6 MiB | Not measured | 10.8 MiB |
+| Userspace | BusyBox, Dropbear, wpa_supplicant, iw, curl, bluetoothctl, iperf3, the GPIO tools, flash_erase | The same as `korvo1` without the LCD tools, and ethtool | bash, vim, gdb, strace, MicroPython, Lua, links, curl, tcpdump, htop and more |
 
 ## Try it
 
 1. Get the files of your board from the newest release on the
    [releases page](https://github.com/annoyedmilk/esp32-s31-linux/releases):
    `*-esp32s31-flash.zip` for the ESP32-S31-WROOM-3-N16R16V alone,
-   `*-coreboard1-flash.zip` for the Function-CoreBoard-1, or
-   `*-korvo1-flash.zip` and `*-korvo1-sdcard.img.xz` for the Korvo-1.
+   `*-coreboard1-flash.zip` and `*-coreboard1-usb.img.xz` for the
+   Function-CoreBoard-1, or `*-korvo1-flash.zip` and
+   `*-korvo1-sdcard.img.xz` for the Korvo-1.
 2. Flash: `pip install "esptool==5.5.0"` (the tested version, in
    `bootloader/esptool.version`), connect the UART port, then
    `esptool --chip esp32s31 -p PORT -b 921600 write-flash 0x0 flash.bin`.
-3. Korvo-1 only: write `*-sdcard.img.xz` to a microSD card (for example
-   with balenaEtcher), and put the card into the board.
+3. Write the disk image to a microSD card (Korvo-1) or a USB stick
+   (Function-CoreBoard-1), for example with balenaEtcher, and put it into
+   the board. The module alone needs no disk.
 4. Open the console on the UART port at 115200 baud. Push reset. When the
    console shows `=== ESP32-S31 Linux / Buildroot ===`, you are root.
 5. Connect to Wi-Fi (see [Wi-Fi](#wi-fi)), then try `ssh` or `iperf3`.
@@ -104,9 +106,10 @@ On the Korvo-1 also:
 On the Function-CoreBoard-1 also:
 
 - Gigabit Ethernet as `eth0` (stmmac), with DHCP at boot.
-- USB host (DWC2): keyboards, mice, `hidraw` and mass storage. A USB stick
-  is optional space for data: its FAT is on `/mnt/usb`, also when you
-  connect the stick after the boot.
+- USB host (DWC2): the root stick, keyboards, mice and `hidraw`. The stick
+  has the same layout as the card of the Korvo-1: FAT on p1 (`/mnt/usb`),
+  ext4 root on p2, swap on p3.
+- An access point with `hostapd`, and the classic BlueZ tools.
 - The RGB LED as `/sys/class/leds/rgb:status`.
 
 ## Tested hardware
@@ -168,7 +171,7 @@ python -m espefuse --chip esp32s31 -p PORT summary
 | Power Type-C | Power only. |
 | UART Type-C | CP2102N to UART0 (GPIO58/59): flash and the Linux console (`/dev/cu.usbserial-*`). |
 | USB Type-A | USB 2.0 host for Linux. |
-| microSD slot | The root file system. See [SD card (Korvo-1)](#sd-card-korvo-1). |
+| microSD slot | The root file system. See [SD card and USB stick](#sd-card-and-usb-stick). |
 
 | Pins | Connected to | Owner |
 | --- | --- | --- |
@@ -234,7 +237,7 @@ make monitor SERIAL_PORT=/dev/cu.usbserial-XXXX
   Add `BOARD=coreboard1` for the Function-CoreBoard-1, or `BOARD=korvo1`
   for the Korvo-1. The output of a board goes to `build/<board>/`.
 - `make build` builds the loader and OpenSBI on the Mac. Buildroot builds the
-  kernel, the rootfs and the card images in the container.
+  kernel, the rootfs and the disk images in the container.
 - `make monitor` resets the board and waits for
   `=== ESP32-S31 Linux / Buildroot ===`. Then it stays open as a terminal.
   Push `Ctrl-]` to exit. It writes a log to `logs/`.
@@ -249,14 +252,20 @@ make monitor SERIAL_PORT=/dev/cu.usbserial-XXXX
   Buildroot output of the board, or build from a clean volume.
 - `make help` shows all targets.
 
-The Korvo-1 kernel mounts `/dev/mmcblk0p2` as the root (`rootwait`).
-Without a prepared SD card, it waits for the card.
+The Korvo-1 kernel mounts `/dev/mmcblk0p2` as the root, the
+Function-CoreBoard-1 kernel `/dev/sda2` (`rootwait`). Without a prepared
+disk, the kernel waits for it. On the Function-CoreBoard-1, connect only the
+root stick when the board starts: a second USB disk can get the name `sda`.
 
-## SD card (Korvo-1)
+## SD card and USB stick
 
-The card is MBR. p1 is FAT32 and is mounted on `/mnt/sd`. p2 is the ext4 root
-(512 MiB in the card image). p3 is swap (type `0x82`, 64 MiB). All card
-targets erase data. They ask for confirmation and `sudo`.
+The card of the Korvo-1 and the USB stick of the Function-CoreBoard-1 have
+the same layout, from the same image (`sdcard.img`). The disk is MBR. p1 is
+FAT32 and is mounted on `/mnt/sd` (Korvo-1) or `/mnt/usb`
+(Function-CoreBoard-1). p2 is the ext4 root (512 MiB in the disk image). p3
+is swap (type `0x82`, 64 MiB). `/etc/default/disk` names the partitions for
+the boot scripts. The targets below work for the card and the stick. Those
+that write erase data, and they ask for confirmation and `sudo`.
 
 | Command | Use |
 | --- | --- |
@@ -292,9 +301,9 @@ and the overlay of each board:
   card without such a p3 swaps to zram only.
 - `/etc/sysctl.d/10-reserve.conf` keeps 512 KiB free for the zram writes.
   A larger reserve takes memory from the page cache.
-- `S10sdcard` mounts p1 on `/mnt/sd`.
-- `S10usb` mounts the FAT of a USB stick on `/mnt/usb` on the Korvo-1 and
-  the Function-CoreBoard-1. It makes BusyBox `mdev` the uevent helper of
+- `S10sdcard` mounts p1 of the disk on `/mnt/sd` or `/mnt/usb`.
+- `S10usb` mounts the FAT of a USB stick on `/mnt/usb` on the Korvo-1. It
+  makes BusyBox `mdev` the uevent helper of
   the kernel, so a stick that you connect later is also mounted
   (`/etc/mdev.conf`).
 - `S40wifi` starts `wpa_supplicant` on `wlan0` in the background, so that
@@ -303,16 +312,17 @@ and the overlay of each board:
 - `S41ethernet` makes the stmmac rings smaller, then starts DHCP on `eth0`
   in the background, on a board with Ethernet.
 - The udhcpc hook sets the clock with NTP on each new lease.
-- `S95autostart` runs `/mnt/sd/autostart.sh`, or `/root/autostart.sh`
-  when the card has none.
+- `S95autostart` runs `autostart.sh` on p1 of the disk, or
+  `/root/autostart.sh` when the disk has none.
 - `S99banner` prints the line that `make monitor` waits for.
-- The module alone and the Function-CoreBoard-1 also have `overlay-init`
-  and `S00overlay` (see [Flash root](#flash-root-esp32s31)).
+- The module alone also has `overlay-init` and `S00overlay` (see
+  [Flash root](#flash-root-esp32s31)).
 
 `login` and SSH show `/etc/motd`, which lists the first commands.
 
-The esp32s31 and coreboard1 boards have only the BusyBox tools and the
-programs in [Boards](#boards). The tools below are for the Korvo-1.
+The esp32s31 board has only the BusyBox tools and the programs in
+[Boards](#boards). The tools below are for the Korvo-1 and the
+Function-CoreBoard-1.
 
 ### Tools
 
@@ -355,10 +365,10 @@ The squashfs is zstd at the highest level that Buildroot gives, with
 slowly. The cost is time: each page fault of a program decompresses one
 block. `make` stops when the image is larger than the `rootfs` partition.
 
-The Function-CoreBoard-1 has the same flash root, but its kernel with USB
-and Ethernet needs 4.75 MiB, so its `data` partition is 1.6875 MiB.
-
 ### Files and scripts
+
+The paths below are for the Korvo-1. On the Function-CoreBoard-1, p1 is
+`/mnt/usb`.
 
 - **Copy files.** From a computer, `scp` and `sftp` work with the key in
   `/root/.ssh/authorized_keys`: `scp file root@<address>:/mnt/sd/`.
@@ -417,13 +427,14 @@ The default configuration has `pmf=1`: protected management frames when
 the access point offers them. Without them, a WPA2/WPA3 router gave less
 than half of the TX throughput.
 
-On the esp32s31 and coreboard1 boards, the network stays in the overlay.
+On the esp32s31 board, the network stays in the overlay.
 
 For an access point on all boards, stop `S40wifi` and start
 `wpa_supplicant -B -D nl80211 -i wlan0 -c /tmp/ap.conf` with a network
 block that has `mode=2`, for example `ssid="esp32s31"`, `mode=2`,
 `frequency=2437`, `key_mgmt=WPA-PSK`, `proto=RSN`, `pairwise=CCMP`,
-`group=CCMP` and `psk="..."`. The Korvo-1 also has `hostapd`.
+`group=CCMP` and `psk="..."`. The Korvo-1 and the Function-CoreBoard-1
+also have `hostapd`.
 
 The ESP-Hosted firmware on hart 0 runs the 802.11 MAC. The ESP-Hosted host
 driver (`esp32_shm`) is built into the kernel. `wpa_supplicant` runs the
@@ -449,8 +460,9 @@ in `br2-external/board/esp32s31/defconfig/common.fragment`) with
 - The kernel config is `br2-external/board/esp32s31/linux.config`. Use
   `make kernel-menuconfig` and `make kernel-saveconfig`. The esp32s31 board
   adds `linux-esp32s31.fragment`, which turns off the parts of the Korvo-1.
-  The coreboard1 board adds the same fragment, then
-  `linux-coreboard1.fragment`, which turns on its USB, LED and Ethernet.
+  The coreboard1 board adds `linux-coreboard1.fragment`, which turns off
+  the panel and the card, turns on Ethernet, and takes the root from the
+  USB stick.
   Buildroot cannot save a config with a fragment, so change the fragment by
   hand.
 - The device tree of each board is built into the kernel:
@@ -466,14 +478,14 @@ in `br2-external/board/esp32s31/defconfig/common.fragment`) with
 | ---: | ---: | ---: | --- |
 | `0x002000` | `0x002000` | `0x002000` | ESP-IDF second-stage bootloader |
 | `0x008000` | `0x008000` | `0x008000` | Partition table |
-| `0x009000` | `0x009000` | `0x011000` | NVS |
-| `0x00F000` | `0x00F000` | `0x019000` | PHY calibration data |
-| `0x010000` | `0x010000` | `0x220000` | OpenSBI `fw_jump` (256 KiB, 256 KiB, 512 KiB) |
-| `0x050000` | `0x050000` | `0x020000` | Loader and radio firmware (1.75 MiB, 1.75 MiB, 2 MiB) |
-| `0x210000` | `0x210000` | `0x2A0000` | Linux Image with built-in DTB (4 MiB, 4.75 MiB, 7.5 MiB) |
-| `0x60FFF4` | `0x6CFFF4` | `0xA1FFF4` | Linux size and CRC manifest, at the end of the kernel partition |
-| `0x610000` | `0x6D0000` | | squashfs root `rootfs` (7.5 MiB) |
-| `0xD90000` | `0xE50000` | | UBIFS overlay `data` (2.4375 MiB, 1.6875 MiB, to the end of the flash) |
+| `0x009000` | `0x011000` | `0x011000` | NVS |
+| `0x00F000` | `0x019000` | `0x019000` | PHY calibration data |
+| `0x010000` | `0x220000` | `0x220000` | OpenSBI `fw_jump` (256 KiB, 512 KiB, 512 KiB) |
+| `0x050000` | `0x020000` | `0x020000` | Loader and radio firmware (1.75 MiB, 2 MiB, 2 MiB) |
+| `0x210000` | `0x2A0000` | `0x2A0000` | Linux Image with built-in DTB (4 MiB, 7.5 MiB, 7.5 MiB) |
+| `0x60FFF4` | `0xA1FFF4` | `0xA1FFF4` | Linux size and CRC manifest, at the end of the kernel partition |
+| `0x610000` | | | squashfs root `rootfs` (7.5 MiB) |
+| `0xD90000` | | | UBIFS overlay `data` (2.4375 MiB, to the end of the flash) |
 
 The partition tables are `bootloader/partitions-<board>.csv`. The Makefile
 takes all offsets from them.
@@ -503,6 +515,8 @@ takes all offsets from them.
 - `poweroff` puts the chip into deep sleep. Only the reset button starts
   it again. The board itself stays powered.
 - The coherent DMA pool is 64 KiB.
+- The Function-CoreBoard-1 does not boot without its root stick. The root
+  is `/dev/sda2`, so connect no other USB disk when the board starts.
 - There is no audio or camera driver.
 - The firmware heap is small: see "Internal SRAM" in
   [docs/internals.md](docs/internals.md).

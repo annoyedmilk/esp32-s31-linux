@@ -1,7 +1,7 @@
 #!/bin/sh
 # SPDX-License-Identifier: MIT
 # Package the build output of one board for a release: a flash bundle and,
-# for a board with a card, a card image.  Run after "make build" or
+# for a board with a disk, a disk image.  Run after "make build" or
 # scripts/ci-build.sh for the same board.
 #
 #   scripts/package-release.sh v0.1.0 korvo1
@@ -47,18 +47,25 @@ echo "$flash_args" | sed 's/^ //' > "$stage/flash_args"
 # One image for offset 0, for the simplest flash command.
 (cd "$stage" && $esptool --chip esp32s31 merge-bin -o flash.bin $(cat flash_args))
 
+disk=sdcard
 case $board in
 korvo1)
 	title="the ESP32-S31-Korvo-1 (with the ESP32-S31-WROOM-3-N16R16V)"
 	usage="Write the card image to a microSD card (it erases the card), for example
 with balenaEtcher, or with dd on Linux or macOS:
 
-  xz -dc $name-sdcard.img.xz | sudo dd of=/dev/sdX bs=4M conv=fsync" ;;
-esp32s31|coreboard1)
-	case $board in
-	esp32s31) title="the ESP32-S31-WROOM-3-N16R16V module alone (UART only)" ;;
-	coreboard1) title="the ESP32-S31-Function-CoreBoard-1" ;;
-	esac
+  xz -dc $name-$disk.img.xz | sudo dd of=/dev/sdX bs=4M conv=fsync" ;;
+coreboard1)
+	title="the ESP32-S31-Function-CoreBoard-1"
+	disk=usb
+	usage="Write the disk image to a USB stick (it erases the stick), for example
+with balenaEtcher, or with dd on Linux or macOS:
+
+  xz -dc $name-$disk.img.xz | sudo dd of=/dev/sdX bs=4M conv=fsync
+
+The root is /dev/sda2: connect only this stick when the board starts." ;;
+esp32s31)
+	title="the ESP32-S31-WROOM-3-N16R16V module alone (UART only)"
 	usage="The full system is in the flash.  The root is writable, and the files
 stay after a reboot and after a new flash.bin.  A data partition without UBI
 (a new board, or a board from v0.4.0) is erased and formatted at the first
@@ -83,7 +90,7 @@ TXT
 (cd "$out" && zip -qr "$name-flash.zip" "$name-flash")
 rm -rf "$stage"
 if [ -f "$card" ]; then
-	xz -T0 -9 -c "$card" > "$out/$name-sdcard.img.xz"
+	xz -T0 -9 -c "$card" > "$out/$name-$disk.img.xz"
 fi
 # The checksums of all packages in build/release, also of other boards.
 (cd "$out" && rm -f SHA256SUMS &&

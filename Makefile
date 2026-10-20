@@ -1,9 +1,9 @@
 SHELL := /bin/bash
 
 # The board to build for: esp32s31 (the ESP32-S31-WROOM-3-N16R16V alone:
-# UART0, root in the flash), coreboard1 (ESP32-S31-Function-CoreBoard-1: USB,
-# LED, root in the flash) or korvo1 (ESP32-S31-Korvo-1: LCD, microSD, USB,
-# LED).
+# UART0, root in the flash), coreboard1 (ESP32-S31-Function-CoreBoard-1:
+# Ethernet, USB, LED, root on a USB stick) or korvo1 (ESP32-S31-Korvo-1: LCD,
+# microSD, USB, LED, root on the card).
 BOARD ?= esp32s31
 ifeq ($(filter $(BOARD),esp32s31 coreboard1 korvo1),)
 $(error BOARD must be esp32s31, coreboard1 or korvo1, not "$(BOARD)")
@@ -88,9 +88,8 @@ BR_TOOLS = "$(CONTAINER)" run --rm --uid $(shell id -u) --gid $(shell id -g) \
 PARTITIONS := bootloader/partitions-$(BOARD).csv
 part_field = $(shell awk -F'[ ,]+' '$$1 == "$(1)" { print $$$(2) }' $(PARTITIONS))
 
-# The squashfs root in the flash, on the module alone and the
-# Function-CoreBoard-1.
-# The Korvo-1 has its root on the card and no rootfs partition.
+# The squashfs root in the flash, on the module alone.  The Korvo-1 and the
+# Function-CoreBoard-1 have their root on a disk and no rootfs partition.
 ROOT_OFFSET := $(call part_field,rootfs,4)
 ROOT_SIZE := $(call part_field,rootfs,5)
 SD_DISK ?=
@@ -155,11 +154,12 @@ help:
 		'  make kernel-menuconfig             configure the kernel' \
 		'  make kernel-saveconfig             write the configuration back' \
 		'' \
-		'SD card, once a card is in the Mac (see: diskutil list external):' \
+		'Disk (the card or the USB stick), once it is in the Mac' \
+		'(see: diskutil list external):' \
 		'' \
-		'  make sdcard                        card image for a fresh card' \
-		'  make sdpart  SD_DISK=/dev/diskN   lay out a large card (ERASES it)' \
-		'  make sdwrite SD_DISK=/dev/diskN   write the whole card image (ERASES it)' \
+		'  make sdcard                        disk image for a fresh disk' \
+		'  make sdpart  SD_DISK=/dev/diskN   lay out a large disk (ERASES it)' \
+		'  make sdwrite SD_DISK=/dev/diskN   write the whole disk image (ERASES it)' \
 		'  make sdroot  SD_DISK=/dev/diskN   rewrite only the root partition' \
 		'' \
 		'Buildroot host container (it cannot build on macOS):' \
@@ -176,8 +176,8 @@ help:
 		'' \
 		'BOARD selects the board, for each target: esp32s31 (the default),' \
 		'coreboard1 or korvo1.  The output of a board goes to build/BOARD.' \
-		'On esp32s31 and coreboard1 the rootfs is in the flash.  On korvo1,' \
-		'it is on the SD card.'
+		'On esp32s31 the rootfs is in the flash.  On korvo1 it is on the SD' \
+		'card, on coreboard1 on a USB stick.'
 
 check:
 	@test "$$(uname -s)" = Darwin || { echo 'this build is supported on macOS only'; exit 1; }
@@ -341,7 +341,7 @@ rootfs: kernel-patches br-volume
 
 # Copy the kernel and its manifest from the volume for flashing, next to the
 # loader and OpenSBI binaries: also the squashfs root of a board without a
-# card, and the card images of a board with a card.
+# disk, and the disk images of a board with a disk.
 br-artifacts:
 	@$(BR_RUN) sh -c 'set -e; \
 		mkdir -p /work/$(BR_OUT) /work/$(BUILD_DIR); \

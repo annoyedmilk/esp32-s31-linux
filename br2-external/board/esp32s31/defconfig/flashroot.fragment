@@ -1,5 +1,5 @@
-# The root in the flash, for the boards without a card: esp32s31 and
-# coreboard1.  The root is a squashfs, with a UBIFS overlay that keeps all
+# The root in the flash, for the module alone (esp32s31), which has no
+# disk.  The root is a squashfs, with a UBIFS overlay that keeps all
 # changes (overlay-init).  The flash is small, so these builds are lean.
 # The read-only root on the flash.  Small blocks keep the decompression
 # cache of the kernel small.  zstd with the extreme setting makes the image

@@ -3,7 +3,7 @@
  * ESP32-S31-Function-CoreBoard-1, with the ESP32-S31-WROOM-3-N16R16V module:
  * UART0 on the USB-UART bridge, Gigabit Ethernet, a USB 2.0 host port and a
  * WS2812 RGB LED.
- * The root is in the flash window of the firmware.
+ * The root is on a USB stick.
  * Author: Roan Brand <brandroan@gmail.com>
  */
 /dts-v1/;
@@ -97,28 +97,3 @@
 
 /* WS2812 RGB LED on GPIO60. */
 &rgb_led { status = "okay"; };
-
-/*
- * The "rootfs" and "data" partitions of bootloader/partitions-coreboard1.csv,
- * from the start of "rootfs".
- */
-&wifi {
-	flash {
-		partitions {
-			compatible = "fixed-partitions";
-			#address-cells = <1>;
-			#size-cells = <1>;
-
-			partition@0 {
-				label = "rootfs";
-				reg = <0x0 0x780000>;
-				read-only;
-			};
-
-			partition@780000 {
-				label = "data";
-				reg = <0x780000 0x1b0000>;
-			};
-		};
-	};
-};

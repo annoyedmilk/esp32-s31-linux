@@ -1,7 +1,7 @@
 #!/bin/sh
 # SPDX-License-Identifier: MIT
 # Make br2-external/configs/<board>_defconfig from the common fragment, the
-# flash root fragment of a board without a card, and the fragment of the
+# fragment of the root (flashroot or diskroot), and the fragment of the
 # board, in br2-external/board/esp32s31/defconfig/, with merge_config.sh of
 # Buildroot.  A setting must be in one fragment only.
 # With --check, change nothing, and fail when a defconfig differs from its
@@ -21,8 +21,8 @@ status=0
 
 for board in korvo1 esp32s31 coreboard1; do
 	case $board in
-	korvo1) fragments="common $board" ;;
-	*) fragments="common flashroot $board" ;;
+	esp32s31) fragments="common flashroot $board" ;;
+	*) fragments="common diskroot $board" ;;
 	esac
 	CONFIG_=BR2_ external/buildroot/support/kconfig/merge_config.sh -m -O "$tmp" \
 		$(for f in $fragments; do echo "$frag/$f.fragment"; done) >"$tmp/log" 2>&1 ||

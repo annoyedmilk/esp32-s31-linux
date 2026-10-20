@@ -9,8 +9,8 @@
 # Needs: ESP-IDF at $IDF_PATH (the commit in bootloader/esp-idf.version and
 # the patch commit of scripts/patch-esp-idf.sh), with its tools installed,
 # and the Buildroot host packages.
-# Output: build/BOARD/ with the flash images, and for korvo1
-# build/korvo1/buildroot/sdcard.img.
+# Output: build/BOARD/ with the flash images, and for korvo1 and coreboard1
+# build/BOARD/buildroot/sdcard.img.
 set -eu
 
 cd "$(dirname "$0")/.."

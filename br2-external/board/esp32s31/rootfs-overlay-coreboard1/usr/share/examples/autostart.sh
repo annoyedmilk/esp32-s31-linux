@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-# Example for /root/autostart.sh.  The board runs that file at each boot,
+# Example for /mnt/usb/autostart.sh.  The board runs that file at each boot,
 # as root.  Its output is in /tmp/autostart.log.
 
 # A dim green LED shows that the boot is complete.

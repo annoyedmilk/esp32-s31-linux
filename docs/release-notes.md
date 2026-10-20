@@ -8,7 +8,8 @@ alone with UART only.
 | --- | --- |
 | `esp32s31-linux-*-korvo1-flash.zip` | Korvo-1 flash images. `flash.bin` goes to offset 0. `FLASH.txt` tells how. |
 | `esp32s31-linux-*-korvo1-sdcard.img.xz` | Korvo-1 microSD card image: FAT for your files, the ext4 root and swap. |
-| `esp32s31-linux-*-coreboard1-flash.zip` | Function-CoreBoard-1 flash images. The full system is in the flash. |
+| `esp32s31-linux-*-coreboard1-flash.zip` | Function-CoreBoard-1 flash images. `flash.bin` goes to offset 0. |
+| `esp32s31-linux-*-coreboard1-usb.img.xz` | Function-CoreBoard-1 USB stick image: FAT for your files, the ext4 root and swap. |
 | `esp32s31-linux-*-esp32s31-flash.zip` | Flash images for the module alone. The full system is in the flash. |
 | `SHA256SUMS` | Checksums of the files. |
 
@@ -17,9 +18,9 @@ alone with UART only.
 1. `pip install "esptool==5.5.0"` (the tested version)
 2. Connect the UART port of the board (the UART Type-C port on the Korvo-1).
 3. `esptool --chip esp32s31 -p PORT -b 921600 write-flash 0x0 flash.bin`
-4. Korvo-1 only: write the card image to a microSD card (all data on the
-   card is lost), for example with balenaEtcher. Put the card into the
-   board.
+4. Korvo-1 and Function-CoreBoard-1: write the disk image to a microSD
+   card (Korvo-1) or a USB stick (Function-CoreBoard-1), for example with
+   balenaEtcher. All data on it is lost. Put it into the board.
 5. Open the console on the same port at 115200 baud, and push the reset
    button. The board logs in as root.
 6. Wi-Fi: `wpa_passphrase "<ssid>" "<passphrase>" >> /etc/wpa_supplicant.conf`,
@@ -31,11 +32,12 @@ login. A USB keyboard works on it.
 
 ## New in v0.6.0
 
-- A third build, `coreboard1`, for the ESP32-S31-Function-CoreBoard-1: the
-  flash root of the module alone, with Gigabit Ethernet (`eth0`, DHCP at
-  boot), USB host and the RGB LED. Linux sets up the Ethernet pins, clocks
-  and reset itself. The MAC address comes from the eFuse, by the ESP-IDF
-  rule.
+- A third build, `coreboard1`, for the ESP32-S31-Function-CoreBoard-1. Its
+  root is on a USB stick, with the same layout and the same tools as the
+  card of the Korvo-1 (without the LCD tools). It has Gigabit Ethernet
+  (`eth0`, DHCP at boot) and the RGB LED. Linux sets up the Ethernet pins,
+  clocks and reset itself. The MAC address comes from the eFuse, by the
+  ESP-IDF rule.
 - `make` builds the module alone (`esp32s31`) when `BOARD` is not given.
   Use `BOARD=korvo1` for the Korvo-1.
 - A pin controller replaces the GPIO driver. The device tree selects the
@@ -45,9 +47,8 @@ login. A USB keyboard works on it.
 - Clock and reset controllers for the peripherals that Linux owns.
 - An I2C driver. On the Korvo-1, the GT1151 touch controller of the LCD is
   an input device: `touch.sh` in the examples prints the touches.
-- A FAT USB stick goes on `/mnt/usb` on the Korvo-1 and the
-  Function-CoreBoard-1, also when you connect it after the boot. It is
-  optional space for data, never the root.
+- On the Korvo-1, a FAT USB stick goes on `/mnt/usb`, also when you
+  connect it after the boot. It is optional space for data.
 - Each build has its own examples in `/usr/share/examples`: a web page, an
   `autostart.sh`, and a script for the LED. The web page has no password:
   start it only on a network that you trust.
@@ -58,8 +59,8 @@ The partition tables of the esp32s31 and korvo1 builds did not change:
 flash the new `flash.bin`. On the esp32s31 build, the overlay on `data`
 stays. On the Korvo-1, a v0.5.0 card works, but the new scripts and
 examples are only in the new root: write it with `make sdroot`, or write
-the new card image. The coreboard1 build is new: its first boot finds no
-UBI on `data`, erases it and formats it.
+the new card image. The coreboard1 build is new: flash `flash.bin`, and
+write the USB image to a stick.
 
 ## New in v0.5.0
 

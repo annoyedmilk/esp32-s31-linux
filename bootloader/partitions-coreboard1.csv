@@ -1,11 +1,8 @@
-# ESP32-S31-Function-CoreBoard-1: partitions-esp32s31.csv, with a 4.75 MiB
-# "linux" for USB and Ethernet, and a "data" that is 0.75 MiB smaller.
-# esp32s31_coreboard1.dts has the same layout.
+# ESP32-S31-Function-CoreBoard-1: the root is on a USB stick, so the layout
+# is that of partitions-korvo1.csv, without "rootfs" and "data".
 # Name,   Type, SubType, Offset,   Size,      Flags
-nvs,      data, nvs,     0x9000,   0x6000,
-phy_init, data, phy,     0xF000,   0x1000,
-opensbi,  data, 0x40,    0x10000,  0x40000,
-factory,  app,  factory, 0x50000,  0x1C0000,
-linux,    data, 0x40,    0x210000, 0x4C0000,
-rootfs,   data, 0x40,    0x6D0000, 0x780000,
-data,     data, 0x40,    0xE50000, 0x1B0000,
+nvs,      data, nvs,     0x11000,  0x6000,
+phy_init, data, phy,     0x19000,  0x1000,
+factory,  app,  factory, 0x20000,  0x200000,
+opensbi,  data, 0x40,    0x220000, 0x80000,
+linux,    data, 0x40,    0x2A0000, 0x780000,

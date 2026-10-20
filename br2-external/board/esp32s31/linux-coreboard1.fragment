@@ -1,19 +1,19 @@
-# ESP32-S31-Function-CoreBoard-1: after linux-esp32s31.fragment.  linux.config
-# keeps the drivers under these menus, so only the menus are turned on again.
+# ESP32-S31-Function-CoreBoard-1: linux.config with the root on a USB stick,
+# without the panel, the card and the touch controller of the Korvo-1, and
+# with Ethernet.  Buildroot merges this fragment into linux.config for
+# coreboard1_defconfig.
 CONFIG_BUILTIN_DTB_NAME="espressif/esp32s31_coreboard1"
+# The UART is the only console.  The root is p2 of the USB stick: rootwait
+# waits for usb-storage, which scans a new stick after 1 s.
+CONFIG_CMDLINE="earlycon=sbi console=ttyS0,115200 loglevel=5 esp32_shm.radio_service=bt root=/dev/sda2 rootfstype=ext4 rootwait rootflags=errors=remount-ro rw"
 
-# USB host: keyboards and mice (evdev, hidraw) and mass storage with FAT.
-CONFIG_INPUT=y
+# No panel, VTs, touch controller or card.
+# CONFIG_FB is not set
+# CONFIG_VT is not set
 # CONFIG_INPUT_TOUCHSCREEN is not set
-CONFIG_HID=y
-CONFIG_USB_SUPPORT=y
-CONFIG_PHY_ESP32S31_USB=y
-CONFIG_SCSI=y
-CONFIG_VFAT_FS=y
-CONFIG_UEVENT_HELPER=y
-
-# WS2812 RGB LED on GPIO60.
-CONFIG_NEW_LEDS=y
+# CONFIG_MMC is not set
+# The stick is the root, and no script waits for a second one.
+# CONFIG_UEVENT_HELPER is not set
 
 # Gigabit Ethernet: the GMAC of the SoC with stmmac, and the Motorcomm
 # YT8531 PHY.  stmmac needs the ethtool netlink interface.  No PTP clock, so

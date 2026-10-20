@@ -1,0 +1,43 @@
+# The root on a disk, for the boards with one: the microSD card of korvo1
+# and the USB stick of coreboard1.  The disk has room, so these builds have
+# the full set of workstation and debugging tools.
+#
+# gdbserver needs the C++ runtime.  The full debugger stays in the container.
+BR2_TOOLCHAIN_BUILDROOT_CXX=y
+BR2_PACKAGE_HOST_GDB=y
+BR2_TARGET_ROOTFS_EXT2=y
+BR2_TARGET_ROOTFS_EXT2_4=y
+BR2_TARGET_ROOTFS_EXT2_SIZE="512M"
+BR2_PACKAGE_HOST_GENIMAGE=y
+
+# The root is on a removable disk, and a clean shutdown is not certain.
+BR2_PACKAGE_E2FSPROGS=y
+# fsck.fat clears the dirty flag of p1 after a reset.  S10sdcard runs it
+# when the cluster count of p1 fits in the free memory.
+BR2_PACKAGE_DOSFSTOOLS=y
+BR2_PACKAGE_DOSFSTOOLS_FSCK_FAT=y
+# Dropbear has no SFTP server.  scp of OpenSSH 9 and sftp need one.
+BR2_PACKAGE_GESFTPSERVER=y
+BR2_PACKAGE_BASH=y
+BR2_PACKAGE_COREUTILS=y
+BR2_PACKAGE_VIM=y
+BR2_PACKAGE_LESS=y
+BR2_PACKAGE_FILE=y
+BR2_PACKAGE_HTOP=y
+BR2_PACKAGE_FASTFETCH=y
+# Buildroot and strace 7.1 do not support RV32, so br2-external has a port.
+BR2_PACKAGE_STRACE_RV32=y
+BR2_PACKAGE_GDB=y
+BR2_PACKAGE_GDB_SERVER=y
+# BR2_PACKAGE_GDB_DEBUGGER is not set
+BR2_PACKAGE_TCPDUMP=y
+# Links needs OpenSSL and the CA certificates for HTTPS after the board
+# clock is set.
+BR2_PACKAGE_LINKS=y
+BR2_PACKAGE_LUA=y
+BR2_PACKAGE_MICROPYTHON=y
+# An access point with all features, next to the AP mode of wpa_supplicant.
+BR2_PACKAGE_HOSTAPD=y
+# The BlueZ tools and the deprecated ones (hciconfig, hcitool, hcidump).
+BR2_PACKAGE_BLUEZ5_UTILS_TOOLS=y
+BR2_PACKAGE_BLUEZ5_UTILS_DEPRECATED=y
