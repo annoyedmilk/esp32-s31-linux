@@ -1,0 +1,56 @@
+From: Marco Müller <hello@annoyedmilk.ch>
+Subject: [PATCH] net: stmmac: select devlink only with PTP
+
+stmmac registers devlink only for its "phc_coarse_adj" parameter, and
+only when the MAC has a PTP clock.  Without PTP_1588_CLOCK it never
+registers it, but the select still builds all of devlink into the
+kernel: 183 KB on riscv32, on an SoC with 16 MiB of memory and the
+kernel in a 4.75 MiB flash partition.
+
+Select NET_DEVLINK only with PTP_1588_CLOCK, and use empty stubs when
+devlink is not built.
+
+Signed-off-by: Marco Müller <hello@annoyedmilk.ch>
+---
+diff --git a/drivers/net/ethernet/stmicro/stmmac/Kconfig b/drivers/net/ethernet/stmicro/stmmac/Kconfig
+--- a/drivers/net/ethernet/stmicro/stmmac/Kconfig
++++ b/drivers/net/ethernet/stmicro/stmmac/Kconfig
+@@ -10,7 +10,7 @@
+ 	select PHYLINK
+ 	select CRC32
+ 	select RESET_CONTROLLER
+-	select NET_DEVLINK
++	select NET_DEVLINK if PTP_1588_CLOCK
+ 	help
+ 	  This is the driver for the Ethernet IPs built around a
+ 	  Synopsys IP Core.
+diff --git a/drivers/net/ethernet/stmicro/stmmac/stmmac_main.c b/drivers/net/ethernet/stmicro/stmmac/stmmac_main.c
+--- a/drivers/net/ethernet/stmicro/stmmac/stmmac_main.c
++++ b/drivers/net/ethernet/stmicro/stmmac/stmmac_main.c
+@@ -7701,6 +7701,7 @@
+ 	.xmo_rx_timestamp		= stmmac_xdp_rx_timestamp,
+ };
+ 
++#if IS_ENABLED(CONFIG_NET_DEVLINK)
+ static int stmmac_dl_ts_coarse_set(struct devlink *dl, u32 id,
+ 				   struct devlink_param_gset_ctx *ctx,
+ 				   struct netlink_ext_ack *extack)
+@@ -7789,8 +7790,18 @@
+ 	devlink_params_unregister(priv->devlink, stmmac_devlink_params,
+ 				  ARRAY_SIZE(stmmac_devlink_params));
+ 	devlink_free(priv->devlink);
++}
++#else
++static int stmmac_register_devlink(struct stmmac_priv *priv)
++{
++	return 0;
+ }
+ 
++static void stmmac_unregister_devlink(struct stmmac_priv *priv)
++{
++}
++#endif
++
+ struct plat_stmmacenet_data *stmmac_plat_dat_alloc(struct device *dev)
+ {
+ 	struct plat_stmmacenet_data *plat_dat;
