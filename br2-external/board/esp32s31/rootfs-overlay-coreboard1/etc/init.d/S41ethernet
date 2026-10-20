@@ -1,7 +1,8 @@
 #!/bin/sh
 # SPDX-License-Identifier: MIT
-# Start a DHCP client on eth0, on a board with Ethernet.  udhcpc goes to the
-# background at once and keeps trying, so the boot does not wait for a cable.
+# Start a DHCP client on eth0 of the Function-CoreBoard-1.  udhcpc goes to
+# the background at once and keeps trying, so the boot does not wait for a
+# cable.
 # stmmac allocates its rings when the interface goes up.  Its default RX ring
 # of 512 pages would take 2 MiB of the 16 MiB, so make the rings smaller first.
 

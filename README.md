@@ -309,8 +309,8 @@ and the overlay of each board:
 - `S40wifi` starts `wpa_supplicant` on `wlan0` in the background, so that
   the console does not wait for it. `S40wifi restart` waits. `S40bluetoothd`
   starts BlueZ for `hci0`.
-- `S41ethernet` makes the stmmac rings smaller, then starts DHCP on `eth0`
-  in the background, on a board with Ethernet.
+- `S41ethernet` (Function-CoreBoard-1) makes the stmmac rings smaller, then
+  starts DHCP on `eth0` in the background.
 - The udhcpc hook sets the clock with NTP on each new lease.
 - `S95autostart` runs `autostart.sh` on p1 of the disk, or
   `/root/autostart.sh` when the disk has none.
