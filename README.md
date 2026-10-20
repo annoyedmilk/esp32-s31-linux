@@ -472,10 +472,10 @@ takes all offsets from them.
 - WPA2/WPA3 Enterprise is not tested.
 - The access point mode is tested up to the started access point. No
   client has connected to it.
-- `hcitool lescan` fails with "Set scan parameters failed". The controller
-  is Bluetooth 6.0, and after the kernel used the extended scan commands,
-  it rejects the legacy ones that `hcitool` sends (Command Disallowed). Use
-  `bluetoothctl` and `scan le`.
+- `hcitool lescan` fails with "Set scan parameters failed". The kernel uses
+  the extended scan commands of the controller (Bluetooth 5.0 and later).
+  After that, the controller rejects the legacy ones that `hcitool` sends
+  (Command Disallowed). Use `bluetoothctl` and `scan le`.
 
 ## License
 
