@@ -66,8 +66,6 @@
 
 #define ESP32S31_NPINS			62
 #define ESP32S31_NSIGS			256
-/* These pins have no package pin, so never give them to a consumer. */
-#define ESP32S31_GPIO_RESERVED		(BIT_ULL(29) | BIT_ULL(41))
 
 /* FUN_DRV 0 to 3 */
 static const u32 esp32s31_drive_ma[] = { 5, 10, 20, 40 };
@@ -397,19 +395,6 @@ static int esp32s31_gpio_set_config(struct gpio_chip *chip, unsigned int offset,
 	return esp32s31_config_one(pctrl, offset, config);
 }
 
-static int esp32s31_gpio_init_valid_mask(struct gpio_chip *chip,
-					 unsigned long *valid_mask,
-					 unsigned int ngpios)
-{
-	unsigned int offset;
-
-	for (offset = 0; offset < ngpios; offset++)
-		if (ESP32S31_GPIO_RESERVED & BIT_ULL(offset))
-			clear_bit(offset, valid_mask);
-
-	return 0;
-}
-
 static int esp32s31_pins_init(struct device *dev, struct pinctrl_desc *desc)
 {
 	struct pinctrl_pin_desc *pins;
@@ -485,7 +470,6 @@ static int esp32s31_pinctrl_probe(struct platform_device *pdev)
 	chip->direction_input = esp32s31_gpio_direction_input;
 	chip->direction_output = esp32s31_gpio_direction_output;
 	chip->set_config = esp32s31_gpio_set_config;
-	chip->init_valid_mask = esp32s31_gpio_init_valid_mask;
 
 	return devm_gpiochip_add_data(dev, chip, pctrl);
 }

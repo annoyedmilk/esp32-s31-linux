@@ -62,3 +62,12 @@
 
 /* WS2812 RGB LED on GPIO37. */
 &rgb_led { status = "okay"; };
+
+/*
+ * The loader drives the LCD (GPIO8-19, 33-36, 38, 40, 43-45), the card power
+ * and its pins (GPIO20-25, 39) and the LED (GPIO37).  With the flash, GPIO41
+ * and UART0, Linux must not use them as GPIOs.
+ */
+&pinctrl {
+	gpio-reserved-ranges = <8 33>, <41 1>, <43 3>, <58 2>;
+};

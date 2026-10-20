@@ -39,6 +39,11 @@ properties:
   gpio-ranges:
     maxItems: 1
 
+  gpio-reserved-ranges:
+    description:
+      The pins of the flash, of the firmware on the other hart and of the
+      loader, which the operating system must not use as GPIOs.
+
 patternProperties:
   '-cfg$':
     type: object
@@ -105,6 +110,7 @@ examples:
         gpio-controller;
         #gpio-cells = <2>;
         gpio-ranges = <&pinctrl 0 0 62>;
+        gpio-reserved-ranges = <26 9>, <41 1>, <58 2>;
 
         i2c0_cfg: i2c0-cfg {
             i2c0-pins {

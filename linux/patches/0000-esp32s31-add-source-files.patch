@@ -609,7 +609,7 @@ diff --git a/Documentation/devicetree/bindings/pinctrl/esp,esp32s31-pinctrl.yaml
 new file mode 100644
 --- /dev/null
 +++ b/Documentation/devicetree/bindings/pinctrl/esp,esp32s31-pinctrl.yaml
-@@ -0,0 +1,126 @@
+@@ -0,0 +1,132 @@
 +# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
 +%YAML 1.2
 +---
@@ -650,6 +650,11 @@ new file mode 100644
 +
 +  gpio-ranges:
 +    maxItems: 1
++
++  gpio-reserved-ranges:
++    description:
++      The pins of the flash, of the firmware on the other hart and of the
++      loader, which the operating system must not use as GPIOs.
 +
 +patternProperties:
 +  '-cfg$':
@@ -717,6 +722,7 @@ new file mode 100644
 +        gpio-controller;
 +        #gpio-cells = <2>;
 +        gpio-ranges = <&pinctrl 0 0 62>;
++        gpio-reserved-ranges = <26 9>, <41 1>, <58 2>;
 +
 +        i2c0_cfg: i2c0-cfg {
 +            i2c0-pins {
@@ -845,7 +851,7 @@ diff --git a/arch/riscv/boot/dts/espressif/esp32s31.dtsi b/arch/riscv/boot/dts/e
 new file mode 100644
 --- /dev/null
 +++ b/arch/riscv/boot/dts/espressif/esp32s31.dtsi
-@@ -0,0 +1,299 @@
+@@ -0,0 +1,307 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * Espressif ESP32-S31 minimal device tree.
@@ -1018,6 +1024,14 @@ new file mode 100644
 +			gpio-controller;
 +			#gpio-cells = <2>;
 +			gpio-ranges = <&pinctrl 0 0 62>;
++			/*
++			 * Pins that Linux must not use: the flash (GPIO26-32),
++			 * the USB Serial/JTAG of hart 0 (GPIO33/34), GPIO41,
++			 * which has no package pin, and the UART0 console.
++			 * A board with other pins of the firmware or the loader
++			 * replaces this list.
++			 */
++			gpio-reserved-ranges = <26 9>, <41 1>, <58 2>;
 +		};
 +
 +		clic: interrupt-controller@10a00000 {
@@ -1149,7 +1163,7 @@ diff --git a/arch/riscv/boot/dts/espressif/esp32s31_coreboard1.dts b/arch/riscv/
 new file mode 100644
 --- /dev/null
 +++ b/arch/riscv/boot/dts/espressif/esp32s31_coreboard1.dts
-@@ -0,0 +1,121 @@
+@@ -0,0 +1,124 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * ESP32-S31-Function-CoreBoard-1, with the ESP32-S31-WROOM-3-N16R16V module:
@@ -1176,6 +1190,9 @@ new file mode 100644
 +};
 +
 +&pinctrl {
++	/* The pins of the SoC list, and the LED of the loader (GPIO60) */
++	gpio-reserved-ranges = <26 9>, <41 1>, <58 2>, <60 1>;
++
 +	/* The RGMII pins of the IO MUX, function 2 */
 +	rgmii_cfg: rgmii-cfg {
 +		rgmii-tx-pins {
@@ -1275,7 +1292,7 @@ diff --git a/arch/riscv/boot/dts/espressif/esp32s31_korvo1.dts b/arch/riscv/boot
 new file mode 100644
 --- /dev/null
 +++ b/arch/riscv/boot/dts/espressif/esp32s31_korvo1.dts
-@@ -0,0 +1,64 @@
+@@ -0,0 +1,73 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * ESP32-S31-Korvo-1: 800x480 RGB panel, microSD slot, USB 2.0 host port
@@ -1340,6 +1357,15 @@ new file mode 100644
 +
 +/* WS2812 RGB LED on GPIO37. */
 +&rgb_led { status = "okay"; };
++
++/*
++ * The loader drives the LCD (GPIO8-19, 33-36, 38, 40, 43-45), the card power
++ * and its pins (GPIO20-25, 39) and the LED (GPIO37).  With the flash, GPIO41
++ * and UART0, Linux must not use them as GPIOs.
++ */
++&pinctrl {
++	gpio-reserved-ranges = <8 33>, <41 1>, <43 3>, <58 2>;
++};
 diff --git a/arch/riscv/include/asm/esp32s31-cache.h b/arch/riscv/include/asm/esp32s31-cache.h
 new file mode 100644
 --- /dev/null
@@ -4418,7 +4444,7 @@ diff --git a/drivers/pinctrl/pinctrl-esp32s31.c b/drivers/pinctrl/pinctrl-esp32s
 new file mode 100644
 --- /dev/null
 +++ b/drivers/pinctrl/pinctrl-esp32s31.c
-@@ -0,0 +1,506 @@
+@@ -0,0 +1,490 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * Author: Marco Mueller <hello@annoyedmilk.ch>
@@ -4487,8 +4513,6 @@ new file mode 100644
 +
 +#define ESP32S31_NPINS			62
 +#define ESP32S31_NSIGS			256
-+/* These pins have no package pin, so never give them to a consumer. */
-+#define ESP32S31_GPIO_RESERVED		(BIT_ULL(29) | BIT_ULL(41))
 +
 +/* FUN_DRV 0 to 3 */
 +static const u32 esp32s31_drive_ma[] = { 5, 10, 20, 40 };
@@ -4818,19 +4842,6 @@ new file mode 100644
 +	return esp32s31_config_one(pctrl, offset, config);
 +}
 +
-+static int esp32s31_gpio_init_valid_mask(struct gpio_chip *chip,
-+					 unsigned long *valid_mask,
-+					 unsigned int ngpios)
-+{
-+	unsigned int offset;
-+
-+	for (offset = 0; offset < ngpios; offset++)
-+		if (ESP32S31_GPIO_RESERVED & BIT_ULL(offset))
-+			clear_bit(offset, valid_mask);
-+
-+	return 0;
-+}
-+
 +static int esp32s31_pins_init(struct device *dev, struct pinctrl_desc *desc)
 +{
 +	struct pinctrl_pin_desc *pins;
@@ -4906,7 +4917,6 @@ new file mode 100644
 +	chip->direction_input = esp32s31_gpio_direction_input;
 +	chip->direction_output = esp32s31_gpio_direction_output;
 +	chip->set_config = esp32s31_gpio_set_config;
-+	chip->init_valid_mask = esp32s31_gpio_init_valid_mask;
 +
 +	return devm_gpiochip_add_data(dev, chip, pctrl);
 +}
