@@ -1,4 +1,3 @@
-
 # ESP32-S31-Korvo-1, with the ESP32-S31-WROOM-3-N16R16V module: root on the
 # microSD card.  The card has room, so this build has the full set of
 # workstation and debugging tools.

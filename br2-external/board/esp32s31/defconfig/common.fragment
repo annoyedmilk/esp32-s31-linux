@@ -1,5 +1,5 @@
-# The common base of the two builds: toolchain, kernel, system, and the
-# userspace that both have.  scripts/mkdefconfigs.sh merges it with the
+# The common base of the three builds: toolchain, kernel, system, and the
+# userspace that all three have.  scripts/mkdefconfigs.sh merges it with the
 # fragment of each board into br2-external/configs/<board>_defconfig.
 #
 # RV32 IMAC with Zba, Zbb and Zbs, Sv32, soft-float ilp32.  The hart has F
