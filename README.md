@@ -100,7 +100,9 @@ On the Korvo-1 also:
 On the Function-CoreBoard-1 also:
 
 - Gigabit Ethernet as `eth0` (stmmac), with DHCP at boot.
-- USB host (DWC2): keyboards, mice, `hidraw` and mass storage with FAT.
+- USB host (DWC2): keyboards, mice, `hidraw` and mass storage. A USB stick
+  is optional space for data: its FAT is on `/mnt/usb`, also when you
+  connect the stick after the boot.
 - The RGB LED as `/sys/class/leds/rgb:status`.
 
 ## Tested hardware
