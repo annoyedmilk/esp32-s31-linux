@@ -278,11 +278,6 @@
 			status = "disabled";
 		};
 
-		/*
-		 * The RX FIFO has only 256 bytes, so the DMA uses thresholds.  A
-		 * burst of more than 16 beats to PSRAM stops hart 0 with an
-		 * MSPI error, so the PBL must not be multiplied by 8.
-		 */
 		i2c0: i2c@20385000 {
 			compatible = "esp,esp32s31-i2c";
 			reg = <0x20385000 0x1000>;
@@ -311,6 +306,11 @@
 			status = "disabled";
 		};
 
+		/*
+		 * The RX FIFO has only 256 bytes, so the DMA uses thresholds.  A
+		 * burst of more than 16 beats to PSRAM stops hart 0 with an
+		 * MSPI error, so the PBL must not be multiplied by 8.
+		 */
 		emac: ethernet@20350000 {
 			compatible = "esp,esp32s31-dwmac", "snps,dwmac-3.70a";
 			reg = <0x20350000 0x4000>;
@@ -331,6 +331,5 @@
 			snps,force_thresh_dma_mode;
 			status = "disabled";
 		};
-
 	};
 };

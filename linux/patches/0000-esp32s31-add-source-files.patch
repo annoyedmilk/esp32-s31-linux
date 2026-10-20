@@ -931,7 +931,7 @@ diff --git a/arch/riscv/boot/dts/espressif/esp32s31.dtsi b/arch/riscv/boot/dts/e
 new file mode 100644
 --- /dev/null
 +++ b/arch/riscv/boot/dts/espressif/esp32s31.dtsi
-@@ -0,0 +1,336 @@
+@@ -0,0 +1,335 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * Espressif ESP32-S31 minimal device tree.
@@ -1212,11 +1212,6 @@ new file mode 100644
 +			status = "disabled";
 +		};
 +
-+		/*
-+		 * The RX FIFO has only 256 bytes, so the DMA uses thresholds.  A
-+		 * burst of more than 16 beats to PSRAM stops hart 0 with an
-+		 * MSPI error, so the PBL must not be multiplied by 8.
-+		 */
 +		i2c0: i2c@20385000 {
 +			compatible = "esp,esp32s31-i2c";
 +			reg = <0x20385000 0x1000>;
@@ -1245,6 +1240,11 @@ new file mode 100644
 +			status = "disabled";
 +		};
 +
++		/*
++		 * The RX FIFO has only 256 bytes, so the DMA uses thresholds.  A
++		 * burst of more than 16 beats to PSRAM stops hart 0 with an
++		 * MSPI error, so the PBL must not be multiplied by 8.
++		 */
 +		emac: ethernet@20350000 {
 +			compatible = "esp,esp32s31-dwmac", "snps,dwmac-3.70a";
 +			reg = <0x20350000 0x4000>;
@@ -1265,7 +1265,6 @@ new file mode 100644
 +			snps,force_thresh_dma_mode;
 +			status = "disabled";
 +		};
-+
 +	};
 +};
 diff --git a/arch/riscv/boot/dts/espressif/esp32s31_coreboard1.dts b/arch/riscv/boot/dts/espressif/esp32s31_coreboard1.dts
