@@ -135,6 +135,7 @@
 			clocks = <&xtal>, <&cpll>;
 			clock-names = "xtal", "cpll";
 			#clock-cells = <1>;
+			#reset-cells = <1>;
 		};
 
 		lp_clkrst: clock-controller@20701000 {

@@ -15,7 +15,8 @@ description: |
   - LP_AONCLKRST makes the MPLL. The firmware sets it for the PSRAM, so the
     operating system only reads its rate.
   - HP_SYS_CLKRST makes the CPU, SYS and APB clocks, which the firmware
-    sets, and has a clock gate for each peripheral.
+    sets, and has the clocks and the reset of each peripheral, for example
+    I2C.
   - CNNT_SYS makes the EMAC TX clock, has the EMAC reset, and has the EMAC
     interface registers, which the EMAC gets as a syscon.
 
@@ -80,7 +81,8 @@ allOf:
           items:
             - const: xtal
             - const: cpll
-        "#reset-cells": false
+      required:
+        - "#reset-cells"
   - if:
       properties:
         compatible:
