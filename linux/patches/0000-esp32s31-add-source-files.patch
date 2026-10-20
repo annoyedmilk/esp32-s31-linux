@@ -57,6 +57,133 @@ new file mode 100644
 +        cache-line-size = <64>;
 +        cache-level = <1>;
 +    };
+diff --git a/Documentation/devicetree/bindings/clock/esp,esp32s31-clkrst.yaml b/Documentation/devicetree/bindings/clock/esp,esp32s31-clkrst.yaml
+new file mode 100644
+--- /dev/null
++++ b/Documentation/devicetree/bindings/clock/esp,esp32s31-clkrst.yaml
+@@ -0,0 +1,122 @@
++# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
++%YAML 1.2
++---
++$id: http://devicetree.org/schemas/clock/esp,esp32s31-clkrst.yaml#
++$schema: http://devicetree.org/meta-schemas/core.yaml#
++
++title: Espressif ESP32-S31 clock and reset controllers
++
++maintainers:
++  - Marco Mueller <hello@annoyedmilk.ch>
++
++description: |
++  Three blocks have clocks and resets for the operating system:
++
++  - LP_AONCLKRST makes the MPLL. The firmware sets it for the PSRAM, so the
++    operating system only reads its rate.
++  - HP_SYS_CLKRST makes the CPU, SYS and APB clocks, which the firmware
++    sets, and has a clock gate for each peripheral.
++  - CNNT_SYS makes the EMAC TX clock, has the EMAC reset, and has the EMAC
++    interface registers, which the EMAC gets as a syscon.
++
++  The clock and reset numbers are in dt-bindings/clock/esp32s31-clk.h.
++
++properties:
++  compatible:
++    enum:
++      - esp,esp32s31-lp-clkrst
++      - esp,esp32s31-hp-clkrst
++      - esp,esp32s31-cnnt-sys
++
++  reg:
++    maxItems: 1
++
++  clocks:
++    minItems: 1
++    maxItems: 2
++
++  clock-names:
++    minItems: 1
++    maxItems: 2
++
++  "#clock-cells":
++    const: 1
++
++  "#reset-cells":
++    const: 1
++
++required:
++  - compatible
++  - reg
++  - clocks
++  - clock-names
++  - "#clock-cells"
++
++allOf:
++  - if:
++      properties:
++        compatible:
++          const: esp,esp32s31-lp-clkrst
++    then:
++      properties:
++        clocks:
++          items:
++            - description: 40 MHz crystal
++        clock-names:
++          items:
++            - const: xtal
++        "#reset-cells": false
++  - if:
++      properties:
++        compatible:
++          const: esp,esp32s31-hp-clkrst
++    then:
++      properties:
++        clocks:
++          items:
++            - description: 40 MHz crystal
++            - description: CPLL, 320 MHz
++        clock-names:
++          items:
++            - const: xtal
++            - const: cpll
++        "#reset-cells": false
++  - if:
++      properties:
++        compatible:
++          const: esp,esp32s31-cnnt-sys
++    then:
++      properties:
++        clocks:
++          items:
++            - description: MPLL
++            - description: CPLL, 320 MHz
++        clock-names:
++          items:
++            - const: mpll
++            - const: cpll
++      required:
++        - "#reset-cells"
++
++additionalProperties: false
++
++examples:
++  - |
++    #include <dt-bindings/clock/esp32s31-clk.h>
++
++    lp_clkrst: clock-controller@20701000 {
++        compatible = "esp,esp32s31-lp-clkrst";
++        reg = <0x20701000 0x1000>;
++        clocks = <&xtal>;
++        clock-names = "xtal";
++        #clock-cells = <1>;
++    };
++
++    clock-controller@20359000 {
++        compatible = "esp,esp32s31-cnnt-sys";
++        reg = <0x20359000 0x1000>;
++        clocks = <&lp_clkrst ESP32S31_LP_CLK_MPLL>, <&cpll>;
++        clock-names = "mpll", "cpll";
++        #clock-cells = <1>;
++        #reset-cells = <1>;
++    };
 diff --git a/Documentation/devicetree/bindings/interrupt-controller/esp,esp32s31-clic.yaml b/Documentation/devicetree/bindings/interrupt-controller/esp,esp32s31-clic.yaml
 new file mode 100644
 --- /dev/null
@@ -177,10 +304,10 @@ new file mode 100644
 +            function = LED_FUNCTION_STATUS;
 +        };
 +    };
-diff --git a/Documentation/devicetree/bindings/net/esp,esp32s31-gmac.yaml b/Documentation/devicetree/bindings/net/esp,esp32s31-gmac.yaml
+diff --git a/Documentation/devicetree/bindings/net/esp,esp32s31-dwmac.yaml b/Documentation/devicetree/bindings/net/esp,esp32s31-dwmac.yaml
 new file mode 100644
 --- /dev/null
-+++ b/Documentation/devicetree/bindings/net/esp,esp32s31-gmac.yaml
++++ b/Documentation/devicetree/bindings/net/esp,esp32s31-dwmac.yaml
 @@ -0,0 +1,95 @@
 +# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
 +%YAML 1.2
@@ -648,13 +775,14 @@ diff --git a/arch/riscv/boot/dts/espressif/esp32s31.dtsi b/arch/riscv/boot/dts/e
 new file mode 100644
 --- /dev/null
 +++ b/arch/riscv/boot/dts/espressif/esp32s31.dtsi
-@@ -0,0 +1,258 @@
+@@ -0,0 +1,291 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * Espressif ESP32-S31 minimal device tree.
 + * Author: Marco Müller <hello@annoyedmilk.ch>
 + */
 +
++#include <dt-bindings/clock/esp32s31-clk.h>
 +#include <dt-bindings/interrupt-controller/irq.h>
 +#include <dt-bindings/leds/common.h>
 +#include <dt-bindings/pinctrl/esp32s31-pinctrl.h>
@@ -731,6 +859,13 @@ new file mode 100644
 +		clock-frequency = <40000000>;
 +	};
 +
++	/* The hardware sets the CPLL to 320 MHz. */
++	cpll: cpll-clock {
++		compatible = "fixed-clock";
++		#clock-cells = <0>;
++		clock-frequency = <320000000>;
++	};
++
 +	/* The PHY driver switches the 12 MHz USB reference clock on and off. */
 +	usb_ref_clk: usb-ref-clock {
 +		compatible = "fixed-clock";
@@ -775,6 +910,31 @@ new file mode 100644
 +			reg = <0x2c000000 0x1000>;
 +			cache-line-size = <64>;
 +			cache-level = <1>;
++		};
++
++		cnnt_sys: clock-controller@20359000 {
++			compatible = "esp,esp32s31-cnnt-sys";
++			reg = <0x20359000 0x1000>;
++			clocks = <&lp_clkrst ESP32S31_LP_CLK_MPLL>, <&cpll>;
++			clock-names = "mpll", "cpll";
++			#clock-cells = <1>;
++			#reset-cells = <1>;
++		};
++
++		hp_clkrst: clock-controller@20587000 {
++			compatible = "esp,esp32s31-hp-clkrst";
++			reg = <0x20587000 0x1000>;
++			clocks = <&xtal>, <&cpll>;
++			clock-names = "xtal", "cpll";
++			#clock-cells = <1>;
++		};
++
++		lp_clkrst: clock-controller@20701000 {
++			compatible = "esp,esp32s31-lp-clkrst";
++			reg = <0x20701000 0x1000>;
++			clocks = <&xtal>;
++			clock-names = "xtal";
++			#clock-cells = <1>;
 +		};
 +
 +		pinctrl: pinctrl@20582000 {
@@ -1685,6 +1845,360 @@ new file mode 100644
 +MODULE_DESCRIPTION("ESP32-S31 true random number generator");
 +MODULE_AUTHOR("Marco Müller <hello@annoyedmilk.ch>");
 +MODULE_LICENSE("GPL");
+diff --git a/drivers/clk/clk-esp32s31.c b/drivers/clk/clk-esp32s31.c
+new file mode 100644
+--- /dev/null
++++ b/drivers/clk/clk-esp32s31.c
+@@ -0,0 +1,349 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * Author: Marco Mueller <hello@annoyedmilk.ch>
++ *
++ * ESP32-S31 clock and reset controllers
++ *
++ * Three blocks have clocks for Linux.  LP_AONCLKRST has the MPLL, which the
++ * firmware sets for the PSRAM, so Linux only reads its rate.  HP_SYS_CLKRST
++ * has the CPU, SYS and APB clocks, which the firmware sets, and a gate for
++ * each peripheral.  CNNT_SYS has the EMAC TX clock and reset, and the EMAC
++ * interface registers, which the EMAC glue gets as a syscon.
++ *
++ * The firmware on hart 0 does not write these registers after it starts
++ * Linux.  The USB PHY maps single registers of HP_SYS_CLKRST and CNNT_SYS,
++ * so this driver does not request the regions.
++ */
++
++#include <linux/bitfield.h>
++#include <linux/clk-provider.h>
++#include <linux/io.h>
++#include <linux/math.h>
++#include <linux/mfd/syscon.h>
++#include <linux/mod_devicetable.h>
++#include <linux/platform_device.h>
++#include <linux/regmap.h>
++#include <linux/reset-controller.h>
++#include <linux/spinlock.h>
++
++#include <dt-bindings/clock/esp32s31-clk.h>
++
++#define LP_MSPI_DIV			0x54
++#define LP_MSPI_REF_DIV			GENMASK(2, 0)
++#define LP_MSPI_FB_DIV			GENMASK(7, 3)
++
++#define HP_SOC_CLK_SEL			0x00
++#define HP_CPU_FREQ_CTRL0		0x04
++#define HP_SYS_FREQ_CTRL0		0x0c
++#define HP_APB_FREQ_CTRL0		0x10
++#define HP_EMAC_CTRL0			0xc8
++#define HP_FREQ_DIV_NUM			GENMASK(7, 0)
++#define HP_FREQ_NUMERATOR		GENMASK(10, 8)
++#define HP_FREQ_DENOMINATOR		GENMASK(13, 11)
++
++#define CNNT_EMAC_CTRL			0x3c
++#define CNNT_EMAC_RST_EN		BIT(1)
++#define CNNT_EMAC_REF_CTRL		0x40
++#define CNNT_SIZE			0x1000
++
++struct esp32s31_clk {
++	struct device *dev;
++	void __iomem *base;
++	struct clk_hw_onecell_data *hws;
++	/* For the read-modify-write of the registers */
++	spinlock_t lock;
++	struct reset_controller_dev rcdev;
++};
++
++/* The MPLL and the root dividers are set by the firmware: read only. */
++struct esp32s31_ro_clk {
++	struct clk_hw hw;
++	void __iomem *reg;
++};
++
++#define to_ro_clk(_hw) container_of(_hw, struct esp32s31_ro_clk, hw)
++
++static unsigned long esp32s31_mpll_recalc_rate(struct clk_hw *hw,
++					       unsigned long parent_rate)
++{
++	u32 val = readl(to_ro_clk(hw)->reg);
++
++	return parent_rate * (FIELD_GET(LP_MSPI_FB_DIV, val) + 1) /
++	       (FIELD_GET(LP_MSPI_REF_DIV, val) + 1);
++}
++
++static const struct clk_ops esp32s31_mpll_ops = {
++	.recalc_rate = esp32s31_mpll_recalc_rate,
++};
++
++/* rate = parent / (div + numerator / denominator), div = DIV_NUM + 1 */
++static unsigned long esp32s31_frac_recalc_rate(struct clk_hw *hw,
++					       unsigned long parent_rate)
++{
++	u32 val = readl(to_ro_clk(hw)->reg);
++	u32 div = FIELD_GET(HP_FREQ_DIV_NUM, val) + 1;
++	u32 num = FIELD_GET(HP_FREQ_NUMERATOR, val);
++	u32 den = FIELD_GET(HP_FREQ_DENOMINATOR, val);
++
++	if (!den)
++		return parent_rate / div;
++
++	return mult_frac(parent_rate, den, div * den + num);
++}
++
++static const struct clk_ops esp32s31_frac_ops = {
++	.recalc_rate = esp32s31_frac_recalc_rate,
++};
++
++static struct clk_hw *esp32s31_ro_register(struct esp32s31_clk *ec,
++					   const char *name,
++					   const struct clk_parent_data *parent,
++					   const struct clk_ops *ops,
++					   unsigned int offset)
++{
++	struct clk_init_data init = {
++		.name = name,
++		.ops = ops,
++		.parent_data = parent,
++		.num_parents = 1,
++	};
++	struct esp32s31_ro_clk *clk;
++	int ret;
++
++	clk = devm_kzalloc(ec->dev, sizeof(*clk), GFP_KERNEL);
++	if (!clk)
++		return ERR_PTR(-ENOMEM);
++
++	clk->reg = ec->base + offset;
++	clk->hw.init = &init;
++	ret = devm_clk_hw_register(ec->dev, &clk->hw);
++	if (ret)
++		return ERR_PTR(ret);
++
++	return &clk->hw;
++}
++
++static int esp32s31_lp_init(struct esp32s31_clk *ec)
++{
++	static const struct clk_parent_data xtal = { .fw_name = "xtal" };
++
++	ec->hws->hws[ESP32S31_LP_CLK_MPLL] =
++		esp32s31_ro_register(ec, "mpll", &xtal, &esp32s31_mpll_ops,
++				     LP_MSPI_DIV);
++	return 0;
++}
++
++static int esp32s31_hp_init(struct esp32s31_clk *ec)
++{
++	static const struct clk_parent_data root[] = {
++		{ .fw_name = "xtal" },
++		{ .fw_name = "cpll" },
++		{ .fw_name = "rc-fast" },
++		{ .fw_name = "pll-f240m" },
++	};
++	/* Each one is the parent of the next. */
++	static const struct {
++		const char *name;
++		unsigned int id;
++		unsigned int offset;
++	} chain[] = {
++		{ "cpu", ESP32S31_CLK_CPU, HP_CPU_FREQ_CTRL0 },
++		{ "sys", ESP32S31_CLK_SYS, HP_SYS_FREQ_CTRL0 },
++		{ "apb", ESP32S31_CLK_APB, HP_APB_FREQ_CTRL0 },
++	};
++	struct clk_hw **hws = ec->hws->hws;
++	struct clk_parent_data parent = {};
++	struct clk_hw *hw;
++	unsigned int i;
++
++	hw = devm_clk_hw_register_mux_parent_data_table(ec->dev, "soc-root",
++							root, ARRAY_SIZE(root),
++							0, ec->base + HP_SOC_CLK_SEL,
++							0, 2, CLK_MUX_READ_ONLY,
++							NULL, &ec->lock);
++	for (i = 0; i < ARRAY_SIZE(chain) && !IS_ERR(hw); i++) {
++		parent.hw = hw;
++		hw = esp32s31_ro_register(ec, chain[i].name, &parent,
++					  &esp32s31_frac_ops, chain[i].offset);
++		hws[chain[i].id] = hw;
++	}
++	if (IS_ERR(hw))
++		return PTR_ERR(hw);
++
++	hws[ESP32S31_CLK_EMAC_SYS] =
++		devm_clk_hw_register_gate_parent_hw(ec->dev, "emac-sys",
++						    hws[ESP32S31_CLK_SYS], 0,
++						    ec->base + HP_EMAC_CTRL0,
++						    0, 0, &ec->lock);
++	return 0;
++}
++
++static struct esp32s31_clk *to_esp32s31_clk(struct reset_controller_dev *rcdev)
++{
++	return container_of(rcdev, struct esp32s31_clk, rcdev);
++}
++
++static int esp32s31_cnnt_reset_update(struct reset_controller_dev *rcdev,
++				      unsigned long id, bool assert)
++{
++	struct esp32s31_clk *ec = to_esp32s31_clk(rcdev);
++	void __iomem *reg = ec->base + CNNT_EMAC_CTRL;
++	u32 val;
++
++	guard(spinlock_irqsave)(&ec->lock);
++	val = readl(reg) & ~CNNT_EMAC_RST_EN;
++	writel(val | (assert ? CNNT_EMAC_RST_EN : 0), reg);
++	return 0;
++}
++
++static int esp32s31_cnnt_reset_assert(struct reset_controller_dev *rcdev,
++				      unsigned long id)
++{
++	return esp32s31_cnnt_reset_update(rcdev, id, true);
++}
++
++static int esp32s31_cnnt_reset_deassert(struct reset_controller_dev *rcdev,
++					unsigned long id)
++{
++	return esp32s31_cnnt_reset_update(rcdev, id, false);
++}
++
++static const struct reset_control_ops esp32s31_cnnt_reset_ops = {
++	.assert = esp32s31_cnnt_reset_assert,
++	.deassert = esp32s31_cnnt_reset_deassert,
++};
++
++static const struct regmap_config esp32s31_cnnt_regmap_config = {
++	.reg_bits = 32,
++	.val_bits = 32,
++	.reg_stride = 4,
++	.max_register = CNNT_SIZE - 4,
++};
++
++static int esp32s31_cnnt_init(struct esp32s31_clk *ec)
++{
++	static const struct clk_parent_data ref[] = {
++		{ .fw_name = "mpll" },
++		{ .fw_name = "cpll" },
++		{ .fw_name = "apll" },
++	};
++	void __iomem *reg = ec->base + CNNT_EMAC_REF_CTRL;
++	struct device *dev = ec->dev;
++	struct regmap *regmap;
++	struct clk_hw *hw;
++	int ret;
++
++	/* EMAC_REF, the RGMII TX clock: source, divider (DIV_NUM + 1), gate */
++	hw = devm_clk_hw_register_mux_parent_data_table(dev, "emac-ref-mux", ref,
++							ARRAY_SIZE(ref),
++							CLK_SET_RATE_NO_REPARENT,
++							reg, 0, 2, 0, NULL,
++							&ec->lock);
++	if (IS_ERR(hw))
++		return PTR_ERR(hw);
++
++	hw = devm_clk_hw_register_divider_parent_hw(dev, "emac-ref-div", hw, 0,
++						    reg, 8, 8, 0, &ec->lock);
++	if (IS_ERR(hw))
++		return PTR_ERR(hw);
++
++	ec->hws->hws[ESP32S31_CNNT_CLK_EMAC_REF] =
++		devm_clk_hw_register_gate_parent_hw(dev, "emac-ref", hw,
++						    CLK_SET_RATE_PARENT, reg,
++						    2, 0, &ec->lock);
++
++	ec->rcdev.ops = &esp32s31_cnnt_reset_ops;
++	ec->rcdev.owner = THIS_MODULE;
++	ec->rcdev.of_node = dev->of_node;
++	ec->rcdev.nr_resets = 1;
++	ret = devm_reset_controller_register(dev, &ec->rcdev);
++	if (ret)
++		return ret;
++
++	regmap = devm_regmap_init_mmio(dev, ec->base,
++				       &esp32s31_cnnt_regmap_config);
++	if (IS_ERR(regmap))
++		return PTR_ERR(regmap);
++
++	return of_syscon_register_regmap(dev->of_node, regmap);
++}
++
++struct esp32s31_clk_data {
++	unsigned int nclks;
++	int (*init)(struct esp32s31_clk *ec);
++};
++
++static int esp32s31_clk_probe(struct platform_device *pdev)
++{
++	const struct esp32s31_clk_data *data = device_get_match_data(&pdev->dev);
++	struct device *dev = &pdev->dev;
++	struct esp32s31_clk *ec;
++	struct resource *res;
++	unsigned int i;
++	int ret;
++
++	ec = devm_kzalloc(dev, sizeof(*ec), GFP_KERNEL);
++	if (!ec)
++		return -ENOMEM;
++
++	ec->hws = devm_kzalloc(dev, struct_size(ec->hws, hws, data->nclks),
++			       GFP_KERNEL);
++	if (!ec->hws)
++		return -ENOMEM;
++
++	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
++	if (!res)
++		return -EINVAL;
++
++	ec->base = devm_ioremap(dev, res->start, resource_size(res));
++	if (!ec->base)
++		return -ENOMEM;
++
++	ec->dev = dev;
++	ec->hws->num = data->nclks;
++	spin_lock_init(&ec->lock);
++
++	ret = data->init(ec);
++	if (ret)
++		return ret;
++
++	for (i = 0; i < data->nclks; i++)
++		if (IS_ERR(ec->hws->hws[i]))
++			return dev_err_probe(dev, PTR_ERR(ec->hws->hws[i]),
++					     "failed to register clock %u\n", i);
++
++	return devm_of_clk_add_hw_provider(dev, of_clk_hw_onecell_get, ec->hws);
++}
++
++static const struct esp32s31_clk_data esp32s31_lp_data = {
++	.nclks = ESP32S31_LP_CLK_MPLL + 1,
++	.init = esp32s31_lp_init,
++};
++
++static const struct esp32s31_clk_data esp32s31_hp_data = {
++	.nclks = ESP32S31_CLK_EMAC_SYS + 1,
++	.init = esp32s31_hp_init,
++};
++
++static const struct esp32s31_clk_data esp32s31_cnnt_data = {
++	.nclks = ESP32S31_CNNT_CLK_EMAC_REF + 1,
++	.init = esp32s31_cnnt_init,
++};
++
++static const struct of_device_id esp32s31_clk_of_match[] = {
++	{ .compatible = "esp,esp32s31-lp-clkrst", .data = &esp32s31_lp_data },
++	{ .compatible = "esp,esp32s31-hp-clkrst", .data = &esp32s31_hp_data },
++	{ .compatible = "esp,esp32s31-cnnt-sys", .data = &esp32s31_cnnt_data },
++	{ }
++};
++MODULE_DEVICE_TABLE(of, esp32s31_clk_of_match);
++
++static struct platform_driver esp32s31_clk_driver = {
++	.driver = {
++		.name = "esp32s31-clk",
++		.of_match_table = esp32s31_clk_of_match,
++		.suppress_bind_attrs = true,
++	},
++	.probe = esp32s31_clk_probe,
++};
++builtin_platform_driver(esp32s31_clk_driver);
 diff --git a/drivers/irqchip/irq-esp32s31-clic.c b/drivers/irqchip/irq-esp32s31-clic.c
 new file mode 100644
 --- /dev/null
@@ -4803,6 +5317,36 @@ new file mode 100644
 +MODULE_AUTHOR("Max Filippov <jcmvbkbc@gmail.com>");
 +MODULE_DESCRIPTION("Espressif ESP32 UART support");
 +MODULE_LICENSE("GPL");
+diff --git a/include/dt-bindings/clock/esp32s31-clk.h b/include/dt-bindings/clock/esp32s31-clk.h
+new file mode 100644
+--- /dev/null
++++ b/include/dt-bindings/clock/esp32s31-clk.h
+@@ -0,0 +1,25 @@
++/* SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause) */
++/*
++ * Author: Marco Mueller <hello@annoyedmilk.ch>
++ *
++ * Clocks and resets of the Espressif ESP32-S31.
++ */
++
++#ifndef _DT_BINDINGS_CLOCK_ESP32S31_H
++#define _DT_BINDINGS_CLOCK_ESP32S31_H
++
++/* LP_AONCLKRST */
++#define ESP32S31_LP_CLK_MPLL		0
++
++/* HP_SYS_CLKRST */
++#define ESP32S31_CLK_CPU		0
++#define ESP32S31_CLK_SYS		1
++#define ESP32S31_CLK_APB		2
++#define ESP32S31_CLK_EMAC_SYS		3
++
++/* CNNT_SYS */
++#define ESP32S31_CNNT_CLK_EMAC_REF	0
++
++#define ESP32S31_CNNT_RST_EMAC		0
++
++#endif
 diff --git a/include/dt-bindings/pinctrl/esp32s31-pinctrl.h b/include/dt-bindings/pinctrl/esp32s31-pinctrl.h
 new file mode 100644
 --- /dev/null

@@ -1,0 +1,45 @@
+From: Marco Müller <hello@annoyedmilk.ch>
+Subject: [PATCH] clk: esp32s31: add the ESP32-S31 clock and reset controllers
+
+The ESP32-S31 has its clocks and resets in three blocks: LP_AONCLKRST
+(the MPLL), HP_SYS_CLKRST (the root clocks and the peripheral gates) and
+CNNT_SYS (the EMAC TX clock and reset).  Add their driver to the clk
+Kconfig and Makefile.
+
+Signed-off-by: Marco Müller <hello@annoyedmilk.ch>
+---
+diff --git a/drivers/clk/Kconfig b/drivers/clk/Kconfig
+--- a/drivers/clk/Kconfig
++++ b/drivers/clk/Kconfig
+@@ -233,6 +233,20 @@
+ 	select REGMAP_MMIO
+ 	help
+ 	  This driver supports the SoC clocks on the Cirrus Logic ep93xx.
++
++config COMMON_CLK_ESP32S31
++	bool "Clock driver for the Espressif ESP32-S31"
++	depends on SOC_ESP32S31 || COMPILE_TEST
++	depends on OF
++	select MFD_SYSCON
++	select REGMAP_MMIO
++	select RESET_CONTROLLER
++	default SOC_ESP32S31
++	help
++	  This driver supports the clocks and resets of the Espressif
++	  ESP32-S31: the MPLL, the CPU, SYS and APB clocks, the clock gates
++	  of the peripherals, and the EMAC TX clock and reset.  The firmware
++	  sets the PLLs and the root clocks, so the driver only reads them.
+ 
+ config COMMON_CLK_EYEQ
+ 	bool "Clock driver for the Mobileye EyeQ platform"
+diff --git a/drivers/clk/Makefile b/drivers/clk/Makefile
+--- a/drivers/clk/Makefile
++++ b/drivers/clk/Makefile
+@@ -68,6 +68,7 @@
+ obj-$(CONFIG_COMMON_CLK_EP93XX)		+= clk-ep93xx.o
+ obj-$(CONFIG_ARCH_SPARX5)		+= clk-sparx5.o
+ obj-$(CONFIG_COMMON_CLK_EN7523)		+= clk-en7523.o
++obj-$(CONFIG_COMMON_CLK_ESP32S31)	+= clk-esp32s31.o
+ obj-$(CONFIG_COMMON_CLK_EYEQ)		+= clk-eyeq.o
+ obj-$(CONFIG_COMMON_CLK_FIXED_MMIO)	+= clk-fixed-mmio.o
+ obj-$(CONFIG_COMMON_CLK_FSL_FLEXSPI)	+= clk-fsl-flexspi.o

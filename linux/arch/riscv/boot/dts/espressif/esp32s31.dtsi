@@ -4,6 +4,7 @@
  * Author: Marco Müller <hello@annoyedmilk.ch>
  */
 
+#include <dt-bindings/clock/esp32s31-clk.h>
 #include <dt-bindings/interrupt-controller/irq.h>
 #include <dt-bindings/leds/common.h>
 #include <dt-bindings/pinctrl/esp32s31-pinctrl.h>
@@ -80,6 +81,13 @@
 		clock-frequency = <40000000>;
 	};
 
+	/* The hardware sets the CPLL to 320 MHz. */
+	cpll: cpll-clock {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <320000000>;
+	};
+
 	/* The PHY driver switches the 12 MHz USB reference clock on and off. */
 	usb_ref_clk: usb-ref-clock {
 		compatible = "fixed-clock";
@@ -124,6 +132,31 @@
 			reg = <0x2c000000 0x1000>;
 			cache-line-size = <64>;
 			cache-level = <1>;
+		};
+
+		cnnt_sys: clock-controller@20359000 {
+			compatible = "esp,esp32s31-cnnt-sys";
+			reg = <0x20359000 0x1000>;
+			clocks = <&lp_clkrst ESP32S31_LP_CLK_MPLL>, <&cpll>;
+			clock-names = "mpll", "cpll";
+			#clock-cells = <1>;
+			#reset-cells = <1>;
+		};
+
+		hp_clkrst: clock-controller@20587000 {
+			compatible = "esp,esp32s31-hp-clkrst";
+			reg = <0x20587000 0x1000>;
+			clocks = <&xtal>, <&cpll>;
+			clock-names = "xtal", "cpll";
+			#clock-cells = <1>;
+		};
+
+		lp_clkrst: clock-controller@20701000 {
+			compatible = "esp,esp32s31-lp-clkrst";
+			reg = <0x20701000 0x1000>;
+			clocks = <&xtal>;
+			clock-names = "xtal";
+			#clock-cells = <1>;
 		};
 
 		pinctrl: pinctrl@20582000 {

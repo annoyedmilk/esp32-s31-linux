@@ -1,0 +1,122 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/clock/esp,esp32s31-clkrst.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Espressif ESP32-S31 clock and reset controllers
+
+maintainers:
+  - Marco Mueller <hello@annoyedmilk.ch>
+
+description: |
+  Three blocks have clocks and resets for the operating system:
+
+  - LP_AONCLKRST makes the MPLL. The firmware sets it for the PSRAM, so the
+    operating system only reads its rate.
+  - HP_SYS_CLKRST makes the CPU, SYS and APB clocks, which the firmware
+    sets, and has a clock gate for each peripheral.
+  - CNNT_SYS makes the EMAC TX clock, has the EMAC reset, and has the EMAC
+    interface registers, which the EMAC gets as a syscon.
+
+  The clock and reset numbers are in dt-bindings/clock/esp32s31-clk.h.
+
+properties:
+  compatible:
+    enum:
+      - esp,esp32s31-lp-clkrst
+      - esp,esp32s31-hp-clkrst
+      - esp,esp32s31-cnnt-sys
+
+  reg:
+    maxItems: 1
+
+  clocks:
+    minItems: 1
+    maxItems: 2
+
+  clock-names:
+    minItems: 1
+    maxItems: 2
+
+  "#clock-cells":
+    const: 1
+
+  "#reset-cells":
+    const: 1
+
+required:
+  - compatible
+  - reg
+  - clocks
+  - clock-names
+  - "#clock-cells"
+
+allOf:
+  - if:
+      properties:
+        compatible:
+          const: esp,esp32s31-lp-clkrst
+    then:
+      properties:
+        clocks:
+          items:
+            - description: 40 MHz crystal
+        clock-names:
+          items:
+            - const: xtal
+        "#reset-cells": false
+  - if:
+      properties:
+        compatible:
+          const: esp,esp32s31-hp-clkrst
+    then:
+      properties:
+        clocks:
+          items:
+            - description: 40 MHz crystal
+            - description: CPLL, 320 MHz
+        clock-names:
+          items:
+            - const: xtal
+            - const: cpll
+        "#reset-cells": false
+  - if:
+      properties:
+        compatible:
+          const: esp,esp32s31-cnnt-sys
+    then:
+      properties:
+        clocks:
+          items:
+            - description: MPLL
+            - description: CPLL, 320 MHz
+        clock-names:
+          items:
+            - const: mpll
+            - const: cpll
+      required:
+        - "#reset-cells"
+
+additionalProperties: false
+
+examples:
+  - |
+    #include <dt-bindings/clock/esp32s31-clk.h>
+
+    lp_clkrst: clock-controller@20701000 {
+        compatible = "esp,esp32s31-lp-clkrst";
+        reg = <0x20701000 0x1000>;
+        clocks = <&xtal>;
+        clock-names = "xtal";
+        #clock-cells = <1>;
+    };
+
+    clock-controller@20359000 {
+        compatible = "esp,esp32s31-cnnt-sys";
+        reg = <0x20359000 0x1000>;
+        clocks = <&lp_clkrst ESP32S31_LP_CLK_MPLL>, <&cpll>;
+        clock-names = "mpll", "cpll";
+        #clock-cells = <1>;
+        #reset-cells = <1>;
+    };
