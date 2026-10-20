@@ -347,7 +347,7 @@ sets a pin, `report.sh` sends the uptime and the free memory with HTTPS
 | --- | --- | --- | --- |
 | esp32s31 | Sets and reads pins | Starts the web page | |
 | coreboard1 | The RGB LED, and the pins of J2 | A green LED, and the web page as a comment | `led.sh` sets the LED |
-| korvo1 | The RGB LED | A green LED | `led.py` sets the LED from MicroPython |
+| korvo1 | The RGB LED | A green LED | `led.py` sets the LED from MicroPython, `touch.sh` prints the touches on the LCD |
 
 The web page has no password: each host that can open it can set the LED
 and the pins.  Start it only on a network that you trust.  The kernel

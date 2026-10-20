@@ -1401,7 +1401,7 @@ diff --git a/arch/riscv/boot/dts/espressif/esp32s31_korvo1.dts b/arch/riscv/boot
 new file mode 100644
 --- /dev/null
 +++ b/arch/riscv/boot/dts/espressif/esp32s31_korvo1.dts
-@@ -0,0 +1,73 @@
+@@ -0,0 +1,101 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * ESP32-S31-Korvo-1: 800x480 RGB panel, microSD slot, USB 2.0 host port
@@ -1474,6 +1474,34 @@ new file mode 100644
 + */
 +&pinctrl {
 +	gpio-reserved-ranges = <8 33>, <41 1>, <43 3>, <58 2>;
++
++	i2c0_cfg: i2c0-cfg {
++		i2c0-pins {
++			pinmux = <ESP32S31_MATRIX_INOUT(0, ESP32S31_SIG_I2C0_SDA)>,
++				 <ESP32S31_MATRIX_INOUT(1, ESP32S31_SIG_I2C0_SCL)>;
++			bias-pull-up;
++			drive-open-drain;
++		};
++	};
++};
++
++/*
++ * The board I2C bus: the ES8389 codec at 0x10 and the GT1151 touch
++ * controller of the LCD at 0x14.  The touch INT and reset lines are not
++ * connected, so the driver polls the controller.
++ */
++&i2c0 {
++	pinctrl-names = "default";
++	pinctrl-0 = <&i2c0_cfg>;
++	clock-frequency = <400000>;
++	status = "okay";
++
++	touchscreen@14 {
++		compatible = "goodix,gt1151";
++		reg = <0x14>;
++		touchscreen-size-x = <800>;
++		touchscreen-size-y = <480>;
++	};
 +};
 diff --git a/arch/riscv/include/asm/esp32s31-cache.h b/arch/riscv/include/asm/esp32s31-cache.h
 new file mode 100644

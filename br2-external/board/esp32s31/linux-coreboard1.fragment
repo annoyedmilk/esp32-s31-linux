@@ -4,6 +4,7 @@ CONFIG_BUILTIN_DTB_NAME="espressif/esp32s31_coreboard1"
 
 # USB host: keyboards and mice (evdev, hidraw) and mass storage with FAT.
 CONFIG_INPUT=y
+# CONFIG_INPUT_TOUCHSCREEN is not set
 CONFIG_HID=y
 CONFIG_USB_SUPPORT=y
 CONFIG_PHY_ESP32S31_USB=y

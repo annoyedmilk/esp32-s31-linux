@@ -70,4 +70,32 @@
  */
 &pinctrl {
 	gpio-reserved-ranges = <8 33>, <41 1>, <43 3>, <58 2>;
+
+	i2c0_cfg: i2c0-cfg {
+		i2c0-pins {
+			pinmux = <ESP32S31_MATRIX_INOUT(0, ESP32S31_SIG_I2C0_SDA)>,
+				 <ESP32S31_MATRIX_INOUT(1, ESP32S31_SIG_I2C0_SCL)>;
+			bias-pull-up;
+			drive-open-drain;
+		};
+	};
+};
+
+/*
+ * The board I2C bus: the ES8389 codec at 0x10 and the GT1151 touch
+ * controller of the LCD at 0x14.  The touch INT and reset lines are not
+ * connected, so the driver polls the controller.
+ */
+&i2c0 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2c0_cfg>;
+	clock-frequency = <400000>;
+	status = "okay";
+
+	touchscreen@14 {
+		compatible = "goodix,gt1151";
+		reg = <0x14>;
+		touchscreen-size-x = <800>;
+		touchscreen-size-y = <480>;
+	};
 };
