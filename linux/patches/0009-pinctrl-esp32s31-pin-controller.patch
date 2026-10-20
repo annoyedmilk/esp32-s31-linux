@@ -1,0 +1,44 @@
+From: Marco Müller <hello@annoyedmilk.ch>
+Subject: [PATCH] pinctrl: esp32s31: add the ESP32-S31 pin controller
+
+The ESP32-S31 sets the function of each pad in the IO MUX and connects
+the peripheral signals in the GPIO matrix.  The GPIO registers are in the
+block of the matrix, so one driver is the pin controller and the GPIO
+controller.  Add it to the pinctrl Kconfig and Makefile.
+
+Signed-off-by: Marco Müller <hello@annoyedmilk.ch>
+---
+diff --git a/drivers/pinctrl/Kconfig b/drivers/pinctrl/Kconfig
+--- a/drivers/pinctrl/Kconfig
++++ b/drivers/pinctrl/Kconfig
+@@ -249,6 +249,19 @@
+ 	  control frameworks. It provides interfaces to setup pin muxing, assign
+ 	  desired pin functions, configure GPIO attributes for LGM SoC pins.
+ 	  Pin muxing and pin config settings are retrieved from device tree.
++
++config PINCTRL_ESP32S31
++	bool "Espressif ESP32-S31 pin controller and GPIO driver"
++	depends on OF
++	depends on SOC_ESP32S31 || COMPILE_TEST
++	depends on GPIOLIB
++	select GENERIC_PINCTRL
++	default SOC_ESP32S31
++	help
++	  Pin controller and GPIO driver for the Espressif ESP32-S31.  It
++	  sets the IO MUX function, the GPIO matrix signals, the pull and
++	  the drive strength of the 62 pads, and gives them as GPIOs.
++	  Without it, no driver can use a pin, and there are no GPIOs.
+ 
+ config PINCTRL_EYEQ5
+ 	bool "Mobileye EyeQ5 pinctrl driver"
+diff --git a/drivers/pinctrl/Makefile b/drivers/pinctrl/Makefile
+--- a/drivers/pinctrl/Makefile
++++ b/drivers/pinctrl/Makefile
+@@ -27,6 +27,7 @@
+ obj-$(CONFIG_PINCTRL_EIC7700)	+= pinctrl-eic7700.o
+ obj-$(CONFIG_PINCTRL_EQUILIBRIUM)   += pinctrl-equilibrium.o
+ obj-$(CONFIG_PINCTRL_EP93XX)	+= pinctrl-ep93xx.o
++obj-$(CONFIG_PINCTRL_ESP32S31)	+= pinctrl-esp32s31.o
+ obj-$(CONFIG_PINCTRL_EYEQ5)	+= pinctrl-eyeq5.o
+ obj-$(CONFIG_PINCTRL_GEMINI)	+= pinctrl-gemini.o
+ obj-$(CONFIG_PINCTRL_GENERIC_MUX) += pinctrl-generic-mux.o

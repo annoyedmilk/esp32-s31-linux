@@ -6,6 +6,7 @@
 
 #include <dt-bindings/interrupt-controller/irq.h>
 #include <dt-bindings/leds/common.h>
+#include <dt-bindings/pinctrl/esp32s31-pinctrl.h>
 
 / {
 	#address-cells = <1>;
@@ -125,12 +126,13 @@
 			cache-level = <1>;
 		};
 
-		gpio: gpio@20583000 {
-			compatible = "esp,esp32s31-gpio";
-			reg = <0x20583000 0x1000>, <0x20582000 0x1000>;
-			reg-names = "gpio", "iomux";
+		pinctrl: pinctrl@20582000 {
+			compatible = "esp,esp32s31-pinctrl";
+			reg = <0x20582000 0x1000>, <0x20583000 0x1000>;
+			reg-names = "iomux", "gpio";
 			gpio-controller;
 			#gpio-cells = <2>;
+			gpio-ranges = <&pinctrl 0 0 62>;
 		};
 
 		clic: interrupt-controller@10a00000 {

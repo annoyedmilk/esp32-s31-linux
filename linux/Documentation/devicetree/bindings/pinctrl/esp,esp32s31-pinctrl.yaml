@@ -1,0 +1,126 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/pinctrl/esp,esp32s31-pinctrl.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Espressif ESP32-S31 pin controller and GPIO controller
+
+maintainers:
+  - Marco Mueller <hello@annoyedmilk.ch>
+
+description:
+  Two blocks control each of the 62 pads. The IO MUX selects the function of
+  the pad, a peripheral directly or the GPIO matrix, and sets the pull, the
+  drive strength and the input buffer. The GPIO matrix connects a peripheral
+  signal or the GPIO registers to the pad. The GPIO registers are in the
+  block of the matrix, so one node is the pin controller and the GPIO
+  controller. GPIO29 and GPIO41 have no package pin.
+
+properties:
+  compatible:
+    const: esp,esp32s31-pinctrl
+
+  reg:
+    items:
+      - description: IO MUX registers
+      - description: GPIO and GPIO matrix registers
+
+  reg-names:
+    items:
+      - const: iomux
+      - const: gpio
+
+  gpio-controller: true
+
+  "#gpio-cells":
+    const: 2
+
+  gpio-ranges:
+    maxItems: 1
+
+patternProperties:
+  '-cfg$':
+    type: object
+    additionalProperties: false
+
+    description:
+      A pin configuration state. It has one or more subnodes, each with pins
+      that get the same configuration.
+
+    patternProperties:
+      '-pins$':
+        type: object
+        additionalProperties: false
+
+        allOf:
+          - $ref: pincfg-node.yaml#
+          - $ref: pinmux-node.yaml#
+
+        properties:
+          pinmux:
+            description:
+              One cell for each signal of a pin, made with the macros in
+              dt-bindings/pinctrl/esp32s31-pinctrl.h. A pin with an input
+              and an output signal of different numbers has two cells.
+
+          bias-disable: true
+
+          bias-pull-down: true
+
+          bias-pull-up: true
+
+          drive-strength:
+            enum: [ 5, 10, 20, 40 ]
+
+          input-enable: true
+
+          input-disable: true
+
+          drive-open-drain: true
+
+          drive-push-pull: true
+
+        required:
+          - pinmux
+
+required:
+  - compatible
+  - reg
+  - reg-names
+  - gpio-controller
+  - "#gpio-cells"
+  - gpio-ranges
+
+additionalProperties: false
+
+examples:
+  - |
+    #include <dt-bindings/pinctrl/esp32s31-pinctrl.h>
+
+    pinctrl: pinctrl@20582000 {
+        compatible = "esp,esp32s31-pinctrl";
+        reg = <0x20582000 0x1000>, <0x20583000 0x1000>;
+        reg-names = "iomux", "gpio";
+        gpio-controller;
+        #gpio-cells = <2>;
+        gpio-ranges = <&pinctrl 0 0 62>;
+
+        i2c0_cfg: i2c0-cfg {
+            i2c0-pins {
+                pinmux = <ESP32S31_MATRIX_INOUT(0, ESP32S31_SIG_I2C0_SDA)>,
+                         <ESP32S31_MATRIX_INOUT(1, ESP32S31_SIG_I2C0_SCL)>;
+                bias-pull-up;
+                drive-open-drain;
+            };
+        };
+
+        mdio_cfg: mdio-cfg {
+            mdio-pins {
+                pinmux = <ESP32S31_MATRIX_OUT(5, ESP32S31_SIG_GMII_MDC)>,
+                         <ESP32S31_MATRIX_OUT(6, ESP32S31_SIG_GMII_MDO)>,
+                         <ESP32S31_MATRIX_IN(6, ESP32S31_SIG_GMII_MDI)>;
+                bias-disable;
+            };
+        };
+    };
