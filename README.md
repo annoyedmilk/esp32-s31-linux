@@ -48,10 +48,10 @@ libgpiod and BlueZ. Each board fragment adds only its own parts.
 | Persistence | All files: the overlay is in the flash | The same | All files on the card |
 | Swap | zram (6 MiB) only | zram (6 MiB) only | zram (6 MiB), then 64 MiB on p3 of the card |
 | Consoles | UART | UART | UART, and the LCD with a USB keyboard |
-| Hardware for Linux | GPIO, RNG | Ethernet, USB host, RGB LED, GPIO, RNG | LCD, microSD, USB host, RGB LED, GPIO, RNG |
+| Hardware for Linux | GPIO, RNG | Ethernet, USB host, RGB LED, GPIO, RNG | LCD, touch (I2C), microSD, USB host, RGB LED, GPIO, RNG |
 | Wi-Fi and Bluetooth | `wlan0` and `hci0`, WPA2 and WPA3, Personal and Enterprise, AP with `wpa_supplicant`, BlueZ (`bluetoothd`, `bluetoothctl`) | The same as `esp32s31` | `wlan0` and `hci0`, WPA2 and WPA3, Personal and Enterprise, AP with `hostapd`, BlueZ with its classic tools |
 | RAM for Linux | 12.6 MiB | 10.9 MiB | 10.8 MiB |
-| Userspace | BusyBox, Dropbear, wpa_supplicant, iw, curl, bluetoothctl, iperf3, the GPIO tools, flash_erase | The same as `esp32s31` | bash, vim, gdb, strace, MicroPython, Lua, links, curl, tcpdump, htop and more |
+| Userspace | BusyBox, Dropbear, wpa_supplicant, iw, curl, bluetoothctl, iperf3, the GPIO tools, flash_erase | The same as `esp32s31`, and ethtool | bash, vim, gdb, strace, MicroPython, Lua, links, curl, tcpdump, htop and more |
 
 ## Try it
 
@@ -89,6 +89,8 @@ On all boards:
 On the Korvo-1 also:
 
 - 800x480 LCD as `/dev/fb0` with `fbcon`, and a login on `tty1`.
+- The GT1151 touch controller of the LCD on I2C (`goodix`, polled), as an
+  input device. `i2cdetect -y 0` shows it and the ES8389 codec on the bus.
 - USB host (DWC2): keyboards, mice, `hidraw` and mass storage. A USB stick
   is optional space for data: its FAT is on `/mnt/usb`, also when you
   connect the stick after the boot.
@@ -136,7 +138,8 @@ python -m espefuse --chip esp32s31 -p PORT summary
   resident as the radio firmware. Linux runs on hart 1 only.
 - **Loader.** The loader checks the size and CRC of the kernel. It copies the
   kernel to `0x50000000` and OpenSBI to `0x50F00000`. It starts Wi-Fi and Bluetooth,
-  and on the Korvo-1 also the LCD, the SD slot and the LED. Then it releases
+  on the Korvo-1 also the LCD, the SD slot and the LED, and on the
+  Function-CoreBoard-1 the LED. Then it releases
   hart 1 into OpenSBI, and locks hart 0 out of PSRAM with PMP.
 - **Interrupts.** OpenSBI gives the CLIC inputs to S-mode. If an input is not
   in S-mode, Linux cannot see it. The S-mode trampoline must use `sret` and
@@ -163,15 +166,36 @@ python -m espefuse --chip esp32s31 -p PORT summary
 | Connector | Use |
 | --- | --- |
 | Power Type-C | Power only. |
-| UART Type-C | CP2102N to UART0: flash and Linux console (`/dev/cu.usbserial-*`). |
+| UART Type-C | CP2102N to UART0 (GPIO58/59): flash and the Linux console (`/dev/cu.usbserial-*`). |
 | USB Type-A | USB 2.0 host for Linux. |
-| GPIO33/34 breakout | Native USB Serial/JTAG (`/dev/cu.usbmodem*`): D- white to GPIO33, D+ green to GPIO34, GND black. Do not connect 5 V. |
+| microSD slot | The root file system. See [SD card (Korvo-1)](#sd-card-korvo-1). |
 
-GPIO33/34 are also LCD data pins. You can use the LCD or JTAG, not both. The
-default is the LCD (`CONFIG_ESP_CONSOLE_SECONDARY_NONE` in
+| Pins | Connected to | Owner |
+| --- | --- | --- |
+| GPIO0, 1 | I2C SDA, SCL: ES8389 codec at `0x10`, GT1151 touch at `0x14` | Linux (`i2c0`) |
+| GPIO3-6, 7 | I2S to the codec, amplifier enable | No driver. Linux can use them as GPIO. |
+| GPIO8-19, 33-36, 38, 40, 43-45 | LCD | Loader |
+| GPIO20-25, 39 | microSD and its power | Loader, then Linux (`dw_mmc`) |
+| GPIO26-28, 30-32 | Flash | Loader |
+| GPIO37 | RGB LED | Loader, then Linux (`rgb:status`) |
+| GPIO42 | Buttons (ADC) | No driver. Linux can use it as GPIO. |
+| GPIO46-57 | Camera connector | No driver. Linux can use them as GPIO. |
+
+The kernel refuses the pins of the loader, the flash and UART0 as GPIO
+(`gpio-reserved-ranges` in `esp32s31_korvo1.dts`).
+
+### USB Serial/JTAG
+
+To use the native USB Serial/JTAG (`/dev/cu.usbmodem*`), connect a USB
+cable to the board: D- (white) to GPIO33, D+ (green) to GPIO34, and GND
+(black) to GND. Do not connect 5 V.
+
+GPIO33/34 are also LCD data pins, so you can use the LCD or JTAG, not both.
+The default is the LCD (`CONFIG_ESP_CONSOLE_SECONDARY_NONE` in
 `bootloader/sdkconfig.defaults.korvo1`). For JTAG, set
-`CONFIG_ESP_CONSOLE_SECONDARY_USB_SERIAL_JTAG=y` instead. The esp32s31
-board always gives GPIO33/34 to the USB Serial/JTAG.
+`CONFIG_ESP_CONSOLE_SECONDARY_USB_SERIAL_JTAG=y` and build again. The LCD
+then stays dark, and `/dev/fb0` shows nothing. The esp32s31 build always
+gives GPIO33/34 to the USB Serial/JTAG.
 
 ## Host requirements
 
@@ -269,9 +293,14 @@ and the overlay of each board:
 - `/etc/sysctl.d/10-reserve.conf` keeps 512 KiB free for the zram writes.
   A larger reserve takes memory from the page cache.
 - `S10sdcard` mounts p1 on `/mnt/sd`.
+- `S10usb` starts the BusyBox `mdev` daemon on the Korvo-1 and the
+  Function-CoreBoard-1. It mounts the FAT of a USB stick on `/mnt/usb`,
+  at boot and when you connect the stick later (`/etc/mdev.conf`).
 - `S40wifi` starts `wpa_supplicant` on `wlan0` in the background, so that
   the console does not wait for it. `S40wifi restart` waits. `S40bluetoothd`
   starts BlueZ for `hci0`.
+- `S41ethernet` makes the stmmac rings smaller, then starts DHCP on `eth0`
+  in the background, on a board with Ethernet.
 - The udhcpc hook sets the clock with NTP on each new lease.
 - `S95autostart` runs `/mnt/sd/autostart.sh`, or `/root/autostart.sh`
   when the card has none.
@@ -338,6 +367,7 @@ and Ethernet needs 4.75 MiB, so its `data` partition is 1.6875 MiB.
 - **Start at boot.** The board runs `/mnt/sd/autostart.sh` at each boot, as
   root. The file is on the FAT partition, so a computer can also write it,
   and it stays after `make sdroot`.
+
 ### Examples
 
 `/usr/share/examples` has these examples on all boards: `gpio.sh` reads or
@@ -418,10 +448,12 @@ in `br2-external/board/esp32s31/defconfig/common.fragment`) with
 - The kernel config is `br2-external/board/esp32s31/linux.config`. Use
   `make kernel-menuconfig` and `make kernel-saveconfig`. The esp32s31 board
   adds `linux-esp32s31.fragment`, which turns off the parts of the Korvo-1.
+  The coreboard1 board adds the same fragment, then
+  `linux-coreboard1.fragment`, which turns on its USB, LED and Ethernet.
   Buildroot cannot save a config with a fragment, so change the fragment by
   hand.
 - The device tree of each board is built into the kernel:
-  `esp32s31_korvo1.dts` or `esp32s31.dts`.
+  `esp32s31.dts`, `esp32s31_coreboard1.dts` or `esp32s31_korvo1.dts`.
 - `make kernel-check` applies the series at zero fuzz with GNU patch.
 - `make kernel` and `make rootfs` find a changed series or config. Then
   they extract and patch the kernel again. `make kernel-clean` does this by
@@ -447,7 +479,8 @@ takes all offsets from them.
 
 ## Debugging
 
-1. Set the loader to JTAG (see above). The LCD then stays dark.
+1. Set the loader to JTAG (see [USB Serial/JTAG](#usb-serialjtag)). The
+   LCD then stays dark.
 2. Run `make flash BOARD=korvo1`, then `make openocd`. It attaches to the
    running board without a reset.
 3. Connect `riscv32-esp-elf-gdb` to port 3333. Use `build/korvo1/opensbi.elf`,
@@ -469,7 +502,7 @@ takes all offsets from them.
 - `poweroff` puts the chip into deep sleep. Only the reset button starts
   it again. The board itself stays powered.
 - The coherent DMA pool is 64 KiB.
-- There is no I2C, audio or camera driver.
+- There is no audio or camera driver.
 - The firmware heap is small: see "Internal SRAM" in
   [docs/internals.md](docs/internals.md).
 - With WPA3-SAE, the first connection can fail: SAE on hart 1 can take
