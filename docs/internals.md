@@ -402,6 +402,7 @@ on all boards.
 | GPIO33/34 | LCD data pins and also the USB Serial/JTAG pins. |
 | Flash program or erase | Freezes the cache of the two harts. Use auto-suspend. |
 | Core bus timeout | Fires behind flash suspends: access fault on PSRAM. Turn it off. |
+| DMA burst to PSRAM | More than 16 beats gives an MSPI error that stops hart 0. The GMAC uses PBL 16 without the x8. |
 
 ## Where to start reading
 
@@ -415,4 +416,6 @@ on all boards.
 | Wi-Fi transport | `shared/esp32s31-hosted-shm.h` |
 | The flash root | `bootloader/components/esp_hosted/shm_flash.c`, `linux/drivers/net/wireless/espressif/esp_hosted/esp_shm_flash.c` |
 | The boards | `bootloader/main/board_*.c`, `br2-external/board/esp32s31/defconfig/*.fragment` (`make defconfigs` makes `br2-external/configs/*_defconfig`) |
+| Pins and GPIO | `linux/drivers/pinctrl/pinctrl-esp32s31.c` |
+| Clocks and resets | `linux/drivers/clk/clk-esp32s31.c` |
 | Device tree | `linux/arch/riscv/boot/dts/espressif/esp32s31.dtsi` |

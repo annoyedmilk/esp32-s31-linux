@@ -8,13 +8,14 @@
  */
 /dts-v1/;
 #include "esp32s31.dtsi"
+#include <dt-bindings/gpio/gpio.h>
 
 / {
 	model = "Espressif ESP32-S31-Function-CoreBoard-1";
 	compatible = "esp,esp32s31-function-coreboard-1", "esp,esp32s31";
 
 	aliases {
-		ethernet0 = &gmac;
+		ethernet0 = &emac;
 	};
 
 	chosen {
@@ -22,11 +23,48 @@
 	};
 };
 
+&pinctrl {
+	/* The RGMII pins of the IO MUX, function 2 */
+	rgmii_cfg: rgmii-cfg {
+		rgmii-tx-pins {
+			pinmux = <ESP32S31_IOMUX(8, 2)>,	/* TXD0 */
+				 <ESP32S31_IOMUX(9, 2)>,	/* TXD1 */
+				 <ESP32S31_IOMUX(10, 2)>,	/* TXD2 */
+				 <ESP32S31_IOMUX(11, 2)>,	/* TXD3 */
+				 <ESP32S31_IOMUX(12, 2)>,	/* TX_CTL */
+				 <ESP32S31_IOMUX(13, 2)>;	/* TX_CLK */
+			bias-disable;
+		};
+
+		rgmii-rx-pins {
+			pinmux = <ESP32S31_IOMUX_IN(14, 2, ESP32S31_SIG_GMAC_RX_CLK)>,
+				 <ESP32S31_IOMUX_IN(15, 2, ESP32S31_SIG_GMAC_RXDV)>,
+				 <ESP32S31_IOMUX_IN(16, 2, ESP32S31_SIG_GMAC_RXD3)>,
+				 <ESP32S31_IOMUX_IN(17, 2, ESP32S31_SIG_GMAC_RXD2)>,
+				 <ESP32S31_IOMUX_IN(18, 2, ESP32S31_SIG_GMAC_RXD1)>,
+				 <ESP32S31_IOMUX_IN(19, 2, ESP32S31_SIG_GMAC_RXD0)>;
+			bias-disable;
+		};
+	};
+
+	mdio_cfg: mdio-cfg {
+		mdio-pins {
+			pinmux = <ESP32S31_MATRIX_OUT(5, ESP32S31_SIG_GMII_MDC)>,
+				 <ESP32S31_MATRIX_OUT(6, ESP32S31_SIG_GMII_MDO)>,
+				 <ESP32S31_MATRIX_IN(6, ESP32S31_SIG_GMII_MDI)>;
+			bias-disable;
+		};
+	};
+};
+
 /*
- * A Motorcomm YT8531 on RGMII, with its own crystal.  The loader resets it on
- * GPIO7.  The PHY adds the RX and TX clock delays.
+ * A Motorcomm YT8531DC-CA on RGMII, with its own crystal and its reset on
+ * GPIO7.  The PHY adds the RX and TX clock delays.  After a chip reset alone
+ * its link comes up but passes no frames, so the PHY driver resets it.
  */
-&gmac {
+&emac {
+	pinctrl-names = "default";
+	pinctrl-0 = <&rgmii_cfg>, <&mdio_cfg>;
 	phy-mode = "rgmii-id";
 	phy-handle = <&phy0>;
 	status = "okay";
@@ -38,6 +76,9 @@
 
 		phy0: ethernet-phy@0 {
 			reg = <0>;
+			reset-gpios = <&pinctrl 7 GPIO_ACTIVE_LOW>;
+			reset-assert-us = <10000>;
+			reset-deassert-us = <50000>;
 		};
 	};
 };

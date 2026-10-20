@@ -2,6 +2,8 @@
 # SPDX-License-Identifier: MIT
 # Start a DHCP client on eth0, on a board with Ethernet.  udhcpc goes to the
 # background at once and keeps trying, so the boot does not wait for a cable.
+# stmmac allocates its rings when the interface goes up.  Its default RX ring
+# of 512 pages would take 2 MiB of the 16 MiB, so make the rings smaller first.
 
 IFACE=eth0
 PID=/var/run/udhcpc.$IFACE.pid
@@ -9,6 +11,7 @@ PID=/var/run/udhcpc.$IFACE.pid
 case "$1" in
 start)
 	[ -d /sys/class/net/$IFACE ] || exit 0
+	ethtool -G $IFACE rx 64 tx 64
 	ip link set $IFACE up
 	udhcpc -b -S -i $IFACE -p $PID
 	;;

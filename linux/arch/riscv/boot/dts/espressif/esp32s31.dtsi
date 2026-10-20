@@ -101,20 +101,6 @@
 		clock-frequency = <50000000>;
 	};
 
-	/* The GMAC bus clock, which also makes the MDC clock. */
-	sys_clk: sys-clock {
-		compatible = "fixed-clock";
-		#clock-cells = <0>;
-		clock-frequency = <106666666>;
-	};
-
-	/* The loader sets the MPLL to 500 MHz for the GMAC TX clock. */
-	mpll: mpll-clock {
-		compatible = "fixed-clock";
-		#clock-cells = <0>;
-		clock-frequency = <500000000>;
-	};
-
 	soc {
 		#address-cells = <1>;
 		#size-cells = <1>;
@@ -284,20 +270,24 @@
 		};
 
 		/*
-		 * The loader sets the pins, clocks, reset and RGMII mode.  The
-		 * RX FIFO has only 256 bytes, so the DMA uses thresholds.  A
+		 * The RX FIFO has only 256 bytes, so the DMA uses thresholds.  A
 		 * burst of more than 16 beats to PSRAM stops hart 0 with an
 		 * MSPI error, so the PBL must not be multiplied by 8.
 		 */
-		gmac: ethernet@20350000 {
-			compatible = "esp,esp32s31-gmac", "snps,dwmac-3.70a";
-			reg = <0x20350000 0x4000>, <0x20359040 0x4>;
-			reg-names = "stmmaceth", "tx-clk";
+		emac: ethernet@20350000 {
+			compatible = "esp,esp32s31-dwmac", "snps,dwmac-3.70a";
+			reg = <0x20350000 0x4000>;
 			interrupt-parent = <&clic>;
 			interrupts = <36 98 IRQ_TYPE_LEVEL_HIGH>;
 			interrupt-names = "macirq";
-			clocks = <&sys_clk>, <&mpll>;
-			clock-names = "stmmaceth", "mpll";
+			clocks = <&hp_clkrst ESP32S31_CLK_EMAC_SYS>,
+				 <&cnnt_sys ESP32S31_CNNT_CLK_EMAC_REF>;
+			clock-names = "stmmaceth", "ref";
+			resets = <&cnnt_sys ESP32S31_CNNT_RST_EMAC>;
+			reset-names = "stmmaceth";
+			esp,cnnt-sys = <&cnnt_sys>;
+			nvmem-cells = <&mac_address 3>;
+			nvmem-cell-names = "mac-address";
 			snps,pbl = <16>;
 			snps,no-pbl-x8;
 			snps,aal;

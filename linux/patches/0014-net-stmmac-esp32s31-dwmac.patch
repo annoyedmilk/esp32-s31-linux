@@ -9,16 +9,19 @@ Signed-off-by: Roan Brand <brandroan@gmail.com>
 diff --git a/drivers/net/ethernet/stmicro/stmmac/Kconfig b/drivers/net/ethernet/stmicro/stmmac/Kconfig
 --- a/drivers/net/ethernet/stmicro/stmmac/Kconfig
 +++ b/drivers/net/ethernet/stmicro/stmmac/Kconfig
-@@ -75,6 +75,13 @@
+@@ -75,6 +75,16 @@
  	  high-speed networking with DMA acceleration and is optimized
  	  for embedded systems.
  
 +config DWMAC_ESP32S31
 +	tristate "Espressif ESP32-S31 DWMAC support"
 +	depends on OF && (SOC_ESP32S31 || COMPILE_TEST)
++	select MFD_SYSCON
 +	help
 +	  Support for the RGMII Gigabit Ethernet MAC of the Espressif
-+	  ESP32-S31.
++	  ESP32-S31.  The glue sets the RGMII mode of the GMAC in the
++	  CNNT_SYS block and gives stmmac the TX clock for the link speed.
++	  Say Y here on a board with the Ethernet of the ESP32-S31.
 +
  config DWMAC_INGENIC
  	tristate "Ingenic MAC support"

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
 %YAML 1.2
 ---
-$id: http://devicetree.org/schemas/net/esp,esp32s31-gmac.yaml#
+$id: http://devicetree.org/schemas/net/esp,esp32s31-dwmac.yaml#
 $schema: http://devicetree.org/meta-schemas/core.yaml#
 
 title: Espressif ESP32-S31 DWMAC glue layer
@@ -9,50 +9,53 @@ title: Espressif ESP32-S31 DWMAC glue layer
 maintainers:
   - Roan Brand <brandroan@gmail.com>
 
-description: >
-  The DesignWare GMAC 3.70a of the ESP32-S31, with RGMII. The firmware sets
-  the pins, clocks, reset and interface mode. The operating system sets the
-  divider of the TX clock for the link speed.
+description:
+  The DesignWare GMAC 3.70a of the ESP32-S31, with RGMII. The interface mode
+  and the RGMII clock paths are in the CNNT_SYS block, which also makes the
+  TX clock and has the reset of the GMAC.
 
 select:
   properties:
     compatible:
       contains:
-        const: esp,esp32s31-gmac
+        const: esp,esp32s31-dwmac
   required:
     - compatible
 
 properties:
   compatible:
     items:
-      - const: esp,esp32s31-gmac
+      - const: esp,esp32s31-dwmac
       - const: snps,dwmac-3.70a
 
   reg:
-    items:
-      - description: MAC and DMA registers
-      - description: HP_EMAC_REF_CTRL, the TX clock divider
-
-  reg-names:
-    items:
-      - const: stmmaceth
-      - const: tx-clk
+    maxItems: 1
 
   clocks:
     items:
       - description: Bus clock, which also makes the MDC clock
-      - description: MPLL, the source of the TX clock
+      - description: RGMII TX clock, 125, 25 or 2.5 MHz for the link speed
 
   clock-names:
     items:
       - const: stmmaceth
-      - const: mpll
+      - const: ref
+
+  resets:
+    maxItems: 1
+
+  reset-names:
+    const: stmmaceth
 
   interrupts:
     maxItems: 1
 
   interrupt-names:
     const: macirq
+
+  esp,cnnt-sys:
+    $ref: /schemas/types.yaml#/definitions/phandle
+    description: The CNNT_SYS block, with the interface mode registers.
 
   phy-mode:
     enum:
@@ -64,11 +67,13 @@ properties:
 required:
   - compatible
   - reg
-  - reg-names
   - clocks
   - clock-names
+  - resets
+  - reset-names
   - interrupts
   - interrupt-names
+  - esp,cnnt-sys
 
 allOf:
   - $ref: snps,dwmac.yaml#
@@ -77,17 +82,21 @@ unevaluatedProperties: false
 
 examples:
   - |
+    #include <dt-bindings/clock/esp32s31-clk.h>
     #include <dt-bindings/interrupt-controller/irq.h>
 
     ethernet@20350000 {
-      compatible = "esp,esp32s31-gmac", "snps,dwmac-3.70a";
-      reg = <0x20350000 0x4000>, <0x20359040 0x4>;
-      reg-names = "stmmaceth", "tx-clk";
+      compatible = "esp,esp32s31-dwmac", "snps,dwmac-3.70a";
+      reg = <0x20350000 0x4000>;
       interrupt-parent = <&clic>;
       interrupts = <36 98 IRQ_TYPE_LEVEL_HIGH>;
       interrupt-names = "macirq";
-      clocks = <&sys_clk>, <&mpll>;
-      clock-names = "stmmaceth", "mpll";
+      clocks = <&hp_clkrst ESP32S31_CLK_EMAC_SYS>,
+               <&cnnt_sys ESP32S31_CNNT_CLK_EMAC_REF>;
+      clock-names = "stmmaceth", "ref";
+      resets = <&cnnt_sys ESP32S31_CNNT_RST_EMAC>;
+      reset-names = "stmmaceth";
+      esp,cnnt-sys = <&cnnt_sys>;
       phy-mode = "rgmii-id";
       snps,pbl = <16>;
       snps,no-pbl-x8;
