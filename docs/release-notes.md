@@ -52,7 +52,8 @@ login. A USB keyboard works on it.
   `autostart.sh`, and a script for the LED. The web page has no password:
   start it only on a network that you trust.
 - The new drivers take approximately 92 kB of the RAM of Linux on the
-  Korvo-1, and the boot to the console takes approximately 0.1 s longer.
+  Korvo-1, and the boot to the console takes approximately 0.2 s longer
+  (7.6 to 7.7 s from the reset).
 
 The partition tables of the esp32s31 and korvo1 builds did not change:
 flash the new `flash.bin`. On the esp32s31 build, the overlay on `data`
