@@ -39,6 +39,9 @@ $br
 
 out=build/$BOARD
 mkdir -p "$out/buildroot"
+# The 12-byte manifest is at the end of the linux partition, after the Image.
+size=$(awk -F'[ ,]+' '$1 == "linux" { print $5 }' "bootloader/partitions-$BOARD.csv")
+test "$(wc -c < "$BR_OUTPUT/images/Image")" -le $((size - 12))
 cp "$BR_OUTPUT/images/Image" "$BR_OUTPUT/images/linux.size" "$out/"
 for f in rootfs.ext2 sdcard.img; do
 	if [ -f "$BR_OUTPUT/images/$f" ]; then

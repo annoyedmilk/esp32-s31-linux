@@ -113,8 +113,9 @@ PARTITION_TABLE_OFFSET := 0x8000
 APP_OFFSET := $(call part_field,factory,4)
 OPENSBI_OFFSET := $(call part_field,opensbi,4)
 LINUX_OFFSET := $(call part_field,linux,4)
+LINUX_SIZE := $(call part_field,linux,5)
 # The size manifest is at the end of the kernel partition.
-LINUX_SIZE_OFFSET := $(shell printf '0x%x' $$(( $(LINUX_OFFSET) + $(call part_field,linux,5) - 12 )))
+LINUX_SIZE_OFFSET := $(shell printf '0x%x' $$(( $(LINUX_OFFSET) + $(LINUX_SIZE) - 12 )))
 
 .DEFAULT_GOAL := help
 
@@ -344,6 +345,8 @@ rootfs: kernel-patches br-volume
 br-artifacts:
 	@$(BR_RUN) sh -c 'set -e; \
 		mkdir -p /work/$(BR_OUT) /work/$(BUILD_DIR); \
+		test $$(wc -c < $(BR_O)/images/Image) -le $$(( $(LINUX_SIZE) - 12 )) || \
+			{ echo "Image and its manifest are larger than the $(LINUX_SIZE) partition"; exit 1; }; \
 		cp $(BR_O)/images/Image $(BR_O)/images/linux.size /work/$(BUILD_DIR)/; \
 		if test -f $(BR_O)/images/rootfs.squashfs; then \
 			test $$(wc -c < $(BR_O)/images/rootfs.squashfs) -le $$(( $(ROOT_SIZE) )) || \
