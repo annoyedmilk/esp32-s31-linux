@@ -1,11 +1,12 @@
 SHELL := /bin/bash
 
-# The board to build for: korvo1 (ESP32-S31-Korvo-1: LCD, microSD, USB, LED),
-# esp32s31 (the ESP32-S31-WROOM-3-N16R16V alone: UART0, root in the flash) or
-# coreboard1 (ESP32-S31-Function-CoreBoard-1: USB, LED, root in the flash).
-BOARD ?= korvo1
-ifeq ($(filter $(BOARD),korvo1 esp32s31 coreboard1),)
-$(error BOARD must be korvo1, esp32s31 or coreboard1, not "$(BOARD)")
+# The board to build for: esp32s31 (the ESP32-S31-WROOM-3-N16R16V alone:
+# UART0, root in the flash), coreboard1 (ESP32-S31-Function-CoreBoard-1: USB,
+# LED, root in the flash) or korvo1 (ESP32-S31-Korvo-1: LCD, microSD, USB,
+# LED).
+BOARD ?= esp32s31
+ifeq ($(filter $(BOARD),esp32s31 coreboard1 korvo1),)
+$(error BOARD must be esp32s31, coreboard1 or korvo1, not "$(BOARD)")
 endif
 
 BUILD_DIR := build/$(BOARD)
@@ -171,10 +172,10 @@ help:
 		'board before monitoring when SERIAL_PORT cannot (BAUD, BOOT_TIMEOUT' \
 		'tune the monitor).' \
 		'' \
-		'BOARD selects the board, for each target: korvo1 (the default),' \
-		'esp32s31 or coreboard1.  The output of a board goes to build/BOARD.' \
-		'On korvo1 the rootfs is on the SD card.  On esp32s31 and coreboard1,' \
-		'it is in the flash.'
+		'BOARD selects the board, for each target: esp32s31 (the default),' \
+		'coreboard1 or korvo1.  The output of a board goes to build/BOARD.' \
+		'On esp32s31 and coreboard1 the rootfs is in the flash.  On korvo1,' \
+		'it is on the SD card.'
 
 check:
 	@test "$$(uname -s)" = Darwin || { echo 'this build is supported on macOS only'; exit 1; }
