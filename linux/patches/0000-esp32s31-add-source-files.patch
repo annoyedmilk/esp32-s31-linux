@@ -1276,7 +1276,7 @@ diff --git a/arch/riscv/boot/dts/espressif/esp32s31_coreboard1.dts b/arch/riscv/
 new file mode 100644
 --- /dev/null
 +++ b/arch/riscv/boot/dts/espressif/esp32s31_coreboard1.dts
-@@ -0,0 +1,100 @@
+@@ -0,0 +1,103 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * ESP32-S31-Function-CoreBoard-1, with the ESP32-S31-WROOM-3-N16R16V module:
@@ -1303,8 +1303,11 @@ new file mode 100644
 +};
 +
 +&pinctrl {
-+	/* The pins of the SoC list, and the LED of the loader (GPIO60) */
-+	gpio-reserved-ranges = <26 9>, <41 1>, <58 2>, <60 1>;
++	/*
++	 * The pins of the SoC list, ETH_INTN of the PHY (GPIO4, also on J2), and
++	 * the LED of the loader (GPIO60)
++	 */
++	gpio-reserved-ranges = <4 1>, <26 9>, <41 1>, <58 2>, <60 1>;
 +
 +	/* The RGMII pins of the IO MUX, function 2 */
 +	rgmii_cfg: rgmii-cfg {

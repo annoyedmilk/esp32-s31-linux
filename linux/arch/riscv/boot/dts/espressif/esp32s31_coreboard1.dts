@@ -24,8 +24,11 @@
 };
 
 &pinctrl {
-	/* The pins of the SoC list, and the LED of the loader (GPIO60) */
-	gpio-reserved-ranges = <26 9>, <41 1>, <58 2>, <60 1>;
+	/*
+	 * The pins of the SoC list, ETH_INTN of the PHY (GPIO4, also on J2), and
+	 * the LED of the loader (GPIO60)
+	 */
+	gpio-reserved-ranges = <4 1>, <26 9>, <41 1>, <58 2>, <60 1>;
 
 	/* The RGMII pins of the IO MUX, function 2 */
 	rgmii_cfg: rgmii-cfg {
