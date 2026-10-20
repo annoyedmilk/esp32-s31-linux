@@ -1,7 +1,6 @@
 # The root in the flash, for the boards without a card: esp32s31 and
 # coreboard1.  The root is a squashfs, with a UBIFS overlay that keeps all
 # changes (overlay-init).  The flash is small, so these builds are lean.
-BR2_ROOTFS_OVERLAY="$(BR2_EXTERNAL_ESP32S31_PATH)/board/esp32s31/rootfs-overlay $(BR2_EXTERNAL_ESP32S31_PATH)/board/esp32s31/rootfs-overlay-esp32s31 $(BR2_EXTERNAL_ESP32S31_PATH)/../local-overlay"
 # The read-only root on the flash.  Small blocks keep the decompression
 # cache of the kernel small.  zstd with the extreme setting makes the image
 # smaller than gzip, and it decompresses faster than xz.

@@ -1,0 +1,17 @@
+
+ESP32-S31 Linux on the ESP32-S31-Function-CoreBoard-1: RV32, 16 MiB PSRAM.
+
+Ethernet  eth0 gets an address with DHCP at boot: ip addr show eth0
+Wi-Fi     wpa_passphrase "<ssid>" "<passphrase>" >> /etc/wpa_supplicant.conf
+          /etc/init.d/S40wifi restart
+          iw dev wlan0 link; iw dev wlan0 scan | grep SSID
+Bluetooth bluetoothctl, then: scan le, scan bredr, devices
+System    free, df -h, dmesg, mtdinfo
+Network   ssh, scp, curl, iperf3
+GPIO      gpiodetect, gpioinfo, gpioget, gpioset
+LED       echo 0 32 0 > /sys/class/leds/rgb:status/multi_intensity
+          echo 255 > /sys/class/leds/rgb:status/brightness
+USB       mount -t vfat /dev/sda1 /mnt
+Examples  ls /usr/share/examples
+Storage   The root is writable and stays in the flash (UBIFS on /dev/mtd1).
+          flash_erase /dev/mtd1 0 0, then reboot: back to the image.
