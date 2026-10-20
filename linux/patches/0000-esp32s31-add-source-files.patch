@@ -2565,7 +2565,7 @@ diff --git a/drivers/i2c/busses/i2c-esp32s31.c b/drivers/i2c/busses/i2c-esp32s31
 new file mode 100644
 --- /dev/null
 +++ b/drivers/i2c/busses/i2c-esp32s31.c
-@@ -0,0 +1,452 @@
+@@ -0,0 +1,483 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * Author: Marco Mueller <hello@annoyedmilk.ch>
@@ -2701,64 +2701,95 @@ new file mode 100644
 +	i2c->addressed = false;
 +}
 +
++/* The commands and FIFO bytes that the running list uses */
++struct esp32s31_i2c_batch {
++	unsigned int cmd;
++	unsigned int tx;
++	unsigned int rx;
++};
++
++/* A RESTART and the address, with room for one data command after them */
++static bool esp32s31_i2c_queue_addr(struct esp32s31_i2c *i2c,
++				    struct esp32s31_i2c_batch *b,
++				    struct i2c_msg *m)
++{
++	if (b->cmd + 3 > I2C_NCMDS - 1 || b->tx == I2C_FIFO_SIZE)
++		return false;
++
++	esp32s31_i2c_cmd(i2c, &b->cmd, I2C_OP_RSTART, 0, 0);
++	writel(i2c_8bit_addr_from_msg(m), i2c->base + I2C_DATA);
++	esp32s31_i2c_cmd(i2c, &b->cmd, I2C_OP_WRITE, 1, I2C_CMD_ACK_CHECK);
++	b->tx++;
++	i2c->addressed = true;
++	return true;
++}
++
++/* The last byte of a message gets a NACK, so it is a READ of its own. */
++static bool esp32s31_i2c_queue_read(struct esp32s31_i2c *i2c,
++				    struct esp32s31_i2c_batch *b,
++				    struct i2c_msg *m)
++{
++	unsigned int left = m->len - i2c->pos;
++	unsigned int n = min(left, I2C_FIFO_SIZE - b->rx);
++	bool last = n == left;
++	unsigned int bulk = n - last;
++
++	if (!n || b->cmd + !!bulk + last > I2C_NCMDS - 1)
++		return false;
++
++	i2c->rx[i2c->nrx++] = (struct esp32s31_i2c_rx){ m->buf + i2c->pos, n };
++	if (bulk)
++		esp32s31_i2c_cmd(i2c, &b->cmd, I2C_OP_READ, bulk, 0);
++	if (last)
++		esp32s31_i2c_cmd(i2c, &b->cmd, I2C_OP_READ, 1,
++				 I2C_CMD_ACK_VALUE);
++	b->rx += n;
++	i2c->pos += n;
++	return true;
++}
++
++static bool esp32s31_i2c_queue_write(struct esp32s31_i2c *i2c,
++				     struct esp32s31_i2c_batch *b,
++				     struct i2c_msg *m)
++{
++	unsigned int n = min(m->len - i2c->pos, I2C_FIFO_SIZE - b->tx);
++
++	if (!n || b->cmd + 1 > I2C_NCMDS - 1)
++		return false;
++
++	esp32s31_i2c_cmd(i2c, &b->cmd, I2C_OP_WRITE, n, I2C_CMD_ACK_CHECK);
++	b->tx += n;
++	while (n--)
++		writel(m->buf[i2c->pos++], i2c->base + I2C_DATA);
++	return true;
++}
++
 +/*
 + * Put the next part of the messages into the command list.  One command is
-+ * kept for the END or STOP.  The last byte of a read message gets a NACK, so
-+ * it is a READ command of its own.
++ * kept for the END or STOP.
 + */
 +static void esp32s31_i2c_fill(struct esp32s31_i2c *i2c)
 +{
-+	unsigned int cmd = 0, tx = 0, rx = 0;
++	struct esp32s31_i2c_batch b = { };
 +
 +	i2c->nrx = 0;
 +	while (i2c->msg < i2c->num) {
 +		struct i2c_msg *m = &i2c->msgs[i2c->msg];
-+		unsigned int left = m->len - i2c->pos;
-+		unsigned int n;
++		bool queued;
 +
-+		if (!i2c->addressed) {
-+			if (cmd + 3 > I2C_NCMDS - 1 || tx == I2C_FIFO_SIZE)
-+				break;
-+			esp32s31_i2c_cmd(i2c, &cmd, I2C_OP_RSTART, 0, 0);
-+			writel(i2c_8bit_addr_from_msg(m), i2c->base + I2C_DATA);
-+			tx++;
-+			esp32s31_i2c_cmd(i2c, &cmd, I2C_OP_WRITE, 1,
-+					 I2C_CMD_ACK_CHECK);
-+			i2c->addressed = true;
-+		} else if (m->flags & I2C_M_RD) {
-+			n = min(left, I2C_FIFO_SIZE - rx);
-+			if (!n || cmd + (n == left && n > 1) + 1 > I2C_NCMDS - 1)
-+				break;
-+			i2c->rx[i2c->nrx++] = (struct esp32s31_i2c_rx){
-+				m->buf + i2c->pos, n
-+			};
-+			if (n == left) {
-+				if (n > 1)
-+					esp32s31_i2c_cmd(i2c, &cmd, I2C_OP_READ,
-+							 n - 1, 0);
-+				esp32s31_i2c_cmd(i2c, &cmd, I2C_OP_READ, 1,
-+						 I2C_CMD_ACK_VALUE);
-+			} else {
-+				esp32s31_i2c_cmd(i2c, &cmd, I2C_OP_READ, n, 0);
-+			}
-+			rx += n;
-+			i2c->pos += n;
-+		} else if (left) {
-+			n = min(left, I2C_FIFO_SIZE - tx);
-+			if (!n || cmd + 1 > I2C_NCMDS - 1)
-+				break;
-+			esp32s31_i2c_cmd(i2c, &cmd, I2C_OP_WRITE, n,
-+					 I2C_CMD_ACK_CHECK);
-+			tx += n;
-+			while (n--)
-+				writel(m->buf[i2c->pos++], i2c->base + I2C_DATA);
-+		}
-+
-+		if (i2c->addressed && i2c->pos == m->len)
++		if (!i2c->addressed)
++			queued = esp32s31_i2c_queue_addr(i2c, &b, m);
++		else if (m->flags & I2C_M_RD)
++			queued = esp32s31_i2c_queue_read(i2c, &b, m);
++		else
++			queued = esp32s31_i2c_queue_write(i2c, &b, m);
++		if (!queued)
++			break;
++		if (i2c->pos == m->len)
 +			esp32s31_i2c_next_msg(i2c);
 +	}
 +
-+	esp32s31_i2c_cmd(i2c, &cmd, i2c->msg < i2c->num ? I2C_OP_END :
++	esp32s31_i2c_cmd(i2c, &b.cmd, i2c->msg < i2c->num ? I2C_OP_END :
 +			 I2C_OP_STOP, 0, 0);
 +}
 +
