@@ -322,8 +322,8 @@ The squashfs is zstd at the highest level that Buildroot gives, with
 slowly. The cost is time: each page fault of a program decompresses one
 block. `make` stops when the image is larger than the `rootfs` partition.
 
-The CoreBoard-1 has the same flash root, but its kernel needs 5 MiB, so its
-`data` partition is 1.4375 MiB: the overlay has approximately 110 KiB free.
+The CoreBoard-1 has the same flash root, but its kernel with USB and
+Ethernet needs 4.75 MiB, so its `data` partition is 1.6875 MiB.
 
 ### Files and scripts
 
@@ -427,10 +427,10 @@ in `br2-external/board/esp32s31/defconfig/common.fragment`) with
 | `0x00F000` | `0x00F000` | `0x019000` | PHY calibration data |
 | `0x010000` | `0x010000` | `0x220000` | OpenSBI `fw_jump` (256 KiB, 256 KiB, 512 KiB) |
 | `0x050000` | `0x050000` | `0x020000` | Loader and radio firmware (1.75 MiB, 1.75 MiB, 2 MiB) |
-| `0x210000` | `0x210000` | `0x2A0000` | Linux Image with built-in DTB (4 MiB, 5 MiB, 7.5 MiB) |
-| `0x60FFF4` | `0x70FFF4` | `0xA1FFF4` | Linux size and CRC manifest, at the end of the kernel partition |
-| `0x610000` | `0x710000` | | squashfs root `rootfs` (7.5 MiB) |
-| `0xD90000` | `0xE90000` | | UBIFS overlay `data` (2.4375 MiB, 1.4375 MiB, to the end of the flash) |
+| `0x210000` | `0x210000` | `0x2A0000` | Linux Image with built-in DTB (4 MiB, 4.75 MiB, 7.5 MiB) |
+| `0x60FFF4` | `0x6CFFF4` | `0xA1FFF4` | Linux size and CRC manifest, at the end of the kernel partition |
+| `0x610000` | `0x6D0000` | | squashfs root `rootfs` (7.5 MiB) |
+| `0xD90000` | `0xE50000` | | UBIFS overlay `data` (2.4375 MiB, 1.6875 MiB, to the end of the flash) |
 
 The partition tables are `bootloader/partitions-<board>.csv`. The Makefile
 takes all offsets from them.

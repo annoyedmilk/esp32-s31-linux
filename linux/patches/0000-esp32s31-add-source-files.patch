@@ -1266,7 +1266,7 @@ new file mode 100644
 +
 +			partition@780000 {
 +				label = "data";
-+				reg = <0x780000 0x170000>;
++				reg = <0x780000 0x1b0000>;
 +			};
 +		};
 +	};
