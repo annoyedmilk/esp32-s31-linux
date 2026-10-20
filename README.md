@@ -165,42 +165,6 @@ python -m espefuse --chip esp32s31 -p PORT summary
   `simple-framebuffer`. The esp32s31 board has no frame buffer, and Linux
   gets the 768 KiB.
 
-## Hardware connections (Korvo-1)
-
-| Connector | Use |
-| --- | --- |
-| Power Type-C | Power only. |
-| UART Type-C | CP2102N to UART0 (GPIO58/59): flash and the Linux console (`/dev/cu.usbserial-*`). |
-| USB Type-A | USB 2.0 host for Linux. |
-| microSD slot | The root file system. See [SD card and USB stick](#sd-card-and-usb-stick). |
-
-| Pins | Connected to | Owner |
-| --- | --- | --- |
-| GPIO0, 1 | I2C SDA, SCL: ES8389 codec at `0x10`, GT1151 touch at `0x14` | Linux (`i2c0`) |
-| GPIO3-6, 7 | I2S to the codec, amplifier enable | No driver. Linux can use them as GPIO. |
-| GPIO8-19, 33-36, 38, 40, 43-45 | LCD | Loader |
-| GPIO20-25, 39 | microSD and its power | Loader, then Linux (`dw_mmc`) |
-| GPIO26-28, 30-32 | Flash | Loader |
-| GPIO37 | RGB LED | Loader, then Linux (`rgb:status`) |
-| GPIO42 | Buttons (ADC) | No driver. Linux can use it as GPIO. |
-| GPIO46-57 | Camera connector | No driver. Linux can use them as GPIO. |
-
-The kernel refuses the pins of the loader, the flash and UART0 as GPIO
-(`gpio-reserved-ranges` in `esp32s31_korvo1.dts`).
-
-### USB Serial/JTAG
-
-To use the native USB Serial/JTAG (`/dev/cu.usbmodem*`), connect a USB
-cable to the board: D- (white) to GPIO33, D+ (green) to GPIO34, and GND
-(black) to GND. Do not connect 5 V.
-
-GPIO33/34 are also LCD data pins, so you can use the LCD or JTAG, not both.
-The default is the LCD (`CONFIG_ESP_CONSOLE_SECONDARY_NONE` in
-`bootloader/sdkconfig.defaults.korvo1`). For JTAG, set
-`CONFIG_ESP_CONSOLE_SECONDARY_USB_SERIAL_JTAG=y` and build again. The LCD
-then stays dark, and `/dev/fb0` shows nothing. The esp32s31 build always
-gives GPIO33/34 to the USB Serial/JTAG.
-
 ## Host requirements
 
 - macOS with Homebrew and GNU make (`brew install make`).
@@ -494,8 +458,10 @@ takes all offsets from them.
 
 ## Debugging
 
-1. Set the loader to JTAG (see [USB Serial/JTAG](#usb-serialjtag)). The
-   LCD then stays dark.
+1. On the Korvo-1, set `CONFIG_ESP_CONSOLE_SECONDARY_USB_SERIAL_JTAG=y` in
+   `bootloader/sdkconfig.defaults.korvo1`, and connect a USB cable: D- to
+   GPIO33, D+ to GPIO34, GND to GND, no 5 V. GPIO33/34 are also LCD pins,
+   so the LCD then stays dark.
 2. Run `make flash BOARD=korvo1`, then `make openocd`. It attaches to the
    running board without a reset.
 3. Connect `riscv32-esp-elf-gdb` to port 3333. Use `build/korvo1/opensbi.elf`,
