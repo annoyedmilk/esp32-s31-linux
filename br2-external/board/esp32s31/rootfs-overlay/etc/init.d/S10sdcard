@@ -26,9 +26,9 @@ check_p1()
 	avail=$(awk '/^MemAvailable:/ { print $2 }' /proc/meminfo)
 	if [ $(( clusters * 8 / 1024 )) -lt $(( avail / 2 )) ]; then
 		fsck.fat -a $P1 >/dev/null 2>&1
-		echo "sdcard: $P1 was not unmounted cleanly, checked"
+		echo "disk: $P1 was not unmounted cleanly, checked"
 	else
-		echo "sdcard: $P1 was not unmounted cleanly; check it on a computer"
+		echo "disk: $P1 was not unmounted cleanly; check it on a computer"
 	fi
 }
 
@@ -40,9 +40,9 @@ start)
 	check_p1
 	mkdir -p $DISK_MNT
 	if mount -t vfat -o rw,noatime $P1 $DISK_MNT 2>/dev/null; then
-		echo "sdcard: $P1 on $DISK_MNT"
+		echo "disk: $P1 on $DISK_MNT"
 	else
-		echo "sdcard: $P1 will not mount"
+		echo "disk: $P1 will not mount"
 	fi
 	;;
 stop)

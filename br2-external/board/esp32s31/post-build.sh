@@ -22,8 +22,6 @@ set -- "$target"
 # kernel has no module support, so S11modules has nothing to load.
 rm -f "$1/etc/init.d/S90httpd" "$1/etc/init.d/S11modules"
 
-mkdir -p "$1/mnt/sd"
-
 # Buildroot copies the overlays with go=rX.  local-overlay/ can give this file
 # a network key.
 chmod 600 "$1/etc/wpa_supplicant.conf"
