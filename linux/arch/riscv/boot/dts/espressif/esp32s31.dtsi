@@ -159,6 +159,24 @@
 			#clock-cells = <1>;
 		};
 
+		efuse: efuse@20715000 {
+			compatible = "esp,esp32s31-efuse";
+			reg = <0x20715000 0x168>;
+			read-only;
+
+			nvmem-layout {
+				compatible = "fixed-layout";
+				#address-cells = <1>;
+				#size-cells = <1>;
+
+				/* 0 Wi-Fi, 1 Wi-Fi AP, 2 Bluetooth, 3 Ethernet */
+				mac_address: mac-address@50 {
+					reg = <0x50 0x6>;
+					#nvmem-cell-cells = <1>;
+				};
+			};
+		};
+
 		pinctrl: pinctrl@20582000 {
 			compatible = "esp,esp32s31-pinctrl";
 			reg = <0x20582000 0x1000>, <0x20583000 0x1000>;

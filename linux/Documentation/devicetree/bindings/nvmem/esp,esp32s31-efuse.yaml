@@ -1,0 +1,56 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/nvmem/esp,esp32s31-efuse.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Espressif ESP32-S31 eFuse
+
+maintainers:
+  - Marco Mueller <hello@annoyedmilk.ch>
+
+description: |
+  The eFuse controller shows the eFuse blocks in its read registers. The
+  offset of a cell is the register offset. The factory MAC address is at
+  0x50, 6 bytes, in the reverse order.
+
+  A cell with the name "mac-address" takes one argument. It selects the
+  address as ESP-IDF makes it from the factory address, with two universal
+  addresses for each chip: 0 Wi-Fi station, 1 Wi-Fi access point,
+  2 Bluetooth, 3 Ethernet. 1 and 3 are the locally administered forms of
+  0 and 2.
+
+allOf:
+  - $ref: nvmem.yaml#
+
+properties:
+  compatible:
+    const: esp,esp32s31-efuse
+
+  reg:
+    maxItems: 1
+
+required:
+  - compatible
+  - reg
+
+unevaluatedProperties: false
+
+examples:
+  - |
+    efuse@20715000 {
+        compatible = "esp,esp32s31-efuse";
+        reg = <0x20715000 0x168>;
+        read-only;
+
+        nvmem-layout {
+            compatible = "fixed-layout";
+            #address-cells = <1>;
+            #size-cells = <1>;
+
+            mac_address: mac-address@50 {
+                reg = <0x50 0x6>;
+                #nvmem-cell-cells = <1>;
+            };
+        };
+    };

@@ -1,0 +1,43 @@
+From: Marco Müller <hello@annoyedmilk.ch>
+Subject: [PATCH] nvmem: esp32s31: add the ESP32-S31 eFuse driver
+
+The ESP32-S31 has its factory MAC address in the eFuse.  Add a
+read-only nvmem driver for it to the nvmem Kconfig and Makefile.
+
+Signed-off-by: Marco Müller <hello@annoyedmilk.ch>
+---
+diff --git a/drivers/nvmem/Kconfig b/drivers/nvmem/Kconfig
+--- a/drivers/nvmem/Kconfig
++++ b/drivers/nvmem/Kconfig
+@@ -185,6 +185,19 @@
+ 	  This driver provides support for Broadcom's NVRAM that can be accessed
+ 	  using I/O mapping.
+ 
++config NVMEM_ESP32S31_EFUSE
++	tristate "Espressif ESP32-S31 eFuse support"
++	depends on SOC_ESP32S31 || COMPILE_TEST
++	depends on HAS_IOMEM
++	default SOC_ESP32S31
++	help
++	  Read-only access to the eFuse of the Espressif ESP32-S31.  It
++	  gives the factory MAC address as an nvmem cell, from which the
++	  Ethernet driver gets its address.
++
++	  This driver can also be built as a module.  If so, the module
++	  will be called nvmem_esp32s31_efuse.
++
+ config NVMEM_IMX_IIM
+ 	tristate "i.MX IC Identification Module support"
+ 	depends on ARCH_MXC || COMPILE_TEST
+diff --git a/drivers/nvmem/Makefile b/drivers/nvmem/Makefile
+--- a/drivers/nvmem/Makefile
++++ b/drivers/nvmem/Makefile
+@@ -27,6 +27,8 @@
+ nvmem-bcm-ocotp-y			:= bcm-ocotp.o
+ obj-$(CONFIG_NVMEM_BRCM_NVRAM)		+= nvmem_brcm_nvram.o
+ nvmem_brcm_nvram-y			:= brcm_nvram.o
++obj-$(CONFIG_NVMEM_ESP32S31_EFUSE)	+= nvmem_esp32s31_efuse.o
++nvmem_esp32s31_efuse-y			:= esp32s31-efuse.o
+ obj-$(CONFIG_NVMEM_IMX_IIM)		+= nvmem-imx-iim.o
+ nvmem-imx-iim-y				:= imx-iim.o
+ obj-$(CONFIG_NVMEM_IMX_OCOTP)		+= nvmem-imx-ocotp.o
