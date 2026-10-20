@@ -374,7 +374,7 @@ builds with the root in the flash (`esp32s31` and `coreboard1`) also get
 setting is in one fragment only, and `make check` fails when a defconfig
 in `br2-external/configs/` differs from its fragments.
 
-| | Module alone | CoreBoard-1 | Korvo-1 |
+| | Module alone | Function-CoreBoard-1 | Korvo-1 |
 | --- | --- | --- | --- |
 | Base | Kernel, toolchain, BusyBox, Dropbear, OpenSSL, `wpa_supplicant` (WPA3, PEAP/TTLS/TLS, AP mode), curl, iperf3, libgpiod, BlueZ (`bluetoothd`, `bluetoothctl`) | The same | The same |
 | Board parts | squashfs root in the flash, UBIFS overlay, the MTD tools | The parts of the module alone, and in the kernel Ethernet, USB and the LED | ext4 root on the card, `hostapd`, the classic BlueZ tools, bash, vim, gdb, strace, tcpdump, links, MicroPython, Lua, htop, USB and filesystem tools |

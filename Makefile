@@ -88,7 +88,8 @@ BR_TOOLS = "$(CONTAINER)" run --rm --uid $(shell id -u) --gid $(shell id -g) \
 PARTITIONS := bootloader/partitions-$(BOARD).csv
 part_field = $(shell awk -F'[ ,]+' '$$1 == "$(1)" { print $$$(2) }' $(PARTITIONS))
 
-# The squashfs root in the flash, on the module alone and the CoreBoard-1.
+# The squashfs root in the flash, on the module alone and the
+# Function-CoreBoard-1.
 # The Korvo-1 has its root on the card and no rootfs partition.
 ROOT_OFFSET := $(call part_field,rootfs,4)
 ROOT_SIZE := $(call part_field,rootfs,5)

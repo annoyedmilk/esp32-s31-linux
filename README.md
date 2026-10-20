@@ -34,8 +34,8 @@ You can use it in two ways:
 There are three builds. Select one with `BOARD` for each `make` target. The
 Korvo-1 has a card with much space, so it gets the full set of tools. The
 module alone has only its 16 MB flash, so it gets a small set. The
-CoreBoard-1 build is the build of the module alone, with Ethernet, USB and
-the LED.
+Function-CoreBoard-1 build is the build of the module alone, with Ethernet,
+USB and the LED.
 The builds share one base configuration
 (`br2-external/board/esp32s31/defconfig/common.fragment`): the kernel, the
 toolchain, BusyBox, Dropbear, OpenSSL, `wpa_supplicant`, curl, iperf3,
@@ -58,7 +58,7 @@ libgpiod and BlueZ. Each board fragment adds only its own parts.
 1. Get the files of your board from the newest release on the
    [releases page](https://github.com/annoyedmilk/esp32-s31-linux/releases):
    `*-esp32s31-flash.zip` for the ESP32-S31-WROOM-3-N16R16V alone,
-   `*-coreboard1-flash.zip` for the CoreBoard-1, or
+   `*-coreboard1-flash.zip` for the Function-CoreBoard-1, or
    `*-korvo1-flash.zip` and `*-korvo1-sdcard.img.xz` for the Korvo-1.
 2. Flash: `pip install "esptool==5.5.0"` (the tested version, in
    `bootloader/esptool.version`), connect the UART port, then
@@ -97,7 +97,7 @@ On the Korvo-1 also:
   Secure Simple Pairing.
 - The RGB LED as `/sys/class/leds/rgb:status`.
 
-On the CoreBoard-1 also:
+On the Function-CoreBoard-1 also:
 
 - Gigabit Ethernet as `eth0` (stmmac), with DHCP at boot.
 - USB host (DWC2): keyboards, mice, `hidraw` and mass storage with FAT.
@@ -106,8 +106,7 @@ On the CoreBoard-1 also:
 ## Tested hardware
 
 Espressif makes new chip revisions, and a different revision can change
-the behavior. This port is tested on this board, with the esp32s31 and
-korvo1 builds. The CoreBoard-1 build is tested by a contributor:
+the behavior. This port is tested on this hardware:
 
 | Item | Value |
 | --- | --- |
@@ -204,8 +203,8 @@ make monitor SERIAL_PORT=/dev/cu.usbserial-XXXX
 ```
 
 - The default is the ESP32-S31-WROOM-3-N16R16V alone (`BOARD=esp32s31`).
-  Add `BOARD=coreboard1` for the CoreBoard-1, or `BOARD=korvo1` for the
-  Korvo-1. The output of a board goes to `build/<board>/`.
+  Add `BOARD=coreboard1` for the Function-CoreBoard-1, or `BOARD=korvo1`
+  for the Korvo-1. The output of a board goes to `build/<board>/`.
 - `make build` builds the loader and OpenSBI on the Mac. Buildroot builds the
   kernel, the rootfs and the card images in the container.
 - `make monitor` resets the board and waits for
@@ -273,8 +272,8 @@ and the overlay of each board:
 - `S95autostart` runs `/mnt/sd/autostart.sh`, or `/root/autostart.sh`
   when the card has none.
 - `S99banner` prints the line that `make monitor` waits for.
-- The module alone and the CoreBoard-1 also have `overlay-init` and
-  `S00overlay` (see [Flash root](#flash-root-esp32s31)).
+- The module alone and the Function-CoreBoard-1 also have `overlay-init`
+  and `S00overlay` (see [Flash root](#flash-root-esp32s31)).
 
 `login` and SSH show `/etc/motd`, which lists the first commands.
 
@@ -322,8 +321,8 @@ The squashfs is zstd at the highest level that Buildroot gives, with
 slowly. The cost is time: each page fault of a program decompresses one
 block. `make` stops when the image is larger than the `rootfs` partition.
 
-The CoreBoard-1 has the same flash root, but its kernel with USB and
-Ethernet needs 4.75 MiB, so its `data` partition is 1.6875 MiB.
+The Function-CoreBoard-1 has the same flash root, but its kernel with USB
+and Ethernet needs 4.75 MiB, so its `data` partition is 1.6875 MiB.
 
 ### Files and scripts
 
