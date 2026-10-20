@@ -1,7 +1,5 @@
-# ESP32-S31-Function-CoreBoard-1: linux.config with the root on a USB stick,
-# without the panel, the card and the touch controller of the Korvo-1, and
-# with Ethernet.  Buildroot merges this fragment into linux.config for
-# coreboard1_defconfig.
+# ESP32-S31-Function-CoreBoard-1: the root on a USB stick, and Ethernet.
+# Buildroot merges this fragment into linux.config for coreboard1_defconfig.
 CONFIG_BUILTIN_DTB_NAME="espressif/esp32s31_coreboard1"
 # The UART is the only console.  The root is p2 of the USB stick: rootwait
 # waits for usb-storage, which scans a new stick after 1 s.

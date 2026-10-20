@@ -49,9 +49,9 @@ libgpiod and BlueZ. Each board fragment adds only its own parts.
 | Swap | zram (6 MiB) only | zram (6 MiB), then 64 MiB on p3 of the stick | zram (6 MiB), then 64 MiB on p3 of the card |
 | Consoles | UART | UART | UART, and the LCD with a USB keyboard |
 | Hardware for Linux | GPIO, RNG | Ethernet, USB host (the root stick), RGB LED, GPIO, RNG | LCD, touch (I2C), microSD, USB host, RGB LED, GPIO, RNG |
-| Wi-Fi and Bluetooth | `wlan0` and `hci0`, WPA2 and WPA3, Personal and Enterprise, AP with `wpa_supplicant`, BlueZ (`bluetoothd`, `bluetoothctl`) | The same as `korvo1` | `wlan0` and `hci0`, WPA2 and WPA3, Personal and Enterprise, AP with `hostapd`, BlueZ with its classic tools |
+| Wi-Fi and Bluetooth | `wlan0` and `hci0`, WPA2 and WPA3, Personal and Enterprise, AP with `wpa_supplicant`, BlueZ (`bluetoothd`, `bluetoothctl`) | `wlan0` and `hci0`, WPA2 and WPA3, Personal and Enterprise, AP with `hostapd`, BlueZ with its classic tools | `wlan0` and `hci0`, WPA2 and WPA3, Personal and Enterprise, AP with `hostapd`, BlueZ with its classic tools |
 | RAM for Linux | 12.6 MiB | Not measured | 10.8 MiB |
-| Userspace | BusyBox, Dropbear, wpa_supplicant, iw, curl, bluetoothctl, iperf3, the GPIO tools, flash_erase | The same as `korvo1` without the LCD tools, and ethtool | bash, vim, gdb, strace, MicroPython, Lua, links, curl, tcpdump, htop and more |
+| Userspace | BusyBox, Dropbear, wpa_supplicant, iw, curl, bluetoothctl, iperf3, the GPIO tools, flash_erase | bash, vim, gdb, strace, MicroPython, Lua, links, curl, tcpdump, htop, ethtool and more | bash, vim, gdb, strace, MicroPython, Lua, links, curl, tcpdump, htop and more |
 
 ## Try it
 
@@ -107,8 +107,7 @@ On the Function-CoreBoard-1 also:
 
 - Gigabit Ethernet as `eth0` (stmmac), with DHCP at boot.
 - USB host (DWC2): the root stick, keyboards, mice and `hidraw`. The stick
-  has the same layout as the card of the Korvo-1: FAT on p1 (`/mnt/usb`),
-  ext4 root on p2, swap on p3.
+  has FAT on p1 (`/mnt/usb`), the ext4 root on p2 and swap on p3.
 - An access point with `hostapd`, and the classic BlueZ tools.
 - The RGB LED as `/sys/class/leds/rgb:status`.
 
@@ -259,8 +258,8 @@ root stick when the board starts: a second USB disk can get the name `sda`.
 
 ## SD card and USB stick
 
-The card of the Korvo-1 and the USB stick of the Function-CoreBoard-1 have
-the same layout, from the same image (`sdcard.img`). The disk is MBR. p1 is
+The disk is the microSD card on the Korvo-1 and the USB stick on the
+Function-CoreBoard-1. Its image is `sdcard.img`. The disk is MBR. p1 is
 FAT32 and is mounted on `/mnt/sd` (Korvo-1) or `/mnt/usb`
 (Function-CoreBoard-1). p2 is the ext4 root (512 MiB in the disk image). p3
 is swap (type `0x82`, 64 MiB). `/etc/default/disk` names the partitions for
@@ -524,9 +523,8 @@ takes all offsets from them.
   longer than the closed Wi-Fi library on hart 0 waits for the
   authentication. `wpa_supplicant` tries again and connects. WPA2 is not
   affected.
-- On the esp32s31 board, a cold program start is slower than on the
-  Korvo-1, because the root is zstd-compressed (see
-  [Flash root](#flash-root-esp32s31)).
+- On the esp32s31 board, a cold program start is slow, because the root is
+  zstd-compressed (see [Flash root](#flash-root-esp32s31)).
 - WPA2/WPA3 Enterprise is not tested.
 - The access point mode is tested up to the started access point. No
   client has connected to it.

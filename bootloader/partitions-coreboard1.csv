@@ -1,5 +1,4 @@
-# ESP32-S31-Function-CoreBoard-1: the root is on a USB stick, so the layout
-# is that of partitions-korvo1.csv, without "rootfs" and "data".
+# ESP32-S31-Function-CoreBoard-1: the root is on a USB stick.
 # Name,   Type, SubType, Offset,   Size,      Flags
 nvs,      data, nvs,     0x11000,  0x6000,
 phy_init, data, phy,     0x19000,  0x1000,

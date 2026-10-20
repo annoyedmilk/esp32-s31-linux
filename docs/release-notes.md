@@ -33,11 +33,10 @@ login. A USB keyboard works on it.
 ## New in v0.6.0
 
 - A third build, `coreboard1`, for the ESP32-S31-Function-CoreBoard-1. Its
-  root is on a USB stick, with the same layout and the same tools as the
-  card of the Korvo-1 (without the LCD tools). It has Gigabit Ethernet
-  (`eth0`, DHCP at boot) and the RGB LED. Linux sets up the Ethernet pins,
-  clocks and reset itself. The MAC address comes from the eFuse, by the
-  ESP-IDF rule.
+  root is on a USB stick (FAT for your files, the ext4 root and swap), with
+  the full set of tools. It has Gigabit Ethernet (`eth0`, DHCP at boot) and
+  the RGB LED. Linux sets up the Ethernet pins, clocks and reset itself.
+  The MAC address comes from the eFuse, by the ESP-IDF rule.
 - `make` builds the module alone (`esp32s31`) when `BOARD` is not given.
   Use `BOARD=korvo1` for the Korvo-1.
 - A pin controller replaces the GPIO driver. The device tree selects the
