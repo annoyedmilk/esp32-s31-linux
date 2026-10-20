@@ -268,17 +268,18 @@ that write erase data, and they ask for confirmation and `sudo`.
 
 | Command | Use |
 | --- | --- |
-| `make sdpart SD_DISK=/dev/diskN` | Partition a large card. p1 gets `SD_DATA_SIZE` (28G, at least 4G), p3 64 MB, p2 the rest. |
-| `make sdwrite SD_DISK=/dev/diskN` | Write the full card image. Use for a small card. |
+| `make sdpart SD_DISK=/dev/diskN` | Partition a large disk. p1 gets `SD_DATA_SIZE` (28G, at least 4G), p3 64 MB, p2 the rest. |
+| `make sdwrite SD_DISK=/dev/diskN` | Write the full disk image. Use for a small disk. |
 | `make sdroot SD_DISK=/dev/diskN` | Write only the root partition. Use for updates. It stops when p2 is smaller than the root image. |
 
-If the root goes read-only, run `e2fsck -f /dev/mmcblk0p2` from the console.
+If the root goes read-only, run `e2fsck -f` on p2 (`/dev/mmcblk0p2` or
+`/dev/sda2`) from the console.
 
 When the board is reset with p1 mounted, the FAT keeps a dirty flag. Linux
 does not clear it, also not at a clean shutdown, and warns at each mount.
 `S10sdcard` runs `fsck.fat -a` on a dirty p1 before it mounts it.
 `fsck.fat` needs approximately 8 bytes of memory for each cluster. That is
-less than 1 MB for the 64 MiB p1 of the card image. `make sdpart` formats p1
+less than 1 MB for the 64 MiB p1 of the disk image. `make sdpart` formats p1
 with 64 KiB clusters: a 28 GiB p1 then needs 3.3 MiB, not the 13 MiB of the
 16 KiB clusters that `diskutil` selects. `S10sdcard` skips a p1 whose
 clusters do not fit in half of the free memory, for example a card that a

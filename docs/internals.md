@@ -45,11 +45,12 @@ ROM -> ESP-IDF 2nd stage -> loader (hart 0) -> OpenSBI (hart 1, M) -> Linux (har
    firmware.
 5. OpenSBI sets up the CLIC, the timer, PMP, APM and the SBI extensions.
    Then it jumps to the kernel in S-mode.
-6. The kernel has a built-in DTB (`esp32s31_korvo1.dts` or
-   `esp32s31.dts`). On the Korvo-1, the root is the ext4 partition
-   `/dev/mmcblk0p2` on the SD card (`root=` and `rootwait`). On the
-   esp32s31 board, the root is the squashfs in the flash, with a UBIFS
-   overlay.
+6. The kernel has a built-in DTB (`esp32s31.dts`,
+   `esp32s31_coreboard1.dts` or `esp32s31_korvo1.dts`). On the Korvo-1,
+   the root is the ext4 partition `/dev/mmcblk0p2` on the SD card, on the
+   Function-CoreBoard-1 `/dev/sda2` on the USB stick (`root=` and
+   `rootwait`). On the esp32s31 board, the root is the squashfs in the
+   flash, with a UBIFS overlay.
 
 ### Memory map
 
@@ -60,7 +61,7 @@ ROM -> ESP-IDF 2nd stage -> loader (hart 0) -> OpenSBI (hart 1, M) -> Linux (har
 | `0x2F079000` | 4 KiB | LCD DMA descriptor ring (Korvo-1) |
 | `0x50000000` | 15 MiB | Linux RAM, from the kernel image |
 | `0x50F00000` | 256 KiB | OpenSBI (reserved, no-map) |
-| `0x50F40000` | 768 KiB | LCD frame buffer (Korvo-1: reserved, no-map, uncached; esp32s31: Linux RAM) |
+| `0x50F40000` | 768 KiB | LCD frame buffer (Korvo-1: reserved, no-map, uncached; other boards: Linux RAM) |
 
 The loader keeps its own copy of these numbers. The device tree
 (`esp32s31.dtsi`) must agree with it.

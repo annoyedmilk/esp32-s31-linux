@@ -1,4 +1,4 @@
-# Build the flash images and the SD card image, and publish them.
+# Build the flash images and the disk images, and publish them.
 #
 # A push of a tag v* makes a GitHub release with the files.  A manual run
 # (Actions > release > Run workflow) builds the same files and keeps them as

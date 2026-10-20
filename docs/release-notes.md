@@ -261,8 +261,9 @@ card image erases the card, so save your files from the FAT partition first.
 
 ## Known limits
 
-- The tested hardware is the Korvo-1 and the Function-CoreBoard-1, with
-  chip revision v0.0. The esp32s31 build is tested on the Korvo-1.
+- The tested hardware is the Korvo-1 with chip revision v0.0. The esp32s31
+  build is tested on the Korvo-1. The coreboard1 build is not tested on a
+  board yet.
 - One hart runs Linux. The other runs the Wi-Fi firmware.
 - Floating point works in software; the hardware FPU is not used.
 - No audio or camera driver.

@@ -243,7 +243,8 @@ opensbi:
 	@cp "$(OPENSBI_OUT)/platform/esp32s31/firmware/fw_jump.elf" "$(BUILD_DIR)/opensbi.elf"
 	@cp "$(OPENSBI_OUT)/platform/esp32s31/firmware/fw_jump.bin" "$(BUILD_DIR)/opensbi.bin"
 
-# The defconfigs are made from a common fragment and one for each board.
+# The defconfigs are made from the common fragment, the root fragment and
+# the fragment of each board.
 defconfigs:
 	@$(BR_TOOLS) sh -c 'cd /work && scripts/mkdefconfigs.sh'
 
@@ -373,8 +374,8 @@ SD_CONFIRM = @read -r -p 'Type $(1) to continue: ' reply; \
 	test "$$reply" = $(1) || { echo aborted; exit 1; }
 SD_SHOW = @diskutil info "$(SD_DISK)" | grep -E 'Device Node|Media Name|Disk Size|Removable Media'
 
-# Partition a large card: a large FAT partition for the Mac and a small ext4
-# root.  Use this and not sdwrite when the card is larger than the image.
+# Partition a large disk: a large FAT partition for the Mac and a small ext4
+# root.  Use this and not sdwrite when the disk is larger than the image.
 # fsck.fat on the board needs approximately 8 bytes for each cluster, so p1
 # gets 64 KiB clusters (128 sectors).  FAT32 then needs 4 GiB or more.
 sdpart:
@@ -395,12 +396,12 @@ sdpart:
 		printf "\\x83" | dd of="$(BUILD_DIR)/mbr.bin" bs=1 seek=466 conv=notrunc && \
 		printf "\\x82" | dd of="$(BUILD_DIR)/mbr.bin" bs=1 seek=482 conv=notrunc && \
 		dd if="$(BUILD_DIR)/mbr.bin" of="$(SD_RAW)" bs=512 count=1' \
-		|| echo 'warning: type bytes unchanged; the board boots without card swap'
+		|| echo 'warning: type bytes unchanged; the board boots without disk swap'
 	@rm -f "$(BUILD_DIR)/mbr.bin"
 	@diskutil list "$(SD_DISK)"
 	@echo 'now: make sdroot SD_DISK=$(SD_DISK)'
 
-# Erases the card.  On a large card, the space after p2 is not used.
+# Erases the disk.  On a large disk, the space after p2 is not used.
 sdwrite:
 	$(SD_DISK_REQUIRED)
 	@test -f "$(BR_OUT)/sdcard.img" || { echo 'no $(BR_OUT)/sdcard.img; run make sdcard'; exit 1; }
