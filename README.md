@@ -106,8 +106,8 @@ On the Korvo-1 also:
 On the Function-CoreBoard-1 also:
 
 - Gigabit Ethernet as `eth0` (stmmac), with DHCP at boot.
-- USB host (DWC2): the root stick, keyboards, mice and `hidraw`. The stick
-  has FAT on p1 (`/mnt/usb`), the ext4 root on p2 and swap on p3.
+- USB host (DWC2): the root stick, and more USB storage through a hub. The
+  stick has FAT on p1 (`/mnt/usb`), the ext4 root on p2 and swap on p3.
 - An access point with `hostapd`, and the classic BlueZ tools.
 - The RGB LED as `/sys/class/leds/rgb:status`.
 
