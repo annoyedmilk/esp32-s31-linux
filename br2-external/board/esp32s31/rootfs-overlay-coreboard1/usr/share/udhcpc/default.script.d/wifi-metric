@@ -1,0 +1,14 @@
+#!/bin/sh
+# SPDX-License-Identifier: MIT
+# udhcpc hook.  The default route of each lease has metric 0.  Give the one of
+# wlan0 metric 10, so that Ethernet is used when both links are up.
+
+[ "$interface" = wlan0 ] || exit 0
+case "$1" in
+bound|renew)
+	for gw in $router; do
+		ip route del default via "$gw" dev wlan0 metric 0 2>/dev/null
+		ip route replace default via "$gw" dev wlan0 metric 10
+	done
+	;;
+esac
