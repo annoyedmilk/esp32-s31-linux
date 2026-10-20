@@ -283,6 +283,34 @@
 		 * burst of more than 16 beats to PSRAM stops hart 0 with an
 		 * MSPI error, so the PBL must not be multiplied by 8.
 		 */
+		i2c0: i2c@20385000 {
+			compatible = "esp,esp32s31-i2c";
+			reg = <0x20385000 0x1000>;
+			interrupt-parent = <&clic>;
+			interrupts = <37 23 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&hp_clkrst ESP32S31_CLK_I2C0_APB>,
+				 <&hp_clkrst ESP32S31_CLK_I2C0>;
+			clock-names = "apb", "core";
+			resets = <&hp_clkrst ESP32S31_RST_I2C0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		i2c1: i2c@20386000 {
+			compatible = "esp,esp32s31-i2c";
+			reg = <0x20386000 0x1000>;
+			interrupt-parent = <&clic>;
+			interrupts = <38 24 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&hp_clkrst ESP32S31_CLK_I2C1_APB>,
+				 <&hp_clkrst ESP32S31_CLK_I2C1>;
+			clock-names = "apb", "core";
+			resets = <&hp_clkrst ESP32S31_RST_I2C1>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
 		emac: ethernet@20350000 {
 			compatible = "esp,esp32s31-dwmac", "snps,dwmac-3.70a";
 			reg = <0x20350000 0x4000>;

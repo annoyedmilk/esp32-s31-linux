@@ -1,0 +1,42 @@
+From: Marco Müller <hello@annoyedmilk.ch>
+Subject: [PATCH] i2c: esp32s31: add the ESP32-S31 I2C master driver
+
+The ESP32-S31 has two I2C controllers with a command list and a FIFO.
+Add their master driver to the I2C bus Kconfig and Makefile.
+
+Signed-off-by: Marco Müller <hello@annoyedmilk.ch>
+---
+diff --git a/drivers/i2c/busses/Kconfig b/drivers/i2c/busses/Kconfig
+--- a/drivers/i2c/busses/Kconfig
++++ b/drivers/i2c/busses/Kconfig
+@@ -672,6 +672,19 @@
+ 	  If you say yes to this option, support will be included for the
+ 	  I2C interface on the Renesas Electronics EM/EV family of processors.
+ 
++config I2C_ESP32S31
++	tristate "Espressif ESP32-S31 I2C controller"
++	depends on SOC_ESP32S31 || COMPILE_TEST
++	depends on OF
++	default SOC_ESP32S31
++	help
++	  Say Y here to use the two I2C controllers of the Espressif
++	  ESP32-S31 as masters, for example for an audio codec or a touch
++	  controller on the board.
++
++	  This driver can also be built as a module.  If so, the module
++	  will be called i2c-esp32s31.
++
+ config I2C_EXYNOS5
+ 	tristate "Exynos high-speed I2C driver"
+ 	depends on OF
+diff --git a/drivers/i2c/busses/Makefile b/drivers/i2c/busses/Makefile
+--- a/drivers/i2c/busses/Makefile
++++ b/drivers/i2c/busses/Makefile
+@@ -64,6 +64,7 @@
+ obj-$(CONFIG_I2C_DIGICOLOR)	+= i2c-digicolor.o
+ obj-$(CONFIG_I2C_EG20T)		+= i2c-eg20t.o
+ obj-$(CONFIG_I2C_EMEV2)		+= i2c-emev2.o
++obj-$(CONFIG_I2C_ESP32S31)	+= i2c-esp32s31.o
+ obj-$(CONFIG_I2C_EXYNOS5)	+= i2c-exynos5.o
+ obj-$(CONFIG_I2C_GPIO)		+= i2c-gpio.o
+ obj-$(CONFIG_I2C_HIGHLANDER)	+= i2c-highlander.o
