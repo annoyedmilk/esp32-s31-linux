@@ -1,10 +1,10 @@
 #!/bin/sh
 # SPDX-License-Identifier: MIT
 # A USB stick is optional space for data, never the root.
-# mdev -d runs this script for each USB disk and partition (mdev.conf), and
-# its first scan also for a stick that is there at boot.  Mount the first
-# FAT partition of the stick, or the full stick when it has no partition
-# table, on /mnt/usb.  When the stick goes, release the mount.
+# Mount the first FAT partition of the stick, or the full stick when it has
+# no partition table, on /mnt/usb.  At start, mount a stick that is there,
+# and make mdev the uevent helper: for a stick that comes later, mdev runs
+# this script (mdev.conf).  When the stick goes, release the mount.
 
 MNT=/mnt/usb
 
@@ -26,7 +26,8 @@ mount_usb()
 
 case "$1" in
 start)
-	pidof mdev >/dev/null || mdev -d
+	echo /sbin/mdev > /proc/sys/kernel/hotplug
+	[ -b /dev/sda ] && mount_usb sda
 	;;
 stop)
 	mountpoint -q $MNT && umount $MNT

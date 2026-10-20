@@ -293,9 +293,10 @@ and the overlay of each board:
 - `/etc/sysctl.d/10-reserve.conf` keeps 512 KiB free for the zram writes.
   A larger reserve takes memory from the page cache.
 - `S10sdcard` mounts p1 on `/mnt/sd`.
-- `S10usb` starts the BusyBox `mdev` daemon on the Korvo-1 and the
-  Function-CoreBoard-1. It mounts the FAT of a USB stick on `/mnt/usb`,
-  at boot and when you connect the stick later (`/etc/mdev.conf`).
+- `S10usb` mounts the FAT of a USB stick on `/mnt/usb` on the Korvo-1 and
+  the Function-CoreBoard-1. It makes BusyBox `mdev` the uevent helper of
+  the kernel, so a stick that you connect later is also mounted
+  (`/etc/mdev.conf`).
 - `S40wifi` starts `wpa_supplicant` on `wlan0` in the background, so that
   the console does not wait for it. `S40wifi restart` waits. `S40bluetoothd`
   starts BlueZ for `hci0`.
