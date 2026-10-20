@@ -384,10 +384,10 @@ sdpart:
 	$(call SD_CONFIRM,ERASE)
 	@diskutil unmountDisk "$(SD_DISK)"
 	@diskutil partitionDisk "$(SD_DISK)" MBR \
-		"MS-DOS FAT32" KORVO_SD $(SD_DATA_SIZE) "MS-DOS FAT32" ROOTFS R \
+		"MS-DOS FAT32" ESP32S31 $(SD_DATA_SIZE) "MS-DOS FAT32" ROOTFS R \
 		"MS-DOS FAT32" SWAP 64M
 	@diskutil unmountDisk "$(SD_DISK)"
-	@sudo newfs_msdos -F 32 -c 128 -v KORVO_SD "$(SD_RAW)s1"
+	@sudo newfs_msdos -F 32 -c 128 -v ESP32S31 "$(SD_RAW)s1"
 # The kernel ignores the type byte of p2.  With 0x83, macOS does not try to
 # mount the ext4 partition as FAT at each insertion.  S05swap uses p3 only
 # with 0x82.
