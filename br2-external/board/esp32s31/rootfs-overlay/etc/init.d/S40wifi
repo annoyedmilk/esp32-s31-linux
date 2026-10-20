@@ -2,12 +2,15 @@
 # SPDX-License-Identifier: MIT
 # Start wpa_supplicant on wlan0.  wpa_cli runs /usr/sbin/wpa-dhcp-action
 # at each connection, which starts or renews the DHCP lease.
-# The config is /etc/wpa_supplicant.conf, or wpa_supplicant.conf on p1 when
-# it exists: that file stays after "make sdroot", which replaces the root.
+# The config is /etc/wpa_supplicant.conf, or wpa_supplicant.conf on p1 of
+# the disk when it exists: that file stays after "make sdroot", which
+# replaces the root.
 
 IFACE=wlan0
 CONF=/etc/wpa_supplicant.conf
-[ -r /mnt/sd/wpa_supplicant.conf ] && CONF=/mnt/sd/wpa_supplicant.conf
+[ -r /etc/default/disk ] && . /etc/default/disk
+[ -r "${DISK_MNT:+$DISK_MNT/wpa_supplicant.conf}" ] &&
+	CONF=$DISK_MNT/wpa_supplicant.conf
 
 start_wifi()
 {

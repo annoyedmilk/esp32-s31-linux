@@ -1,10 +1,11 @@
 #!/bin/sh
 # SPDX-License-Identifier: MIT
-# Run autostart.sh at each boot: from p1 of the card, which stays after
+# Run autostart.sh at each boot: from p1 of the disk, which stays after
 # "make sdroot" and which a Mac or PC can write, else from /root, which the
-# overlay of the standalone build keeps.
+# overlay of the module alone keeps.
 
-SCRIPT=/mnt/sd/autostart.sh
+[ -r /etc/default/disk ] && . /etc/default/disk
+SCRIPT=${DISK_MNT:+$DISK_MNT/autostart.sh}
 [ -f "$SCRIPT" ] || SCRIPT=/root/autostart.sh
 
 [ "$1" = start ] && [ -f "$SCRIPT" ] || exit 0

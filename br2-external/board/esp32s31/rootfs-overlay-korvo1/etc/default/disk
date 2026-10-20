@@ -1,0 +1,6 @@
+# The disk with the root: the microSD card.  p1 is FAT, p2 is the root, p3
+# is swap.  S05swap, S10sdcard, S40wifi and S95autostart read this file.
+DISK=/dev/mmcblk0
+DISK_FAT=/dev/mmcblk0p1
+DISK_SWAP=/dev/mmcblk0p3
+DISK_MNT=/mnt/sd
