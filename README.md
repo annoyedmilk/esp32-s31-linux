@@ -74,7 +74,7 @@ public key to `/root/.ssh/authorized_keys` from the console first.
 
 ## What works
 
-On the two boards:
+On all boards:
 
 - UART console (`ttyS0`), on the CP2102N bridge of the Korvo-1.
 - Wi-Fi as `wlan0` (cfg80211 full-MAC) through the ESP-Hosted firmware on
@@ -106,7 +106,8 @@ On the CoreBoard-1 also:
 ## Tested hardware
 
 Espressif makes new chip revisions, and a different revision can change
-the behavior. This port is tested only on this board, with the two builds:
+the behavior. This port is tested on this board, with the esp32s31 and
+korvo1 builds. The CoreBoard-1 build is tested by a contributor:
 
 | Item | Value |
 | --- | --- |
@@ -171,7 +172,7 @@ board always gives GPIO33/34 to the USB Serial/JTAG.
 
 ## Host requirements
 
-- macOS with Homebrew, GNU make and coreutils (`brew install make coreutils`).
+- macOS with Homebrew and GNU make (`brew install make`).
 - ESP-IDF at `~/esp/esp-idf`, at the commit in `bootloader/esp-idf.version`,
   with the `riscv32-esp-elf` toolchain and the ESP-Hosted patches
   (`make bootloader` gives the command).
@@ -211,7 +212,7 @@ make monitor SERIAL_PORT=/dev/cu.usbserial-XXXX
   `=== ESP32-S31 Linux / Buildroot ===`. Then it stays open as a terminal.
   Push `Ctrl-]` to exit. It writes a log to `logs/`.
 - Set `RESET_PORT` if the RTS line of `SERIAL_PORT` cannot reset the board.
-- Files in `local-overlay/` go into the root of both builds, for example
+- Files in `local-overlay/` go into the root of all builds, for example
   `root/.ssh/authorized_keys` and `etc/wpa_supplicant.conf`. git ignores
   them, and `scripts/package-release.sh` stops when the directory has files.
   A file that you remove from it stays in the Buildroot output until a
@@ -254,7 +255,7 @@ The serial and panel consoles log in as root automatically. Dropbear takes
 root only with a key (`-g` in `/etc/default/dropbear`): put the public key
 into `/root/.ssh/authorized_keys`. The root password is `korvo-bringup`.
 
-Boot scripts of the two boards, in `br2-external/board/esp32s31/rootfs-overlay`
+Boot scripts of all boards, in `br2-external/board/esp32s31/rootfs-overlay`
 and the overlay of each board:
 
 - `S01clock` sets the clock from `/etc/timestamp`. The board has no RTC.
@@ -272,13 +273,13 @@ and the overlay of each board:
 - `S95autostart` runs `/mnt/sd/autostart.sh`, or `/root/autostart.sh`
   when the card has none.
 - `S99banner` prints the line that `make monitor` waits for.
-- The module alone also has `overlay-init` and `S00overlay` (see
-  [Flash root](#flash-root-esp32s31)).
+- The module alone and the CoreBoard-1 also have `overlay-init` and
+  `S00overlay` (see [Flash root](#flash-root-esp32s31)).
 
 `login` and SSH show `/etc/motd`, which lists the first commands.
 
-The esp32s31 board has only the BusyBox tools and the programs in
-[Boards](#boards). The tools below are for the Korvo-1.
+The esp32s31 and coreboard1 boards have only the BusyBox tools and the
+programs in [Boards](#boards). The tools below are for the Korvo-1.
 
 ### Tools
 
@@ -338,7 +339,8 @@ The CoreBoard-1 has the same flash root, but its kernel needs 5 MiB, so its
   MicroPython, `gpio.sh` reads or sets a pin, `www/` is a web page with a CGI
   script for the LED, and `autostart.sh` is a start script.
 
-The module alone has its own examples in `/usr/share/examples`:
+The module alone and the CoreBoard-1 have their own examples in
+`/usr/share/examples`:
 `gpio.sh` reads or sets a pin, `www/` is a web page that sets and reads
 pins (`httpd -p 8080 -h /usr/share/examples/www`), `report.sh` sends the
 uptime and the free memory with HTTPS (for `crontab`), `ble-scan.sh` lists
@@ -374,9 +376,9 @@ The default configuration has `pmf=1`: protected management frames when
 the access point offers them. Without them, a WPA2/WPA3 router gave less
 than half of the TX throughput.
 
-On the esp32s31 board, the network stays in the overlay.
+On the esp32s31 and coreboard1 boards, the network stays in the overlay.
 
-For an access point on the two boards, stop `S40wifi` and start
+For an access point on all boards, stop `S40wifi` and start
 `wpa_supplicant -B -D nl80211 -i wlan0 -c /tmp/ap.conf` with a network
 block that has `mode=2`, for example `ssid="esp32s31"`, `mode=2`,
 `frequency=2437`, `key_mgmt=WPA-PSK`, `proto=RSN`, `pairwise=CCMP`,

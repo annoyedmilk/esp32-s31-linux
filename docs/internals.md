@@ -5,8 +5,9 @@ its current form. It is for developers who know the RISC-V Linux kernel and
 want to understand this SoC. All facts are from chip revision v0.0 on the
 ESP32-S31-Korvo-1 board. Most of them were measured with JTAG, because
 Espressif does not publish a technical reference manual for this chip yet.
-The port has two builds: `korvo1` for that board, and `esp32s31` for the
-ESP32-S31-WROOM-3-N16R16V module alone, which is the module of the Korvo-1.
+The port has three builds: `esp32s31` for the ESP32-S31-WROOM-3-N16R16V
+module alone, `coreboard1` for the ESP32-S31-Function-CoreBoard-1, and
+`korvo1` for the Korvo-1. The two boards use that module.
 
 The ESP-IDF register headers (`components/soc/esp32s31/register/soc/`) are
 the best public reference for addresses and fields.
@@ -363,23 +364,25 @@ Linux sees a standard MTD device.
   shows 64 KiB erase blocks: UBIFS needs a logical erase block of at least
   15 KiB, and UBI takes 128 bytes of each block for its headers.
 
-## The two builds
+## The three builds
 
-The two builds share one Buildroot base
+The three builds share one Buildroot base
 (`br2-external/board/esp32s31/defconfig/common.fragment`), and
-`scripts/mkdefconfigs.sh` merges it with the fragment of the board. A
+`scripts/mkdefconfigs.sh` merges it with the fragment of the board. The
+builds with the root in the flash (`esp32s31` and `coreboard1`) also get
+`flashroot.fragment`. A
 setting is in one fragment only, and `make check` fails when a defconfig
 in `br2-external/configs/` differs from its fragments.
 
-| | Korvo-1 | Module alone |
-| --- | --- | --- |
-| Base | Kernel, toolchain, BusyBox, Dropbear, OpenSSL, `wpa_supplicant` (WPA3, PEAP/TTLS/TLS, AP mode), curl, iperf3, libgpiod, BlueZ (`bluetoothd`, `bluetoothctl`) | The same |
-| Board parts | ext4 root on the card, `hostapd`, the classic BlueZ tools, bash, vim, gdb, strace, tcpdump, links, MicroPython, Lua, htop, USB and filesystem tools | squashfs root in the flash, UBIFS overlay, the MTD tools |
-| Swap | zram, then p3 of the card | zram only |
+| | Module alone | CoreBoard-1 | Korvo-1 |
+| --- | --- | --- | --- |
+| Base | Kernel, toolchain, BusyBox, Dropbear, OpenSSL, `wpa_supplicant` (WPA3, PEAP/TTLS/TLS, AP mode), curl, iperf3, libgpiod, BlueZ (`bluetoothd`, `bluetoothctl`) | The same | The same |
+| Board parts | squashfs root in the flash, UBIFS overlay, the MTD tools | The parts of the module alone, and in the kernel Ethernet, USB and the LED | ext4 root on the card, `hostapd`, the classic BlueZ tools, bash, vim, gdb, strace, tcpdump, links, MicroPython, Lua, htop, USB and filesystem tools |
+| Swap | zram only | zram only | zram, then p3 of the card |
 
 The Korvo-1 has a card with much space, and the module alone has only its
 flash. The base keeps the network, security and Bluetooth stack the same
-on the two boards.
+on all boards.
 
 ## Silicon traps
 
@@ -411,5 +414,5 @@ on the two boards.
 | DMA coherency | `linux/drivers/cache/esp32s31-cache.c`, `linux/patches/0007` |
 | Wi-Fi transport | `shared/esp32s31-hosted-shm.h` |
 | The flash root | `bootloader/components/esp_hosted/shm_flash.c`, `linux/drivers/net/wireless/espressif/esp_hosted/esp_shm_flash.c` |
-| The two boards | `bootloader/main/board_*.c`, `br2-external/board/esp32s31/defconfig/*.fragment` (`make defconfigs` makes `br2-external/configs/*_defconfig`) |
+| The boards | `bootloader/main/board_*.c`, `br2-external/board/esp32s31/defconfig/*.fragment` (`make defconfigs` makes `br2-external/configs/*_defconfig`) |
 | Device tree | `linux/arch/riscv/boot/dts/espressif/esp32s31.dtsi` |
