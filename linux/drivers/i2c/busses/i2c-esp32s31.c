@@ -403,6 +403,7 @@ static int esp32s31_i2c_probe(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 	struct i2c_timings timings;
 	struct esp32s31_i2c *i2c;
+	unsigned long rate;
 	struct clk *apb;
 	int irq, ret;
 
@@ -438,10 +439,14 @@ static int esp32s31_i2c_probe(struct platform_device *pdev)
 	if (!i2c->bus_freq || i2c->bus_freq > I2C_MAX_FAST_MODE_PLUS_FREQ)
 		return dev_err_probe(dev, -EINVAL, "invalid clock-frequency\n");
 
-	/* The 9-bit timing fields need at most 1023 source cycles per period. */
+	/* The 9-bit timing fields need 8 to 1023 source cycles per period. */
 	ret = clk_set_rate(i2c->clk, i2c->bus_freq * 1023);
 	if (ret)
 		return dev_err_probe(dev, ret, "failed to set the clock\n");
+	rate = clk_get_rate(i2c->clk);
+	if (rate < i2c->bus_freq * 8 || rate > i2c->bus_freq * 1023)
+		return dev_err_probe(dev, -EINVAL,
+				     "core clock %lu Hz out of range\n", rate);
 
 	init_completion(&i2c->done);
 	ret = esp32s31_i2c_init(i2c, false);
