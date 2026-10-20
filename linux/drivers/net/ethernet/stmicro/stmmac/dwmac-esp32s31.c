@@ -39,6 +39,7 @@
 #define RXTX_180_CLK_EN			BIT(3)
 #define GMAC_PHY_INTF_SEL		GENMASK(4, 2)
 #define GMAC_PHY_INTF_RGMII		1
+#define CNNT_PAD_GMAC_DED_SEL		BIT(1)
 
 struct esp32s31_reg_update {
 	u32 reg;
@@ -83,6 +84,7 @@ static int esp32s31_dwmac_probe(struct platform_device *pdev)
 	struct stmmac_resources stmmac_res;
 	struct device *dev = &pdev->dev;
 	struct regmap *regmap;
+	void __iomem *pad;
 	int ret;
 
 	ret = stmmac_get_platform_resources(pdev, &stmmac_res);
@@ -96,6 +98,12 @@ static int esp32s31_dwmac_probe(struct platform_device *pdev)
 
 	if (!phy_interface_mode_is_rgmii(plat_dat->phy_interface))
 		return dev_err_probe(dev, -EINVAL, "only RGMII is supported\n");
+
+	/* GPIO13-19 are CNNT pads: the GMAC signals need their own pad control. */
+	pad = devm_platform_ioremap_resource(pdev, 1);
+	if (IS_ERR(pad))
+		return PTR_ERR(pad);
+	writel(readl(pad) | CNNT_PAD_GMAC_DED_SEL, pad);
 
 	regmap = syscon_regmap_lookup_by_phandle(dev->of_node, "esp,cnnt-sys");
 	if (IS_ERR(regmap))
