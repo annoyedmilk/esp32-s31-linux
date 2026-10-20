@@ -1,8 +1,8 @@
 # The ESP32-S31-WROOM-3-N16R16V module alone (16 MB flash, 16 MB PSRAM): UART0
 # only.  The root is in the flash (flashroot.fragment).
 #
-# The flash root files (overlay-init), the motd and the examples.
-BR2_ROOTFS_OVERLAY="$(BR2_EXTERNAL_ESP32S31_PATH)/board/esp32s31/rootfs-overlay $(BR2_EXTERNAL_ESP32S31_PATH)/board/esp32s31/rootfs-overlay-esp32s31 $(BR2_EXTERNAL_ESP32S31_PATH)/../local-overlay"
+# The flash root files (overlay-init), then the motd and the examples.
+BR2_ROOTFS_OVERLAY="$(BR2_EXTERNAL_ESP32S31_PATH)/board/esp32s31/rootfs-overlay $(BR2_EXTERNAL_ESP32S31_PATH)/board/esp32s31/rootfs-overlay-flashroot $(BR2_EXTERNAL_ESP32S31_PATH)/board/esp32s31/rootfs-overlay-esp32s31 $(BR2_EXTERNAL_ESP32S31_PATH)/../local-overlay"
 #
 # The Korvo-1 kernel config, without the display, the card, USB and the LED,
 # and with the flash window as MTD.

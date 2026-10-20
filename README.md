@@ -335,17 +335,24 @@ Ethernet needs 4.75 MiB, so its `data` partition is 1.6875 MiB.
 - **Start at boot.** The board runs `/mnt/sd/autostart.sh` at each boot, as
   root. The file is on the FAT partition, so a computer can also write it,
   and it stays after `make sdroot`.
-- **Examples** in `/usr/share/examples`: `led.py` sets the RGB LED from
-  MicroPython, `gpio.sh` reads or sets a pin, `www/` is a web page with a CGI
-  script for the LED, and `autostart.sh` is a start script.
+### Examples
 
-The module alone and the CoreBoard-1 have their own examples in
-`/usr/share/examples`:
-`gpio.sh` reads or sets a pin, `www/` is a web page that sets and reads
-pins (`httpd -p 8080 -h /usr/share/examples/www`), `report.sh` sends the
-uptime and the free memory with HTTPS (for `crontab`), `ble-scan.sh` lists
-the Bluetooth LE devices nearby, `ap.sh` starts an access point, and
-`autostart.sh` is a start script for `/root/autostart.sh`.
+`/usr/share/examples` has these examples on all boards: `gpio.sh` reads or
+sets a pin, `report.sh` sends the uptime and the free memory with HTTPS
+(for `crontab`), `ble-scan.sh` lists the Bluetooth LE devices nearby, and
+`ap.sh` starts an access point.  Each board also has a web page in `www/`
+(`httpd -p 8080 -h /usr/share/examples/www`) and an `autostart.sh`:
+
+| Board | Web page | `autostart.sh` | Also |
+| --- | --- | --- | --- |
+| esp32s31 | Sets and reads pins | Starts the web page | |
+| coreboard1 | The RGB LED, and the pins of J2 | A green LED, and the web page as a comment | `led.sh` sets the LED |
+| korvo1 | The RGB LED | A green LED | `led.py` sets the LED from MicroPython |
+
+The web page has no password: each host that can open it can set the LED
+and the pins.  Start it only on a network that you trust.  The kernel
+refuses the pins of the flash, the console, the loader and the drivers
+(`gpio-reserved-ranges` in the device tree of each board).
 
 ## Wi-Fi
 

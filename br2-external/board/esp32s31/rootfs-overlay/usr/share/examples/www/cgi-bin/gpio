@@ -1,0 +1,17 @@
+#!/bin/sh
+# SPDX-License-Identifier: MIT
+# CGI script: /cgi-bin/gpio?PIN reads a pin, /cgi-bin/gpio?PIN=0|1 sets it.
+# The httpd of BusyBox has no password: each host that can open the page can
+# set the pins.  The kernel refuses the pins of the flash, the console and
+# the drivers.  Use it only on a network that you trust.
+
+echo "Content-Type: text/plain"
+echo
+case "$QUERY_STRING" in
+[0-9]|[0-9][0-9])
+	gpioget -a --numeric -c gpiochip0 "$QUERY_STRING" 2>&1 ;;
+[0-9]=[01]|[0-9][0-9]=[01])
+	gpioset -t0 -c gpiochip0 "$QUERY_STRING" 2>&1 && echo "$QUERY_STRING" ;;
+*)
+	echo "use ?PIN or ?PIN=0 or ?PIN=1" ;;
+esac

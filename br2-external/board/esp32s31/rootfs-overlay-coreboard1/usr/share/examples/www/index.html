@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>ESP32-S31-Function-CoreBoard-1</title></head>
+<body>
+<h1>ESP32-S31-Function-CoreBoard-1</h1>
+<p>This page has no password: each host that can open it can set the LED
+and the pins. Use it only on a network that you trust.</p>
+<h2>RGB LED</h2>
+<p><a href="/cgi-bin/led?255,0,0">red</a>,
+<a href="/cgi-bin/led?0,255,0">green</a>,
+<a href="/cgi-bin/led?0,0,255">blue</a>,
+<a href="/cgi-bin/led?0,0,0">off</a></p>
+<h2>GPIO</h2>
+<p>The pins on J2: GPIO0-4, 20-25, 35-40, 42-49 and 61. Check the schematic:
+some of them also go to the audio codec.</p>
+<input id="pin" type="number" min="0" max="61" value="2">
+<button onclick="go('=1')">On</button>
+<button onclick="go('=0')">Off</button>
+<button onclick="go('')">Read</button>
+<pre id="out"></pre>
+<script>
+function go(v) {
+	fetch('/cgi-bin/gpio?' + document.getElementById('pin').value + v)
+		.then(r => r.text()).then(t => document.getElementById('out').textContent = t);
+}
+</script>
+</body></html>
