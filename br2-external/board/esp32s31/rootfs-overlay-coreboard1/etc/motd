@@ -11,7 +11,7 @@ Network   ssh, scp, curl, iperf3
 GPIO      gpiodetect, gpioinfo, gpioget, gpioset
 LED       echo 0 32 0 > /sys/class/leds/rgb:status/multi_intensity
           echo 255 > /sys/class/leds/rgb:status/brightness
-USB       mount -t vfat /dev/sda1 /mnt
+USB       /mnt/usb is the FAT of a USB stick
 Examples  ls /usr/share/examples
 Storage   The root is writable and stays in the flash (UBIFS on /dev/mtd1).
           flash_erase /dev/mtd1 0 0, then reboot: back to the image.

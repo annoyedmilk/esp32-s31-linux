@@ -8,6 +8,7 @@ Bluetooth bluetoothctl, then: scan le, scan bredr, devices
 System    htop, free, df -h, dmesg
 Network   ssh, scp, curl, links, iperf3, tcpdump
 Files     /mnt/sd is the FAT partition of the card
+          /mnt/usb is the FAT of a USB stick
 Code      micropython, lua, vim, gdbserver, strace
 Examples  ls /usr/share/examples
 

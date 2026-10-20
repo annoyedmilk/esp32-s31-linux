@@ -126,7 +126,8 @@ BR2_PACKAGE_BLUEZ5_UTILS_CLIENT=y
 # gdbserver needs the C++ runtime.  The full debugger stays in the container.
 BR2_TOOLCHAIN_BUILDROOT_CXX=y
 BR2_PACKAGE_HOST_GDB=y
-BR2_ROOTFS_OVERLAY="$(BR2_EXTERNAL_ESP32S31_PATH)/board/esp32s31/rootfs-overlay $(BR2_EXTERNAL_ESP32S31_PATH)/board/esp32s31/rootfs-overlay-korvo1 $(BR2_EXTERNAL_ESP32S31_PATH)/../local-overlay"
+# The USB stick mount, then the examples.
+BR2_ROOTFS_OVERLAY="$(BR2_EXTERNAL_ESP32S31_PATH)/board/esp32s31/rootfs-overlay $(BR2_EXTERNAL_ESP32S31_PATH)/board/esp32s31/rootfs-overlay-usb $(BR2_EXTERNAL_ESP32S31_PATH)/board/esp32s31/rootfs-overlay-korvo1 $(BR2_EXTERNAL_ESP32S31_PATH)/../local-overlay"
 # A login on the panel.
 BR2_ROOTFS_POST_SCRIPT_ARGS="tty1"
 BR2_TARGET_ROOTFS_EXT2=y

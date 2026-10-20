@@ -1,6 +1,6 @@
 #!/bin/sh
 # SPDX-License-Identifier: MIT
-# A USB stick is optional space for data: the root stays in the flash.
+# A USB stick is optional space for data, never the root.
 # mdev -d runs this script for each USB disk and partition (mdev.conf), and
 # its first scan also for a stick that is there at boot.  Mount the first
 # FAT partition of the stick, or the full stick when it has no partition

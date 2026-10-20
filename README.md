@@ -89,7 +89,9 @@ On all boards:
 On the Korvo-1 also:
 
 - 800x480 LCD as `/dev/fb0` with `fbcon`, and a login on `tty1`.
-- USB host (DWC2): keyboards, mice, `hidraw` and mass storage.
+- USB host (DWC2): keyboards, mice, `hidraw` and mass storage. A USB stick
+  is optional space for data: its FAT is on `/mnt/usb`, also when you
+  connect the stick after the boot.
 - microSD (`dw_mmc` with internal DMA): FAT on p1, ext4 root on p2, swap
   on p3.
 - An access point with `hostapd`.
