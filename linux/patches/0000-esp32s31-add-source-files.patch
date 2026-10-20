@@ -1276,7 +1276,7 @@ diff --git a/arch/riscv/boot/dts/espressif/esp32s31_coreboard1.dts b/arch/riscv/
 new file mode 100644
 --- /dev/null
 +++ b/arch/riscv/boot/dts/espressif/esp32s31_coreboard1.dts
-@@ -0,0 +1,99 @@
+@@ -0,0 +1,100 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * ESP32-S31-Function-CoreBoard-1, with the ESP32-S31-WROOM-3-N16R16V module:
@@ -1342,7 +1342,8 @@ new file mode 100644
 +/*
 + * A Motorcomm YT8531DC-CA on RGMII, with its own crystal and its reset on
 + * GPIO7.  The PHY adds the RX and TX clock delays.  After a chip reset alone
-+ * its link comes up but passes no frames, so the PHY driver resets it.
++ * its link comes up but passes no frames, so the MDIO bus resets it before
++ * the first access.
 + */
 +&emac {
 +	pinctrl-names = "default";
@@ -1355,12 +1356,12 @@ new file mode 100644
 +		compatible = "snps,dwmac-mdio";
 +		#address-cells = <1>;
 +		#size-cells = <0>;
++		reset-gpios = <&pinctrl 7 GPIO_ACTIVE_LOW>;
++		reset-delay-us = <10000>;
++		reset-post-delay-us = <50000>;
 +
 +		phy0: ethernet-phy@0 {
 +			reg = <0>;
-+			reset-gpios = <&pinctrl 7 GPIO_ACTIVE_LOW>;
-+			reset-assert-us = <10000>;
-+			reset-deassert-us = <50000>;
 +		};
 +	};
 +};

@@ -63,7 +63,8 @@
 /*
  * A Motorcomm YT8531DC-CA on RGMII, with its own crystal and its reset on
  * GPIO7.  The PHY adds the RX and TX clock delays.  After a chip reset alone
- * its link comes up but passes no frames, so the PHY driver resets it.
+ * its link comes up but passes no frames, so the MDIO bus resets it before
+ * the first access.
  */
 &emac {
 	pinctrl-names = "default";
@@ -76,12 +77,12 @@
 		compatible = "snps,dwmac-mdio";
 		#address-cells = <1>;
 		#size-cells = <0>;
+		reset-gpios = <&pinctrl 7 GPIO_ACTIVE_LOW>;
+		reset-delay-us = <10000>;
+		reset-post-delay-us = <50000>;
 
 		phy0: ethernet-phy@0 {
 			reg = <0>;
-			reset-gpios = <&pinctrl 7 GPIO_ACTIVE_LOW>;
-			reset-assert-us = <10000>;
-			reset-deassert-us = <50000>;
 		};
 	};
 };
