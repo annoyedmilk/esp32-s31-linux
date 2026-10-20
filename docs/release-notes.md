@@ -1,5 +1,6 @@
-Linux 7.3 on the ESP32-S31, ready to flash: for the ESP32-S31-Korvo-1, and
-for a bare ESP32-S31 module with 16 MiB PSRAM and UART only.
+Linux 7.3 on the ESP32-S31, ready to flash: for the ESP32-S31-Korvo-1, the
+ESP32-S31-Function-CoreBoard-1, and the ESP32-S31-WROOM-3-N16R16V module
+alone with UART only.
 
 ## Files
 
@@ -7,7 +8,8 @@ for a bare ESP32-S31 module with 16 MiB PSRAM and UART only.
 | --- | --- |
 | `esp32s31-linux-*-korvo1-flash.zip` | Korvo-1 flash images. `flash.bin` goes to offset 0. `FLASH.txt` tells how. |
 | `esp32s31-linux-*-korvo1-sdcard.img.xz` | Korvo-1 microSD card image: FAT for your files, the ext4 root and swap. |
-| `esp32s31-linux-*-esp32s31-flash.zip` | Flash images for a bare module. The full system is in the flash. |
+| `esp32s31-linux-*-coreboard1-flash.zip` | Function-CoreBoard-1 flash images. The full system is in the flash. |
+| `esp32s31-linux-*-esp32s31-flash.zip` | Flash images for the module alone. The full system is in the flash. |
 | `SHA256SUMS` | Checksums of the files. |
 
 ## Quick start
@@ -27,14 +29,46 @@ for a bare ESP32-S31 module with 16 MiB PSRAM and UART only.
 On the Korvo-1, the LCD shows the Tux logo, the kernel warnings and a
 login. A USB keyboard works on it.
 
+## New in v0.6.0
+
+- A third build, `coreboard1`, for the ESP32-S31-Function-CoreBoard-1: the
+  flash root of the module alone, with Gigabit Ethernet (`eth0`, DHCP at
+  boot), USB host and the RGB LED. Linux sets up the Ethernet pins, clocks
+  and reset itself. The MAC address comes from the eFuse, by the ESP-IDF
+  rule.
+- `make` builds the module alone (`esp32s31`) when `BOARD` is not given.
+  Use `BOARD=korvo1` for the Korvo-1.
+- A pin controller replaces the GPIO driver. The device tree selects the
+  IO MUX function or the GPIO matrix signals of each pin, and its pull,
+  drive strength and open drain. The kernel refuses the pins of the flash,
+  the console, the loader and the drivers as GPIO.
+- Clock and reset controllers for the peripherals that Linux owns.
+- An I2C driver. On the Korvo-1, the GT1151 touch controller of the LCD is
+  an input device: `touch.sh` in the examples prints the touches.
+- A FAT USB stick goes on `/mnt/usb` on the Korvo-1 and the
+  Function-CoreBoard-1, also when you connect it after the boot. It is
+  optional space for data, never the root.
+- Each build has its own examples in `/usr/share/examples`: a web page, an
+  `autostart.sh`, and a script for the LED. The web page has no password:
+  start it only on a network that you trust.
+- The new drivers take approximately 92 kB of the RAM of Linux on the
+  Korvo-1, and the boot to the console takes approximately 0.1 s longer.
+
+The partition tables of the esp32s31 and korvo1 builds did not change:
+flash the new `flash.bin`. On the esp32s31 build, the overlay on `data`
+stays. On the Korvo-1, a v0.5.0 card works, but the new scripts and
+examples are only in the new root: write it with `make sdroot`, or write
+the new card image. The coreboard1 build is new: its first boot finds no
+UBI on `data`, erases it and formats it.
+
 ## New in v0.5.0
 
 - Linux 7.3.
 - Wi-Fi gives approximately 44 Mbit/s TX and 38 Mbit/s RX with iperf3 TCP
-  on the Korvo-1 (v0.4.0: 43 to 46 and 37 to 39). The bare build was not
+  on the Korvo-1 (v0.4.0: 43 to 46 and 37 to 39). The esp32s31 build was not
   measured again.
-- The bare build keeps its root in the flash as OpenWrt does: a read-only
-  squashfs with a writable UBIFS overlay. All changes stay, and
+- The esp32s31 build keeps its root in the flash as OpenWrt does: a
+  read-only squashfs with a writable UBIFS overlay. All changes stay, and
   `persist save` is gone. `flash_erase /dev/mtd1 0 0` and a reboot go back
   to the image.
 - Linux reads the flash through the cache, and it runs on while the
@@ -48,8 +82,8 @@ login. A USB keyboard works on it.
 - The regulatory database is in the kernel, so the country of the access
   point applies from the first connection.
 - Swap goes to zram first. On the Korvo-1, the card image has a swap
-  partition (p3), which the kernel uses when zram is full. The bare build
-  swaps to zram only.
+  partition (p3), which the kernel uses when zram is full. The esp32s31
+  build swaps to zram only.
 - The root partition of the Korvo-1 card image is 512 MiB.
 - DHCP uses the udhcpc script of Buildroot: search domains and static
   routes of the lease work.
@@ -58,52 +92,53 @@ login. A USB keyboard works on it.
 - The esptool version that flashes the board is pinned
   (`bootloader/esptool.version`).
 - Both builds have WPA3 (SAE) and WPA2-Enterprise (EAP, for example
-  eduroam). The bare build also has `curl` with HTTPS. OpenSSL is built
+  eduroam). The esp32s31 build also has `curl` with HTTPS. OpenSSL is built
   without old ciphers and protocols, so it takes less flash.
 - The kernel keeps a larger free reserve, so that swap to zram does not
   fail when memory is low.
-- The bare build has BlueZ (`bluetoothd`, `bluetoothctl`) and an access
+- The esp32s31 build has BlueZ (`bluetoothd`, `bluetoothctl`) and an access
   point mode with `wpa_supplicant`. Its flash layout is new, and its root
   is zstd-compressed, so that BlueZ fits. A cold program start is slower.
 - wpa_supplicant has PEAP, TTLS and TLS for Enterprise networks, but no
   longer the other EAP methods, DPP, P2P or TDLS. curl has HTTP, HTTPS and
   FTP only.
-- On the bare build, `/root/autostart.sh` runs at each boot, as
+- On the esp32s31 build, `/root/autostart.sh` runs at each boot, as
   `autostart.sh` on p1 of the card does on the Korvo-1.
 - The Korvo-1 also has the access point mode of `wpa_supplicant`.
 - `@reboot` jobs of `crond` run at each boot, not only at the first.
 - Wi-Fi starts in the background, so the console comes seconds earlier,
-  most on the bare build. The network comes a little later than before.
+  most on the esp32s31 build. The network comes a little later than before.
 - The cache sync engine has one lock for the two harts: the firmware and
   OpenSBI could program it at the same time.
 - `bluetoothctl` with a command (`bluetoothctl list`) prints its output
   again (an upstream BlueZ fix).
 - The kernel has no I/O scheduler. On the Korvo-1, this frees about
   1.4 MiB of RAM, and the card is not slower.
-- The image of the bare build is the same for a clean and a normal build:
-  libgpiod without its glib bindings and iperf3 without OpenSSL.
+- The image of the esp32s31 build is the same for a clean and a normal
+  build: libgpiod without its glib bindings and iperf3 without OpenSSL.
 
 v0.5.0 needs the new `flash.bin`: the partition tables of both builds
 changed. On the Korvo-1, also write the new card image: the root of the
 old image is too small for the new one, and the new image has the swap
 partition p3. A card from `make sdpart` keeps its root; `make sdroot`
 writes the new one, and the board swaps to zram only without p3. On the
-bare build, the first boot finds no UBI on `data`, erases it and formats
+esp32s31 build, the first boot finds no UBI on `data`, erases it and formats
 it. Files that `persist save` kept in v0.4.0 are gone. To erase it
 yourself before the boot:
 `esptool --chip esp32s31 -p PORT erase-region 0xD90000 0x270000`.
 
 ## New in v0.4.0
 
-- Two builds: `korvo1` for the ESP32-S31-Korvo-1, and `esp32s31` for a bare
-  module with UART only. The bare build has its full system in the flash,
-  gives Linux 12.6 MiB of RAM, and boots in approximately 6 seconds.
-- `persist save` on the bare build keeps files such as the Wi-Fi network
+- Two builds: `korvo1` for the ESP32-S31-Korvo-1, and `esp32s31` for the
+  module alone with UART only. The esp32s31 build has its full system in
+  the flash, gives Linux 12.6 MiB of RAM, and boots in approximately 6
+  seconds.
+- `persist save` on the esp32s31 build keeps files such as the Wi-Fi network
   and the SSH host keys in a 64 KiB flash partition.
 - Wi-Fi is fast again: iperf3 TCP gives approximately 43 to 46 Mbit/s TX
   and 37 to 39 Mbit/s RX on the Korvo-1, and 46 Mbit/s in each direction on
-  the bare build (v0.3.1: 35 to 38). The IEEE 802.15.4 RCP is removed: its
-  SRAM goes to the Wi-Fi buffers.
+  the esp32s31 build (v0.3.1: 35 to 38). The IEEE 802.15.4 RCP is removed:
+  its SRAM goes to the Wi-Fi buffers.
 - The default `wpa_supplicant.conf` has `pmf=1`. Without protected
   management frames, a WPA2/WPA3 router gave half of the TX throughput.
 - `poweroff` puts the chip into deep sleep. Before, it only stopped the
@@ -226,11 +261,11 @@ card image erases the card, so save your files from the FAT partition first.
 
 ## Known limits
 
-- The Korvo-1 with chip revision v0.0 is the only tested hardware. The
-  bare build is tested on the Korvo-1.
+- The tested hardware is the Korvo-1 and the Function-CoreBoard-1, with
+  chip revision v0.0. The esp32s31 build is tested on the Korvo-1.
 - One hart runs Linux. The other runs the Wi-Fi firmware.
 - Floating point works in software; the hardware FPU is not used.
-- No I2C, audio or camera driver.
+- No audio or camera driver.
 - `poweroff` puts the chip into deep sleep. It does not remove power.
 - With WPA3-SAE, the first connection can fail, and the second one works.
 - WPA2-Enterprise has PEAP, TTLS and TLS only. It is not tested with a
