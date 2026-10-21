@@ -229,10 +229,12 @@
 			};
 		};
 
-		trng: rng@20814000 {
-			compatible = "esp,esp32s31-trng";
-			reg = <0x20814000 0x100>, <0x2071003c 0x4>;
-			reg-names = "trng", "clkrst";
+		/* The data register of the TRNG, which the loader starts. */
+		trng: rng@20814048 {
+			compatible = "timeriomem_rng";
+			reg = <0x20814048 0x4>;
+			period = <1>;
+			quality = <1000>;
 		};
 
 		/*

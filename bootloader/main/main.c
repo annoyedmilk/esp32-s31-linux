@@ -389,7 +389,8 @@ void app_main(void)
     disable_watchdogs();
     /*
      * ESP-IDF v6.1 stops the TRNG after the second stage.  esp_random() and
-     * the Linux hwrng need it.  Its noise source does not use the RF.
+     * the Linux hwrng need it.  Its noise source does not use the RF.  Linux
+     * reads it with timeriomem-rng and credits it as entropy without a check.
      */
     bootloader_random_enable();
 
