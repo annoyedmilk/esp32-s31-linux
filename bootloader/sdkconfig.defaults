@@ -17,8 +17,9 @@ CONFIG_SPIRAM_USE_MEMMAP=y
 # The test writes all of the PSRAM at each boot, which makes the boot slower.
 # CONFIG_SPIRAM_MEMTEST is not set
 CONFIG_ESP_CONSOLE_UART_DEFAULT=y
-# NVS is off, so the PHY calibration data cannot be kept.  Request a full
-# calibration at each boot, and do not fail the NVS lookup.
+# Full PHY calibration at each boot.  NVS is on (ESP-Hosted starts it), but
+# stored calibration data did not make the boot of the Korvo-1 faster, and
+# it would add an NVS write.
 # CONFIG_ESP_PHY_CALIBRATION_AND_DATA_STORAGE is not set
 # The ESP-Hosted firmware runs the radios for Linux (components/esp_hosted):
 # Wi-Fi and a dual-mode Bluetooth controller with HCI in RAM.  Its frames are
