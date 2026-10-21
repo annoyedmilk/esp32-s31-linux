@@ -1,0 +1,25 @@
+# The disk with the root: the microSD card of the Korvo-1 (mounted on
+# /mnt/sd) or the USB stick of the Function-CoreBoard-1 (on /mnt/usb).  p1
+# is FAT, p2 is the root, p3 is swap.  The names come from the root device,
+# so a second USB disk does not change them.  The module alone has its root
+# in the flash: the names stay empty.  S05swap, S10sdcard, S40wifi and
+# S95autostart read this file.  It uses only shell builtins: each process
+# start costs time at boot.
+_dev= _name=
+while read -r _ _ _d _ _m _; do
+	[ "$_m" = / ] && _dev=$_d && break
+done < /proc/self/mountinfo
+[ -r /sys/dev/block/$_dev/uevent ] && while IFS== read -r _k _v; do
+	[ "$_k" = DEVNAME ] && _name=$_v && break
+done < /sys/dev/block/$_dev/uevent
+case $_name in
+mmcblk?p2) DISK_MNT=/mnt/sd ;;
+sd?2) DISK_MNT=/mnt/usb ;;
+*) _name= ;;
+esac
+if [ -n "$_name" ]; then
+	_p=/dev/${_name%2}
+	DISK=${_p%p}
+	DISK_FAT=${_p}1
+	DISK_SWAP=${_p}3
+fi

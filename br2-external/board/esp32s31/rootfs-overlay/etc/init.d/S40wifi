@@ -8,7 +8,7 @@
 
 IFACE=wlan0
 CONF=/etc/wpa_supplicant.conf
-[ -r /etc/default/disk ] && . /etc/default/disk
+. /etc/default/disk
 [ -r "${DISK_MNT:+$DISK_MNT/wpa_supplicant.conf}" ] &&
 	CONF=$DISK_MNT/wpa_supplicant.conf
 

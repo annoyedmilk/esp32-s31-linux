@@ -4,8 +4,8 @@
 # it.  p1 is the FAT area that the Mac also writes.  It is optional: never
 # stop the boot for it.
 
-[ -r /etc/default/disk ] || exit 0
 . /etc/default/disk
+[ -n "${DISK_FAT:-}" ] || exit 0
 P1=$DISK_FAT
 
 # After a reset, the dirty flag of p1 stays set, and the kernel warns at each

@@ -4,7 +4,7 @@
 # "make sdroot" and which a Mac or PC can write, else from /root, which the
 # overlay of the module alone keeps.
 
-[ -r /etc/default/disk ] && . /etc/default/disk
+. /etc/default/disk
 SCRIPT=${DISK_MNT:+$DISK_MNT/autostart.sh}
 [ -f "$SCRIPT" ] || SCRIPT=/root/autostart.sh
 

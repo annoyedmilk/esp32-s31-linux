@@ -1,6 +1,0 @@
-# The disk with the root: the USB stick.  p1 is FAT, p2 is the root, p3 is
-# swap.  S05swap, S10sdcard, S40wifi and S95autostart read this file.
-DISK=/dev/sda
-DISK_FAT=/dev/sda1
-DISK_SWAP=/dev/sda3
-DISK_MNT=/mnt/usb

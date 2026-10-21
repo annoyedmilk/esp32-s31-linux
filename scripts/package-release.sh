@@ -63,7 +63,8 @@ with balenaEtcher, or with dd on Linux or macOS:
 
   xz -dc $name-$disk.img.xz | sudo dd of=/dev/sdX bs=4M conv=fsync
 
-The root is /dev/sda2: connect only this stick when the board starts." ;;
+The board mounts its root from the stick with this image (disk signature
+0x45533331), so other USB disks can be connected when it starts." ;;
 esp32s31)
 	title="the ESP32-S31-WROOM-3-N16R16V module alone (UART only)"
 	usage="The full system is in the flash.  The root is writable, and the files

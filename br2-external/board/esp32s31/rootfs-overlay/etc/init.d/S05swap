@@ -6,7 +6,7 @@
 
 ZRAM=/sys/block/zram0
 ZRAM_SIZE=6M	# uncompressed
-[ -r /etc/default/disk ] && . /etc/default/disk
+. /etc/default/disk
 
 start_zram()
 {

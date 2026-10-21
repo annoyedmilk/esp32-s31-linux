@@ -217,10 +217,11 @@ make monitor SERIAL_PORT=/dev/cu.usbserial-XXXX
   Buildroot output of the board, or build from a clean volume.
 - `make help` shows all targets.
 
-The Korvo-1 kernel mounts `/dev/mmcblk0p2` as the root, the
-Function-CoreBoard-1 kernel `/dev/sda2` (`rootwait`). Without a prepared
-disk, the kernel waits for it. On the Function-CoreBoard-1, connect only the
-root stick when the board starts: a second USB disk can get the name `sda`.
+The Korvo-1 kernel mounts `/dev/mmcblk0p2` as the root: a USB stick is
+never its root. The Function-CoreBoard-1 kernel mounts p2 of the disk with
+the disk signature `0x45533331` (`root=PARTUUID=45533331-02`), so other USB
+disks can be connected when it starts. Without a prepared disk, the kernel
+waits for it (`rootwait`).
 
 ## SD card and USB stick
 
@@ -228,8 +229,9 @@ The disk is the microSD card on the Korvo-1 and the USB stick on the
 Function-CoreBoard-1. Its image is `sdcard.img`. The disk is MBR. p1 is
 FAT32 and is mounted on `/mnt/sd` (Korvo-1) or `/mnt/usb`
 (Function-CoreBoard-1). p2 is the ext4 root (512 MiB in the disk image). p3
-is swap (type `0x82`, 64 MiB). `/etc/default/disk` names the partitions for
-the boot scripts. The targets below work for the card and the stick. Those
+is swap (type `0x82`, 64 MiB). The disk image and `make sdpart` give the
+disk the signature `0x45533331`. `/etc/default/disk` finds the partitions
+of the disk with the root for the boot scripts. The targets below work for the card and the stick. Those
 that write erase data, and they ask for confirmation and `sudo`.
 
 | Command | Use |
@@ -238,8 +240,9 @@ that write erase data, and they ask for confirmation and `sudo`.
 | `make sdwrite SD_DISK=/dev/diskN` | Write the full disk image. Use for a small disk. |
 | `make sdroot SD_DISK=/dev/diskN` | Write only the root partition. Use for updates. It stops when p2 is smaller than the root image. |
 
-If the root goes read-only, run `e2fsck -f` on p2 (`/dev/mmcblk0p2` or
-`/dev/sda2`) from the console.
+If the root goes read-only, run `e2fsck -f` on p2 from the console. On the
+Function-CoreBoard-1, `. /etc/default/disk; echo $DISK` shows the root
+stick.
 
 When the board is reset with p1 mounted, the FAT keeps a dirty flag. Linux
 does not clear it, also not at a clean shutdown, and warns at each mount.
@@ -483,8 +486,9 @@ takes all offsets from them.
 - `poweroff` puts the chip into deep sleep. Only the reset button starts
   it again. The board itself stays powered.
 - The coherent DMA pool is 64 KiB.
-- The Function-CoreBoard-1 does not boot without its root stick. The root
-  is `/dev/sda2`, so connect no other USB disk when the board starts.
+- The Function-CoreBoard-1 does not boot without its root stick. A stick
+  from v0.6.0, or from `make sdpart` of v0.6.0, has no disk signature: write
+  it again with the new image or `make sdpart`.
 - There is no audio or camera driver.
 - The firmware heap is small: see "Internal SRAM" in
   [docs/internals.md](docs/internals.md).

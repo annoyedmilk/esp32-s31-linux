@@ -391,12 +391,14 @@ sdpart:
 	@sudo newfs_msdos -F 32 -c 128 -v ESP32S31 "$(SD_RAW)s1"
 # The kernel ignores the type byte of p2.  With 0x83, macOS does not try to
 # mount the ext4 partition as FAT at each insertion.  S05swap uses p3 only
-# with 0x82.
+# with 0x82.  The disk signature of genimage.cfg (0x45533331, little endian)
+# lets the Function-CoreBoard-1 kernel find its root stick.
 	@sudo sh -c 'dd if="$(SD_RAW)" of="$(BUILD_DIR)/mbr.bin" bs=512 count=1 && \
+		printf "\\x31\\x33\\x53\\x45" | dd of="$(BUILD_DIR)/mbr.bin" bs=1 seek=440 conv=notrunc && \
 		printf "\\x83" | dd of="$(BUILD_DIR)/mbr.bin" bs=1 seek=466 conv=notrunc && \
 		printf "\\x82" | dd of="$(BUILD_DIR)/mbr.bin" bs=1 seek=482 conv=notrunc && \
 		dd if="$(BUILD_DIR)/mbr.bin" of="$(SD_RAW)" bs=512 count=1' \
-		|| echo 'warning: type bytes unchanged; the board boots without disk swap'
+		|| echo 'warning: MBR unchanged; no disk swap, and the CoreBoard-1 does not boot'
 	@rm -f "$(BUILD_DIR)/mbr.bin"
 	@diskutil list "$(SD_DISK)"
 	@echo 'now: make sdroot SD_DISK=$(SD_DISK)'

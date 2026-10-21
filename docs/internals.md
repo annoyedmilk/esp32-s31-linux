@@ -48,8 +48,8 @@ ROM -> ESP-IDF 2nd stage -> loader (hart 0) -> OpenSBI (hart 1, M) -> Linux (har
 6. The kernel has a built-in DTB (`esp32s31.dts`,
    `esp32s31_coreboard1.dts` or `esp32s31_korvo1.dts`). On the Korvo-1,
    the root is the ext4 partition `/dev/mmcblk0p2` on the SD card, on the
-   Function-CoreBoard-1 `/dev/sda2` on the USB stick (`root=` and
-   `rootwait`). On the esp32s31 board, the root is the squashfs in the
+   Function-CoreBoard-1 p2 of the USB stick with the disk signature
+   `0x45533331` (`root=PARTUUID=45533331-02` and `rootwait`). On the esp32s31 board, the root is the squashfs in the
    flash, with a UBIFS overlay.
 
 ### Memory map
