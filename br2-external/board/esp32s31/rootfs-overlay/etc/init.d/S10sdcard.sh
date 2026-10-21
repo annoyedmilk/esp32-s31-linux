@@ -13,7 +13,7 @@ P1=$DISK_FAT
 # bytes of memory for each cluster, so check only when that fits.
 check_p1()
 {
-	set -- $(dd if=$P1 bs=66 count=1 2>/dev/null | od -An -tu1 -v)
+	set -- $(od -An -tu1 -v -N66 $P1 2>/dev/null)
 	[ $# -eq 66 ] || return
 	cluster=$(( (${12} + ${13} * 256) * ${14} ))
 	[ "$cluster" -gt 0 ] || return
@@ -36,7 +36,9 @@ case "$1" in
 start)
 	[ -b $P1 ] || exit 0
 	# A mounted FAT is always dirty, and fsck.fat must not change it.
-	grep -q "^$P1 " /proc/mounts && exit 0
+	while read -r dev _; do
+		[ "$dev" = "$P1" ] && exit 0
+	done < /proc/mounts
 	check_p1
 	mkdir -p $DISK_MNT
 	if mount -t vfat -o rw,noatime $P1 $DISK_MNT 2>/dev/null; then

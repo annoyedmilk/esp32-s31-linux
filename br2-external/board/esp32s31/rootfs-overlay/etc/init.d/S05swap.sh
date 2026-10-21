@@ -22,7 +22,7 @@ start_zram()
 start_disk()
 {
 	[ -b "${DISK_SWAP:-}" ] || return
-	set -- $(dd if=$DISK bs=1 skip=482 count=1 2>/dev/null | od -An -tx1)
+	set -- $(od -An -tx1 -j482 -N1 $DISK 2>/dev/null)
 	[ "$1" = 82 ] || return
 	mkswap $DISK_SWAP >/dev/null &&
 		swapon -p 10 $DISK_SWAP &&
