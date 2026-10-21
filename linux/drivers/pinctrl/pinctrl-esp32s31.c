@@ -8,6 +8,8 @@
  * the pin: a peripheral directly, or function 1, the GPIO matrix.  The GPIO
  * matrix connects a peripheral signal or the GPIO registers to the pin.  The
  * GPIO registers are in the block of the matrix, so one driver has both.
+ * GPIO13-25 are CNNT pads: the IO MUX functions of the GMAC and the SD host
+ * on them also need a select bit in CNNT_IO_MUX_CTRL.
  */
 
 #include <linux/bitfield.h>
@@ -70,12 +72,22 @@
 /* FUN_DRV 0 to 3 */
 static const u32 esp32s31_drive_ma[] = { 5, 10, 20, 40 };
 
+/* The CNNT pads, and the function that needs their select bit */
+static const struct {
+	u8 first, last, func;
+	u32 sel;
+} esp32s31_cnnt_pads[] = {
+	{ 13, 19, 2, BIT(1) },	/* GMAC */
+	{ 20, 25, 4, BIT(0) },	/* SD host */
+};
+
 struct esp32s31_pinctrl {
 	struct pinctrl_desc desc;
 	struct pinctrl_dev *pctl;
 	struct gpio_chip chip;
 	void __iomem *iomux;
 	void __iomem *gpio;
+	void __iomem *cnnt;
 	raw_spinlock_t lock;
 };
 
@@ -93,6 +105,22 @@ static unsigned int esp32s31_bank(unsigned int pin, unsigned int reg0,
 				  unsigned int reg1)
 {
 	return pin < 32 ? reg0 : reg1;
+}
+
+static void esp32s31_cnnt_select(struct esp32s31_pinctrl *pctrl,
+				 unsigned int pin, unsigned int func)
+{
+	unsigned int i;
+
+	for (i = 0; i < ARRAY_SIZE(esp32s31_cnnt_pads); i++) {
+		if (pin < esp32s31_cnnt_pads[i].first ||
+		    pin > esp32s31_cnnt_pads[i].last ||
+		    func != esp32s31_cnnt_pads[i].func)
+			continue;
+
+		guard(raw_spinlock_irqsave)(&pctrl->lock);
+		writel(readl(pctrl->cnnt) | esp32s31_cnnt_pads[i].sel, pctrl->cnnt);
+	}
 }
 
 static int esp32s31_mux_one(struct esp32s31_pinctrl *pctrl, unsigned int pin,
@@ -116,6 +144,7 @@ static int esp32s31_mux_one(struct esp32s31_pinctrl *pctrl, unsigned int pin,
 		writel(sig, pctrl->gpio + ESP32S31_GPIO_FUNC_OUT_SEL(pin));
 
 	esp32s31_iomux_rmw(pctrl, pin, ESP32S31_IOMUX_MCU_SEL, set);
+	esp32s31_cnnt_select(pctrl, pin, func);
 	return 0;
 }
 
@@ -434,6 +463,10 @@ static int esp32s31_pinctrl_probe(struct platform_device *pdev)
 	pctrl->gpio = devm_platform_ioremap_resource_byname(pdev, "gpio");
 	if (IS_ERR(pctrl->gpio))
 		return PTR_ERR(pctrl->gpio);
+
+	pctrl->cnnt = devm_platform_ioremap_resource_byname(pdev, "cnnt");
+	if (IS_ERR(pctrl->cnnt))
+		return PTR_ERR(pctrl->cnnt);
 
 	raw_spin_lock_init(&pctrl->lock);
 

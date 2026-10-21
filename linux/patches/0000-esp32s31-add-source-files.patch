@@ -409,7 +409,7 @@ diff --git a/Documentation/devicetree/bindings/net/esp,esp32s31-dwmac.yaml b/Doc
 new file mode 100644
 --- /dev/null
 +++ b/Documentation/devicetree/bindings/net/esp,esp32s31-dwmac.yaml
-@@ -0,0 +1,106 @@
+@@ -0,0 +1,104 @@
 +# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
 +%YAML 1.2
 +---
@@ -441,9 +441,7 @@ new file mode 100644
 +      - const: snps,dwmac-3.70a
 +
 +  reg:
-+    items:
-+      - description: GMAC registers
-+      - description: CNNT pad control register of GPIO13-19
++    maxItems: 1
 +
 +  clocks:
 +    items:
@@ -501,7 +499,7 @@ new file mode 100644
 +
 +    ethernet@20350000 {
 +      compatible = "esp,esp32s31-dwmac", "snps,dwmac-3.70a";
-+      reg = <0x20350000 0x4000>, <0x205883f4 0x4>;
++      reg = <0x20350000 0x4000>;
 +      interrupt-parent = <&clic>;
 +      interrupts = <36 98 IRQ_TYPE_LEVEL_HIGH>;
 +      interrupt-names = "macirq";
@@ -712,7 +710,7 @@ diff --git a/Documentation/devicetree/bindings/pinctrl/esp,esp32s31-pinctrl.yaml
 new file mode 100644
 --- /dev/null
 +++ b/Documentation/devicetree/bindings/pinctrl/esp,esp32s31-pinctrl.yaml
-@@ -0,0 +1,132 @@
+@@ -0,0 +1,135 @@
 +# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
 +%YAML 1.2
 +---
@@ -740,11 +738,13 @@ new file mode 100644
 +    items:
 +      - description: IO MUX registers
 +      - description: GPIO and GPIO matrix registers
++      - description: CNNT_IO_MUX_CTRL, the select bits of the GMAC and SD pads
 +
 +  reg-names:
 +    items:
 +      - const: iomux
 +      - const: gpio
++      - const: cnnt
 +
 +  gpio-controller: true
 +
@@ -820,8 +820,9 @@ new file mode 100644
 +
 +    pinctrl: pinctrl@20582000 {
 +        compatible = "esp,esp32s31-pinctrl";
-+        reg = <0x20582000 0x1000>, <0x20583000 0x1000>;
-+        reg-names = "iomux", "gpio";
++        reg = <0x20582000 0x1000>, <0x20583000 0x1000>,
++              <0x205883f4 0x4>;
++        reg-names = "iomux", "gpio", "cnnt";
 +        gpio-controller;
 +        #gpio-cells = <2>;
 +        gpio-ranges = <&pinctrl 0 0 62>;
@@ -904,7 +905,7 @@ diff --git a/arch/riscv/boot/dts/espressif/esp32s31.dtsi b/arch/riscv/boot/dts/e
 new file mode 100644
 --- /dev/null
 +++ b/arch/riscv/boot/dts/espressif/esp32s31.dtsi
-@@ -0,0 +1,342 @@
+@@ -0,0 +1,343 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * Espressif ESP32-S31 minimal device tree.
@@ -1067,8 +1068,9 @@ new file mode 100644
 +
 +		pinctrl: pinctrl@20582000 {
 +			compatible = "esp,esp32s31-pinctrl";
-+			reg = <0x20582000 0x1000>, <0x20583000 0x1000>;
-+			reg-names = "iomux", "gpio";
++			reg = <0x20582000 0x1000>, <0x20583000 0x1000>,
++			      <0x205883f4 0x4>;
++			reg-names = "iomux", "gpio", "cnnt";
 +			gpio-controller;
 +			#gpio-cells = <2>;
 +			gpio-ranges = <&pinctrl 0 0 62>;
@@ -1093,7 +1095,7 @@ new file mode 100644
 +
 +		sdmmc0: mmc@20342000 {
 +			compatible = "esp,esp32s31-dw-mshc", "snps,dw-mshc";
-+			reg = <0x20342000 0x1000>, <0x205883f4 0x4>;
++			reg = <0x20342000 0x1000>;
 +			interrupt-parent = <&clic>;
 +			interrupts = <34 3 IRQ_TYPE_LEVEL_HIGH>;
 +			clocks = <&hp_clkrst ESP32S31_CLK_SDMMC_SYS>,
@@ -1224,7 +1226,7 @@ new file mode 100644
 +		 */
 +		emac: ethernet@20350000 {
 +			compatible = "esp,esp32s31-dwmac", "snps,dwmac-3.70a";
-+			reg = <0x20350000 0x4000>, <0x205883f4 0x4>;
++			reg = <0x20350000 0x4000>;
 +			interrupt-parent = <&clic>;
 +			interrupts = <36 98 IRQ_TYPE_LEVEL_HIGH>;
 +			interrupt-names = "macirq";
@@ -3900,7 +3902,7 @@ diff --git a/drivers/net/ethernet/stmicro/stmmac/dwmac-esp32s31.c b/drivers/net/
 new file mode 100644
 --- /dev/null
 +++ b/drivers/net/ethernet/stmicro/stmmac/dwmac-esp32s31.c
-@@ -0,0 +1,148 @@
+@@ -0,0 +1,140 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * Author: Roan Brand <brandroan@gmail.com>
@@ -3942,7 +3944,6 @@ new file mode 100644
 +#define RXTX_180_CLK_EN			BIT(3)
 +#define GMAC_PHY_INTF_SEL		GENMASK(4, 2)
 +#define GMAC_PHY_INTF_RGMII		1
-+#define CNNT_PAD_GMAC_DED_SEL		BIT(1)
 +
 +struct esp32s31_reg_update {
 +	u32 reg;
@@ -3987,7 +3988,6 @@ new file mode 100644
 +	struct stmmac_resources stmmac_res;
 +	struct device *dev = &pdev->dev;
 +	struct regmap *regmap;
-+	void __iomem *pad;
 +	int ret;
 +
 +	ret = stmmac_get_platform_resources(pdev, &stmmac_res);
@@ -4001,12 +4001,6 @@ new file mode 100644
 +
 +	if (!phy_interface_mode_is_rgmii(plat_dat->phy_interface))
 +		return dev_err_probe(dev, -EINVAL, "only RGMII is supported\n");
-+
-+	/* GPIO13-19 are CNNT pads: the GMAC signals need their own pad control. */
-+	pad = devm_platform_ioremap_resource(pdev, 1);
-+	if (IS_ERR(pad))
-+		return PTR_ERR(pad);
-+	writel(readl(pad) | CNNT_PAD_GMAC_DED_SEL, pad);
 +
 +	regmap = syscon_regmap_lookup_by_phandle(dev->of_node, "esp,cnnt-sys");
 +	if (IS_ERR(regmap))
@@ -5196,7 +5190,7 @@ diff --git a/drivers/pinctrl/pinctrl-esp32s31.c b/drivers/pinctrl/pinctrl-esp32s
 new file mode 100644
 --- /dev/null
 +++ b/drivers/pinctrl/pinctrl-esp32s31.c
-@@ -0,0 +1,490 @@
+@@ -0,0 +1,523 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * Author: Marco Mueller <hello@annoyedmilk.ch>
@@ -5207,6 +5201,8 @@ new file mode 100644
 + * the pin: a peripheral directly, or function 1, the GPIO matrix.  The GPIO
 + * matrix connects a peripheral signal or the GPIO registers to the pin.  The
 + * GPIO registers are in the block of the matrix, so one driver has both.
++ * GPIO13-25 are CNNT pads: the IO MUX functions of the GMAC and the SD host
++ * on them also need a select bit in CNNT_IO_MUX_CTRL.
 + */
 +
 +#include <linux/bitfield.h>
@@ -5269,12 +5265,22 @@ new file mode 100644
 +/* FUN_DRV 0 to 3 */
 +static const u32 esp32s31_drive_ma[] = { 5, 10, 20, 40 };
 +
++/* The CNNT pads, and the function that needs their select bit */
++static const struct {
++	u8 first, last, func;
++	u32 sel;
++} esp32s31_cnnt_pads[] = {
++	{ 13, 19, 2, BIT(1) },	/* GMAC */
++	{ 20, 25, 4, BIT(0) },	/* SD host */
++};
++
 +struct esp32s31_pinctrl {
 +	struct pinctrl_desc desc;
 +	struct pinctrl_dev *pctl;
 +	struct gpio_chip chip;
 +	void __iomem *iomux;
 +	void __iomem *gpio;
++	void __iomem *cnnt;
 +	raw_spinlock_t lock;
 +};
 +
@@ -5292,6 +5298,22 @@ new file mode 100644
 +				  unsigned int reg1)
 +{
 +	return pin < 32 ? reg0 : reg1;
++}
++
++static void esp32s31_cnnt_select(struct esp32s31_pinctrl *pctrl,
++				 unsigned int pin, unsigned int func)
++{
++	unsigned int i;
++
++	for (i = 0; i < ARRAY_SIZE(esp32s31_cnnt_pads); i++) {
++		if (pin < esp32s31_cnnt_pads[i].first ||
++		    pin > esp32s31_cnnt_pads[i].last ||
++		    func != esp32s31_cnnt_pads[i].func)
++			continue;
++
++		guard(raw_spinlock_irqsave)(&pctrl->lock);
++		writel(readl(pctrl->cnnt) | esp32s31_cnnt_pads[i].sel, pctrl->cnnt);
++	}
 +}
 +
 +static int esp32s31_mux_one(struct esp32s31_pinctrl *pctrl, unsigned int pin,
@@ -5315,6 +5337,7 @@ new file mode 100644
 +		writel(sig, pctrl->gpio + ESP32S31_GPIO_FUNC_OUT_SEL(pin));
 +
 +	esp32s31_iomux_rmw(pctrl, pin, ESP32S31_IOMUX_MCU_SEL, set);
++	esp32s31_cnnt_select(pctrl, pin, func);
 +	return 0;
 +}
 +
@@ -5633,6 +5656,10 @@ new file mode 100644
 +	pctrl->gpio = devm_platform_ioremap_resource_byname(pdev, "gpio");
 +	if (IS_ERR(pctrl->gpio))
 +		return PTR_ERR(pctrl->gpio);
++
++	pctrl->cnnt = devm_platform_ioremap_resource_byname(pdev, "cnnt");
++	if (IS_ERR(pctrl->cnnt))
++		return PTR_ERR(pctrl->cnnt);
 +
 +	raw_spin_lock_init(&pctrl->lock);
 +

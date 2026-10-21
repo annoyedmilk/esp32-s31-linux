@@ -25,11 +25,13 @@ properties:
     items:
       - description: IO MUX registers
       - description: GPIO and GPIO matrix registers
+      - description: CNNT_IO_MUX_CTRL, the select bits of the GMAC and SD pads
 
   reg-names:
     items:
       - const: iomux
       - const: gpio
+      - const: cnnt
 
   gpio-controller: true
 
@@ -105,8 +107,9 @@ examples:
 
     pinctrl: pinctrl@20582000 {
         compatible = "esp,esp32s31-pinctrl";
-        reg = <0x20582000 0x1000>, <0x20583000 0x1000>;
-        reg-names = "iomux", "gpio";
+        reg = <0x20582000 0x1000>, <0x20583000 0x1000>,
+              <0x205883f4 0x4>;
+        reg-names = "iomux", "gpio", "cnnt";
         gpio-controller;
         #gpio-cells = <2>;
         gpio-ranges = <&pinctrl 0 0 62>;
