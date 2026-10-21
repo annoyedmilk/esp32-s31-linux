@@ -218,9 +218,8 @@ This is the part that is most different from other RISC-V SoCs.
 ### Drivers that needed a change for this
 
 - **SD (`dw_mmc`).** The PIO FIFO port does not work on this silicon. The
-  driver must use the internal DMA (IDMAC). Its descriptor ring is usual
-  cached memory, so each change of ownership needs a sync of the full ring
-  (`patches/0003`, `DW_MMC_QUIRK_NONCOHERENT_DESC`).
+  driver must use the internal DMA (IDMAC). Its descriptor ring comes from
+  the coherent DMA pool in internal SRAM, so the stock driver works.
 - **USB (DWC2).** Buffer DMA works through the sync engine. Descriptor DMA
   stays off. The reset FIFO sizes are larger than the 896-word FIFO RAM, so
   the driver sets smaller ones (`patches/0005`). The DWC2 register window
