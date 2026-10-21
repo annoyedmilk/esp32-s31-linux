@@ -73,6 +73,20 @@ static void shm_write32(struct esp_shm_context *ctx, u32 off, u32 val)
 	iowrite32(val, ctx->shm + off);
 }
 
+/*
+ * dst is 4-byte aligned.  memcpy_toio() reads src byte by byte on RV32, so
+ * copy whole words when src is aligned too.
+ */
+static void shm_copy_to(void __iomem *dst, const void *src, u32 len)
+{
+	const u32 *s = src;
+
+	if (IS_ALIGNED((unsigned long)src, 4))
+		for (; len >= 4; len -= 4, dst += 4)
+			__raw_writel(*s++, dst);
+	memcpy_toio(dst, s, len);
+}
+
 static void ring_copy_in(struct esp_shm_context *ctx,
 			 const struct esp_shm_ring *r, u32 pos,
 			 const void *src, u32 len)
@@ -80,8 +94,8 @@ static void ring_copy_in(struct esp_shm_context *ctx,
 	u32 off = pos & (r->size - 1);
 	u32 first = min(len, r->size - off);
 
-	memcpy_toio(ctx->shm + r->data + off, src, first);
-	memcpy_toio(ctx->shm + r->data, src + first, len - first);
+	shm_copy_to(ctx->shm + r->data + off, src, first);
+	shm_copy_to(ctx->shm + r->data, src + first, len - first);
 }
 
 /*
