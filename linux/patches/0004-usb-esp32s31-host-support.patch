@@ -34,7 +34,7 @@ diff --git a/drivers/phy/Makefile b/drivers/phy/Makefile
 diff --git a/drivers/usb/dwc2/params.c b/drivers/usb/dwc2/params.c
 --- a/drivers/usb/dwc2/params.c
 +++ b/drivers/usb/dwc2/params.c
-@@ -25,6 +25,40 @@
+@@ -25,6 +25,29 @@
  	p->ahbcfg = 0x10;
  }
  
@@ -42,19 +42,8 @@ diff --git a/drivers/usb/dwc2/params.c b/drivers/usb/dwc2/params.c
 +{
 +	struct dwc2_core_params *p = &hsotg->params;
 +
-+	/*
-+	 * Linux memory is in cached external PSRAM.  Thus the internal DMA of
-+	 * the controller uses the cache controller for maintenance, and the
-+	 * SRAM pool for coherent memory.  The two are available, so use the
-+	 * value of GHWCFG2.  Descriptor DMA stays off: buffer DMA does not
-+	 * need descriptor lists.
-+	 */
-+	p->host_dma = hsotg->hw_params.arch != GHWCFG2_SLAVE_ONLY_ARCH;
-+	p->dma_desc_enable = false;
-+	p->dma_desc_fs_enable = false;
++	/* Buffer DMA and no descriptor DMA are the defaults. */
 +	p->g_dma = false;
-+	dev_info(hsotg->dev, "using %s\n",
-+		 p->host_dma ? "internal DMA" : "slave mode (PIO)");
 +	/* The reset FIFO sizes are larger than the 896-word controller RAM. */
 +	p->host_rx_fifo_size = 512;
 +	p->host_nperio_tx_fifo_size = 256;
@@ -75,7 +64,7 @@ diff --git a/drivers/usb/dwc2/params.c b/drivers/usb/dwc2/params.c
  static void dwc2_set_his_params(struct dwc2_hsotg *hsotg)
  {
  	struct dwc2_core_params *p = &hsotg->params;
-@@ -305,6 +339,8 @@
+@@ -305,6 +328,8 @@
  
  const struct of_device_id dwc2_of_match_table[] = {
  	{ .compatible = "brcm,bcm2835-usb", .data = dwc2_set_bcm_params },
