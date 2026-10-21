@@ -52,12 +52,21 @@ login. A USB keyboard works on it.
 - Linux starts the SD slot of the Korvo-1 and the RGB LED itself. The clock
   driver, the pin controller and a fixed regulator for the card power
   replace the setup in the loader.
-- Stock Linux drivers replace own code: the TRNG uses `timeriomem-rng`, and
-  the SD host uses the stock descriptor ring in the coherent DMA pool. The
-  project has approximately 290 fewer lines of code.
-- On the Korvo-1, the boot to the console takes 7.5 to 7.6 s from the
-  reset. Linux has 56 kB less RAM (MemTotal 10664 kB) for the regulator
-  support.
+- Stock Linux code replaces own code: the kernel uses the stock RISC-V
+  exception entry with three small changes for the CLIC, the TRNG uses
+  `timeriomem-rng`, and the SD host uses the stock descriptor ring in the
+  coherent DMA pool. The project has approximately 790 fewer lines of
+  code.
+- The boot scripts have the `.sh` suffix (`/etc/init.d/S10sdcard.sh`, for
+  example), so `rcS` runs them in its own shell. `S40wifi` keeps its name.
+- On the Korvo-1, the boot to the console takes 7.1 to 7.3 s from the
+  reset (v0.6.0: 7.6 to 7.9 s). Linux has 56 kB less RAM (MemTotal
+  10664 kB) for the regulator support.
+- Wi-Fi sends approximately 46 Mbit/s with iperf3 TCP on the Korvo-1
+  (v0.6.0: 43 Mbit/s).
+- The module alone and the Function-CoreBoard-1 have no I2C in the kernel,
+  which has no I2C device there. The module has 16 kB more RAM (MemTotal
+  12076 kB).
 
 The partition tables did not change: flash the new `flash.bin` on all
 boards. On the esp32s31 build, the overlay on `data` stays. On the Korvo-1,
@@ -306,8 +315,9 @@ card image erases the card, so save your files from the FAT partition first.
   tested on a board yet.
 - Data that the board reads from a USB disk can be wrong under heavy
   network load: the last 4 bytes of some 4 KiB blocks keep old data. This
-  was seen on the Function-CoreBoard-1 with Ethernet traffic. The cause is
-  not found yet.
+  was seen on the Function-CoreBoard-1 with Ethernet traffic. On the
+  Korvo-1, 100 reads from a USB stick under Wi-Fi load, 60 of them also
+  under card DMA load, were correct. The cause is not found yet.
 - `/dev/hwrng` gives approximately 0.4 kB/s, because Linux runs without
   high-resolution timers. The kernel random number generator is ready
   0.3 s after the start of Linux and does not depend on this speed.
