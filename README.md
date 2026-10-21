@@ -146,9 +146,9 @@ python -m espefuse --chip esp32s31 -p PORT summary
   OpenSBI, and locks hart 0 out of PSRAM with PMP. Linux starts the SD slot,
   the LED and the other peripherals itself.
 - **Interrupts.** OpenSBI gives the CLIC inputs to S-mode. If an input is not
-  in S-mode, Linux cannot see it. The S-mode trampoline must use `sret` and
-  restore `scause.spil`. `mret` locks `mintstatus.SIL` and masks all
-  supervisor interrupts.
+  in S-mode, Linux cannot see it. The S-mode trap entry must lower the
+  interrupt level with `sret` (`scause.spil`). `mret` locks
+  `mintstatus.SIL` and masks all supervisor interrupts.
 - **Cache.** PSRAM is write-back. The panel DMA reads the frame buffer from
   PSRAM without the cache, so OpenSBI makes the frame buffer range uncached
   with PMA entries. No bus master is coherent with the data cache, and the

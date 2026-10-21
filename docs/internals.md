@@ -122,18 +122,20 @@ The traps that cost the most time:
   supervisor level bits, so all S-mode inputs have level 255.
 - **`sret` restores the interrupt level from `scause.spil`, but only when
   `scause` bit 31 is set.** With an exception-type `scause`, the level stays
-  where it is. The trap exit must write the full CLIC `scause` back before
-  `sret`. `mret` from S-mode does not trap on this revision. It changes
+  where it is. `mret` from S-mode does not trap on this revision. It changes
   only the machine level and leaves `sintstatus.SIL` high, which masks all
   S-mode interrupts.
 - **The level stack and the scheduler.** Only `sret` lowers the level. If a
   handler schedules another task while its level is still high, that task
-  runs with interrupts masked. The trampoline
-  (`arch/riscv/kernel/esp32s31-clic-trampoline.S`) does an `sret` to itself
-  at entry, with `spil` = 0, so that all handlers run at the base level.
+  runs with interrupts masked. The stock `handle_exception` (with the hunks
+  of `linux/patches/0001`) does an `sret` to itself before `do_irq()`, with
+  `spil` = 0, so that all handlers run at the base level.
+- **`scause` holds SPP and SPIE.** In CLIC mode, these bits of `scause` are
+  aliases of the same bits in `sstatus`. A write of `scause` changes them:
+  with 0, `sret` returns in user mode.
 - **Exceptions come to the same vector.** In CLIC mode, `stvec` catches
-  exceptions and interrupts. The trampoline sends exceptions to the usual
-  handlers, and masks the CLIC bits out of `scause` first.
+  exceptions and interrupts, so `handle_exception` is 64-byte aligned. It
+  masks the CLIC bits out of `scause` before the usual exception handlers.
 
 Driver: `drivers/irqchip/irq-esp32s31-clic.c`. Interrupt specifiers have
 three cells: `<CLIC ID, matrix source, type>`. The driver writes the
@@ -413,7 +415,7 @@ on all boards.
 | --- | --- |
 | The handoff | `bootloader/main/main.c` |
 | M-mode setup | `opensbi/platform/esp32s31/platform.c` |
-| Interrupt entry | `linux/arch/riscv/kernel/esp32s31-clic-trampoline.S` |
+| Interrupt entry | `handle_exception` in `arch/riscv/kernel/entry.S`, `linux/patches/0001` |
 | Interrupt controller | `linux/drivers/irqchip/irq-esp32s31-clic.c` |
 | DMA coherency | `linux/drivers/cache/esp32s31-cache.c`, `linux/patches/0006` |
 | Wi-Fi transport | `shared/esp32s31-hosted-shm.h` |

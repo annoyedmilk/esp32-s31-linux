@@ -384,8 +384,8 @@ static const struct irq_domain_ops esp32s31_clic_domain_ops = {
 };
 
 /*
- * The assembly trampoline calls this.  It already removed the synchronous
- * exceptions.  regs->cause has the unchanged CLIC cause.
+ * handle_exception() calls this through do_irq() for interrupts.  regs->cause
+ * has the unchanged CLIC cause.
  */
 static void (*fallback_handle_irq)(struct pt_regs *);
 
