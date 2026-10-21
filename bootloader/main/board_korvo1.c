@@ -6,14 +6,13 @@
 #include "display.h"
 #include "loader.h"
 
-/* ESP32-S31-Korvo-1: microSD slot, WS2812 LED and the 800x480 RGB panel. */
+/* ESP32-S31-Korvo-1: microSD slot and the 800x480 RGB panel.  Linux starts the LED. */
 
 static const char *TAG = "s31-linux-korvo1";
 
 void board_init(void)
 {
     init_sd_card();
-    init_rmt_led(GPIO_NUM_37);
 }
 
 void board_start_display(void)

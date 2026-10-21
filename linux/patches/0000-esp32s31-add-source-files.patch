@@ -334,7 +334,7 @@ diff --git a/Documentation/devicetree/bindings/leds/esp,esp32s31-rmt-ws2812.yaml
 new file mode 100644
 --- /dev/null
 +++ b/Documentation/devicetree/bindings/leds/esp,esp32s31-rmt-ws2812.yaml
-@@ -0,0 +1,49 @@
+@@ -0,0 +1,68 @@
 +# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
 +%YAML 1.2
 +---
@@ -347,16 +347,27 @@ new file mode 100644
 +  - Marco Müller <hello@annoyedmilk.ch>
 +
 +description: >
-+  One WS2812 RGB LED on RMT channel 0 of the ESP32-S31. The firmware sets
-+  the RMT clocks, a 50 ns channel tick and the GPIO route before Linux
-+  starts. The operating system writes only the channel registers and the
-+  channel RAM.
++  One WS2812 RGB LED on RMT channel 0 of the ESP32-S31. The pin control
++  state routes the channel 0 output to the LED pin.
 +
 +properties:
 +  compatible:
 +    const: esp,esp32s31-rmt-ws2812
 +
 +  reg:
++    maxItems: 1
++
++  clocks:
++    items:
++      - description: RMT bus clock
++      - description: RMT function clock
++
++  clock-names:
++    items:
++      - const: sys
++      - const: core
++
++  resets:
 +    maxItems: 1
 +
 +  led:
@@ -367,17 +378,25 @@ new file mode 100644
 +required:
 +  - compatible
 +  - reg
++  - clocks
++  - clock-names
++  - resets
 +  - led
 +
 +additionalProperties: false
 +
 +examples:
 +  - |
++    #include <dt-bindings/clock/esp32s31-clk.h>
 +    #include <dt-bindings/leds/common.h>
 +
 +    led-controller@20355000 {
 +        compatible = "esp,esp32s31-rmt-ws2812";
 +        reg = <0x20355000 0x1000>;
++        clocks = <&hp_clkrst ESP32S31_CLK_RMT_SYS>,
++                 <&hp_clkrst ESP32S31_CLK_RMT>;
++        clock-names = "sys", "core";
++        resets = <&hp_clkrst ESP32S31_RST_RMT>;
 +
 +        led {
 +            color = <LED_COLOR_ID_RGB>;
@@ -883,7 +902,7 @@ diff --git a/arch/riscv/boot/dts/espressif/esp32s31.dtsi b/arch/riscv/boot/dts/e
 new file mode 100644
 --- /dev/null
 +++ b/arch/riscv/boot/dts/espressif/esp32s31.dtsi
-@@ -0,0 +1,340 @@
+@@ -0,0 +1,344 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * Espressif ESP32-S31 minimal device tree.
@@ -1101,12 +1120,16 @@ new file mode 100644
 +		};
 +
 +		/*
-+		 * RMT channel 0 drives a WS2812 LED.  The loader sets the RMT
-+		 * clocks and the GPIO route, so a board sets only the status.
++		 * RMT channel 0 drives a WS2812 LED.  A board routes the
++		 * channel 0 output to its LED pin.
 +		 */
 +		rgb_led: led-controller@20355000 {
 +			compatible = "esp,esp32s31-rmt-ws2812";
 +			reg = <0x20355000 0x1000>;
++			clocks = <&hp_clkrst ESP32S31_CLK_RMT_SYS>,
++				 <&hp_clkrst ESP32S31_CLK_RMT>;
++			clock-names = "sys", "core";
++			resets = <&hp_clkrst ESP32S31_RST_RMT>;
 +			status = "disabled";
 +
 +			led {
@@ -1228,7 +1251,7 @@ diff --git a/arch/riscv/boot/dts/espressif/esp32s31_coreboard1.dts b/arch/riscv/
 new file mode 100644
 --- /dev/null
 +++ b/arch/riscv/boot/dts/espressif/esp32s31_coreboard1.dts
-@@ -0,0 +1,103 @@
+@@ -0,0 +1,113 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * ESP32-S31-Function-CoreBoard-1, with the ESP32-S31-WROOM-3-N16R16V module:
@@ -1257,7 +1280,7 @@ new file mode 100644
 +&pinctrl {
 +	/*
 +	 * The pins of the SoC list, ETH_INTN of the PHY (GPIO4, also on J2), and
-+	 * the LED of the loader (GPIO60)
++	 * the LED (GPIO60)
 +	 */
 +	gpio-reserved-ranges = <4 1>, <26 9>, <41 1>, <58 2>, <60 1>;
 +
@@ -1281,6 +1304,12 @@ new file mode 100644
 +				 <ESP32S31_IOMUX_IN(18, 2, ESP32S31_SIG_GMAC_RXD1)>,
 +				 <ESP32S31_IOMUX_IN(19, 2, ESP32S31_SIG_GMAC_RXD0)>;
 +			bias-disable;
++		};
++	};
++
++	led_cfg: led-cfg {
++		led-pins {
++			pinmux = <ESP32S31_MATRIX_OUT(60, ESP32S31_SIG_RMT_OUT0)>;
 +		};
 +	};
 +
@@ -1331,12 +1360,16 @@ new file mode 100644
 +};
 +
 +/* WS2812 RGB LED on GPIO60. */
-+&rgb_led { status = "okay"; };
++&rgb_led {
++	pinctrl-names = "default";
++	pinctrl-0 = <&led_cfg>;
++	status = "okay";
++};
 diff --git a/arch/riscv/boot/dts/espressif/esp32s31_korvo1.dts b/arch/riscv/boot/dts/espressif/esp32s31_korvo1.dts
 new file mode 100644
 --- /dev/null
 +++ b/arch/riscv/boot/dts/espressif/esp32s31_korvo1.dts
-@@ -0,0 +1,101 @@
+@@ -0,0 +1,111 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * ESP32-S31-Korvo-1: 800x480 RGB panel, microSD slot, USB 2.0 host port
@@ -1400,15 +1433,25 @@ new file mode 100644
 +};
 +
 +/* WS2812 RGB LED on GPIO37. */
-+&rgb_led { status = "okay"; };
++&rgb_led {
++	pinctrl-names = "default";
++	pinctrl-0 = <&led_cfg>;
++	status = "okay";
++};
 +
 +/*
 + * The loader drives the LCD (GPIO8-19, 33-36, 38, 40, 43-45), the card power
-+ * and its pins (GPIO20-25, 39) and the LED (GPIO37).  With the flash, GPIO41
-+ * and UART0, Linux must not use them as GPIOs.
++ * and its pins (GPIO20-25, 39).  The LED (GPIO37) belongs to a driver.  With
++ * the flash, GPIO41 and UART0, Linux must not use them as GPIOs.
 + */
 +&pinctrl {
 +	gpio-reserved-ranges = <8 33>, <41 1>, <43 3>, <58 2>;
++
++	led_cfg: led-cfg {
++		led-pins {
++			pinmux = <ESP32S31_MATRIX_OUT(37, ESP32S31_SIG_RMT_OUT0)>;
++		};
++	};
 +
 +	i2c0_cfg: i2c0-cfg {
 +		i2c0-pins {
@@ -1943,7 +1986,7 @@ diff --git a/drivers/clk/clk-esp32s31.c b/drivers/clk/clk-esp32s31.c
 new file mode 100644
 --- /dev/null
 +++ b/drivers/clk/clk-esp32s31.c
-@@ -0,0 +1,429 @@
+@@ -0,0 +1,445 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * Author: Marco Mueller <hello@annoyedmilk.ch>
@@ -1952,8 +1995,8 @@ new file mode 100644
 + *
 + * Three blocks have clocks for Linux.  LP_AONCLKRST has the MPLL, which the
 + * firmware sets for the PSRAM, so Linux only reads its rate.  HP_SYS_CLKRST
-+ * has the CPU, SYS and APB clocks, which the firmware sets, and a gate for
-+ * each peripheral.  CNNT_SYS has the EMAC TX clock and reset, and the EMAC
++ * has the CPU, SYS and APB clocks, which the firmware sets, and the gates,
++ * dividers and resets of the peripherals that Linux owns.  CNNT_SYS has the EMAC TX clock and reset, and the EMAC
 + * interface registers, which the EMAC glue gets as a syscon.
 + *
 + * The firmware on hart 0 does not write these registers after it starts
@@ -1982,13 +2025,12 @@ new file mode 100644
 +#define HP_CPU_FREQ_CTRL0		0x04
 +#define HP_SYS_FREQ_CTRL0		0x0c
 +#define HP_APB_FREQ_CTRL0		0x10
++#define HP_RMT_CTRL0			0xbc
 +#define HP_EMAC_CTRL0			0xc8
 +#define HP_I2C_CTRL0(n)			(0xdc + (n) * 4)
-+#define HP_I2C_APB_CLK_EN		0
-+#define HP_I2C_RST_EN			BIT(1)
-+#define HP_I2C_CLK_SRC_SEL		3
-+#define HP_I2C_CLK_EN			4
-+#define HP_I2C_CLK_DIV_NUM		5
++/* The bus gate and the reset of a peripheral clock register */
++#define HP_PERIPH_BUS_CLK_EN		0
++#define HP_PERIPH_RST_EN		BIT(1)
 +#define HP_FREQ_DIV_NUM			GENMASK(7, 0)
 +#define HP_FREQ_NUMERATOR		GENMASK(10, 8)
 +#define HP_FREQ_DENOMINATOR		GENMASK(13, 11)
@@ -2092,46 +2134,62 @@ new file mode 100644
 +	return 0;
 +}
 +
-+/* I2C n: the APB gate, and the function clock: source, divider, gate */
-+static struct clk_hw *esp32s31_i2c_register(struct esp32s31_clk *ec,
-+					    unsigned int n)
++/*
++ * A peripheral clock register: the bus gate in bit 0, the reset in bit 1,
++ * and the function clock: source, divider (DIV_NUM + 1), gate.  The bus gate
++ * has the ID id, the function clock id + 1.
++ */
++struct esp32s31_periph {
++	const char *names[4];
++	u16 offset;
++	u8 bus, nsrc, sel_shift, sel_width, en_shift, div_shift, id;
++};
++
++static const struct esp32s31_periph esp32s31_periphs[] = {
++	{ { "i2c0-apb", "i2c0-sel", "i2c0-div", "i2c0" }, HP_I2C_CTRL0(0),
++	  ESP32S31_CLK_APB, 2, 3, 1, 4, 5, ESP32S31_CLK_I2C0_APB },
++	{ { "i2c1-apb", "i2c1-sel", "i2c1-div", "i2c1" }, HP_I2C_CTRL0(1),
++	  ESP32S31_CLK_APB, 2, 3, 1, 4, 5, ESP32S31_CLK_I2C1_APB },
++	{ { "rmt-sys", "rmt-sel", "rmt-div", "rmt" }, HP_RMT_CTRL0,
++	  ESP32S31_CLK_SYS, 3, 3, 2, 5, 6, ESP32S31_CLK_RMT_SYS },
++};
++
++static struct clk_hw *esp32s31_periph_register(struct esp32s31_clk *ec,
++					       const struct esp32s31_periph *p)
 +{
 +	static const struct clk_parent_data src[] = {
 +		{ .fw_name = "xtal" },
 +		{ .fw_name = "rc-fast" },
++		{ .fw_name = "pll-f80m" },
 +	};
-+	static const char * const names[][4] = {
-+		{ "i2c0-apb", "i2c0-sel", "i2c0-div", "i2c0" },
-+		{ "i2c1-apb", "i2c1-sel", "i2c1-div", "i2c1" },
-+	};
-+	void __iomem *reg = ec->base + HP_I2C_CTRL0(n);
++	void __iomem *reg = ec->base + p->offset;
 +	struct clk_hw **hws = ec->hws->hws;
 +	struct clk_hw *hw;
 +
-+	hws[ESP32S31_CLK_I2C0_APB + 2 * n] =
-+		devm_clk_hw_register_gate_parent_hw(ec->dev, names[n][0],
-+						    hws[ESP32S31_CLK_APB], 0,
-+						    reg, HP_I2C_APB_CLK_EN, 0,
-+						    &ec->lock);
++	hws[p->id] = devm_clk_hw_register_gate_parent_hw(ec->dev, p->names[0],
++							 hws[p->bus], 0, reg,
++							 HP_PERIPH_BUS_CLK_EN,
++							 0, &ec->lock);
 +
-+	hw = devm_clk_hw_register_mux_parent_data_table(ec->dev, names[n][1],
-+							src, ARRAY_SIZE(src),
++	hw = devm_clk_hw_register_mux_parent_data_table(ec->dev, p->names[1],
++							src, p->nsrc,
 +							CLK_SET_RATE_NO_REPARENT,
-+							reg, HP_I2C_CLK_SRC_SEL,
-+							1, 0, NULL, &ec->lock);
++							reg, p->sel_shift,
++							p->sel_width, 0, NULL,
++							&ec->lock);
 +	if (IS_ERR(hw))
 +		return hw;
 +
-+	hw = devm_clk_hw_register_divider_parent_hw(ec->dev, names[n][2], hw,
-+						    0, reg, HP_I2C_CLK_DIV_NUM,
++	hw = devm_clk_hw_register_divider_parent_hw(ec->dev, p->names[2], hw,
++						    0, reg, p->div_shift,
 +						    8, 0, &ec->lock);
 +	if (IS_ERR(hw))
 +		return hw;
 +
-+	hw = devm_clk_hw_register_gate_parent_hw(ec->dev, names[n][3], hw,
++	hw = devm_clk_hw_register_gate_parent_hw(ec->dev, p->names[3], hw,
 +						 CLK_SET_RATE_PARENT, reg,
-+						 HP_I2C_CLK_EN, 0, &ec->lock);
-+	hws[ESP32S31_CLK_I2C0 + 2 * n] = hw;
++						 p->en_shift, 0, &ec->lock);
++	hws[p->id + 1] = hw;
 +	return hw;
 +}
 +
@@ -2178,8 +2236,8 @@ new file mode 100644
 +						    ec->base + HP_EMAC_CTRL0,
 +						    0, 0, &ec->lock);
 +
-+	for (i = 0; i < 2; i++) {
-+		hw = esp32s31_i2c_register(ec, i);
++	for (i = 0; i < ARRAY_SIZE(esp32s31_periphs); i++) {
++		hw = esp32s31_periph_register(ec, &esp32s31_periphs[i]);
 +		if (IS_ERR(hw))
 +			return PTR_ERR(hw);
 +	}
@@ -2334,12 +2392,13 @@ new file mode 100644
 +};
 +
 +static const struct esp32s31_reset esp32s31_hp_resets[] = {
-+	[ESP32S31_RST_I2C0] = { HP_I2C_CTRL0(0), HP_I2C_RST_EN },
-+	[ESP32S31_RST_I2C1] = { HP_I2C_CTRL0(1), HP_I2C_RST_EN },
++	[ESP32S31_RST_I2C0] = { HP_I2C_CTRL0(0), HP_PERIPH_RST_EN },
++	[ESP32S31_RST_I2C1] = { HP_I2C_CTRL0(1), HP_PERIPH_RST_EN },
++	[ESP32S31_RST_RMT] = { HP_RMT_CTRL0, HP_PERIPH_RST_EN },
 +};
 +
 +static const struct esp32s31_clk_data esp32s31_hp_data = {
-+	.nclks = ESP32S31_CLK_I2C1 + 1,
++	.nclks = ESP32S31_CLK_RMT + 1,
 +	.init = esp32s31_hp_init,
 +	.resets = esp32s31_hp_resets,
 +	.nresets = ARRAY_SIZE(esp32s31_hp_resets),
@@ -3491,23 +3550,25 @@ diff --git a/drivers/leds/rgb/leds-esp32s31-ws2812.c b/drivers/leds/rgb/leds-esp
 new file mode 100644
 --- /dev/null
 +++ b/drivers/leds/rgb/leds-esp32s31-ws2812.c
-@@ -0,0 +1,182 @@
+@@ -0,0 +1,219 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * Author: Marco Müller <hello@annoyedmilk.ch>
 + *
 + * WS2812 RGB LED on RMT channel 0 of the ESP32-S31.
 + *
-+ * The loader sets the RMT clocks, a 50 ns channel tick and the GPIO route
-+ * before Linux starts, because hart 0 also writes the clock registers.  This
-+ * driver writes only the channel 0 registers and the channel 0 RAM.
++ * The clock driver gives the RMT clock and reset, and pinctrl routes the
++ * channel 0 output to the LED pin.  This driver sets a 50 ns channel tick and
++ * writes only the channel 0 registers and the channel 0 RAM.
 + *
 + * One RMT word holds two pulses: duration and level for each.  A WS2812 bit
 + * is one high pulse and one low pulse, so one word sends one bit.  24 words
 + * send one LED in GRB order, and a word with duration 0 ends the sequence.
 + */
 +
++#include <linux/bitfield.h>
 +#include <linux/bits.h>
++#include <linux/clk.h>
 +#include <linux/delay.h>
 +#include <linux/io.h>
 +#include <linux/iopoll.h>
@@ -3516,16 +3577,25 @@ new file mode 100644
 +#include <linux/mutex.h>
 +#include <linux/of.h>
 +#include <linux/platform_device.h>
++#include <linux/reset.h>
 +
 +#define RMT_CH0_CONF0			0x20
 +#define RMT_CONF0_TX_START		BIT(0)
 +#define RMT_CONF0_MEM_RD_RST		BIT(1)
 +#define RMT_CONF0_APB_MEM_RST		BIT(2)
++#define RMT_CONF0_IDLE_OUT_EN		BIT(6)
++#define RMT_CONF0_DIV_CNT		GENMASK(15, 8)
++#define RMT_CONF0_MEM_SIZE		GENMASK(19, 16)
 +#define RMT_CONF0_CONF_UPDATE		BIT(24)
 +#define RMT_INT_RAW			0x70
 +#define RMT_INT_CLR			0x7c
 +#define RMT_INT_CH0_TX_END		BIT(0)
++#define RMT_SYS_CONF			0xc0
++#define RMT_SYS_APB_FIFO_MASK		BIT(0)
 +#define RMT_CH0_RAM			0x800
++
++/* One channel tick is 50 ns. */
++#define RMT_TICK_HZ			20000000
 +
 +/* Pulse lengths in 50 ns ticks, from the WS2812B data sheet. */
 +#define WS2812_T0H			8	/* 0.40 us */
@@ -3614,6 +3684,9 @@ new file mode 100644
 +	struct led_init_data init_data = { };
 +	struct esp32s31_ws2812 *priv;
 +	struct device_node *child;
++	struct reset_control *rst;
++	struct clk *clk;
++	unsigned long div;
 +	static const int colors[] = {
 +		LED_COLOR_ID_RED, LED_COLOR_ID_GREEN, LED_COLOR_ID_BLUE,
 +	};
@@ -3630,6 +3703,29 @@ new file mode 100644
 +	ret = devm_mutex_init(dev, &priv->lock);
 +	if (ret)
 +		return ret;
++
++	clk = devm_clk_get_enabled(dev, "sys");
++	if (IS_ERR(clk))
++		return dev_err_probe(dev, PTR_ERR(clk), "no RMT bus clock\n");
++
++	clk = devm_clk_get_enabled(dev, "core");
++	if (IS_ERR(clk))
++		return dev_err_probe(dev, PTR_ERR(clk), "no RMT clock\n");
++
++	rst = devm_reset_control_get_exclusive_deasserted(dev, NULL);
++	if (IS_ERR(rst))
++		return dev_err_probe(dev, PTR_ERR(rst), "no RMT reset\n");
++
++	div = DIV_ROUND_CLOSEST(clk_get_rate(clk), RMT_TICK_HZ);
++	if (!div || div > FIELD_MAX(RMT_CONF0_DIV_CNT))
++		return dev_err_probe(dev, -EINVAL, "RMT clock rate not usable\n");
++
++	/* Channel 0: one RAM block, no carrier, output low when idle. */
++	writel(readl(priv->base + RMT_SYS_CONF) | RMT_SYS_APB_FIFO_MASK,
++	       priv->base + RMT_SYS_CONF);
++	writel(FIELD_PREP(RMT_CONF0_DIV_CNT, div) |
++	       FIELD_PREP(RMT_CONF0_MEM_SIZE, 1) | RMT_CONF0_IDLE_OUT_EN,
++	       priv->base + RMT_CH0_CONF0);
 +
 +	child = of_get_next_available_child(dev->of_node, NULL);
 +	if (!child)
@@ -6132,7 +6228,7 @@ diff --git a/include/dt-bindings/clock/esp32s31-clk.h b/include/dt-bindings/cloc
 new file mode 100644
 --- /dev/null
 +++ b/include/dt-bindings/clock/esp32s31-clk.h
-@@ -0,0 +1,32 @@
+@@ -0,0 +1,35 @@
 +/* SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause) */
 +/*
 + * Author: Marco Mueller <hello@annoyedmilk.ch>
@@ -6155,9 +6251,12 @@ new file mode 100644
 +#define ESP32S31_CLK_I2C0		5
 +#define ESP32S31_CLK_I2C1_APB		6
 +#define ESP32S31_CLK_I2C1		7
++#define ESP32S31_CLK_RMT_SYS		8
++#define ESP32S31_CLK_RMT		9
 +
 +#define ESP32S31_RST_I2C0		0
 +#define ESP32S31_RST_I2C1		1
++#define ESP32S31_RST_RMT		2
 +
 +/* CNNT_SYS */
 +#define ESP32S31_CNNT_CLK_EMAC_REF	0
@@ -6169,7 +6268,7 @@ diff --git a/include/dt-bindings/pinctrl/esp32s31-pinctrl.h b/include/dt-binding
 new file mode 100644
 --- /dev/null
 +++ b/include/dt-bindings/pinctrl/esp32s31-pinctrl.h
-@@ -0,0 +1,50 @@
+@@ -0,0 +1,51 @@
 +/* SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause) */
 +/*
 + * Author: Marco Mueller <hello@annoyedmilk.ch>
@@ -6218,5 +6317,6 @@ new file mode 100644
 +#define ESP32S31_SIG_GMAC_RXD2		181
 +#define ESP32S31_SIG_GMAC_RXD3		182
 +#define ESP32S31_SIG_GMAC_RX_CLK	184
++#define ESP32S31_SIG_RMT_OUT0		246
 +
 +#endif

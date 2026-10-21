@@ -26,7 +26,7 @@
 &pinctrl {
 	/*
 	 * The pins of the SoC list, ETH_INTN of the PHY (GPIO4, also on J2), and
-	 * the LED of the loader (GPIO60)
+	 * the LED (GPIO60)
 	 */
 	gpio-reserved-ranges = <4 1>, <26 9>, <41 1>, <58 2>, <60 1>;
 
@@ -50,6 +50,12 @@
 				 <ESP32S31_IOMUX_IN(18, 2, ESP32S31_SIG_GMAC_RXD1)>,
 				 <ESP32S31_IOMUX_IN(19, 2, ESP32S31_SIG_GMAC_RXD0)>;
 			bias-disable;
+		};
+	};
+
+	led_cfg: led-cfg {
+		led-pins {
+			pinmux = <ESP32S31_MATRIX_OUT(60, ESP32S31_SIG_RMT_OUT0)>;
 		};
 	};
 
@@ -100,4 +106,8 @@
 };
 
 /* WS2812 RGB LED on GPIO60. */
-&rgb_led { status = "okay"; };
+&rgb_led {
+	pinctrl-names = "default";
+	pinctrl-0 = <&led_cfg>;
+	status = "okay";
+};

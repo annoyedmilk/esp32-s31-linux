@@ -34,8 +34,8 @@ ROM -> ESP-IDF 2nd stage -> loader (hart 0) -> OpenSBI (hart 1, M) -> Linux (har
 
 1. The ESP-IDF second-stage bootloader starts the loader application
    (`bootloader/main/`) on hart 0.
-2. The loader starts PSRAM, and on the Korvo-1 the SD slot pins, the RMT for
-   the LED and the LCD (`board_korvo1.c`). It copies two flash partitions
+2. The loader starts PSRAM, and on the Korvo-1 the SD slot pins and the LCD
+   (`board_korvo1.c`). It copies two flash partitions
    to PSRAM and checks them: the kernel `Image` (size and CRC32 from a
    manifest at the end of the kernel partition) and OpenSBI `fw_jump`. It starts Wi-Fi and Bluetooth.
 3. The loader writes the D-cache back, sets the PMA of hart 1 for PSRAM and

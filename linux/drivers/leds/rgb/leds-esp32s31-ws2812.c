@@ -4,16 +4,18 @@
  *
  * WS2812 RGB LED on RMT channel 0 of the ESP32-S31.
  *
- * The loader sets the RMT clocks, a 50 ns channel tick and the GPIO route
- * before Linux starts, because hart 0 also writes the clock registers.  This
- * driver writes only the channel 0 registers and the channel 0 RAM.
+ * The clock driver gives the RMT clock and reset, and pinctrl routes the
+ * channel 0 output to the LED pin.  This driver sets a 50 ns channel tick and
+ * writes only the channel 0 registers and the channel 0 RAM.
  *
  * One RMT word holds two pulses: duration and level for each.  A WS2812 bit
  * is one high pulse and one low pulse, so one word sends one bit.  24 words
  * send one LED in GRB order, and a word with duration 0 ends the sequence.
  */
 
+#include <linux/bitfield.h>
 #include <linux/bits.h>
+#include <linux/clk.h>
 #include <linux/delay.h>
 #include <linux/io.h>
 #include <linux/iopoll.h>
@@ -22,16 +24,25 @@
 #include <linux/mutex.h>
 #include <linux/of.h>
 #include <linux/platform_device.h>
+#include <linux/reset.h>
 
 #define RMT_CH0_CONF0			0x20
 #define RMT_CONF0_TX_START		BIT(0)
 #define RMT_CONF0_MEM_RD_RST		BIT(1)
 #define RMT_CONF0_APB_MEM_RST		BIT(2)
+#define RMT_CONF0_IDLE_OUT_EN		BIT(6)
+#define RMT_CONF0_DIV_CNT		GENMASK(15, 8)
+#define RMT_CONF0_MEM_SIZE		GENMASK(19, 16)
 #define RMT_CONF0_CONF_UPDATE		BIT(24)
 #define RMT_INT_RAW			0x70
 #define RMT_INT_CLR			0x7c
 #define RMT_INT_CH0_TX_END		BIT(0)
+#define RMT_SYS_CONF			0xc0
+#define RMT_SYS_APB_FIFO_MASK		BIT(0)
 #define RMT_CH0_RAM			0x800
+
+/* One channel tick is 50 ns. */
+#define RMT_TICK_HZ			20000000
 
 /* Pulse lengths in 50 ns ticks, from the WS2812B data sheet. */
 #define WS2812_T0H			8	/* 0.40 us */
@@ -120,6 +131,9 @@ static int esp32s31_ws2812_probe(struct platform_device *pdev)
 	struct led_init_data init_data = { };
 	struct esp32s31_ws2812 *priv;
 	struct device_node *child;
+	struct reset_control *rst;
+	struct clk *clk;
+	unsigned long div;
 	static const int colors[] = {
 		LED_COLOR_ID_RED, LED_COLOR_ID_GREEN, LED_COLOR_ID_BLUE,
 	};
@@ -136,6 +150,29 @@ static int esp32s31_ws2812_probe(struct platform_device *pdev)
 	ret = devm_mutex_init(dev, &priv->lock);
 	if (ret)
 		return ret;
+
+	clk = devm_clk_get_enabled(dev, "sys");
+	if (IS_ERR(clk))
+		return dev_err_probe(dev, PTR_ERR(clk), "no RMT bus clock\n");
+
+	clk = devm_clk_get_enabled(dev, "core");
+	if (IS_ERR(clk))
+		return dev_err_probe(dev, PTR_ERR(clk), "no RMT clock\n");
+
+	rst = devm_reset_control_get_exclusive_deasserted(dev, NULL);
+	if (IS_ERR(rst))
+		return dev_err_probe(dev, PTR_ERR(rst), "no RMT reset\n");
+
+	div = DIV_ROUND_CLOSEST(clk_get_rate(clk), RMT_TICK_HZ);
+	if (!div || div > FIELD_MAX(RMT_CONF0_DIV_CNT))
+		return dev_err_probe(dev, -EINVAL, "RMT clock rate not usable\n");
+
+	/* Channel 0: one RAM block, no carrier, output low when idle. */
+	writel(readl(priv->base + RMT_SYS_CONF) | RMT_SYS_APB_FIFO_MASK,
+	       priv->base + RMT_SYS_CONF);
+	writel(FIELD_PREP(RMT_CONF0_DIV_CNT, div) |
+	       FIELD_PREP(RMT_CONF0_MEM_SIZE, 1) | RMT_CONF0_IDLE_OUT_EN,
+	       priv->base + RMT_CH0_CONF0);
 
 	child = of_get_next_available_child(dev->of_node, NULL);
 	if (!child)

@@ -61,15 +61,25 @@
 };
 
 /* WS2812 RGB LED on GPIO37. */
-&rgb_led { status = "okay"; };
+&rgb_led {
+	pinctrl-names = "default";
+	pinctrl-0 = <&led_cfg>;
+	status = "okay";
+};
 
 /*
  * The loader drives the LCD (GPIO8-19, 33-36, 38, 40, 43-45), the card power
- * and its pins (GPIO20-25, 39) and the LED (GPIO37).  With the flash, GPIO41
- * and UART0, Linux must not use them as GPIOs.
+ * and its pins (GPIO20-25, 39).  The LED (GPIO37) belongs to a driver.  With
+ * the flash, GPIO41 and UART0, Linux must not use them as GPIOs.
  */
 &pinctrl {
 	gpio-reserved-ranges = <8 33>, <41 1>, <43 3>, <58 2>;
+
+	led_cfg: led-cfg {
+		led-pins {
+			pinmux = <ESP32S31_MATRIX_OUT(37, ESP32S31_SIG_RMT_OUT0)>;
+		};
+	};
 
 	i2c0_cfg: i2c0-cfg {
 		i2c0-pins {

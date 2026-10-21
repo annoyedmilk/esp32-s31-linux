@@ -6,8 +6,8 @@
  *
  * Three blocks have clocks for Linux.  LP_AONCLKRST has the MPLL, which the
  * firmware sets for the PSRAM, so Linux only reads its rate.  HP_SYS_CLKRST
- * has the CPU, SYS and APB clocks, which the firmware sets, and a gate for
- * each peripheral.  CNNT_SYS has the EMAC TX clock and reset, and the EMAC
+ * has the CPU, SYS and APB clocks, which the firmware sets, and the gates,
+ * dividers and resets of the peripherals that Linux owns.  CNNT_SYS has the EMAC TX clock and reset, and the EMAC
  * interface registers, which the EMAC glue gets as a syscon.
  *
  * The firmware on hart 0 does not write these registers after it starts
@@ -36,13 +36,12 @@
 #define HP_CPU_FREQ_CTRL0		0x04
 #define HP_SYS_FREQ_CTRL0		0x0c
 #define HP_APB_FREQ_CTRL0		0x10
+#define HP_RMT_CTRL0			0xbc
 #define HP_EMAC_CTRL0			0xc8
 #define HP_I2C_CTRL0(n)			(0xdc + (n) * 4)
-#define HP_I2C_APB_CLK_EN		0
-#define HP_I2C_RST_EN			BIT(1)
-#define HP_I2C_CLK_SRC_SEL		3
-#define HP_I2C_CLK_EN			4
-#define HP_I2C_CLK_DIV_NUM		5
+/* The bus gate and the reset of a peripheral clock register */
+#define HP_PERIPH_BUS_CLK_EN		0
+#define HP_PERIPH_RST_EN		BIT(1)
 #define HP_FREQ_DIV_NUM			GENMASK(7, 0)
 #define HP_FREQ_NUMERATOR		GENMASK(10, 8)
 #define HP_FREQ_DENOMINATOR		GENMASK(13, 11)
@@ -146,46 +145,62 @@ static int esp32s31_lp_init(struct esp32s31_clk *ec)
 	return 0;
 }
 
-/* I2C n: the APB gate, and the function clock: source, divider, gate */
-static struct clk_hw *esp32s31_i2c_register(struct esp32s31_clk *ec,
-					    unsigned int n)
+/*
+ * A peripheral clock register: the bus gate in bit 0, the reset in bit 1,
+ * and the function clock: source, divider (DIV_NUM + 1), gate.  The bus gate
+ * has the ID id, the function clock id + 1.
+ */
+struct esp32s31_periph {
+	const char *names[4];
+	u16 offset;
+	u8 bus, nsrc, sel_shift, sel_width, en_shift, div_shift, id;
+};
+
+static const struct esp32s31_periph esp32s31_periphs[] = {
+	{ { "i2c0-apb", "i2c0-sel", "i2c0-div", "i2c0" }, HP_I2C_CTRL0(0),
+	  ESP32S31_CLK_APB, 2, 3, 1, 4, 5, ESP32S31_CLK_I2C0_APB },
+	{ { "i2c1-apb", "i2c1-sel", "i2c1-div", "i2c1" }, HP_I2C_CTRL0(1),
+	  ESP32S31_CLK_APB, 2, 3, 1, 4, 5, ESP32S31_CLK_I2C1_APB },
+	{ { "rmt-sys", "rmt-sel", "rmt-div", "rmt" }, HP_RMT_CTRL0,
+	  ESP32S31_CLK_SYS, 3, 3, 2, 5, 6, ESP32S31_CLK_RMT_SYS },
+};
+
+static struct clk_hw *esp32s31_periph_register(struct esp32s31_clk *ec,
+					       const struct esp32s31_periph *p)
 {
 	static const struct clk_parent_data src[] = {
 		{ .fw_name = "xtal" },
 		{ .fw_name = "rc-fast" },
+		{ .fw_name = "pll-f80m" },
 	};
-	static const char * const names[][4] = {
-		{ "i2c0-apb", "i2c0-sel", "i2c0-div", "i2c0" },
-		{ "i2c1-apb", "i2c1-sel", "i2c1-div", "i2c1" },
-	};
-	void __iomem *reg = ec->base + HP_I2C_CTRL0(n);
+	void __iomem *reg = ec->base + p->offset;
 	struct clk_hw **hws = ec->hws->hws;
 	struct clk_hw *hw;
 
-	hws[ESP32S31_CLK_I2C0_APB + 2 * n] =
-		devm_clk_hw_register_gate_parent_hw(ec->dev, names[n][0],
-						    hws[ESP32S31_CLK_APB], 0,
-						    reg, HP_I2C_APB_CLK_EN, 0,
-						    &ec->lock);
+	hws[p->id] = devm_clk_hw_register_gate_parent_hw(ec->dev, p->names[0],
+							 hws[p->bus], 0, reg,
+							 HP_PERIPH_BUS_CLK_EN,
+							 0, &ec->lock);
 
-	hw = devm_clk_hw_register_mux_parent_data_table(ec->dev, names[n][1],
-							src, ARRAY_SIZE(src),
+	hw = devm_clk_hw_register_mux_parent_data_table(ec->dev, p->names[1],
+							src, p->nsrc,
 							CLK_SET_RATE_NO_REPARENT,
-							reg, HP_I2C_CLK_SRC_SEL,
-							1, 0, NULL, &ec->lock);
+							reg, p->sel_shift,
+							p->sel_width, 0, NULL,
+							&ec->lock);
 	if (IS_ERR(hw))
 		return hw;
 
-	hw = devm_clk_hw_register_divider_parent_hw(ec->dev, names[n][2], hw,
-						    0, reg, HP_I2C_CLK_DIV_NUM,
+	hw = devm_clk_hw_register_divider_parent_hw(ec->dev, p->names[2], hw,
+						    0, reg, p->div_shift,
 						    8, 0, &ec->lock);
 	if (IS_ERR(hw))
 		return hw;
 
-	hw = devm_clk_hw_register_gate_parent_hw(ec->dev, names[n][3], hw,
+	hw = devm_clk_hw_register_gate_parent_hw(ec->dev, p->names[3], hw,
 						 CLK_SET_RATE_PARENT, reg,
-						 HP_I2C_CLK_EN, 0, &ec->lock);
-	hws[ESP32S31_CLK_I2C0 + 2 * n] = hw;
+						 p->en_shift, 0, &ec->lock);
+	hws[p->id + 1] = hw;
 	return hw;
 }
 
@@ -232,8 +247,8 @@ static int esp32s31_hp_init(struct esp32s31_clk *ec)
 						    ec->base + HP_EMAC_CTRL0,
 						    0, 0, &ec->lock);
 
-	for (i = 0; i < 2; i++) {
-		hw = esp32s31_i2c_register(ec, i);
+	for (i = 0; i < ARRAY_SIZE(esp32s31_periphs); i++) {
+		hw = esp32s31_periph_register(ec, &esp32s31_periphs[i]);
 		if (IS_ERR(hw))
 			return PTR_ERR(hw);
 	}
@@ -388,12 +403,13 @@ static const struct esp32s31_clk_data esp32s31_lp_data = {
 };
 
 static const struct esp32s31_reset esp32s31_hp_resets[] = {
-	[ESP32S31_RST_I2C0] = { HP_I2C_CTRL0(0), HP_I2C_RST_EN },
-	[ESP32S31_RST_I2C1] = { HP_I2C_CTRL0(1), HP_I2C_RST_EN },
+	[ESP32S31_RST_I2C0] = { HP_I2C_CTRL0(0), HP_PERIPH_RST_EN },
+	[ESP32S31_RST_I2C1] = { HP_I2C_CTRL0(1), HP_PERIPH_RST_EN },
+	[ESP32S31_RST_RMT] = { HP_RMT_CTRL0, HP_PERIPH_RST_EN },
 };
 
 static const struct esp32s31_clk_data esp32s31_hp_data = {
-	.nclks = ESP32S31_CLK_I2C1 + 1,
+	.nclks = ESP32S31_CLK_RMT + 1,
 	.init = esp32s31_hp_init,
 	.resets = esp32s31_hp_resets,
 	.nresets = ARRAY_SIZE(esp32s31_hp_resets),

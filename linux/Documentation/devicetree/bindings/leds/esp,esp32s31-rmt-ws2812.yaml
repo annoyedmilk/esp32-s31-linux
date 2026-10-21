@@ -10,16 +10,27 @@ maintainers:
   - Marco Müller <hello@annoyedmilk.ch>
 
 description: >
-  One WS2812 RGB LED on RMT channel 0 of the ESP32-S31. The firmware sets
-  the RMT clocks, a 50 ns channel tick and the GPIO route before Linux
-  starts. The operating system writes only the channel registers and the
-  channel RAM.
+  One WS2812 RGB LED on RMT channel 0 of the ESP32-S31. The pin control
+  state routes the channel 0 output to the LED pin.
 
 properties:
   compatible:
     const: esp,esp32s31-rmt-ws2812
 
   reg:
+    maxItems: 1
+
+  clocks:
+    items:
+      - description: RMT bus clock
+      - description: RMT function clock
+
+  clock-names:
+    items:
+      - const: sys
+      - const: core
+
+  resets:
     maxItems: 1
 
   led:
@@ -30,17 +41,25 @@ properties:
 required:
   - compatible
   - reg
+  - clocks
+  - clock-names
+  - resets
   - led
 
 additionalProperties: false
 
 examples:
   - |
+    #include <dt-bindings/clock/esp32s31-clk.h>
     #include <dt-bindings/leds/common.h>
 
     led-controller@20355000 {
         compatible = "esp,esp32s31-rmt-ws2812";
         reg = <0x20355000 0x1000>;
+        clocks = <&hp_clkrst ESP32S31_CLK_RMT_SYS>,
+                 <&hp_clkrst ESP32S31_CLK_RMT>;
+        clock-names = "sys", "core";
+        resets = <&hp_clkrst ESP32S31_RST_RMT>;
 
         led {
             color = <LED_COLOR_ID_RGB>;
