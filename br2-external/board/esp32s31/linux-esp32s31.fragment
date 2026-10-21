@@ -12,8 +12,9 @@ CONFIG_CMDLINE="earlycon=sbi console=ttyS0,115200 loglevel=5 esp32_shm.radio_ser
 # CONFIG_INPUT is not set
 # CONFIG_HID is not set
 
-# No card, USB or LED.  zram stays.
+# No card, USB, LED or I2C device.  zram stays.
 # CONFIG_MMC is not set
+# CONFIG_I2C is not set
 # CONFIG_REGULATOR is not set
 # CONFIG_USB_SUPPORT is not set
 # CONFIG_PHY_ESP32S31_USB is not set
