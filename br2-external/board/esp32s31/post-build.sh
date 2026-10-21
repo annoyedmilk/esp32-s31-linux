@@ -18,9 +18,8 @@ for vt in "$@"; do
 done
 set -- "$target"
 
-# BusyBox installs a start script for its httpd.  Here httpd is a tool.  The
-# kernel has no module support, so S11modules has nothing to load.
-rm -f "$1/etc/init.d/S90httpd" "$1/etc/init.d/S11modules"
+# BusyBox installs a start script for its httpd.  Here httpd is a tool.
+rm -f "$1/etc/init.d/S90httpd"
 
 # Buildroot copies the overlays with go=rX.  local-overlay/ can give this file
 # a network key.
