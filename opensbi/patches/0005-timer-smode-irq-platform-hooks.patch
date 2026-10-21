@@ -63,13 +63,3 @@ diff --git a/lib/sbi/sbi_timer.c b/lib/sbi/sbi_timer.c
  		sbi_timer_event_start(&tstate->smode_ev, next_event);
  	}
  }
-@@ -333,7 +343,8 @@
- 		return;
- 
- 	timer_dev = dev;
--	if (!get_time_val && timer_dev->timer_value)
-+	/* Use the device clock for event comparisons and the reported time. */
-+	if (timer_dev->timer_value)
- 		get_time_val = timer_dev->timer_value;
- }
- 

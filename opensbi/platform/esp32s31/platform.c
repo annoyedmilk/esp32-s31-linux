@@ -387,11 +387,8 @@ static u64 esp32s31_timer_value(void)
 
 static void esp32s31_timer_event_start(u64 next_event)
 {
-	/* Clear an old edge latch and make sure that the input is enabled. */
+	/* Clear an old edge latch.  esp32s31_timer_init() set ATTR and IE. */
 	reg_write8(ESP32S31_CLIC_IP(ESP32S31_CLIC_MTIMER_ID), 0);
-	reg_write8(ESP32S31_CLIC_ATTR(ESP32S31_CLIC_MTIMER_ID),
-		   ESP32S31_CLIC_ATTR_M_EDGE);
-	reg_write8(ESP32S31_CLIC_IE(ESP32S31_CLIC_MTIMER_ID), 1);
 
 	/*
 	 * Set the high compare word to its maximum first, so the 64-bit update
