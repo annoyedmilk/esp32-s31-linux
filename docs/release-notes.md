@@ -40,6 +40,33 @@ alone with UART only.
 On the Korvo-1, the LCD shows the Tux logo, the kernel warnings and a
 login. A USB keyboard works on it.
 
+## New in v0.6.1
+
+- The Function-CoreBoard-1 has `eth0`. In v0.6.0, its kernel did not have
+  the eFuse driver, so the Ethernet driver waited for the MAC address and
+  did not start.
+- The Function-CoreBoard-1 finds its root stick by the disk signature of
+  the image (`root=PARTUUID=45533331-02`), so other USB disks can be
+  connected when it starts. On both boards with a disk, the boot scripts
+  find the FAT and swap partitions on the disk with the root.
+- Linux starts the SD slot of the Korvo-1 and the RGB LED itself. The clock
+  driver, the pin controller and a fixed regulator for the card power
+  replace the setup in the loader.
+- Stock Linux drivers replace own code: the TRNG uses `timeriomem-rng`, and
+  the SD host uses the stock descriptor ring in the coherent DMA pool. The
+  project has approximately 290 fewer lines of code.
+- On the Korvo-1, the boot to the console takes 7.5 to 7.6 s from the
+  reset. Linux has 56 kB less RAM (MemTotal 10664 kB) for the regulator
+  support.
+
+The partition tables did not change: flash the new `flash.bin` on all
+boards. On the esp32s31 build, the overlay on `data` stays. On the Korvo-1,
+a v0.6.0 card works, but the new boot scripts are only in the new root:
+write it with `make sdroot`, or write the new card image. On the
+Function-CoreBoard-1, write the new USB image, or run `make sdpart` and
+`make sdroot`: a v0.6.0 stick has no disk signature, and the new kernel
+does not find it.
+
 ## New in v0.6.0
 
 - A third build, `coreboard1`, for the ESP32-S31-Function-CoreBoard-1. Its
@@ -275,9 +302,15 @@ card image erases the card, so save your files from the FAT partition first.
 ## Known limits
 
 - The tested hardware is the Korvo-1 with chip revision v0.0. The esp32s31
-  build is tested on the Korvo-1. The coreboard1 build is tested on the
-  Korvo-1, with the root on a USB stick as on the Function-CoreBoard-1.
-  Ethernet is not tested.
+  build is tested on the Korvo-1. The coreboard1 build of v0.6.1 is not
+  tested on a board yet.
+- Data that the board reads from a USB disk can be wrong under heavy
+  network load: the last 4 bytes of some 4 KiB blocks keep old data. This
+  was seen on the Function-CoreBoard-1 with Ethernet traffic. The cause is
+  not found yet.
+- `/dev/hwrng` gives approximately 0.4 kB/s, because Linux runs without
+  high-resolution timers. The kernel random number generator is ready
+  0.3 s after the start of Linux and does not depend on this speed.
 - One hart runs Linux. The other runs the Wi-Fi firmware.
 - Floating point works in software; the hardware FPU is not used.
 - No audio or camera driver.
