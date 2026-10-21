@@ -343,8 +343,6 @@ static bool load_kernel_partition(void)
                  (uint32_t)memory_size);
         return false;
     }
-    memset((void *)(KERNEL_LOAD_ADDR + image_size), 0,
-           (size_t)memory_size - image_size);
 
     ESP_LOGI(TAG, "kernel copied: flash=0x%08" PRIx32 " file=0x%08" PRIx32
                   " memory=0x%08" PRIx32 " psram=0x%08" PRIx32,
