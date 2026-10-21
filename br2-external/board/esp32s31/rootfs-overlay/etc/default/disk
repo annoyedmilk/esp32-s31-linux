@@ -2,8 +2,8 @@
 # /mnt/sd) or the USB stick of the Function-CoreBoard-1 (on /mnt/usb).  p1
 # is FAT, p2 is the root, p3 is swap.  The names come from the root device,
 # so a second USB disk does not change them.  The module alone has its root
-# in the flash: the names stay empty.  S05swap, S10sdcard, S40wifi and
-# S95autostart read this file.  It uses only shell builtins: each process
+# in the flash: the names stay empty.  S05swap.sh, S10sdcard.sh, S40wifi and
+# S95autostart.sh read this file.  It uses only shell builtins: each process
 # start costs time at boot.
 _dev= _name=
 while read -r _ _ _d _ _m _; do

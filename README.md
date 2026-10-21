@@ -246,11 +246,11 @@ stick.
 
 When the board is reset with p1 mounted, the FAT keeps a dirty flag. Linux
 does not clear it, also not at a clean shutdown, and warns at each mount.
-`S10sdcard` runs `fsck.fat -a` on a dirty p1 before it mounts it.
+`S10sdcard.sh` runs `fsck.fat -a` on a dirty p1 before it mounts it.
 `fsck.fat` needs approximately 8 bytes of memory for each cluster. That is
 less than 1 MB for the 64 MiB p1 of the disk image. `make sdpart` formats p1
 with 64 KiB clusters: a 28 GiB p1 then needs 3.3 MiB, not the 13 MiB of the
-16 KiB clusters that `diskutil` selects. `S10sdcard` skips a p1 whose
+16 KiB clusters that `diskutil` selects. `S10sdcard.sh` skips a p1 whose
 clusters do not fit in half of the free memory, for example a card that a
 camera formatted: check such a card on the host.
 
@@ -263,28 +263,28 @@ into `/root/.ssh/authorized_keys`. The root password is `korvo-bringup`.
 Boot scripts of all boards, in `br2-external/board/esp32s31/rootfs-overlay`
 and the overlay of each board:
 
-- `S01clock` sets the clock from `/etc/timestamp`. The board has no RTC.
-- `S05swap` starts 6 MiB of LZ4 swap in RAM (`/dev/zram0`, priority 100).
+- `S01clock.sh` sets the clock from `/etc/timestamp`. The board has no RTC.
+- `S05swap.sh` starts 6 MiB of LZ4 swap in RAM (`/dev/zram0`, priority 100).
   Then, when the MBR gives p3 the type `0x82`, it formats p3 and swaps to
   it at priority 10. The kernel uses the card only when zram is full. A
   card without such a p3 swaps to zram only.
 - `/etc/sysctl.d/10-reserve.conf` keeps 512 KiB free for the zram writes.
   A larger reserve takes memory from the page cache.
-- `S10sdcard` mounts p1 of the disk on `/mnt/sd` or `/mnt/usb`.
-- `S10usb` mounts the FAT of a USB stick on `/mnt/usb` on the Korvo-1. It
+- `S10sdcard.sh` mounts p1 of the disk on `/mnt/sd` or `/mnt/usb`.
+- `S10usb.sh` mounts the FAT of a USB stick on `/mnt/usb` on the Korvo-1. It
   makes BusyBox `mdev` the uevent helper of
   the kernel, so a stick that you connect later is also mounted
   (`/etc/mdev.conf`).
 - `S40wifi` starts `wpa_supplicant` on `wlan0` in the background, so that
   the console does not wait for it. `S40wifi restart` waits. `S40bluetoothd`
   starts BlueZ for `hci0`.
-- `S41ethernet` (Function-CoreBoard-1) makes the stmmac rings smaller, then
+- `S41ethernet.sh` (Function-CoreBoard-1) makes the stmmac rings smaller, then
   starts DHCP on `eth0` in the background.
 - The udhcpc hook sets the clock with NTP on each new lease.
-- `S95autostart` runs `autostart.sh` on p1 of the disk, or
+- `S95autostart.sh` runs `autostart.sh` on p1 of the disk, or
   `/root/autostart.sh` when the disk has none.
-- `S99banner` prints the line that `make monitor` waits for.
-- The module alone also has `overlay-init` and `S00overlay` (see
+- `S99banner.sh` prints the line that `make monitor` waits for.
+- The module alone also has `overlay-init` and `S00overlay.sh` (see
   [Flash root](#flash-root-esp32s31)).
 
 `login` and SSH show `/etc/motd`, which lists the first commands.

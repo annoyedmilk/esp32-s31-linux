@@ -1,6 +1,6 @@
 #!/bin/sh
 # SPDX-License-Identifier: MIT
-# udhcpc hook.  There is no RTC, and S01clock sets only the last known time,
+# udhcpc hook.  There is no RTC, and S01clock.sh sets only the last known time,
 # which is late.  Thus set the clock at each new lease.  Not at a renewal, so
 # that a running board does not ask again and again.
 

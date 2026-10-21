@@ -12,7 +12,7 @@ BR2_PACKAGE_HOST_GENIMAGE=y
 
 # The root is on a removable disk, and a clean shutdown is not certain.
 BR2_PACKAGE_E2FSPROGS=y
-# fsck.fat clears the dirty flag of p1 after a reset.  S10sdcard runs it
+# fsck.fat clears the dirty flag of p1 after a reset.  S10sdcard.sh runs it
 # when the cluster count of p1 fits in the free memory.
 BR2_PACKAGE_DOSFSTOOLS=y
 BR2_PACKAGE_DOSFSTOOLS_FSCK_FAT=y

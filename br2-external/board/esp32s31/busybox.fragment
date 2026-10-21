@@ -8,7 +8,7 @@ CONFIG_NTPD=y
 # only at the first boot.  /var/run is tmpfs.
 CONFIG_PID_FILE_PATH="/var/run"
 
-# S05swap gives zram a higher priority than the swap on the card.
+# S05swap.sh gives zram a higher priority than the swap on the card.
 CONFIG_FEATURE_SWAPON_PRI=y
 
 # nc to test sockets.
