@@ -3057,7 +3057,7 @@ diff --git a/drivers/irqchip/irq-esp32s31-clic.c b/drivers/irqchip/irq-esp32s31-
 new file mode 100644
 --- /dev/null
 +++ b/drivers/irqchip/irq-esp32s31-clic.c
-@@ -0,0 +1,616 @@
+@@ -0,0 +1,548 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * Author: Marco Müller <hello@annoyedmilk.ch>
@@ -3111,16 +3111,6 @@ new file mode 100644
 +#define ESP32S31_CLIC_IRQ_WORK_ID CLIC_EXT_MIN_ID
 +
 +/*
-+ * Slot 16 is a software interrupt only when this driver reserves it for
-+ * irq_work.  Otherwise it is a usual Interrupt Matrix input with a usual ack.
-+ */
-+#if defined(CONFIG_IRQ_WORK) && !defined(CONFIG_SMP)
-+#define esp32s31_clic_is_irq_work(hwirq) ((hwirq) == ESP32S31_CLIC_IRQ_WORK_ID)
-+#else
-+#define esp32s31_clic_is_irq_work(hwirq) ((void)(hwirq), false)
-+#endif
-+
-+/*
 + * In CLIC mode, the low cause bits hold the interrupt ID.  The high bits hold
 + * CLIC data, for example the previous interrupt level.  CAUSE_IRQ_FLAG does
 + * not remove them, so use a mask to get the exception code.
@@ -3157,7 +3147,6 @@ new file mode 100644
 + */
 +#define CLIC_ATTR_TRIG_LEVEL 0x00
 +#define CLIC_ATTR_TRIG_EDGE_RISE 0x02
-+#define CLIC_ATTR_TRIG_EDGE_FALL 0x06
 +#define CLIC_ATTR_TRIG_EDGE 0x02 /* bit 1: 1 = edge, 0 = level */
 +#define CLIC_ATTR_MODE_S 0x40
 +
@@ -3181,7 +3170,6 @@ new file mode 100644
 +};
 +
 +static DEFINE_PER_CPU(struct esp32s31_clic *, clic_per_cpu);
-+static DEFINE_PER_CPU(raw_spinlock_t, clic_lock);
 +
 +/*
 + * Each core finds its own per-interrupt registers at
@@ -3206,13 +3194,8 @@ new file mode 100644
 +
 +static void esp32s31_clic_irq_enable(struct irq_data *d, u8 enable)
 +{
-+	struct esp32s31_clic *clic = irq_data_get_irq_chip_data(d);
-+	raw_spinlock_t *lock = this_cpu_ptr(&clic_lock);
-+	unsigned long flags;
-+
-+	raw_spin_lock_irqsave(lock, flags);
-+	clic_writeb(clic, d->hwirq, ESP32S31_CLIC_INT_IE, enable);
-+	raw_spin_unlock_irqrestore(lock, flags);
++	clic_writeb(irq_data_get_irq_chip_data(d), d->hwirq,
++		    ESP32S31_CLIC_INT_IE, enable);
 +}
 +
 +static void esp32s31_clic_irq_mask(struct irq_data *d)
@@ -3225,61 +3208,28 @@ new file mode 100644
 +	esp32s31_clic_irq_enable(d, 1);
 +}
 +
++/*
++ * Empty EOI, as riscv_intc_irq_eoi(): a level input clears when the device
++ * releases it, and the irq_work handler clears its own IP.  Without the
++ * callback, chained_irq_enter() and chained_irq_exit() in child irqchip
++ * drivers do mask and unmask cycles that are not necessary.
++ */
 +static void esp32s31_clic_irq_eoi(struct irq_data *d)
 +{
-+	struct esp32s31_clic *clic = irq_data_get_irq_chip_data(d);
-+	raw_spinlock_t *lock = this_cpu_ptr(&clic_lock);
-+	u32 hwirq = d->hwirq;
-+	unsigned long flags;
-+	u8 attr;
-+
-+	/*
-+	 * Write one to IP to ack an edge input, as ESP-IDF
-+	 * rv_utils_intr_edge_ack() does.  A level input clears when the device
-+	 * releases it.  Skip the irq_work slot: its handler clears IP before
-+	 * it runs the work.  An ack here would lose an item that set IP again
-+	 * in irq_work_run().
-+	 */
-+	if (esp32s31_clic_is_irq_work(hwirq))
-+		return;
-+
-+	raw_spin_lock_irqsave(lock, flags);
-+	attr = clic_readb(clic, hwirq, ESP32S31_CLIC_INT_ATTR);
-+	if (attr & CLIC_ATTR_TRIG_EDGE)
-+		clic_writeb(clic, hwirq, ESP32S31_CLIC_INT_IP, 1);
-+	raw_spin_unlock_irqrestore(lock, flags);
 +}
 +
 +static int esp32s31_clic_set_type(struct irq_data *d, unsigned int flow_type)
 +{
-+	struct esp32s31_clic *clic = irq_data_get_irq_chip_data(d);
-+	u32 hwirq = d->hwirq;
-+	unsigned long flags;
-+	u8 attr;
-+
-+	/* The CLIC has no level-low mode, so the two Linux levels become level. */
-+	switch (flow_type & IRQ_TYPE_SENSE_MASK) {
-+	case IRQ_TYPE_LEVEL_HIGH:
-+	case IRQ_TYPE_LEVEL_LOW:
-+		attr = CLIC_ATTR_TRIG_LEVEL;
-+		break;
-+	case IRQ_TYPE_EDGE_RISING:
-+		attr = CLIC_ATTR_TRIG_EDGE_RISE;
-+		break;
-+	case IRQ_TYPE_EDGE_FALLING:
-+		attr = CLIC_ATTR_TRIG_EDGE_FALL;
-+		break;
-+	default:
++	/*
++	 * All peripheral sources are levels.  The CLIC has no level-low mode,
++	 * so the two Linux levels become level.  Linux uses only S-mode,
++	 * non-vectored CLIC inputs.
++	 */
++	if (!(flow_type & IRQ_TYPE_LEVEL_MASK))
 +		return -EINVAL;
-+	}
 +
-+	/* Linux uses only S-mode, non-vectored CLIC inputs. */
-+	attr |= CLIC_ATTR_MODE_S;
-+
-+	raw_spin_lock_irqsave(this_cpu_ptr(&clic_lock), flags);
-+	clic_writeb(clic, hwirq, ESP32S31_CLIC_INT_ATTR, attr);
-+	raw_spin_unlock_irqrestore(this_cpu_ptr(&clic_lock), flags);
-+
++	clic_writeb(irq_data_get_irq_chip_data(d), d->hwirq,
++		    ESP32S31_CLIC_INT_ATTR, CLIC_ATTR_MODE_S | CLIC_ATTR_TRIG_LEVEL);
 +	return 0;
 +}
 +
@@ -3313,18 +3263,12 @@ new file mode 100644
 +
 +static irqreturn_t esp32s31_irq_work_interrupt(int irq, void *dev_id)
 +{
-+	struct esp32s31_clic *clic = dev_id;
-+	raw_spinlock_t *lock = this_cpu_ptr(&clic_lock);
-+	unsigned long flags;
-+
 +	/*
 +	 * Clear the software pending bit before the work runs.  An item that
 +	 * adds more work sets IP again in irq_work_run(), and that IP must
-+	 * stay set.  For the same reason, the eoi callback skips this slot.
++	 * stay set.
 +	 */
-+	raw_spin_lock_irqsave(lock, flags);
-+	clic_writeb(clic, ESP32S31_CLIC_IRQ_WORK_ID, ESP32S31_CLIC_INT_IP, 0);
-+	raw_spin_unlock_irqrestore(lock, flags);
++	clic_writeb(dev_id, ESP32S31_CLIC_IRQ_WORK_ID, ESP32S31_CLIC_INT_IP, 0);
 +
 +	irq_work_run();
 +
@@ -3383,20 +3327,11 @@ new file mode 100644
 +		    ESP32S31_CLIC_INT_IE, 1);
 +}
 +
-+static void esp32s31_intc_clic_irq_eoi(struct irq_data *d)
-+{
-+	/*
-+	 * Empty EOI, as riscv_intc_irq_eoi().  Without it,
-+	 * chained_irq_enter() and chained_irq_exit() in child irqchip drivers
-+	 * do mask and unmask cycles that are not necessary.
-+	 */
-+}
-+
 +static struct irq_chip esp32s31_intc_chip = {
 +	.name		= "ESP32-S31 CLIC local INTC",
 +	.irq_mask	= esp32s31_intc_clic_irq_mask,
 +	.irq_unmask	= esp32s31_intc_clic_irq_unmask,
-+	.irq_eoi	= esp32s31_intc_clic_irq_eoi,
++	.irq_eoi	= esp32s31_clic_irq_eoi,
 +};
 +
 +/* IRQ domain operations */
@@ -3472,7 +3407,6 @@ new file mode 100644
 +	struct irq_fwspec *fwspec = data;
 +	irq_hw_number_t hwirq;
 +	unsigned int source, type;
-+	unsigned long flags;
 +
 +	if (esp32s31_clic_parse_fwspec(fwspec, &hwirq, &source, &type))
 +		return -EINVAL;
@@ -3485,10 +3419,8 @@ new file mode 100644
 +	irq_domain_set_info(domain, virq, hwirq, &esp32s31_clic_chip, clic,
 +			    handle_fasteoi_irq, NULL, NULL);
 +
-+	raw_spin_lock_irqsave(this_cpu_ptr(&clic_lock), flags);
 +	clic_writeb(clic, hwirq, ESP32S31_CLIC_INT_CTL,
 +		    CLICCTL_MAKE(1, ESP32S31_MAX_PRIORITY));
-+	raw_spin_unlock_irqrestore(this_cpu_ptr(&clic_lock), flags);
 +
 +	if (type != IRQ_TYPE_NONE)
 +		esp32s31_clic_set_type(irq_get_irq_data(virq), type);
