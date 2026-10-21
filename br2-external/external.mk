@@ -1,5 +1,14 @@
 include $(sort $(wildcard $(BR2_EXTERNAL_ESP32S31_PATH)/package/*/*.mk))
 
+# The new kernel source files of the SoC are under linux/, next to
+# linux/patches/.  Copy them into the kernel release before Buildroot
+# applies the patches, which add them to Kconfig and the Makefiles.
+define ESP32S31_COPY_KERNEL_SOURCES
+	tar -C $(BR2_EXTERNAL_ESP32S31_PATH)/../linux --exclude=./patches \
+		--exclude='._*' --exclude=.DS_Store -cf - . | tar -C $(LINUX_DIR) -xf -
+endef
+LINUX_PRE_PATCH_HOOKS += ESP32S31_COPY_KERNEL_SOURCES
+
 # Buildroot's EAP option turns on each EAP method, and its WPA3 and AP
 # options add DPP and P2P.  Turn off what Personal, WPA3 and Enterprise
 # (PEAP, TTLS and TLS, as eduroam uses) do not need, for flash.  This runs

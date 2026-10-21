@@ -118,7 +118,7 @@ LINUX_SIZE_OFFSET := $(shell printf '0x%x' $$(( $(LINUX_OFFSET) + $(LINUX_SIZE) 
 
 .DEFAULT_GOAL := help
 
-.PHONY: help check ports build bootloader opensbi kernel kernel-patches defconfigs \
+.PHONY: help check ports build bootloader opensbi kernel defconfigs \
 	kernel-check kernel-clean kernel-vmlinux kernel-menuconfig \
 	kernel-saveconfig \
 	container-image \
@@ -146,7 +146,6 @@ help:
 		'Kernel, which Buildroot builds from a stock release:' \
 		'' \
 		'  make kernel                        rebuild just the kernel' \
-		'  make kernel-patches                regenerate linux/patches from linux/' \
 		'  make defconfigs                    regenerate br2-external/configs from the fragments' \
 		'  make kernel-check                  dry-run the series on a pristine tree' \
 		'  make kernel-clean                  re-extract the kernel after a patch change' \
@@ -248,17 +247,11 @@ opensbi:
 defconfigs:
 	@$(BR_TOOLS) sh -c 'cd /work && scripts/mkdefconfigs.sh'
 
-# All files under linux/ are new to the kernel, so a generated patch (0000)
-# adds them.  The other patches change existing files.  Each kernel build
-# makes 0000 again, so an edit of 0000 itself is always lost.
-kernel-patches:
-	@"$(PYTHON)" scripts/mkkernelpatches.py
-
 # Apply the series in order to a clean extract of the kernel release, in the
 # container at zero fuzz, as Buildroot does.  The macOS patch accepts old
 # context that GNU patch rejects.  A kernel version change must also pass
 # this test.
-kernel-check: kernel-patches br-volume
+kernel-check: br-volume
 	@$(BR_RUN) sh -c 'set -e; \
 		cd /work/$(BR_DIR); \
 		test -f /br/dl/linux/linux-$(LINUX_VERSION).tar.xz || { \
@@ -274,18 +267,18 @@ kernel-check: kernel-patches br-volume
 				then echo applies; else echo FAILS; fail=1; fi; \
 		done; rm -rf /br/check; exit $$fail'
 
-# Buildroot applies the patches only when it extracts the kernel, and it
-# ignores changes to the custom config and to the ESP-Hosted sources.  Thus
-# keep a hash of all three in the volume.  When the hash changes, delete the
+# Buildroot copies linux/ and applies the patches only when it extracts the
+# kernel, and it ignores changes to the custom config and to the ESP-Hosted
+# sources.  Thus keep a hash of all of them in the volume.  When the hash changes, delete the
 # extracted kernel, headers and ESP-Hosted sources, so Buildroot extracts,
 # patches and configures them again.  Runs in the container, in the Buildroot
 # directory.
-KERNEL_SYNC = sum=$$(cat /work/linux/patches/*.patch \
-		/work/br2-external/board/esp32s31/linux* \
+KERNEL_SYNC = sum=$$({ find /work/linux -type f ! -name ._\* | sort | xargs cat; \
+		cat /work/br2-external/board/esp32s31/linux* \
 		/work/br2-external/configs/$(BR_DEFCONFIG) \
 		/work/shared/*.h /work/br2-external/package/esp-hosted-linux/* \
 		/work/external/esp-hosted-linux/host/*.c \
-		/work/external/esp-hosted-linux/host/include/*.h | \
+		/work/external/esp-hosted-linux/host/include/*.h; } | \
 		sha256sum | cut -d" " -f1); \
 	stamp=$(BR_O)/.esp32s31-kernel-inputs; \
 	if test -f $(BR_O)/.config && \
@@ -296,7 +289,7 @@ KERNEL_SYNC = sum=$$(cat /work/linux/patches/*.patch \
 	fi; \
 	mkdir -p $(BR_O); echo "$$sum" > $$stamp
 
-kernel: kernel-patches br-volume
+kernel: br-volume
 	@$(BR_RUN) sh -c 'set -e; cd /work/$(BR_DIR); $(KERNEL_SYNC); \
 		$(BR_MAKE) linux-rebuild all'
 	@$(MAKE) --no-print-directory br-artifacts
@@ -332,7 +325,7 @@ br-volume:
 			chown -R $(shell id -u):$(shell id -g) /br; }
 
 # The defconfig in git is the reference.  Each build applies it again.
-rootfs: kernel-patches br-volume
+rootfs: br-volume
 	@$(BR_RUN) sh -c 'set -e; \
 		cd /work/$(BR_DIR); \
 		$(BR_MAKE) $(BR_DEFCONFIG); \

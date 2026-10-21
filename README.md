@@ -415,14 +415,12 @@ access point, not the two at the same time.
 ## Kernel
 
 Buildroot builds a stock kernel release (`BR2_LINUX_KERNEL_CUSTOM_VERSION_VALUE`
-in `br2-external/board/esp32s31/defconfig/common.fragment`) with
-`linux/patches/`.
+in `br2-external/board/esp32s31/defconfig/common.fragment`).
 
-- `0000-esp32s31-add-source-files.patch` is generated from the new files
-  under `linux/`. Edit those files, not the patch. Each
-  `make kernel`, `make rootfs` and `make kernel-patches` makes the patch
-  again, and an edit of the patch is lost.
-- `0001` and higher are manual patches to existing kernel files.
+- A hook in `br2-external/external.mk` copies the new source files under
+  `linux/` (drivers, device trees, bindings) into the kernel tree.
+- Then Buildroot applies `linux/patches/`, which change existing kernel
+  files, mostly Kconfig and Makefiles.
 - The ESP-Hosted host driver comes from `external/esp-hosted-linux`, with the
   patches in `br2-external/package/esp-hosted-linux/`. A Buildroot linux
   extension (`br2-external/linux/`) copies it into the kernel tree.
