@@ -155,7 +155,7 @@ resolution of approximately 30 ppm. It also counts in WFI when
 
 A uniprocessor kernel still needs a self-interrupt for `irq_work`. CLIC
 input 1 accepts IP writes but does not arbitrate on this revision. So the
-driver uses external input 16 as a software interrupt (`patches/0006`).
+driver uses external input 16 as a software interrupt (`patches/0005`).
 
 ## Cache and DMA
 
@@ -196,7 +196,7 @@ This is the part that is most different from other RISC-V SoCs.
   for `dma_alloc_coherent()`.
 - **Streaming DMA uses the sync engine** through
   `riscv_noncoherent_register_cache_ops()`. `setup_arch()` enables
-  non-coherent DMA early (`patches/0007`), because slab gets its alignment
+  non-coherent DMA early (`patches/0006`), because slab gets its alignment
   from `dma_get_cache_alignment()` before the initcalls.
 - **The I-cache refills from PSRAM, not from the D-cache, and `fence.i` does
   not invalidate it.** New code (module load, `exec`, JIT) can be in a dirty
@@ -204,7 +204,7 @@ This is the part that is most different from other RISC-V SoCs.
   it. Measured from user space: a write, a flush with `fence.i` and a call of
   the same address gave the old code in 292 of 300 runs. So
   `local_flush_icache_all()` asks OpenSBI to write the D-cache back and to
-  invalidate the I-cache of the hart (`patches/0011`, vendor SBI function 4).
+  invalidate the I-cache of the hart (`patches/0009`, vendor SBI function 4).
   For a new user code page, `flush_icache_pte()` gives only the range of the
   folio (same patch). A test that changes the code in a file page, maps it
   again and calls it gets the new code. Without a new mapping (no sync), it
@@ -222,7 +222,7 @@ This is the part that is most different from other RISC-V SoCs.
   the coherent DMA pool in internal SRAM, so the stock driver works.
 - **USB (DWC2).** Buffer DMA works through the sync engine. Descriptor DMA
   stays off. The reset FIFO sizes are larger than the 896-word FIFO RAM, so
-  the driver sets smaller ones (`patches/0005`). The DWC2 register window
+  the driver sets smaller ones (`patches/0004`). The DWC2 register window
   must include the FIFO windows at `0x1000 × (channel + 1)`.
 
 ## Protection
@@ -415,7 +415,7 @@ on all boards.
 | M-mode setup | `opensbi/platform/esp32s31/platform.c` |
 | Interrupt entry | `linux/arch/riscv/kernel/esp32s31-clic-trampoline.S` |
 | Interrupt controller | `linux/drivers/irqchip/irq-esp32s31-clic.c` |
-| DMA coherency | `linux/drivers/cache/esp32s31-cache.c`, `linux/patches/0007` |
+| DMA coherency | `linux/drivers/cache/esp32s31-cache.c`, `linux/patches/0006` |
 | Wi-Fi transport | `shared/esp32s31-hosted-shm.h` |
 | The flash root | `bootloader/components/esp_hosted/shm_flash.c`, `linux/drivers/net/wireless/espressif/esp_hosted/esp_shm_flash.c` |
 | The boards | `bootloader/main/board_*.c`, `br2-external/board/esp32s31/defconfig/*.fragment` (`make defconfigs` makes `br2-external/configs/*_defconfig`) |

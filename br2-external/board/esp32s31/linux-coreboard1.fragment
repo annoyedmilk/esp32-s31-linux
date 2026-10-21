@@ -19,7 +19,7 @@ CONFIG_CMDLINE="earlycon=sbi console=ttyS0,115200 loglevel=5 esp32_shm.radio_ser
 
 # Gigabit Ethernet: the GMAC of the SoC with stmmac, and the Motorcomm
 # YT8531 PHY.  stmmac needs the ethtool netlink interface.  No PTP clock, so
-# also no devlink (0017).
+# also no devlink (0015).
 CONFIG_ETHERNET=y
 CONFIG_ETHTOOL_NETLINK=y
 CONFIG_STMMAC_ETH=y
