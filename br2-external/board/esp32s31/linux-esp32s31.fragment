@@ -30,7 +30,6 @@ CONFIG_CMDLINE="earlycon=sbi console=ttyS0,115200 loglevel=5 esp32_shm.radio_ser
 # directory where a lower one was deleted.
 CONFIG_MTD=y
 CONFIG_MTD_BLOCK=y
-CONFIG_MTD_OF_PARTS=y
 CONFIG_MTD_UBI=y
 # squashfs and UBIFS are in this menu, which linux.config turns off.
 CONFIG_MISC_FILESYSTEMS=y
