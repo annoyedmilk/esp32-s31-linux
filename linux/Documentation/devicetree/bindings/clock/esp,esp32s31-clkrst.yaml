@@ -34,11 +34,11 @@ properties:
 
   clocks:
     minItems: 1
-    maxItems: 2
+    maxItems: 3
 
   clock-names:
     minItems: 1
-    maxItems: 2
+    maxItems: 3
 
   "#clock-cells":
     const: 1
@@ -77,10 +77,12 @@ allOf:
           items:
             - description: 40 MHz crystal
             - description: CPLL, 320 MHz
+            - description: MPLL, the source of the SD host clock
         clock-names:
           items:
             - const: xtal
             - const: cpll
+            - const: mpll
       required:
         - "#reset-cells"
   - if:

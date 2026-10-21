@@ -5,10 +5,6 @@
 
 /* A board without a display.  Linux starts all other peripherals. */
 
-void board_init(void)
-{
-}
-
 void board_start_display(void)
 {
 }

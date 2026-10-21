@@ -7,8 +7,9 @@
  * Three blocks have clocks for Linux.  LP_AONCLKRST has the MPLL, which the
  * firmware sets for the PSRAM, so Linux only reads its rate.  HP_SYS_CLKRST
  * has the CPU, SYS and APB clocks, which the firmware sets, and the gates,
- * dividers and resets of the peripherals that Linux owns.  CNNT_SYS has the EMAC TX clock and reset, and the EMAC
- * interface registers, which the EMAC glue gets as a syscon.
+ * dividers and resets of the peripherals that Linux owns.  CNNT_SYS has the
+ * EMAC TX clock, the EMAC and SD host resets, and the EMAC interface
+ * registers, which the EMAC glue gets as a syscon.
  *
  * The firmware on hart 0 does not write these registers after it starts
  * Linux.  The USB PHY maps single registers of HP_SYS_CLKRST and CNNT_SYS,
@@ -37,6 +38,16 @@
 #define HP_SYS_FREQ_CTRL0		0x0c
 #define HP_APB_FREQ_CTRL0		0x10
 #define HP_RMT_CTRL0			0xbc
+#define HP_SDIO_HOST_CTRL0		0xc0
+#define HP_SDIO_LS_CLK_EN		3
+#define HP_SDIO_HOST_FUNC_CTRL0		0xc4
+#define HP_SDIO_EDGE_UPDATE		BIT(0)
+#define HP_SDIO_EDGE_L			GENMASK(4, 1)
+#define HP_SDIO_EDGE_H			GENMASK(8, 5)
+#define HP_SDIO_EDGE_N			GENMASK(12, 9)
+#define HP_SDIO_DRV_EDGE_SEL		GENMASK(18, 16)
+#define HP_SDIO_PHASE_CLK_EN		GENMASK(24, 22)
+#define HP_SDIO_DIV_MAX			16UL
 #define HP_EMAC_CTRL0			0xc8
 #define HP_I2C_CTRL0(n)			(0xdc + (n) * 4)
 /* The bus gate and the reset of a peripheral clock register */
@@ -46,6 +57,8 @@
 #define HP_FREQ_NUMERATOR		GENMASK(10, 8)
 #define HP_FREQ_DENOMINATOR		GENMASK(13, 11)
 
+#define CNNT_SDMMC_CTRL			0x38
+#define CNNT_SDMMC_RST_EN		BIT(30)
 #define CNNT_EMAC_CTRL			0x3c
 #define CNNT_EMAC_RST_EN		BIT(1)
 #define CNNT_EMAC_REF_CTRL		0x40
@@ -67,18 +80,18 @@ struct esp32s31_clk {
 	struct reset_controller_dev rcdev;
 };
 
-/* The MPLL and the root dividers are set by the firmware: read only. */
-struct esp32s31_ro_clk {
+/* A clock in one register.  The MPLL and the root dividers are read only. */
+struct esp32s31_reg_clk {
 	struct clk_hw hw;
 	void __iomem *reg;
 };
 
-#define to_ro_clk(_hw) container_of(_hw, struct esp32s31_ro_clk, hw)
+#define to_reg_clk(_hw) container_of(_hw, struct esp32s31_reg_clk, hw)
 
 static unsigned long esp32s31_mpll_recalc_rate(struct clk_hw *hw,
 					       unsigned long parent_rate)
 {
-	u32 val = readl(to_ro_clk(hw)->reg);
+	u32 val = readl(to_reg_clk(hw)->reg);
 
 	return parent_rate * (FIELD_GET(LP_MSPI_FB_DIV, val) + 1) /
 	       (FIELD_GET(LP_MSPI_REF_DIV, val) + 1);
@@ -92,7 +105,7 @@ static const struct clk_ops esp32s31_mpll_ops = {
 static unsigned long esp32s31_frac_recalc_rate(struct clk_hw *hw,
 					       unsigned long parent_rate)
 {
-	u32 val = readl(to_ro_clk(hw)->reg);
+	u32 val = readl(to_reg_clk(hw)->reg);
 	u32 div = FIELD_GET(HP_FREQ_DIV_NUM, val) + 1;
 	u32 num = FIELD_GET(HP_FREQ_NUMERATOR, val);
 	u32 den = FIELD_GET(HP_FREQ_DENOMINATOR, val);
@@ -107,11 +120,11 @@ static const struct clk_ops esp32s31_frac_ops = {
 	.recalc_rate = esp32s31_frac_recalc_rate,
 };
 
-static struct clk_hw *esp32s31_ro_register(struct esp32s31_clk *ec,
-					   const char *name,
-					   const struct clk_parent_data *parent,
-					   const struct clk_ops *ops,
-					   unsigned int offset)
+static struct clk_hw *esp32s31_reg_register(struct esp32s31_clk *ec,
+					    const char *name,
+					    const struct clk_parent_data *parent,
+					    const struct clk_ops *ops,
+					    unsigned int offset)
 {
 	struct clk_init_data init = {
 		.name = name,
@@ -119,7 +132,7 @@ static struct clk_hw *esp32s31_ro_register(struct esp32s31_clk *ec,
 		.parent_data = parent,
 		.num_parents = 1,
 	};
-	struct esp32s31_ro_clk *clk;
+	struct esp32s31_reg_clk *clk;
 	int ret;
 
 	clk = devm_kzalloc(ec->dev, sizeof(*clk), GFP_KERNEL);
@@ -140,10 +153,61 @@ static int esp32s31_lp_init(struct esp32s31_clk *ec)
 	static const struct clk_parent_data xtal = { .fw_name = "xtal" };
 
 	ec->hws->hws[ESP32S31_LP_CLK_MPLL] =
-		esp32s31_ro_register(ec, "mpll", &xtal, &esp32s31_mpll_ops,
-				     LP_MSPI_DIV);
+		esp32s31_reg_register(ec, "mpll", &xtal, &esp32s31_mpll_ops,
+				      LP_MSPI_DIV);
 	return 0;
 }
+
+/*
+ * The SDIO LS clock of the SD host: MPLL divided by 2 to 16 with edge
+ * counters.  Its source select keeps the reset value 0, MPLL.  The phase
+ * clocks get the ESP-IDF defaults: drive on edge 1, sample on edge 0.
+ */
+static unsigned long esp32s31_sdio_div(unsigned long rate,
+				       unsigned long parent_rate)
+{
+	if (!rate)
+		return HP_SDIO_DIV_MAX;
+
+	return clamp(DIV_ROUND_UP(parent_rate, rate), 2UL, HP_SDIO_DIV_MAX);
+}
+
+static unsigned long esp32s31_sdio_recalc_rate(struct clk_hw *hw,
+					       unsigned long parent_rate)
+{
+	u32 val = readl(to_reg_clk(hw)->reg);
+
+	return parent_rate / (FIELD_GET(HP_SDIO_EDGE_N, val) + 1);
+}
+
+static int esp32s31_sdio_determine_rate(struct clk_hw *hw,
+					struct clk_rate_request *req)
+{
+	req->rate = req->best_parent_rate /
+		    esp32s31_sdio_div(req->rate, req->best_parent_rate);
+	return 0;
+}
+
+static int esp32s31_sdio_set_rate(struct clk_hw *hw, unsigned long rate,
+				  unsigned long parent_rate)
+{
+	unsigned long div = esp32s31_sdio_div(rate, parent_rate);
+	void __iomem *reg = to_reg_clk(hw)->reg;
+	u32 val = FIELD_PREP(HP_SDIO_EDGE_L, div - 1) |
+		  FIELD_PREP(HP_SDIO_EDGE_H, div / 2 - 1) |
+		  FIELD_PREP(HP_SDIO_EDGE_N, div - 1) |
+		  FIELD_PREP(HP_SDIO_DRV_EDGE_SEL, 1) | HP_SDIO_PHASE_CLK_EN;
+
+	writel(val | HP_SDIO_EDGE_UPDATE, reg);
+	writel(val, reg);
+	return 0;
+}
+
+static const struct clk_ops esp32s31_sdio_ops = {
+	.recalc_rate = esp32s31_sdio_recalc_rate,
+	.determine_rate = esp32s31_sdio_determine_rate,
+	.set_rate = esp32s31_sdio_set_rate,
+};
 
 /*
  * A peripheral clock register: the bus gate in bit 0, the reset in bit 1,
@@ -222,6 +286,7 @@ static int esp32s31_hp_init(struct esp32s31_clk *ec)
 		{ "sys", ESP32S31_CLK_SYS, HP_SYS_FREQ_CTRL0 },
 		{ "apb", ESP32S31_CLK_APB, HP_APB_FREQ_CTRL0 },
 	};
+	static const struct clk_parent_data mpll = { .fw_name = "mpll" };
 	struct clk_hw **hws = ec->hws->hws;
 	struct clk_parent_data parent = {};
 	struct clk_hw *hw;
@@ -234,8 +299,8 @@ static int esp32s31_hp_init(struct esp32s31_clk *ec)
 							NULL, &ec->lock);
 	for (i = 0; i < ARRAY_SIZE(chain) && !IS_ERR(hw); i++) {
 		parent.hw = hw;
-		hw = esp32s31_ro_register(ec, chain[i].name, &parent,
-					  &esp32s31_frac_ops, chain[i].offset);
+		hw = esp32s31_reg_register(ec, chain[i].name, &parent,
+					   &esp32s31_frac_ops, chain[i].offset);
 		hws[chain[i].id] = hw;
 	}
 	if (IS_ERR(hw))
@@ -252,6 +317,25 @@ static int esp32s31_hp_init(struct esp32s31_clk *ec)
 		if (IS_ERR(hw))
 			return PTR_ERR(hw);
 	}
+
+	hws[ESP32S31_CLK_SDMMC_SYS] =
+		devm_clk_hw_register_gate_parent_hw(ec->dev, "sdmmc-sys",
+						    hws[ESP32S31_CLK_SYS], 0,
+						    ec->base + HP_SDIO_HOST_CTRL0,
+						    HP_PERIPH_BUS_CLK_EN, 0,
+						    &ec->lock);
+
+	hw = esp32s31_reg_register(ec, "sdio-ls-div", &mpll,
+				   &esp32s31_sdio_ops, HP_SDIO_HOST_FUNC_CTRL0);
+	if (IS_ERR(hw))
+		return PTR_ERR(hw);
+
+	hws[ESP32S31_CLK_SDIO_LS] =
+		devm_clk_hw_register_gate_parent_hw(ec->dev, "sdio-ls", hw,
+						    CLK_SET_RATE_PARENT,
+						    ec->base + HP_SDIO_HOST_CTRL0,
+						    HP_SDIO_LS_CLK_EN, 0,
+						    &ec->lock);
 	return 0;
 }
 
@@ -409,7 +493,7 @@ static const struct esp32s31_reset esp32s31_hp_resets[] = {
 };
 
 static const struct esp32s31_clk_data esp32s31_hp_data = {
-	.nclks = ESP32S31_CLK_RMT + 1,
+	.nclks = ESP32S31_CLK_SDIO_LS + 1,
 	.init = esp32s31_hp_init,
 	.resets = esp32s31_hp_resets,
 	.nresets = ARRAY_SIZE(esp32s31_hp_resets),
@@ -417,6 +501,7 @@ static const struct esp32s31_clk_data esp32s31_hp_data = {
 
 static const struct esp32s31_reset esp32s31_cnnt_resets[] = {
 	[ESP32S31_CNNT_RST_EMAC] = { CNNT_EMAC_CTRL, CNNT_EMAC_RST_EN },
+	[ESP32S31_CNNT_RST_SDMMC] = { CNNT_SDMMC_CTRL, CNNT_SDMMC_RST_EN },
 };
 
 static const struct esp32s31_clk_data esp32s31_cnnt_data = {

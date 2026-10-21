@@ -6,6 +6,7 @@
  */
 /dts-v1/;
 #include "esp32s31.dtsi"
+#include <dt-bindings/gpio/gpio.h>
 
 / {
 	model = "Espressif ESP32-S31-Korvo-1";
@@ -25,6 +26,15 @@
 			reg = <0x50f40000 0xc0000>;
 			no-map;
 		};
+	};
+
+	/* GPIO39 low switches the power of the microSD slot on. */
+	sd_vdd: regulator-sd {
+		compatible = "regulator-fixed";
+		regulator-name = "sd-vdd";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		gpio = <&pinctrl 39 GPIO_ACTIVE_LOW>;
 	};
 
 	chosen {
@@ -49,7 +59,17 @@
 	};
 };
 
-&sdmmc0 { status = "okay"; };
+/*
+ * The slot has no card-detect or write-protect contact, and the root is on
+ * the card.
+ */
+&sdmmc0 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&sd_cfg>;
+	vmmc-supply = <&sd_vdd>;
+	non-removable;
+	status = "okay";
+};
 
 /* The Type-A port: host only, with a TPS2051C switch for VBUS. */
 &usb_phy { status = "okay"; };
@@ -68,12 +88,33 @@
 };
 
 /*
- * The loader drives the LCD (GPIO8-19, 33-36, 38, 40, 43-45), the card power
- * and its pins (GPIO20-25, 39).  The LED (GPIO37) belongs to a driver.  With
- * the flash, GPIO41 and UART0, Linux must not use them as GPIOs.
+ * The loader drives the LCD (GPIO8-19, 33-36, 38, 40, 43-45).  The card pins
+ * (GPIO20-25) and the LED (GPIO37) belong to drivers.  With the flash, GPIO41
+ * and UART0, Linux must not use them as GPIOs.  GPIO39 is the card power.
  */
 &pinctrl {
-	gpio-reserved-ranges = <8 33>, <41 1>, <43 3>, <58 2>;
+	gpio-reserved-ranges = <8 31>, <40 2>, <43 3>, <58 2>;
+
+	/* The SD host on its IO MUX pins, function 4 */
+	sd_cfg: sd-cfg {
+		sd-clk-pins {
+			pinmux = <ESP32S31_IOMUX(24, 4)>;
+			bias-disable;
+			input-enable;
+			drive-strength = <40>;
+		};
+
+		sd-cmd-data-pins {
+			pinmux = <ESP32S31_IOMUX(20, 4)>,	/* D0 */
+				 <ESP32S31_IOMUX(21, 4)>,	/* D1 */
+				 <ESP32S31_IOMUX(22, 4)>,	/* D2 */
+				 <ESP32S31_IOMUX(23, 4)>,	/* D3 */
+				 <ESP32S31_IOMUX(25, 4)>;	/* CMD */
+			bias-pull-up;
+			input-enable;
+			drive-strength = <40>;
+		};
+	};
 
 	led_cfg: led-cfg {
 		led-pins {

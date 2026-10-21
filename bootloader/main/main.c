@@ -398,7 +398,6 @@ void app_main(void)
         ESP_LOGE(TAG, "PSRAM not initialized");
         esp_restart();
     }
-    board_init();
 
     if (!load_opensbi_partition() || !load_kernel_partition()) {
         esp_restart();

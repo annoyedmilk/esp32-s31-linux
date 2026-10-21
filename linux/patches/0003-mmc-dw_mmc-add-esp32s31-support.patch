@@ -106,12 +106,15 @@ diff --git a/drivers/mmc/host/dw_mmc.h b/drivers/mmc/host/dw_mmc.h
 diff --git a/drivers/mmc/host/dw_mmc-pltfm.c b/drivers/mmc/host/dw_mmc-pltfm.c
 --- a/drivers/mmc/host/dw_mmc-pltfm.c
 +++ b/drivers/mmc/host/dw_mmc-pltfm.c
-@@ -90,7 +90,24 @@
+@@ -90,7 +90,33 @@
  	.init		= dw_mci_socfpga_priv_init,
  };
  
 +static int dw_mci_esp32s31_init(struct dw_mci *host)
 +{
++	struct platform_device *pdev = to_platform_device(host->dev);
++	void __iomem *pad;
++
 +	/*
 +	 * This port does not map PSRAM as uncached.
 +	 * Thus dma_alloc_coherent() gives cached memory, and the IDMAC owner
@@ -119,6 +122,12 @@ diff --git a/drivers/mmc/host/dw_mmc-pltfm.c b/drivers/mmc/host/dw_mmc-pltfm.c
 +	 * memory and do the cache maintenance in the driver.
 +	 */
 +	host->quirks |= DW_MMC_QUIRK_NONCOHERENT_DESC;
++
++	/* GPIO20-25 are CNNT pads: the SD signals need their own pad control. */
++	pad = devm_platform_ioremap_resource(pdev, 1);
++	if (IS_ERR(pad))
++		return PTR_ERR(pad);
++	writel(readl(pad) | BIT(0), pad);
 +	return 0;
 +}
 +

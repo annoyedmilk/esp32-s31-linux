@@ -95,12 +95,6 @@
 		clock-frequency = <12000000>;
 	};
 
-	sdmmc_clk: sdmmc-clock {
-		compatible = "fixed-clock";
-		#clock-cells = <0>;
-		clock-frequency = <50000000>;
-	};
-
 	soc {
 		#address-cells = <1>;
 		#size-cells = <1>;
@@ -132,8 +126,8 @@
 		hp_clkrst: clock-controller@20587000 {
 			compatible = "esp,esp32s31-hp-clkrst";
 			reg = <0x20587000 0x1000>;
-			clocks = <&xtal>, <&cpll>;
-			clock-names = "xtal", "cpll";
+			clocks = <&xtal>, <&cpll>, <&lp_clkrst ESP32S31_LP_CLK_MPLL>;
+			clock-names = "xtal", "cpll", "mpll";
 			#clock-cells = <1>;
 			#reset-cells = <1>;
 		};
@@ -192,12 +186,16 @@
 
 		sdmmc0: mmc@20342000 {
 			compatible = "esp,esp32s31-dw-mshc", "snps,dw-mshc";
-			reg = <0x20342000 0x1000>;
+			reg = <0x20342000 0x1000>, <0x205883f4 0x4>;
 			interrupt-parent = <&clic>;
 			interrupts = <34 3 IRQ_TYPE_LEVEL_HIGH>;
-			clocks = <&sdmmc_clk>, <&sdmmc_clk>;
+			clocks = <&hp_clkrst ESP32S31_CLK_SDMMC_SYS>,
+				 <&hp_clkrst ESP32S31_CLK_SDIO_LS>;
 			clock-names = "biu", "ciu";
+			/* The card clock comes from 50 MHz, as with ESP-IDF. */
 			clock-frequency = <50000000>;
+			resets = <&cnnt_sys ESP32S31_CNNT_RST_SDMMC>;
+			reset-names = "reset";
 			fifo-depth = <512>;
 			bus-width = <4>;
 			cap-sd-highspeed;

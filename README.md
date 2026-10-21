@@ -142,9 +142,9 @@ python -m espefuse --chip esp32s31 -p PORT summary
   resident as the radio firmware. Linux runs on hart 1 only.
 - **Loader.** The loader checks the size and CRC of the kernel. It copies the
   kernel to `0x50000000` and OpenSBI to `0x50F00000`. It starts Wi-Fi and
-  Bluetooth, and on the Korvo-1 also the LCD and the SD slot. Then it
-  releases hart 1 into OpenSBI, and locks hart 0 out of PSRAM with PMP.
-  Linux starts the LED and the other peripherals itself.
+  Bluetooth, and on the Korvo-1 also the LCD. Then it releases hart 1 into
+  OpenSBI, and locks hart 0 out of PSRAM with PMP. Linux starts the SD slot,
+  the LED and the other peripherals itself.
 - **Interrupts.** OpenSBI gives the CLIC inputs to S-mode. If an input is not
   in S-mode, Linux cannot see it. The S-mode trampoline must use `sret` and
   restore `scause.spil`. `mret` locks `mintstatus.SIL` and masks all
