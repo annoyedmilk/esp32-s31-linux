@@ -37,7 +37,8 @@ ROM -> ESP-IDF 2nd stage -> loader (hart 0) -> OpenSBI (hart 1, M) -> Linux (har
 2. The loader starts PSRAM, and on the Korvo-1 the LCD
    (`board_korvo1.c`). It copies two flash partitions
    to PSRAM and checks them: the kernel `Image` (size and CRC32 from a
-   manifest at the end of the kernel partition) and OpenSBI `fw_jump`. It starts Wi-Fi and Bluetooth.
+   manifest at the end of the kernel partition) and OpenSBI `fw_jump`. It
+   starts Wi-Fi and Bluetooth.
 3. The loader writes the D-cache back, sets the PMA of hart 1 for PSRAM and
    releases hart 1 at the OpenSBI entry. Then it locks hart 0 out of PSRAM
    and the DMA pool with PMP.
@@ -49,8 +50,9 @@ ROM -> ESP-IDF 2nd stage -> loader (hart 0) -> OpenSBI (hart 1, M) -> Linux (har
    `esp32s31_coreboard1.dts` or `esp32s31_korvo1.dts`). On the Korvo-1,
    the root is the ext4 partition `/dev/mmcblk0p2` on the SD card, on the
    Function-CoreBoard-1 p2 of the USB stick with the disk signature
-   `0x45533331` (`root=PARTUUID=45533331-02` and `rootwait`). On the esp32s31 board, the root is the squashfs in the
-   flash, with a UBIFS overlay.
+   `0x45533331` (`root=PARTUUID=45533331-02` and `rootwait`). On the
+   esp32s31 board, the root is the squashfs in the flash, with a UBIFS
+   overlay.
 
 ### Memory map
 
@@ -59,7 +61,7 @@ ROM -> ESP-IDF 2nd stage -> loader (hart 0) -> OpenSBI (hart 1, M) -> Linux (har
 | `0x2F040000` | 64 KiB | Coherent DMA pool for Linux (`shared-dma-pool`) |
 | `0x2F050000` | 52 KiB | Shared block: requests, flash mailbox, ESP-Hosted rings |
 | `0x2F079000` | 4 KiB | LCD DMA descriptor ring (Korvo-1) |
-| `0x50000000` | 15 MiB | Linux RAM, from the kernel image |
+| `0x50000000` | 15 MiB - 4 KiB | Linux RAM, from the kernel image |
 | `0x50EFF000` | 4 KiB | Guard page below OpenSBI (reserved, no-map, see Protection) |
 | `0x50F00000` | 256 KiB | OpenSBI (reserved, no-map) |
 | `0x50F40000` | 768 KiB | LCD frame buffer (Korvo-1: reserved, no-map, uncached; other boards: Linux RAM) |
@@ -267,8 +269,9 @@ the libraries of ESP-IDF. The kernel has the ESP-Hosted host driver
 `esp32_shm` built in, a cfg80211 full-MAC driver. A Buildroot linux
 extension (`br2-external/linux/`) copies it from the submodule into
 `drivers/net/wireless/espressif/esp_hosted`, next to the shared-memory
-transport (`linux/drivers/net/wireless/espressif/esp_hosted/esp_shm.c`). The firmware runs the 802.11 MAC. `wpa_supplicant` and `hostapd` on
-Linux run the authentication and the key handshakes. ESP-Hosted has no
+transport (`linux/drivers/net/wireless/espressif/esp_hosted/esp_shm.c`).
+The firmware runs the 802.11 MAC. `wpa_supplicant` and `hostapd` on Linux
+run the authentication and the key handshakes. ESP-Hosted has no
 transport for a host on the same chip, so the two sides use the frames of
 the USB transport in shared SRAM. The layout is in
 `shared/esp32s31-hosted-shm.h`, which the loader and the driver include.
@@ -392,8 +395,8 @@ in `br2-external/configs/` differs from its fragments.
 | Swap | zram only | zram, then p3 of the stick | zram, then p3 of the card |
 
 The Korvo-1 and the Function-CoreBoard-1 have a disk with much space, and
-the module alone has only its flash. The base keeps the network, security and Bluetooth stack the same
-on all boards.
+the module alone has only its flash. The base keeps the network, security
+and Bluetooth stack the same on all boards.
 
 ## Silicon traps
 
@@ -406,6 +409,7 @@ on all boards.
 | Cache write-back erratum | A single write-back can lose data. Run it twice. |
 | `fence.i` | Does not invalidate the I-cache. Use the sync engine. |
 | Sync engine range | It does not round the size up to a line. Align address and size. |
+| `HP_APM` region start | The last word below a region belongs to the region. Keep the page below it out of use. |
 | `cliccfg` layout | Not the layout in the ESP-IDF header. See "Interrupts". |
 | PMP entries overlap | Fault, even for a short time during an update. |
 | PMA entries overlap | No fault. The entry with the lowest index is used. |

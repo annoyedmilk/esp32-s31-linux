@@ -17,8 +17,8 @@ The ESP32-S31 is a microcontroller: two RV32 harts at 320 MHz, 512 KiB of
 SRAM, Wi-Fi 6 and Bluetooth. It was not made for Linux. This project runs a
 stock Linux 7.3 kernel with a small patch set on it, with a real userspace:
 a shell on the LCD, Wi-Fi with `wpa_supplicant`, Bluetooth with BlueZ, SSH,
-USB keyboards and sticks, `vim`, `gdb`, `strace`, MicroPython and a text-mode web browser
-(`links`).
+USB keyboards and sticks, `vim`, `gdb`, `strace`, MicroPython and a
+text-mode web browser (`links`).
 
 You can use it in two ways:
 
@@ -162,8 +162,8 @@ python -m espefuse --chip esp32s31 -p PORT summary
   (`shared/esp32s31-hosted-shm.h`).
 - **Display (Korvo-1).** The frame buffer is at `0x50F40000`. The loader DMA
   continues to scan it out after the handoff. Linux uses it as a
-  `simple-framebuffer`. The esp32s31 board has no frame buffer, and Linux
-  gets the 768 KiB.
+  `simple-framebuffer`. The esp32s31 and coreboard1 builds have no frame
+  buffer, and Linux gets the 768 KiB.
 
 ## Host requirements
 
@@ -231,8 +231,9 @@ FAT32 and is mounted on `/mnt/sd` (Korvo-1) or `/mnt/usb`
 (Function-CoreBoard-1). p2 is the ext4 root (512 MiB in the disk image). p3
 is swap (type `0x82`, 64 MiB). The disk image and `make sdpart` give the
 disk the signature `0x45533331`. `/etc/default/disk` finds the partitions
-of the disk with the root for the boot scripts. The targets below work for the card and the stick. Those
-that write erase data, and they ask for confirmation and `sudo`.
+of the disk with the root for the boot scripts. The targets below work for
+the card and the stick. Those that write erase data, and they ask for
+confirmation and `sudo`.
 
 | Command | Use |
 | --- | --- |
@@ -309,10 +310,10 @@ The shell is bash, with a history that stays after a reset.
 The ESP32-S31-WROOM-3-N16R16V alone has no card. Its root is in the flash,
 as in OpenWrt: a read-only squashfs on `/dev/mtdblock0` (`rootfs`, 7.5 MiB),
 and UBIFS on the `data` partition (`/dev/mtd1`, 2.4 MiB) as a writable
-overlay over it. `/sbin/overlay-init` mounts the two, then starts init. So all of `/`
-is writable, and each change stays: `/etc/wpa_supplicant.conf`, the SSH
-host keys, `/root/.ssh` and your own files. The squashfs is at `/rom`, the
-data partition at `/overlay`.
+overlay over it. `/sbin/overlay-init` mounts the two, then starts init. So
+all of `/` is writable, and each change stays: `/etc/wpa_supplicant.conf`,
+the SSH host keys, `/root/.ssh` and your own files. The squashfs is at
+`/rom`, the data partition at `/overlay`.
 
 ```sh
 mtdinfo -a                 # the two partitions

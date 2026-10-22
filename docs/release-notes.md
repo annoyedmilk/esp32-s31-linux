@@ -317,8 +317,8 @@ card image erases the card, so save your files from the FAT partition first.
 ## Known limits
 
 - The tested hardware is the Korvo-1 with chip revision v0.0. The esp32s31
-  build is tested on the Korvo-1. The coreboard1 build of v0.6.1 is not
-  tested on a board yet.
+  build is tested on the Korvo-1. The coreboard1 build is tested on the
+  Korvo-1 with its root on a USB stick, not on a Function-CoreBoard-1.
 - `/dev/hwrng` gives approximately 0.4 kB/s, because Linux runs without
   high-resolution timers. The kernel random number generator is ready
   0.3 s after the start of Linux and does not depend on this speed.
