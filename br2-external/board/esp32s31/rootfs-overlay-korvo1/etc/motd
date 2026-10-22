@@ -8,6 +8,7 @@ Bluetooth bluetoothctl, then: scan le, scan bredr, devices
 Desktop   tmux on the panel: Ctrl-b c new window, Ctrl-b n next window,
           Ctrl-b % and Ctrl-b " split, Ctrl-b d log out
 System    htop, free, df -h, ncdu, dmesg
+Time      UTC; local zone: ln -sf /usr/share/zoneinfo/Europe/Zurich /etc/localtime
 Network   ssh, scp, curl, links, lynx, irssi, iperf3, tcpdump
 Files     nnn, tree; /mnt/sd is the FAT partition of the card
           /mnt/usb is the FAT of a USB stick

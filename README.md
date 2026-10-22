@@ -301,6 +301,12 @@ and the overlay of each board:
 
 `login` and SSH show `/etc/motd`, which lists the first commands.
 
+The clock is UTC. On the Korvo-1 and the Function-CoreBoard-1, the zone
+database is in `/usr/share/zoneinfo`: `ln -sf
+/usr/share/zoneinfo/Europe/Zurich /etc/localtime` sets a local zone for the
+programs that start after it. For the tmux clock, run `tmux kill-server` and
+log in again. The module alone stays UTC.
+
 The esp32s31 board has only the BusyBox tools and the programs in
 [Boards](#boards). The tools below are for the Korvo-1 and the
 Function-CoreBoard-1, and the tools marked (Korvo-1) only for the Korvo-1.

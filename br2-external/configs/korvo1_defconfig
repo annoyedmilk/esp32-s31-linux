@@ -168,6 +168,9 @@ BR2_PACKAGE_NCDU=y
 BR2_PACKAGE_TREE=y
 BR2_PACKAGE_BC=y
 BR2_PACKAGE_SQLITE=y
+# The time zone database.  /etc/localtime is UTC; ln -sf
+# /usr/share/zoneinfo/<zone> /etc/localtime sets the local zone.
+BR2_TARGET_TZ_INFO=y
 # An access point with all features, next to the AP mode of wpa_supplicant.
 BR2_PACKAGE_HOSTAPD=y
 # The BlueZ tools and the deprecated ones (hciconfig, hcitool, hcidump).
