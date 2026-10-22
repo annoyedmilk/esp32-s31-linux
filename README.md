@@ -50,7 +50,7 @@ libgpiod and BlueZ. Each board fragment adds only its own parts.
 | Consoles | UART | UART | UART, and the LCD with a USB keyboard |
 | Hardware for Linux | GPIO, RNG | Ethernet, USB host (the root stick), RGB LED, GPIO, RNG | LCD, touch (I2C), microSD, USB host, RGB LED, GPIO, RNG |
 | Wi-Fi and Bluetooth | `wlan0` and `hci0`, WPA2 and WPA3, Personal and Enterprise, AP with `wpa_supplicant`, BlueZ (`bluetoothd`, `bluetoothctl`) | `wlan0` and `hci0`, WPA2 and WPA3, Personal and Enterprise, AP with `hostapd`, BlueZ with its classic tools | `wlan0` and `hci0`, WPA2 and WPA3, Personal and Enterprise, AP with `hostapd`, BlueZ with its classic tools |
-| RAM for Linux (MemTotal) | 11.8 MiB | 11.3 MiB | 10.5 MiB |
+| RAM for Linux (MemTotal) | 11.8 MiB | 11.3 MiB | 10.4 MiB |
 | Userspace | BusyBox, Dropbear, wpa_supplicant, iw, curl, bluetoothctl, iperf3, the GPIO tools, flash_erase | bash, vim, gdb, strace, MicroPython, Lua, links, curl, tcpdump, htop, ethtool and more | bash, vim, gdb, strace, MicroPython, Lua, links, curl, tcpdump, htop and more |
 
 ## Try it

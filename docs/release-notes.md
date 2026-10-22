@@ -65,14 +65,14 @@ login. A USB keyboard works on it.
   code.
 - The boot scripts have the `.sh` suffix (`/etc/init.d/S10sdcard.sh`, for
   example), so `rcS` runs them in its own shell. `S40wifi` keeps its name.
-- On the Korvo-1, the boot to the console takes 7.1 to 7.3 s from the
-  reset (v0.6.0: 7.6 to 7.9 s). Linux has 56 kB less RAM (MemTotal
-  10664 kB) for the regulator support.
+- On the Korvo-1, the boot to the console takes 7.3 to 7.5 s from the
+  reset with a USB stick connected (v0.6.0: 7.6 to 7.9 s). Linux has 52 kB
+  less RAM (MemTotal 10668 kB) for the regulator support.
 - Wi-Fi sends approximately 46 Mbit/s with iperf3 TCP on the Korvo-1
   (v0.6.0: 43 Mbit/s).
 - The module alone and the Function-CoreBoard-1 have no I2C in the kernel,
-  which has no I2C device there. The module has 16 kB more RAM (MemTotal
-  12076 kB).
+  which has no I2C device there. The module has more RAM (MemTotal
+  12072 kB).
 
 The partition tables did not change: flash the new `flash.bin` on all
 boards. On the esp32s31 build, the overlay on `data` stays. On the Korvo-1,
