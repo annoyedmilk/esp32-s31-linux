@@ -5,10 +5,11 @@
 <p>This page has no password: each host that can open it can set the LED
 and the pins. Use it only on a network that you trust.</p>
 <h2>RGB LED</h2>
-<p><a href="/cgi-bin/led?255,0,0">red</a>,
-<a href="/cgi-bin/led?0,255,0">green</a>,
-<a href="/cgi-bin/led?0,0,255">blue</a>,
-<a href="/cgi-bin/led?0,0,0">off</a></p>
+<button onclick="led('255,0,0')">red</button>
+<button onclick="led('0,255,0')">green</button>
+<button onclick="led('0,0,255')">blue</button>
+<button onclick="led('0,0,0')">off</button>
+<pre id="led-out"></pre>
 <h2>GPIO</h2>
 <p>The free pins on J2: GPIO0-3, 20-25, 35-40, 42-49 and 61. GPIO4 on J2 is
 the interrupt line of the Ethernet PHY. Check the schematic: some pins also go
@@ -19,6 +20,10 @@ to the audio codec.</p>
 <button onclick="go('')">Read</button>
 <pre id="out"></pre>
 <script>
+function led(rgb) {
+	fetch('/cgi-bin/led?' + rgb)
+		.then(r => r.text()).then(t => document.getElementById('led-out').textContent = t);
+}
 function go(v) {
 	fetch('/cgi-bin/gpio?' + document.getElementById('pin').value + v)
 		.then(r => r.text()).then(t => document.getElementById('out').textContent = t);
