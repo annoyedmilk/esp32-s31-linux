@@ -47,42 +47,32 @@ libgpiod and BlueZ. Each board fragment adds only its own parts.
 | Root | squashfs in the flash, with a writable UBIFS overlay (see [Flash root](#flash-root-esp32s31)) | ext4 on the USB stick | ext4 on the microSD card |
 | Persistence | All files: the overlay is in the flash | All files on the stick | All files on the card |
 | Swap | zram (6 MiB) only | zram (6 MiB), then 64 MiB on p3 of the stick | zram (6 MiB), then 64 MiB on p3 of the card |
-| Consoles | UART | UART | UART, and the LCD with a USB keyboard |
-| Hardware for Linux | GPIO, RNG | Ethernet, USB host (the root stick), RGB LED, GPIO, RNG | LCD, touch (I2C), microSD, USB host, RGB LED, GPIO, RNG |
-| Wi-Fi and Bluetooth | `wlan0` and `hci0`, WPA2 and WPA3, Personal and Enterprise, AP with `wpa_supplicant`, BlueZ (`bluetoothd`, `bluetoothctl`) | `wlan0` and `hci0`, WPA2 and WPA3, Personal and Enterprise, AP with `hostapd`, BlueZ with its classic tools | `wlan0` and `hci0`, WPA2 and WPA3, Personal and Enterprise, AP with `hostapd`, BlueZ with its classic tools |
 | RAM for Linux (MemTotal) | 11.8 MiB | 11.3 MiB | 10.4 MiB |
+| UART console | yes | yes | yes, on the CP2102N USB bridge |
+| LCD console, USB keyboard and tmux desktop | no | no | yes |
+| Touch (GT1151 on I2C) | no | no | yes |
+| Wi-Fi station (`wlan0`): WPA2 and WPA3 Personal | yes | yes | yes |
+| Wi-Fi station: WPA2 and WPA3 Enterprise (PEAP, TTLS, TLS) | available | available | available |
+| Wi-Fi access point | `wpa_supplicant` | `wpa_supplicant`, `hostapd` | `wpa_supplicant`, `hostapd` |
+| Bluetooth (`hci0`): BlueZ, `bluetoothctl` | yes | yes | yes |
+| Classic BlueZ tools (`hciconfig`, `hcitool`) | no | yes | yes |
+| Gigabit Ethernet (`eth0`) | no | yes | no |
+| USB host | no | yes: the root stick, and more storage | yes: keyboards, mice, storage |
+| microSD | no | no | yes: the root card |
+| RGB LED (`/sys/class/leds/rgb:status`) | no | yes, on GPIO60 | yes, on GPIO37 |
+| GPIO, hardware RNG | yes | yes | yes |
+| SSH (Dropbear, key only) | yes | yes | yes |
 | Userspace | BusyBox, Dropbear, wpa_supplicant, iw, curl, bluetoothctl, iperf3, Lua, the GPIO tools, flash_erase | bash, tmux, vim, nano, gdb, strace, MicroPython, Lua, links, nnn, sqlite3, curl, tcpdump, htop, ethtool and more | A tmux desktop on the LCD, bash, vim, nano, gdb, strace, MicroPython, Lua, links, lynx, irssi, nnn, sqlite3, curl, tcpdump, htop and more |
 
-## Try it
-
-1. Get the files of your board from the newest release on the
-   [releases page](https://github.com/annoyedmilk/esp32-s31-linux/releases):
-   `*-esp32s31-flash.zip` for the ESP32-S31-WROOM-3-N16R16V alone,
-   `*-coreboard1-flash.zip` and `*-coreboard1-usb.img.xz` for the
-   Function-CoreBoard-1, or `*-korvo1-flash.zip` and
-   `*-korvo1-sdcard.img.xz` for the Korvo-1.
-2. Flash: `pip install "esptool==5.5.0"` (the tested version, in
-   `bootloader/esptool.version`), connect the UART port, then
-   `esptool --chip esp32s31 -p PORT -b 921600 write-flash 0x0 flash.bin`.
-3. Write the disk image to a microSD card (Korvo-1) or a USB stick
-   (Function-CoreBoard-1), for example with balenaEtcher, and put it into
-   the board. The module alone needs no disk.
-4. Open the console on the UART port at 115200 baud. Push reset. When the
-   console shows `=== ESP32-S31 Linux / Buildroot ===`, you are root.
-5. Connect to Wi-Fi (see [Wi-Fi](#wi-fi)), then try `ssh` or `iperf3`.
-
-The consoles log in as root. SSH takes root only with a key: add your
-public key to `/root/.ssh/authorized_keys` from the console first.
-
-## What works
+## Feature details
 
 On all boards:
 
 - UART console (`ttyS0`), on the CP2102N bridge of the Korvo-1.
 - Wi-Fi as `wlan0` (cfg80211 full-MAC) through the ESP-Hosted firmware on
   hart 0: station, and access point with `wpa_supplicant` (`mode=2`). WPA2
-  and WPA3-SAE, Personal and Enterprise (PEAP, TTLS, TLS). The release notes
-  give the iperf3 throughput of each release.
+  and WPA3-SAE Personal. WPA2 and WPA3 Enterprise (PEAP, TTLS, TLS) are
+  available. The release notes give the iperf3 throughput of each release.
 - Bluetooth as `hci0` through the same firmware: BR/EDR and LE. BlueZ:
   `bluetoothd` and `bluetoothctl`, LE scan and BR/EDR inquiry.
 - HTTPS with `curl`, which verifies certificates against the CA bundle.
@@ -102,10 +92,6 @@ On the Korvo-1 also:
   connect the stick after the boot.
 - microSD (`dw_mmc` with internal DMA): FAT on p1, ext4 root on p2, swap
   on p3.
-- An access point with `hostapd`.
-- The classic BlueZ tools (`hciconfig`, `hcitool`), and pairing with
-  Secure Simple Pairing.
-- The RGB LED as `/sys/class/leds/rgb:status`.
 
 On the Function-CoreBoard-1 also:
 
@@ -114,8 +100,83 @@ On the Function-CoreBoard-1 also:
   cable, it goes over Wi-Fi.
 - USB host (DWC2): the root stick, and more USB storage through a hub. The
   stick has FAT on p1 (`/mnt/usb`), the ext4 root on p2 and swap on p3.
-- An access point with `hostapd`, and the classic BlueZ tools.
-- The RGB LED as `/sys/class/leds/rgb:status`.
+
+## Try it
+
+1. Get the files of your board from the newest release on the
+   [releases page](https://github.com/annoyedmilk/esp32-s31-linux/releases):
+   `*-esp32s31-flash.zip` for the ESP32-S31-WROOM-3-N16R16V alone,
+   `*-coreboard1-flash.zip` and `*-coreboard1-usb.img.xz` for the
+   Function-CoreBoard-1, or `*-korvo1-flash.zip` and
+   `*-korvo1-sdcard.img.xz` for the Korvo-1.
+2. Flash: `pip install "esptool==5.5.0"` (the tested version, in
+   `bootloader/esptool.version`), connect the UART port, then
+   `esptool --chip esp32s31 -p PORT -b 921600 write-flash 0x0 flash.bin`.
+3. Write the disk image to a microSD card (Korvo-1) or a USB stick
+   (Function-CoreBoard-1), for example with balenaEtcher, and put it into
+   the board. The module alone needs no disk.
+4. Open the console on the UART port at 115200 baud. Push reset. When the
+   console shows `=== ESP32-S31 Linux / Buildroot ===`, you are root.
+5. Connect to Wi-Fi (see [Wi-Fi](#wi-fi)), then add your SSH key (see
+   [First SSH connection](#first-ssh-connection)).
+
+## First SSH connection
+
+The consoles log in as root. Dropbear takes root over SSH only with a key
+(`-g` in `/etc/default/dropbear`). A new image has no key, so do the first
+steps on the UART console (on the Korvo-1, the LCD console with a USB
+keyboard also works).
+
+1. On your computer, show your public key. If you have none, make one with
+   `ssh-keygen -t ed25519`.
+
+   ```sh
+   cat ~/.ssh/id_ed25519.pub
+   ```
+
+2. On the console of the board, add the key. Put your key in place of
+   `ssh-ed25519 AAAA... you@host`. It is one line, so you can paste it:
+
+   ```sh
+   mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@host' >> /root/.ssh/authorized_keys && chmod 600 /root/.ssh/authorized_keys && sync
+   ```
+
+3. On the console, read the address of the board. Use `eth0` on the
+   Function-CoreBoard-1 when the Ethernet cable is in.
+
+   ```sh
+   ip -4 addr show wlan0
+   ```
+
+4. On your computer, connect:
+
+   ```sh
+   ssh root@<address>
+   ```
+
+   At the first connection, `ssh` asks you to accept the host key of the
+   board. To check it, compare its fingerprint with the output of this
+   command on the console:
+
+   ```sh
+   dropbearkey -y -f /etc/dropbear/dropbear_ed25519_host_key | tail -1
+   ```
+
+The board makes its host key at the first boot and keeps it in
+`/etc/dropbear` on the root. On the Korvo-1 and the Function-CoreBoard-1, a
+new disk image or `make sdroot` writes a new root: the board then has a new
+host key and no `authorized_keys`. On the module alone, both stay in the
+overlay until you erase `data`. After a new host key, `ssh` on your computer
+stops with `REMOTE HOST IDENTIFICATION HAS CHANGED`. Check the new key as in
+step 4, then remove the old key and connect again:
+
+```sh
+ssh-keygen -R <address>
+```
+
+For your own builds, put the key into `local-overlay/root/.ssh/authorized_keys`
+(see [Build, flash and monitor](#build-flash-and-monitor)). Then each image
+has it.
 
 ## Tested hardware
 
@@ -221,12 +282,6 @@ make monitor SERIAL_PORT=/dev/cu.usbserial-XXXX
   Buildroot output of the board, or build from a clean volume.
 - `make help` shows all targets.
 
-The Korvo-1 kernel mounts `/dev/mmcblk0p2` as the root: a USB stick is
-never its root. The Function-CoreBoard-1 kernel mounts p2 of the disk with
-the disk signature `0x45533331` (`root=PARTUUID=45533331-02`), so other USB
-disks can be connected when it starts. Without a prepared disk, the kernel
-waits for it (`rootwait`).
-
 ## SD card and USB stick
 
 The disk is the microSD card on the Korvo-1 and the USB stick on the
@@ -261,9 +316,8 @@ camera formatted: check such a card on the host.
 
 ## Userspace
 
-The serial and panel consoles log in as root automatically. Dropbear takes
-root only with a key (`-g` in `/etc/default/dropbear`): put the public key
-into `/root/.ssh/authorized_keys`. The root password is `korvo-bringup`.
+The serial and panel consoles log in as root automatically. SSH takes root
+only with a key: see [First SSH connection](#first-ssh-connection).
 
 Boot scripts of all boards, in `br2-external/board/esp32s31/rootfs-overlay`
 and the overlay of each board:
@@ -348,11 +402,6 @@ after an update. After a change of the partition layout, erase `data`
 (for example `esptool erase-region` with its offset and size), so that UBI
 formats it again.
 
-The squashfs is zstd at the highest level that Buildroot gives, with
-32 KiB blocks: gzip does not fit with BlueZ, and xz decompresses too
-slowly. The cost is time: each page fault of a program decompresses one
-block. `make` stops when the image is larger than the `rootfs` partition.
-
 ### Files and scripts
 
 The paths below are for the Korvo-1. On the Function-CoreBoard-1, p1 is
@@ -428,7 +477,7 @@ The ESP-Hosted firmware on hart 0 runs the 802.11 MAC. The ESP-Hosted host
 driver (`esp32_shm`) is built into the kernel. `wpa_supplicant` runs the
 authentication and the key handshakes, and logs to syslog
 (`/var/log/messages`). `hostapd` with the nl80211 driver starts an access
-point on the Korvo-1. Stop `S40wifi` first: `wlan0` is a station or an
+point. Stop `S40wifi` first: `wlan0` is a station or an
 access point, not the two at the same time.
 
 ## Kernel
@@ -499,8 +548,8 @@ takes all offsets from them.
   longer than the closed Wi-Fi library on hart 0 waits for the
   authentication. `wpa_supplicant` tries again and connects. WPA2 is not
   affected.
-- On the esp32s31 board, a cold program start is slow, because the root is
-  zstd-compressed (see [Flash root](#flash-root-esp32s31)).
+- On the esp32s31 board, a cold program start is slow: the root is a zstd
+  squashfs, and each page fault of a program decompresses one 32 KiB block.
 - WPA2/WPA3 Enterprise is not tested.
 - The access point mode is tested up to the started access point. No
   client has connected to it.
