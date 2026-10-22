@@ -13,13 +13,12 @@ done < /proc/self/mountinfo
 	[ "$_k" = DEVNAME ] && _name=$_v && break
 done < /sys/dev/block/$_dev/uevent
 case $_name in
-mmcblk?p2) DISK_MNT=/mnt/sd ;;
-sd?2) DISK_MNT=/mnt/usb ;;
+mmcblk?p2) DISK=/dev/${_name%p2} DISK_MNT=/mnt/sd ;;
+sd?2) DISK=/dev/${_name%2} DISK_MNT=/mnt/usb ;;
 *) _name= ;;
 esac
 if [ -n "$_name" ]; then
 	_p=/dev/${_name%2}
-	DISK=${_p%p}
 	DISK_FAT=${_p}1
 	DISK_SWAP=${_p}3
 fi
