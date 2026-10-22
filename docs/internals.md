@@ -388,10 +388,10 @@ in `br2-external/configs/` differs from its fragments.
 
 | | Module alone | Function-CoreBoard-1 | Korvo-1 |
 | --- | --- | --- | --- |
-| Base | Kernel, toolchain, BusyBox, Dropbear, OpenSSL, `wpa_supplicant` (WPA3, PEAP/TTLS/TLS, AP mode), curl, iperf3, libgpiod, BlueZ (`bluetoothd`, `bluetoothctl`) | The same | The same |
+| Base | Kernel, toolchain, BusyBox, Dropbear, OpenSSL, `wpa_supplicant` (WPA3, PEAP/TTLS/TLS, AP mode), curl, iperf3, libgpiod, BlueZ (`bluetoothd`, `bluetoothctl`), Lua | The same | The same |
 | Root | squashfs root in the flash, UBIFS overlay, the MTD tools | ext4 root on the USB stick | ext4 root on the card |
 | Board parts | | Ethernet, USB, the LED | LCD, touch, the card, USB, the LED |
-| Tools | The base only | `hostapd`, the classic BlueZ tools, bash, vim, gdb, strace, tcpdump, links, MicroPython, Lua, htop, filesystem tools, ethtool | `hostapd`, the classic BlueZ tools, bash, vim, gdb, strace, tcpdump, links, MicroPython, Lua, htop, filesystem tools, `evtest`, `gpm`, a tmux desktop on the LCD, nano, nnn, ncdu, tree, bc, sqlite3, lynx, irssi |
+| Tools | The base only | `hostapd`, the classic BlueZ tools, bash, vim, gdb, strace, tcpdump, links, MicroPython, htop, filesystem tools, tmux, nano, nnn, ncdu, tree, bc, sqlite3, ethtool | `hostapd`, the classic BlueZ tools, bash, vim, gdb, strace, tcpdump, links, MicroPython, htop, filesystem tools, tmux, nano, nnn, ncdu, tree, bc, sqlite3, `evtest`, `gpm`, a tmux desktop on the LCD, lynx, irssi |
 | Swap | zram only | zram, then p3 of the stick | zram, then p3 of the card |
 
 The Korvo-1 and the Function-CoreBoard-1 have a disk with much space, and

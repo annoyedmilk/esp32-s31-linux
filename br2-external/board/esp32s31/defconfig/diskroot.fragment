@@ -34,8 +34,16 @@ BR2_PACKAGE_TCPDUMP=y
 # Links needs OpenSSL and the CA certificates for HTTPS after the board
 # clock is set.
 BR2_PACKAGE_LINKS=y
-BR2_PACKAGE_LUA=y
 BR2_PACKAGE_MICROPYTHON=y
+# Terminal tools, on the panel and over SSH: windows, an easy editor, files,
+# disk use, a calculator and SQLite.
+BR2_PACKAGE_TMUX=y
+BR2_PACKAGE_NANO=y
+BR2_PACKAGE_NNN=y
+BR2_PACKAGE_NCDU=y
+BR2_PACKAGE_TREE=y
+BR2_PACKAGE_BC=y
+BR2_PACKAGE_SQLITE=y
 # An access point with all features, next to the AP mode of wpa_supplicant.
 BR2_PACKAGE_HOSTAPD=y
 # The BlueZ tools and the deprecated ones (hciconfig, hcitool, hcidump).

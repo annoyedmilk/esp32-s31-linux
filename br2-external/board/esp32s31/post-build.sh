@@ -30,3 +30,9 @@ chmod 600 "$1/etc/wpa_supplicant.conf"
 if [ -x "$1/bin/bash" ]; then
 	sed -i '/^root:/s,[^:]*$,/bin/bash,' "$1/etc/passwd"
 fi
+
+# The flash root of the module has no room for the Lua compiler.  lua
+# compiles each script itself.
+if [ -x "$1/sbin/overlay-init" ]; then
+	rm -f "$1/usr/bin/luac"
+fi

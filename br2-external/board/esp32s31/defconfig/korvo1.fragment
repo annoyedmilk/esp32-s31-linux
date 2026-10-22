@@ -8,15 +8,8 @@ BR2_ROOTFS_POST_SCRIPT_ARGS="tty1"
 # The mouse on the panel console.
 BR2_PACKAGE_GPM=y
 # A desktop for the panel and a USB keyboard (the US keymap of the kernel):
-# tmux with its status bar, and small tools for files, text, networks and
-# chat.
-BR2_PACKAGE_TMUX=y
-BR2_PACKAGE_NNN=y
-BR2_PACKAGE_NCDU=y
-BR2_PACKAGE_TREE=y
-BR2_PACKAGE_NANO=y
-BR2_PACKAGE_BC=y
-BR2_PACKAGE_SQLITE=y
+# tmux from diskroot.fragment with a status bar, and a web browser and a
+# chat client for it.
 BR2_PACKAGE_LYNX=y
 BR2_PACKAGE_IRSSI=y
 # evtest for the touch controller.  BusyBox has i2cdetect, i2cget and

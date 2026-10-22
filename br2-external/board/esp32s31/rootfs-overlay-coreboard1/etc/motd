@@ -6,10 +6,10 @@ Wi-Fi     wpa_passphrase "<ssid>" "<passphrase>" >> /etc/wpa_supplicant.conf
           /etc/init.d/S40wifi restart
           iw dev wlan0 link; iw dev wlan0 scan | grep SSID
 Bluetooth bluetoothctl, then: scan le, scan bredr, devices
-System    htop, free, df -h, dmesg
+System    htop, free, df -h, ncdu, dmesg, tmux
 Network   ssh, scp, curl, links, iperf3, tcpdump
-Files     /mnt/usb is the FAT partition of the USB stick
-Code      micropython, lua, vim, gdbserver, strace
+Files     nnn, tree; /mnt/usb is the FAT partition of the USB stick
+Code      micropython, lua, vim, nano, sqlite3, bc, gdbserver, strace
 GPIO      gpiodetect, gpioinfo, gpioget, gpioset
 LED       echo 0 32 0 > /sys/class/leds/rgb:status/multi_intensity
           echo 255 > /sys/class/leds/rgb:status/brightness

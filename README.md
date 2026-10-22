@@ -51,7 +51,7 @@ libgpiod and BlueZ. Each board fragment adds only its own parts.
 | Hardware for Linux | GPIO, RNG | Ethernet, USB host (the root stick), RGB LED, GPIO, RNG | LCD, touch (I2C), microSD, USB host, RGB LED, GPIO, RNG |
 | Wi-Fi and Bluetooth | `wlan0` and `hci0`, WPA2 and WPA3, Personal and Enterprise, AP with `wpa_supplicant`, BlueZ (`bluetoothd`, `bluetoothctl`) | `wlan0` and `hci0`, WPA2 and WPA3, Personal and Enterprise, AP with `hostapd`, BlueZ with its classic tools | `wlan0` and `hci0`, WPA2 and WPA3, Personal and Enterprise, AP with `hostapd`, BlueZ with its classic tools |
 | RAM for Linux (MemTotal) | 11.8 MiB | 11.3 MiB | 10.4 MiB |
-| Userspace | BusyBox, Dropbear, wpa_supplicant, iw, curl, bluetoothctl, iperf3, the GPIO tools, flash_erase | bash, vim, gdb, strace, MicroPython, Lua, links, curl, tcpdump, htop, ethtool and more | A tmux desktop on the LCD, bash, vim, nano, gdb, strace, MicroPython, Lua, links, lynx, irssi, nnn, sqlite3, curl, tcpdump, htop and more |
+| Userspace | BusyBox, Dropbear, wpa_supplicant, iw, curl, bluetoothctl, iperf3, Lua, the GPIO tools, flash_erase | bash, tmux, vim, nano, gdb, strace, MicroPython, Lua, links, nnn, sqlite3, curl, tcpdump, htop, ethtool and more | A tmux desktop on the LCD, bash, vim, nano, gdb, strace, MicroPython, Lua, links, lynx, irssi, nnn, sqlite3, curl, tcpdump, htop and more |
 
 ## Try it
 
@@ -302,10 +302,10 @@ Function-CoreBoard-1, and the tools marked (Korvo-1) only for the Korvo-1.
 
 | Use | Commands |
 | --- | --- |
-| System | `htop`, `free`, `df -h`, `dmesg`, `file`, `strace`, `gdbserver`, `tmux`, `ncdu` (Korvo-1) |
-| Files | `nnn`, `tree` (Korvo-1) |
+| System | `htop`, `free`, `df -h`, `dmesg`, `file`, `strace`, `gdbserver`, `tmux`, `ncdu` |
+| Files | `nnn`, `tree` |
 | Network | `ssh`, `scp`, `curl`, `links` (text), `iperf3`, `tcpdump`, `nslookup`, `lynx`, `irssi` (Korvo-1) |
-| Code | `micropython`, `lua`, `vim`, `nano`, `sqlite3`, `bc` (Korvo-1) |
+| Code | `micropython`, `lua`, `vim`, `nano`, `sqlite3`, `bc` |
 | Hardware | `gpioinfo`, `gpioget`, `gpioset` (libgpiod 2), `lsusb`, `evtest` (Korvo-1) |
 
 The shell is bash, with a history that stays after a reset.

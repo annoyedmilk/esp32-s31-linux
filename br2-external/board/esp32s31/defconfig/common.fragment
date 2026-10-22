@@ -118,3 +118,5 @@ BR2_PACKAGE_WPA_SUPPLICANT_AP_SUPPORT=y
 # bluetoothd and bluetoothctl, which also has the mgmt commands of btmgmt.
 BR2_PACKAGE_BLUEZ5_UTILS=y
 BR2_PACKAGE_BLUEZ5_UTILS_CLIENT=y
+# Lua, a script language small enough for the flash root of the module.
+BR2_PACKAGE_LUA=y

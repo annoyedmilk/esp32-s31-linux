@@ -120,6 +120,8 @@ BR2_PACKAGE_WPA_SUPPLICANT_AP_SUPPORT=y
 # bluetoothd and bluetoothctl, which also has the mgmt commands of btmgmt.
 BR2_PACKAGE_BLUEZ5_UTILS=y
 BR2_PACKAGE_BLUEZ5_UTILS_CLIENT=y
+# Lua, a script language small enough for the flash root of the module.
+BR2_PACKAGE_LUA=y
 # The root on a disk, for the boards with one: the microSD card of korvo1
 # and the USB stick of coreboard1.  The disk has room, so these builds have
 # the full set of workstation and debugging tools.
@@ -156,8 +158,16 @@ BR2_PACKAGE_TCPDUMP=y
 # Links needs OpenSSL and the CA certificates for HTTPS after the board
 # clock is set.
 BR2_PACKAGE_LINKS=y
-BR2_PACKAGE_LUA=y
 BR2_PACKAGE_MICROPYTHON=y
+# Terminal tools, on the panel and over SSH: windows, an easy editor, files,
+# disk use, a calculator and SQLite.
+BR2_PACKAGE_TMUX=y
+BR2_PACKAGE_NANO=y
+BR2_PACKAGE_NNN=y
+BR2_PACKAGE_NCDU=y
+BR2_PACKAGE_TREE=y
+BR2_PACKAGE_BC=y
+BR2_PACKAGE_SQLITE=y
 # An access point with all features, next to the AP mode of wpa_supplicant.
 BR2_PACKAGE_HOSTAPD=y
 # The BlueZ tools and the deprecated ones (hciconfig, hcitool, hcidump).
@@ -173,15 +183,8 @@ BR2_ROOTFS_POST_SCRIPT_ARGS="tty1"
 # The mouse on the panel console.
 BR2_PACKAGE_GPM=y
 # A desktop for the panel and a USB keyboard (the US keymap of the kernel):
-# tmux with its status bar, and small tools for files, text, networks and
-# chat.
-BR2_PACKAGE_TMUX=y
-BR2_PACKAGE_NNN=y
-BR2_PACKAGE_NCDU=y
-BR2_PACKAGE_TREE=y
-BR2_PACKAGE_NANO=y
-BR2_PACKAGE_BC=y
-BR2_PACKAGE_SQLITE=y
+# tmux from diskroot.fragment with a status bar, and a web browser and a
+# chat client for it.
 BR2_PACKAGE_LYNX=y
 BR2_PACKAGE_IRSSI=y
 # evtest for the touch controller.  BusyBox has i2cdetect, i2cget and
