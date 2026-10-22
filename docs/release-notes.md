@@ -37,8 +37,37 @@ alone with UART only.
    then `/etc/init.d/S40wifi restart`. For WPA3, see the comment in
    `/etc/wpa_supplicant.conf`. The file stays after a reboot.
 
-On the Korvo-1, the LCD shows the Tux logo, the kernel warnings and a
-login. A USB keyboard works on it.
+On the Korvo-1, the LCD shows the Tux logo and the kernel warnings, then
+the tmux desktop for a USB keyboard.
+
+## New in v0.7.0
+
+- The Korvo-1 is a small Linux machine for a USB keyboard. The login on the
+  LCD starts `tmux`: windows, split panes, and a status bar with Wi-Fi,
+  Bluetooth, the free memory and the clock. A new login attaches to the
+  same session. SSH and the UART keep a usual shell. Ctrl-b c opens a
+  window, Ctrl-b n goes to the next one, and `/etc/motd` lists more keys.
+- New tools on the Korvo-1 and the Function-CoreBoard-1: `tmux`, `nano`,
+  `nnn` (files), `ncdu` (disk use), `tree`, `bc` and `sqlite3`. The Korvo-1
+  also has `lynx` and `irssi` (IRC). `links` is text only now.
+- The module alone has Lua.
+- The Korvo-1 and the Function-CoreBoard-1 have the time zone database.
+  The clock stays UTC; `ln -sf /usr/share/zoneinfo/Europe/Zurich
+  /etc/localtime` sets a local zone for the programs that start after it.
+  For the tmux clock, run `tmux kill-server` and log in again.
+- The boot shows the full kernel log: on the LCD of the Korvo-1, and on
+  the UART of all boards. After the boot, the consoles show only warnings
+  and errors, and `dmesg` has all messages. On the Korvo-1, the first tmux
+  window then shows the list of the tools (`/etc/motd`). Each line of the
+  log scrolls the LCD, so the boot of the Korvo-1 to the console takes
+  approximately 2 s more (9.2 to 9.6 s).
+- A USB stick that you connect to the Korvo-1 after the boot is mounted
+  once, without "Can't open blockdev" on the console.
+
+Flash the new `flash.bin` on all boards. On the Korvo-1 and the
+Function-CoreBoard-1, the new tools are only in the new root: write the new
+disk image, or run `make sdroot`. On the module, the overlay on `data`
+stays.
 
 ## New in v0.6.1
 
