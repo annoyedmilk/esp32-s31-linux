@@ -291,7 +291,9 @@ and the overlay of each board:
 - The udhcpc hook sets the clock with NTP on each new lease.
 - `S95autostart.sh` runs `autostart.sh` on p1 of the disk, or
   `/root/autostart.sh` when the disk has none.
-- `S99banner.sh` prints the line that `make monitor` waits for.
+- `S99banner.sh` prints the line that `make monitor` waits for. The consoles
+  show the full kernel log of the boot; after the banner, they show only
+  warnings and errors (`dmesg` has all messages).
 - `/etc/profile.d/desk.sh` (Korvo-1) starts the tmux desktop at the login on
   `tty1`.
 - The module alone also has `overlay-init` and `S00overlay.sh` (see

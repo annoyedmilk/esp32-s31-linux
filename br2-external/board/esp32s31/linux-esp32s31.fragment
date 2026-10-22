@@ -4,7 +4,7 @@
 CONFIG_BUILTIN_DTB_NAME="espressif/esp32s31"
 # The UART is the only console.  The root is the squashfs partition of the
 # flash window.  overlay-init puts the data partition over it.
-CONFIG_CMDLINE="earlycon=sbi console=ttyS0,115200 loglevel=5 esp32_shm.radio_service=bt root=/dev/mtdblock0 rootfstype=squashfs ro rootwait init=/sbin/overlay-init"
+CONFIG_CMDLINE="earlycon=sbi console=ttyS0,115200 esp32_shm.radio_service=bt root=/dev/mtdblock0 rootfstype=squashfs ro rootwait init=/sbin/overlay-init"
 
 # No panel, VTs or input devices.
 # CONFIG_FB is not set

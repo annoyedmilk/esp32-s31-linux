@@ -4,7 +4,7 @@ CONFIG_BUILTIN_DTB_NAME="espressif/esp32s31_coreboard1"
 # The UART is the only console.  The root is p2 of the USB stick with the
 # disk signature of genimage.cfg, also when other USB disks are connected:
 # rootwait waits for usb-storage, which scans a new stick after 1 s.
-CONFIG_CMDLINE="earlycon=sbi console=ttyS0,115200 loglevel=5 esp32_shm.radio_service=bt root=PARTUUID=45533331-02 rootfstype=ext4 rootwait rootflags=errors=remount-ro rw"
+CONFIG_CMDLINE="earlycon=sbi console=ttyS0,115200 esp32_shm.radio_service=bt root=PARTUUID=45533331-02 rootfstype=ext4 rootwait rootflags=errors=remount-ro rw"
 
 # No panel, VTs, input devices, card or I2C device.  The one USB port has
 # the root stick, and no console takes input from a USB keyboard.
