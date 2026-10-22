@@ -132,8 +132,8 @@ BR2_TARGET_ROOTFS_SQUASHFS=y
 BR2_TARGET_ROOTFS_SQUASHFS4_ZSTD=y
 BR2_TARGET_ROOTFS_SQUASHFS_EXTREME_COMP=y
 BR2_TARGET_ROOTFS_SQUASHFS_BS_32K=y
-# flash_erase resets the overlay to the image.  The NAND and UBI tools do
-# not apply to the NOR flash.
+# flash_erase resets the overlay to the image.  overlay-init needs
+# ubiattach and ubimkvol.  The NOR flash needs no NAND or other UBI tools.
 BR2_PACKAGE_MTD=y
 # BR2_PACKAGE_MTD_FLASH_LOCK is not set
 # BR2_PACKAGE_MTD_FLASH_UNLOCK is not set
