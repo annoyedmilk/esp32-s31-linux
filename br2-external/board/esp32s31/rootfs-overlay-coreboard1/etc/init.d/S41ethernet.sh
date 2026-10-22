@@ -2,7 +2,8 @@
 # SPDX-License-Identifier: MIT
 # Start a DHCP client on eth0 of the Function-CoreBoard-1.  udhcpc goes to
 # the background at once and keeps trying, so the boot does not wait for a
-# cable.
+# cable.  Without a PHY the link does not come up, and udhcpc would stay in
+# the foreground.
 # stmmac allocates its rings when the interface goes up.  Its default RX ring
 # of 512 pages would take 2 MiB of the 16 MiB, so make the rings smaller first.
 
@@ -13,7 +14,7 @@ case "$1" in
 start)
 	[ -d /sys/class/net/$IFACE ] || exit 0
 	ethtool -G $IFACE rx 64 tx 64
-	ip link set $IFACE up
+	ip link set $IFACE up || exit 0
 	udhcpc -b -S -i $IFACE -p $PID
 	;;
 stop)
