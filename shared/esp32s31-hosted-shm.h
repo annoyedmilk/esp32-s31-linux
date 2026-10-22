@@ -1,8 +1,8 @@
 /* SPDX-License-Identifier: (GPL-2.0-only OR Apache-2.0) */
 /*
  * ESP-Hosted shared-memory transport for the ESP32-S31: Linux on hart 1 is
- * the host, the ESP-Hosted firmware on hart 0 is the device.  The two
- * transport files include this header.
+ * the host, the ESP-Hosted firmware on hart 0 is the device.  The
+ * firmware, the Linux driver and OpenSBI include this header.
  *
  * The block is in internal SRAM, which the two harts access without the data
  * cache.  Each direction is a byte ring of frames.  A frame is the same as on

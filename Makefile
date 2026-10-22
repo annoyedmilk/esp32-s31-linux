@@ -295,7 +295,8 @@ kernel: br-volume
 	@$(MAKE) --no-print-directory br-artifacts
 
 # Delete the extracted kernel and headers by hand.  "make kernel" and
-# "make rootfs" do this themselves when the patches or the config change.
+# "make rootfs" do this themselves when linux/, the config or the
+# ESP-Hosted sources change.
 kernel-clean: br-volume
 	@$(BR_RUN) sh -c 'cd /work/$(BR_DIR); $(BR_MAKE) linux-dirclean linux-headers-dirclean'
 
@@ -396,7 +397,7 @@ sdpart:
 	@diskutil list "$(SD_DISK)"
 	@echo 'now: make sdroot SD_DISK=$(SD_DISK)'
 
-# Erases the disk.  On a large disk, the space after p2 is not used.
+# Erases the disk.  On a large disk, the space after p3 is not used.
 sdwrite:
 	$(SD_DISK_REQUIRED)
 	@test -f "$(BR_OUT)/sdcard.img" || { echo 'no $(BR_OUT)/sdcard.img; run make sdcard'; exit 1; }

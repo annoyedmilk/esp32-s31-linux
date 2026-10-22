@@ -4,7 +4,8 @@ ESP32S31_USB_SERIAL_JTAG_CONSOLE ?= 1
 # Uncached frame buffer for the LCD.  The Makefile sets it from the loader config.
 ESP32S31_FB_UNCACHED ?= 0
 
-# The shared-memory layout of the ESP-Hosted firmware, for poweroff.
+# The shared-memory layout of the ESP-Hosted firmware, for poweroff and
+# the cache lock.
 platform-cppflags-y = -DFW_NO_MSTATUSH -DCLIC_NO_SIE \
 	-I$(platform_src_dir)/../../../shared \
 	-DESP32S31_USB_SERIAL_JTAG_CONSOLE=$(ESP32S31_USB_SERIAL_JTAG_CONSOLE) \
