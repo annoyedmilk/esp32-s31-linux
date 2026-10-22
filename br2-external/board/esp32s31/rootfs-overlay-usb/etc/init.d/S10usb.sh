@@ -13,15 +13,15 @@ mount_usb()
 	disk=${1%%[0-9]*}
 	mountpoint -q $MNT && return
 	mkdir -p $MNT
-	for dev in /dev/${disk}1 /dev/$disk; do
-		[ -b $dev ] || continue
-		# flush writes the data soon, so a stick pulled without umount
-		# loses less.
-		mount -t vfat -o rw,noatime,flush $dev $MNT 2>/dev/null || continue
+	dev=/dev/$disk
+	[ -b ${dev}1 ] && dev=${dev}1
+	# flush writes the data soon, so a stick pulled without umount loses
+	# less.
+	if mount -t vfat -o rw,noatime,flush $dev $MNT 2>/dev/null; then
 		logger -t usb "$dev on $MNT"
-		return
-	done
-	logger -t usb "no FAT file system on /dev/$disk"
+	else
+		logger -t usb "no FAT file system on $dev"
+	fi
 }
 
 case "$1" in
@@ -33,8 +33,14 @@ stop)
 	mountpoint -q $MNT && umount $MNT
 	;;
 hotplug)
+	# mdev runs the events of a stick in parallel, so only one of them
+	# mounts: the first partition, or the full stick when it has none.  The
+	# kernel adds the partitions before the event of the stick.
 	if [ "$ACTION" != remove ]; then
-		mount_usb "$MDEV"
+		case $MDEV in
+		sd?1) mount_usb "$MDEV" ;;
+		*) [ -e /sys/block/$MDEV/${MDEV}1 ] || mount_usb "$MDEV" ;;
+		esac
 	elif grep -q "^/dev/$MDEV $MNT " /proc/mounts; then
 		# Open files keep the old mount until they close.
 		umount -l $MNT
