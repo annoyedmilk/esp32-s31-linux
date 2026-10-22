@@ -32,6 +32,16 @@
 		};
 
 		/*
+		 * HP_APM puts the last word below a region into that region, so
+		 * the word at 0x50effffc is M-mode only.  DMA writes to it are
+		 * lost, and S-mode reads of it return wrong data.
+		 */
+		apm-guard@50eff000 {
+			reg = <0x50eff000 0x1000>;
+			no-map;
+		};
+
+		/*
 		 * Sv32 has no cacheability attribute, and the port does not
 		 * use the uncached alias of PSRAM at 0xc0000000.  Thus coherent
 		 * allocations come from internal SRAM, which the data cache

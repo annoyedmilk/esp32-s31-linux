@@ -42,6 +42,12 @@ login. A USB keyboard works on it.
 
 ## New in v0.6.1
 
+- Data from a USB disk is correct. In v0.6.0, the last 4 bytes of a 4 KiB
+  block were wrong when Linux had put the block into the page directly
+  below OpenSBI (`0x50EFF000`). `HP_APM` puts the last word of that page
+  into the OpenSBI region, so a DMA write to it was lost. The device tree
+  now reserves that page. The Korvo-1 did not show the fault, because it
+  used the page for kernel data.
 - The Function-CoreBoard-1 has `eth0`. In v0.6.0, its kernel did not have
   the eFuse driver, so the Ethernet driver waited for the MAC address and
   did not start.
@@ -313,11 +319,6 @@ card image erases the card, so save your files from the FAT partition first.
 - The tested hardware is the Korvo-1 with chip revision v0.0. The esp32s31
   build is tested on the Korvo-1. The coreboard1 build of v0.6.1 is not
   tested on a board yet.
-- Data that the board reads from a USB disk can be wrong under heavy
-  network load: the last 4 bytes of some 4 KiB blocks keep old data. This
-  was seen on the Function-CoreBoard-1 with Ethernet traffic. On the
-  Korvo-1, 100 reads from a USB stick under Wi-Fi load, 60 of them also
-  under card DMA load, were correct. The cause is not found yet.
 - `/dev/hwrng` gives approximately 0.4 kB/s, because Linux runs without
   high-resolution timers. The kernel random number generator is ready
   0.3 s after the start of Linux and does not depend on this speed.
