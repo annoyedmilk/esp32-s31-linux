@@ -1,5 +1,5 @@
 
-ESP32-S31 Linux: RV32 at 320 MHz, 16 MiB PSRAM, Wi-Fi, Bluetooth, LCD.
+Linux on the ESP32-S31-Korvo-1: RV32 at 320 MHz, 16 MiB PSRAM.
 
 Wi-Fi     wpa_passphrase "<ssid>" "<passphrase>" >> /etc/wpa_supplicant.conf
           /etc/init.d/S40wifi restart

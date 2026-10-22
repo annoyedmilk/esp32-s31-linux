@@ -1,5 +1,5 @@
 
-ESP32-S31 Linux on the ESP32-S31-Function-CoreBoard-1: RV32, 16 MiB PSRAM.
+Linux on the ESP32-S31-Function-CoreBoard-1: RV32 at 320 MHz, 16 MiB PSRAM.
 
 Ethernet  eth0 gets an address with DHCP at boot: ip addr show eth0
 Wi-Fi     wpa_passphrase "<ssid>" "<passphrase>" >> /etc/wpa_supplicant.conf
