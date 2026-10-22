@@ -268,11 +268,12 @@ into `/root/.ssh/authorized_keys`. The root password is `korvo-bringup`.
 Boot scripts of all boards, in `br2-external/board/esp32s31/rootfs-overlay`
 and the overlay of each board:
 
-- `S01clock.sh` sets the clock from `/etc/timestamp`. The board has no RTC.
+- `S01clock.sh` sets the clock from `/etc/timestamp` at boot, and saves the
+  time there at shutdown. The board has no RTC.
 - `S05swap.sh` starts 6 MiB of LZ4 swap in RAM (`/dev/zram0`, priority 100).
   Then, when the MBR gives p3 the type `0x82`, it formats p3 and swaps to
-  it at priority 10. The kernel uses the card only when zram is full. A
-  card without such a p3 swaps to zram only.
+  it at priority 10. The kernel uses the disk only when zram is full. A
+  disk without such a p3 swaps to zram only.
 - `/etc/sysctl.d/10-reserve.conf` keeps 512 KiB free for the zram writes.
   A larger reserve takes memory from the page cache.
 - `S10sdcard.sh` mounts p1 of the disk on `/mnt/sd` or `/mnt/usb`.
@@ -284,11 +285,15 @@ and the overlay of each board:
   the console does not wait for it. `S40wifi restart` waits. `S40bluetoothd`
   starts BlueZ for `hci0`.
 - `S41ethernet.sh` (Function-CoreBoard-1) makes the stmmac rings smaller, then
-  starts DHCP on `eth0` in the background.
+  starts DHCP on `eth0` in the background. Its udhcpc hook `wifi-metric` and
+  `/etc/sysctl.d/20-linkdown.conf` send the traffic over Ethernet when the
+  cable is in, else over Wi-Fi.
 - The udhcpc hook sets the clock with NTP on each new lease.
 - `S95autostart.sh` runs `autostart.sh` on p1 of the disk, or
   `/root/autostart.sh` when the disk has none.
 - `S99banner.sh` prints the line that `make monitor` waits for.
+- `/etc/profile.d/desk.sh` (Korvo-1) starts the tmux desktop at the login on
+  `tty1`.
 - The module alone also has `overlay-init` and `S00overlay.sh` (see
   [Flash root](#flash-root-esp32s31)).
 
@@ -463,20 +468,6 @@ in `br2-external/board/esp32s31/defconfig/common.fragment`).
 The partition tables are `bootloader/partitions-<board>.csv`. The Makefile
 takes all offsets from them.
 
-## Debugging
-
-1. On the Korvo-1, set `CONFIG_ESP_CONSOLE_SECONDARY_USB_SERIAL_JTAG=y` in
-   `bootloader/sdkconfig.defaults.korvo1`, and connect a USB cable: D- to
-   GPIO33, D+ to GPIO34, GND to GND, no 5 V. GPIO33/34 are also LCD pins,
-   so the LCD then stays dark.
-2. Run `make flash BOARD=korvo1`, then `make openocd`. It attaches to the
-   running board without a reset.
-3. Connect `riscv32-esp-elf-gdb` to port 3333. Use `build/korvo1/opensbi.elf`,
-   `build/korvo1/bootloader/s31-linux-loader.elf` or `build/korvo1/vmlinux`
-   (`make kernel-vmlinux`). GDB shows only the hart of the connection
-   (hart 0). Read hart 1 on the OpenOCD telnet port 4444:
-   `targets esp32s31.hp.cpu1`, then `reg pc` or `reg mepc`.
-
 ## Limits
 
 - Linux is uniprocessor on hart 1.
@@ -490,9 +481,9 @@ takes all offsets from them.
 - `poweroff` puts the chip into deep sleep. Only the reset button starts
   it again. The board itself stays powered.
 - The coherent DMA pool is 64 KiB.
-- The Function-CoreBoard-1 does not boot without its root stick. A stick
-  from v0.6.0, or from `make sdpart` of v0.6.0, has no disk signature: write
-  it again with the new image or `make sdpart`.
+- The Korvo-1 and the Function-CoreBoard-1 do not boot without their root
+  disk: the microSD card on the Korvo-1, the USB stick on the
+  Function-CoreBoard-1. The kernel waits for it.
 - There is no audio or camera driver.
 - The firmware heap is small: see "Internal SRAM" in
   [docs/internals.md](docs/internals.md).
