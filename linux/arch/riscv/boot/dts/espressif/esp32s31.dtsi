@@ -225,11 +225,12 @@
 
 		/*
 		 * RMT channel 0 drives a WS2812 LED.  A board routes the
-		 * channel 0 output to its LED pin.
+		 * channel 0 output to its LED pin.  The second register is the
+		 * power control of the RMT RAM in HP_SYSTEM.
 		 */
 		rgb_led: led-controller@20355000 {
 			compatible = "esp,esp32s31-rmt-ws2812";
-			reg = <0x20355000 0x1000>;
+			reg = <0x20355000 0x1000>, <0x20586204 0x4>;
 			clocks = <&hp_clkrst ESP32S31_CLK_RMT_SYS>,
 				 <&hp_clkrst ESP32S31_CLK_RMT>;
 			clock-names = "sys", "core";

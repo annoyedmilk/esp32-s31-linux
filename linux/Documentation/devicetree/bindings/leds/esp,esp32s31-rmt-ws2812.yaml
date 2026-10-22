@@ -18,7 +18,9 @@ properties:
     const: esp,esp32s31-rmt-ws2812
 
   reg:
-    maxItems: 1
+    items:
+      - description: RMT registers
+      - description: HP_SYSTEM_RMT_MEM_LP_CTRL, the power control of the RMT RAM
 
   clocks:
     items:
@@ -55,7 +57,7 @@ examples:
 
     led-controller@20355000 {
         compatible = "esp,esp32s31-rmt-ws2812";
-        reg = <0x20355000 0x1000>;
+        reg = <0x20355000 0x1000>, <0x20586204 0x4>;
         clocks = <&hp_clkrst ESP32S31_CLK_RMT_SYS>,
                  <&hp_clkrst ESP32S31_CLK_RMT>;
         clock-names = "sys", "core";

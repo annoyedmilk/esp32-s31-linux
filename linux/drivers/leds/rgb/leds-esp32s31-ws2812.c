@@ -5,8 +5,8 @@
  * WS2812 RGB LED on RMT channel 0 of the ESP32-S31.
  *
  * The clock driver gives the RMT clock and reset, and pinctrl routes the
- * channel 0 output to the LED pin.  This driver sets a 50 ns channel tick and
- * writes only the channel 0 registers and the channel 0 RAM.
+ * channel 0 output to the LED pin.  This driver powers the RMT RAM, gives the
+ * CPU direct access to it, sets a 50 ns channel tick and uses channel 0.
  *
  * One RMT word holds two pulses: duration and level for each.  A WS2812 bit
  * is one high pulse and one low pulse, so one word sends one bit.  24 words
@@ -40,6 +40,10 @@
 #define RMT_SYS_CONF			0xc0
 #define RMT_SYS_APB_FIFO_MASK		BIT(0)
 #define RMT_CH0_RAM			0x800
+
+/* HP_SYSTEM_RMT_MEM_LP_CTRL */
+#define RMT_MEM_LP_EN			BIT(2)
+#define RMT_MEM_LP_FORCE_CTRL		BIT(3)
 
 /* One channel tick is 50 ns. */
 #define RMT_TICK_HZ			20000000
@@ -133,6 +137,7 @@ static int esp32s31_ws2812_probe(struct platform_device *pdev)
 	struct device_node *child;
 	struct reset_control *rst;
 	struct clk *clk;
+	void __iomem *mem_lp;
 	unsigned long div;
 	static const int colors[] = {
 		LED_COLOR_ID_RED, LED_COLOR_ID_GREEN, LED_COLOR_ID_BLUE,
@@ -146,6 +151,10 @@ static int esp32s31_ws2812_probe(struct platform_device *pdev)
 	priv->base = devm_platform_ioremap_resource(pdev, 0);
 	if (IS_ERR(priv->base))
 		return PTR_ERR(priv->base);
+
+	mem_lp = devm_platform_ioremap_resource(pdev, 1);
+	if (IS_ERR(mem_lp))
+		return PTR_ERR(mem_lp);
 
 	ret = devm_mutex_init(dev, &priv->lock);
 	if (ret)
@@ -167,9 +176,14 @@ static int esp32s31_ws2812_probe(struct platform_device *pdev)
 	if (!div || div > FIELD_MAX(RMT_CONF0_DIV_CNT))
 		return dev_err_probe(dev, -EINVAL, "RMT clock rate not usable\n");
 
-	/* Channel 0: one RAM block, no carrier, output low when idle. */
+	/* The RMT RAM is off after reset: let the PMU power it, as ESP-IDF does. */
+	writel(readl(mem_lp) & ~(RMT_MEM_LP_EN | RMT_MEM_LP_FORCE_CTRL), mem_lp);
+
+	/* The CPU writes the channel RAM directly, not through the FIFO. */
 	writel(readl(priv->base + RMT_SYS_CONF) | RMT_SYS_APB_FIFO_MASK,
 	       priv->base + RMT_SYS_CONF);
+
+	/* Channel 0: one RAM block, no carrier, output low when idle. */
 	writel(FIELD_PREP(RMT_CONF0_DIV_CNT, div) |
 	       FIELD_PREP(RMT_CONF0_MEM_SIZE, 1) | RMT_CONF0_IDLE_OUT_EN,
 	       priv->base + RMT_CH0_CONF0);
