@@ -1,8 +1,9 @@
 From: Marco Müller <hello@annoyedmilk.ch>
 Subject: [PATCH] leds: rgb: add the ESP32-S31 WS2812 LED driver
 
-The ESP32-S31-Korvo-1 has a WS2812 RGB LED on GPIO37.  Add the driver
-for RMT channel 0 to the RGB LED Kconfig and Makefile.
+The ESP32-S31-Korvo-1 (GPIO37) and the ESP32-S31-Function-CoreBoard-1
+(GPIO60) have a WS2812 RGB LED.  Add the driver for RMT channel 0 to
+the RGB LED Kconfig and Makefile.
 
 Signed-off-by: Marco Müller <hello@annoyedmilk.ch>
 ---
@@ -19,8 +20,8 @@ diff --git a/drivers/leds/rgb/Kconfig b/drivers/leds/rgb/Kconfig
 +	depends on OF && HAS_IOMEM
 +	help
 +	  Say Y to use a WS2812 RGB LED on RMT channel 0 of the ESP32-S31,
-+	  for example the LED of the ESP32-S31-Korvo-1 board.  The firmware
-+	  sets the RMT clocks and the GPIO route.
++	  for example on the ESP32-S31-Korvo-1.  The clock driver gives the
++	  RMT clocks, and pinctrl routes the channel 0 output to the pin.
 +
 +	  To compile this driver as a module, choose M here: the module
 +	  will be called leds-esp32s31-ws2812.

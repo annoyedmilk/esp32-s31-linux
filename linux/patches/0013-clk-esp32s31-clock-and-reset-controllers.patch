@@ -2,9 +2,10 @@ From: Marco Müller <hello@annoyedmilk.ch>
 Subject: [PATCH] clk: esp32s31: add the ESP32-S31 clock and reset controllers
 
 The ESP32-S31 has its clocks and resets in three blocks: LP_AONCLKRST
-(the MPLL), HP_SYS_CLKRST (the root clocks and the peripheral gates) and
-CNNT_SYS (the EMAC TX clock and reset).  Add their driver to the clk
-Kconfig and Makefile.
+(the MPLL), HP_SYS_CLKRST (the root clocks, and the gates, dividers and
+resets of the peripherals) and CNNT_SYS (the EMAC TX clock, and the
+EMAC and SD host resets).  Add their driver to the clk Kconfig and
+Makefile.
 
 Signed-off-by: Marco Müller <hello@annoyedmilk.ch>
 ---
@@ -26,8 +27,8 @@ diff --git a/drivers/clk/Kconfig b/drivers/clk/Kconfig
 +	default SOC_ESP32S31
 +	help
 +	  This driver supports the clocks and resets of the Espressif
-+	  ESP32-S31: the MPLL, the CPU, SYS and APB clocks, the clock gates
-+	  of the peripherals, and the EMAC TX clock and reset.  The firmware
++	  ESP32-S31: the MPLL, the CPU, SYS and APB clocks, and the gates,
++	  dividers and resets of the peripherals and the EMAC.  The firmware
 +	  sets the PLLs and the root clocks, so the driver only reads them.
  
  config COMMON_CLK_EYEQ

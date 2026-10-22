@@ -17,8 +17,8 @@ description: |
   - HP_SYS_CLKRST makes the CPU, SYS and APB clocks, which the firmware
     sets, and has the clocks and the reset of each peripheral, for example
     I2C.
-  - CNNT_SYS makes the EMAC TX clock, has the EMAC reset, and has the EMAC
-    interface registers, which the EMAC gets as a syscon.
+  - CNNT_SYS makes the EMAC TX clock, has the EMAC and SD host resets, and
+    has the EMAC interface registers, which the EMAC gets as a syscon.
 
   The clock and reset numbers are in dt-bindings/clock/esp32s31-clk.h.
 

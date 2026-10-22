@@ -80,7 +80,7 @@ struct esp32s31_clk {
 	struct reset_controller_dev rcdev;
 };
 
-/* A clock in one register.  The MPLL and the root dividers are read only. */
+/* A clock in one register: the MPLL, a root divider or the SDIO LS divider */
 struct esp32s31_reg_clk {
 	struct clk_hw hw;
 	void __iomem *reg;
