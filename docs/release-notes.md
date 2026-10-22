@@ -40,6 +40,23 @@ alone with UART only.
 On the Korvo-1, the LCD shows the Tux logo and the kernel warnings, then
 the tmux desktop for a USB keyboard.
 
+## New in v0.7.1
+
+- The RGB LED works again on the Korvo-1 and the Function-CoreBoard-1. In
+  v0.6.1 and v0.7.0, it stayed dark: since Linux sets up the RMT, nothing
+  powered the RMT RAM, so the RMT sent no pulses. The LED driver now powers
+  the RAM, as ESP-IDF does.
+- The web pages in `/usr/share/examples/www` set the LED with buttons and
+  stay open. The links opened the answer of the CGI script in place of the
+  page.
+- The README shows the features of each board in one table, and the steps
+  for the first SSH connection.
+
+On the Korvo-1 and the Function-CoreBoard-1, flash the new `flash.bin`:
+the LED fix is in the kernel. The new web page is only in the new root:
+write the new disk image, or run `make sdroot`. The module alone has no
+change that you can use; an update keeps the overlay on `data`.
+
 ## New in v0.7.0
 
 - The Korvo-1 is a small Linux machine for a USB keyboard. The login on the
