@@ -35,7 +35,7 @@ BR2_PACKAGE_TCPDUMP=y
 # clock is set.
 BR2_PACKAGE_LINKS=y
 BR2_PACKAGE_MICROPYTHON=y
-# Terminal tools, on the panel and over SSH: windows, an easy editor, files,
+# Terminal tools, on the console and over SSH: windows, an easy editor, files,
 # disk use, a calculator and SQLite.
 BR2_PACKAGE_TMUX=y
 BR2_PACKAGE_NANO=y

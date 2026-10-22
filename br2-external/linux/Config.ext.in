@@ -3,6 +3,6 @@ config BR2_LINUX_KERNEL_EXT_ESP_HOSTED_LINUX
 	select BR2_PACKAGE_ESP_HOSTED_LINUX
 	help
 	  Copy the ESP-Hosted host driver (external/esp-hosted-linux) into
-	  drivers/net/wireless/espressif/esp_hosted of the kernel.  The
-	  kernel patches add the shared-memory transport and the Kbuild
-	  file there.  CONFIG_ESP32S31_HOSTED builds it in.
+	  drivers/net/wireless/espressif/esp_hosted of the kernel.
+	  external.mk copies the shared-memory transport and the Kbuild
+	  file there from linux/.  CONFIG_ESP32S31_HOSTED builds it in.

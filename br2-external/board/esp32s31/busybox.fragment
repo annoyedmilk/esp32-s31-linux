@@ -4,11 +4,11 @@ CONFIG_NTPD=y
 # CONFIG_FEATURE_NTPD_CONF is not set
 
 # Buildroot gives no pidfile directory, so crond puts crond.reboot into /.
-# There the file stays, on the card or in the flash, and @reboot jobs run
+# There the file stays, on the disk or in the flash, and @reboot jobs run
 # only at the first boot.  /var/run is tmpfs.
 CONFIG_PID_FILE_PATH="/var/run"
 
-# S05swap.sh gives zram a higher priority than the swap on the card.
+# S05swap.sh gives zram a higher priority than the swap on the disk.
 CONFIG_FEATURE_SWAPON_PRI=y
 
 # nc to test sockets.

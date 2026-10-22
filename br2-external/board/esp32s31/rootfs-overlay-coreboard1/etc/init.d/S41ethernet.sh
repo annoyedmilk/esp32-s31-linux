@@ -1,9 +1,9 @@
 #!/bin/sh
 # SPDX-License-Identifier: MIT
-# Start a DHCP client on eth0 of the Function-CoreBoard-1.  udhcpc goes to
-# the background at once and keeps trying, so the boot does not wait for a
-# cable.  Without a PHY the link does not come up, and udhcpc would stay in
-# the foreground.
+# Start a DHCP client on eth0 of the Function-CoreBoard-1.  udhcpc -b goes
+# to the background after its discover attempts and keeps trying.  When the
+# link does not come up (no PHY), udhcpc would retry in the foreground and
+# stop the boot, so do not start it.
 # stmmac allocates its rings when the interface goes up.  Its default RX ring
 # of 512 pages would take 2 MiB of the 16 MiB, so make the rings smaller first.
 
