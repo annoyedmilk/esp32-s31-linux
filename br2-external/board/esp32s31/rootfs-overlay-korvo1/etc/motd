@@ -5,10 +5,12 @@ Wi-Fi     wpa_passphrase "<ssid>" "<passphrase>" >> /etc/wpa_supplicant.conf
           /etc/init.d/S40wifi restart
           iw dev wlan0 link; iw dev wlan0 scan | grep SSID
 Bluetooth bluetoothctl, then: scan le, scan bredr, devices
-System    htop, free, df -h, dmesg
-Network   ssh, scp, curl, links, iperf3, tcpdump
-Files     /mnt/sd is the FAT partition of the card
+Desktop   tmux on the panel: Ctrl-b c new window, Ctrl-b n next window,
+          Ctrl-b % and Ctrl-b " split, Ctrl-b d log out
+System    htop, free, df -h, ncdu, dmesg
+Network   ssh, scp, curl, links, lynx, irssi, iperf3, tcpdump
+Files     nnn, tree; /mnt/sd is the FAT partition of the card
           /mnt/usb is the FAT of a USB stick
-Code      micropython, lua, vim, gdbserver, strace
+Code      micropython, lua, vim, nano, sqlite3, bc, gdbserver, strace
 Examples  ls /usr/share/examples
 

@@ -5,11 +5,20 @@
 BR2_ROOTFS_OVERLAY="$(BR2_EXTERNAL_ESP32S31_PATH)/board/esp32s31/rootfs-overlay $(BR2_EXTERNAL_ESP32S31_PATH)/board/esp32s31/rootfs-overlay-usb $(BR2_EXTERNAL_ESP32S31_PATH)/board/esp32s31/rootfs-overlay-korvo1 $(BR2_EXTERNAL_ESP32S31_PATH)/../local-overlay"
 # A login on the panel.
 BR2_ROOTFS_POST_SCRIPT_ARGS="tty1"
-# The mouse on the panel console, and links with graphics on the frame
-# buffer.
+# The mouse on the panel console.
 BR2_PACKAGE_GPM=y
-BR2_PACKAGE_LINKS_GRAPHICS=y
-BR2_PACKAGE_JPEG=y
+# A desktop for the panel and a USB keyboard (the US keymap of the kernel):
+# tmux with its status bar, and small tools for files, text, networks and
+# chat.
+BR2_PACKAGE_TMUX=y
+BR2_PACKAGE_NNN=y
+BR2_PACKAGE_NCDU=y
+BR2_PACKAGE_TREE=y
+BR2_PACKAGE_NANO=y
+BR2_PACKAGE_BC=y
+BR2_PACKAGE_SQLITE=y
+BR2_PACKAGE_LYNX=y
+BR2_PACKAGE_IRSSI=y
 # evtest for the touch controller.  BusyBox has i2cdetect, i2cget and
 # i2ctransfer.
 BR2_PACKAGE_EVTEST=y

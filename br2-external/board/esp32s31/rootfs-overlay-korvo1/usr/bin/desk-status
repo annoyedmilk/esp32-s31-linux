@@ -1,0 +1,10 @@
+#!/bin/sh
+# SPDX-License-Identifier: MIT
+# One line for the tmux status bar: Wi-Fi, Bluetooth and the free memory.
+ssid=$(iw dev wlan0 link 2>/dev/null | sed -n 's/^[[:space:]]*SSID: //p')
+bt=off
+hciconfig hci0 2>/dev/null | grep -q 'UP RUNNING' && bt=on
+while read -r key kb _; do
+	[ "$key" = MemAvailable: ] && break
+done < /proc/meminfo
+echo "${ssid:-no Wi-Fi} | BT $bt | $((kb / 1024)) MiB free |"
