@@ -295,7 +295,7 @@ and the overlay of each board:
   show the full kernel log of the boot; after the banner, they show only
   warnings and errors (`dmesg` has all messages).
 - `/etc/profile.d/desk.sh` (Korvo-1) starts the tmux desktop at the login on
-  `tty1`.
+  `tty1`. Its first window shows `/etc/motd`.
 - The module alone also has `overlay-init` and `S00overlay.sh` (see
   [Flash root](#flash-root-esp32s31)).
 
