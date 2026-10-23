@@ -9,6 +9,7 @@
 #include <sbi/sbi_error.h>
 #include <sbi/sbi_ipi.h>
 #include <sbi/sbi_platform.h>
+#include <sbi/sbi_scratch.h>
 #include <sbi/sbi_system.h>
 #include <sbi/sbi_timer.h>
 #include "esp32s31-hosted-shm.h"
@@ -39,7 +40,9 @@
  * HP_APM checks the accesses of the bus masters, also DMA to PSRAM.  M-mode
  * is TEE mode, and the DMA masters are REE mode.  Region 1 gives the OpenSBI
  * area (the reserved-memory node in esp32s31.dtsi) to TEE mode only.  Thus no
- * DMA master can read or write it.  Regions 0 and 2 are all other addresses.
+ * DMA master can read or write it, except its last word, which HP_APM puts
+ * into region 2.  OpenSBI does not use that word.  Regions 0 and 2 are all
+ * other addresses.
  * A lock keeps each region until the next reset.
  */
 #define ESP32S31_HP_APM_BASE		0x20504400UL
@@ -48,7 +51,8 @@
 #define ESP32S31_HP_APM_END(n)		(ESP32S31_HP_APM_BASE + 0x08UL + 0x0cUL * (n))
 #define ESP32S31_HP_APM_ATTR(n)		(ESP32S31_HP_APM_BASE + 0x0cUL + 0x0cUL * (n))
 #define ESP32S31_FW_BASE		0x50f00000UL
-#define ESP32S31_FW_SIZE		0x00040000UL
+/* The two PMP regions of the root domain: 128 KiB code, 64 KiB data. */
+#define ESP32S31_FW_SIZE		0x00030000UL
 
 /*
  * The TEE mode and APM registers.  S-mode must not change them, so a domain
@@ -276,6 +280,13 @@ static int esp32s31_early_init(bool cold_boot)
 
 	sbi_system_reset_add_device(&esp32s31_reset);
 	sbi_console_set_device(&esp32s31_console);
+
+	/* HP_APM puts the last word below region 2 into region 2: DMA can write it. */
+	if (sbi_scratch_thishart_ptr()->fw_size > ESP32S31_FW_SIZE - 4) {
+		sbi_printf("esp32s31: firmware is larger than 0x%lx bytes\n",
+			   ESP32S31_FW_SIZE - 4);
+		return SBI_ENOMEM;
+	}
 
 	return sbi_domain_root_add_memrange(ESP32S31_TEE_APM_BASE,
 					    ESP32S31_TEE_APM_SIZE,

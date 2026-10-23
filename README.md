@@ -47,7 +47,7 @@ libgpiod and BlueZ. Each board fragment adds only its own parts.
 | Root | squashfs in the flash, with a writable UBIFS overlay (see [Flash root](#flash-root-esp32s31)) | ext4 on the USB stick | ext4 on the microSD card |
 | Persistence | All files: the overlay is in the flash | All files on the stick | All files on the card |
 | Swap | zram (6 MiB) only | zram (6 MiB), then 64 MiB on p3 of the stick | zram (6 MiB), then 64 MiB on p3 of the card |
-| RAM for Linux (MemTotal) | 11.8 MiB | 11.3 MiB | 10.4 MiB |
+| RAM for Linux (MemTotal) | 11.8 MiB | 11.3 MiB | 10.8 MiB |
 | UART console | yes | yes | yes, on the CP2102N USB bridge |
 | LCD console, USB keyboard and tmux desktop | no | no | yes |
 | Touch (GT1151 on I2C) | no | no | yes |

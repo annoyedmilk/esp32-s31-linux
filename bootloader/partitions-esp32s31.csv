@@ -1,8 +1,9 @@
 # ESP32-S31-WROOM-3-N16R16V alone: the root is in the flash.  Linux gets
 # "rootfs" (squashfs) and "data" (UBIFS) as an MTD device (shm_flash.c).
 # They must be adjacent and aligned to the 64 KiB erase block of Linux.
-# esp32s31.dts has the same layout.  The loader copies 256 KiB of OpenSBI,
-# so "opensbi" fills the gap before the app, which must be 64 KiB aligned.
+# esp32s31.dts has the same layout.  The loader copies the first 192 KiB
+# of "opensbi".  The partition fills the gap before the app, which must be
+# 64 KiB aligned.
 # Name,   Type, SubType, Offset,   Size,      Flags
 nvs,      data, nvs,     0x9000,   0x6000,
 phy_init, data, phy,     0xF000,   0x1000,

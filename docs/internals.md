@@ -63,11 +63,12 @@ ROM -> ESP-IDF 2nd stage -> loader (hart 0) -> OpenSBI (hart 1, M) -> Linux (har
 | `0x2F079000` | 4 KiB | LCD DMA descriptor ring (Korvo-1) |
 | `0x50000000` | 15 MiB - 4 KiB | Linux RAM, from the kernel image |
 | `0x50EFF000` | 4 KiB | Guard page below OpenSBI (reserved, no-map, see Protection) |
-| `0x50F00000` | 256 KiB | OpenSBI (reserved, no-map) |
+| `0x50F00000` | 192 KiB | OpenSBI (reserved, no-map): 128 KiB code, 64 KiB data, heap and stack |
+| `0x50F30000` | 64 KiB | Linux RAM |
 | `0x50F40000` | 768 KiB | LCD frame buffer (Korvo-1: reserved, no-map, uncached; other boards: Linux RAM) |
 
-The loader keeps its own copy of these numbers. The device tree
-(`esp32s31.dtsi`) must agree with it.
+The loader (`main.c`, `display.c`) and OpenSBI (`platform.c`) keep their
+own copies of these numbers. The device trees must agree with them.
 
 ### Internal SRAM
 
@@ -232,7 +233,7 @@ This is the part that is most different from other RISC-V SoCs.
 
 ## Protection
 
-- **PMP.** OpenSBI gives its memory (`0x50F00000`, 256 KiB) no S/U access.
+- **PMP.** OpenSBI gives its memory (`0x50F00000`, 192 KiB) no S/U access.
   PMP entries must not overlap on this CPU, even for a short time.
 - **APM.** `HP_APM` checks the accesses of the bus masters, also DMA to
   PSRAM. M-mode is TEE mode, and the DMA masters are REE mode. OpenSBI
@@ -247,7 +248,9 @@ This is the part that is most different from other RISC-V SoCs.
   start of a region into that region. Thus `0x50EFFFFC` is TEE only: a DMA
   write to it is lost, and an S-mode cache line fill gets wrong data for
   it. The device tree reserves the page `0x50EFF000` as no-map, so Linux
-  never uses it.
+  never uses it. In the same way, `0x50F2FFFC` is in region 2, and DMA can
+  write it. Thus OpenSBI must end 4 bytes below `0x50F30000`.
+  `esp32s31_early_init()` checks this.
 - **`TEE_SUPERVISOR_PRIV_SEL`** (`0x20504200`) is 0 after the boot, and
   S-mode runs with 0. When it is set for a hart, the S-mode accesses of that
   hart use the M-mode (TEE) path, and the APM protection above is gone.

@@ -27,7 +27,7 @@
 
 		/* M-mode firmware.  Linux must never map or allocate it. */
 		opensbi_region: opensbi@50f00000 {
-			reg = <0x50f00000 0x40000>;
+			reg = <0x50f00000 0x30000>;
 			no-map;
 		};
 
