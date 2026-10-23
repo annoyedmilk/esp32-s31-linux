@@ -321,10 +321,13 @@ the USB transport in shared SRAM. The layout is in
   Without it, the ROM handles the received EAPOL frames, and the 4-way
   handshake fails. `scripts/patch-esp-idf.sh` applies it as a local
   commit.
-- With WPA3-SAE, `wpa_supplicant` on hart 1 can need more time between the
-  SAE commit and the confirm than the closed Wi-Fi library on hart 0 allows
-  (`cnx_auth_timeout`). Then the first connection fails, and the second try
-  connects.
+- With WPA3-SAE and protected management frames, the first connection
+  after a reset can fail. The access point does not answer the first SAE
+  commit, and after approximately 4 s the closed Wi-Fi library on hart 0
+  stops (`auth timeout`). The second try connects. After `reboot`,
+  `wpa_supplicant` sends a deauthentication, and the first try connects.
+  Thus the access point probably keeps the protected association of the
+  board until its SA Query fails.
 
 ## The flash root without a card
 

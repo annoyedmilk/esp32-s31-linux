@@ -77,7 +77,7 @@ change that you can use; an update keeps the overlay on `data`.
   and errors, and `dmesg` has all messages. On the Korvo-1, the first tmux
   window then shows the list of the tools (`/etc/motd`). Each line of the
   log scrolls the LCD, so the boot of the Korvo-1 to the console takes
-  approximately 2 s more (9.2 to 9.6 s).
+  approximately 2 s more: 9.2 to 9.6 s (v0.6.1: 7.3 to 7.5 s).
 - A USB stick that you connect to the Korvo-1 after the boot is mounted
   once, without "Can't open blockdev" on the console.
 
