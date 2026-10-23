@@ -336,8 +336,10 @@ and the overlay of each board:
   the kernel, so a stick that you connect later is also mounted
   (`/etc/mdev.conf`).
 - `S40wifi` starts `wpa_supplicant` on `wlan0` in the background, so that
-  the console does not wait for it. `S40wifi restart` waits. `S40bluetoothd`
-  starts BlueZ for `hci0`.
+  the console does not wait for it. `S40wifi restart` waits.
+- BlueZ (`dbus-daemon` and `bluetoothd`) starts at the first `bluetoothctl`,
+  because the two daemons hold memory while idle. `S40bluetooth` starts
+  them at boot when a device is paired, so that it can connect.
 - `S41ethernet.sh` (Function-CoreBoard-1) makes the stmmac rings smaller, then
   starts DHCP on `eth0` in the background. Its udhcpc hook `wifi-metric` and
   `/etc/sysctl.d/20-linkdown.conf` send the traffic over Ethernet when the

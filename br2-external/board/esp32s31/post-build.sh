@@ -21,6 +21,22 @@ set -- "$target"
 # BusyBox installs a start script for its httpd.  Here httpd is a tool.
 rm -f "$1/etc/init.d/S90httpd"
 
+# dbus-daemon and bluetoothd hold memory while idle.  Without the S prefix,
+# they do not start at boot: bluetooth-start starts them at the first
+# bluetoothctl, or S40bluetooth at boot for a paired device.
+for s in S30dbus-daemon S40bluetoothd; do
+	if [ -f "$1/etc/init.d/$s" ]; then
+		mv "$1/etc/init.d/$s" "$1/etc/init.d/${s#S??}"
+	fi
+done
+if ! grep -q bluetooth-start "$1/usr/bin/bluetoothctl"; then
+	mv "$1/usr/bin/bluetoothctl" "$1/usr/libexec/bluetooth/bluetoothctl"
+	printf '#!/bin/sh\n%s\n' \
+		'/usr/sbin/bluetooth-start && exec /usr/libexec/bluetooth/bluetoothctl "$@"' \
+		>"$1/usr/bin/bluetoothctl"
+	chmod 755 "$1/usr/bin/bluetoothctl"
+fi
+
 # Buildroot copies the overlays with go=rX.  local-overlay/ can give this file
 # a network key.
 chmod 600 "$1/etc/wpa_supplicant.conf"

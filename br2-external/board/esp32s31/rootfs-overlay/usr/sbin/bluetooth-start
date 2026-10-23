@@ -1,0 +1,26 @@
+#!/bin/sh
+# SPDX-License-Identifier: MIT
+# Start dbus-daemon and bluetoothd when they do not run.  They hold memory
+# while idle, so by default they do not start at boot.  The bluetoothctl
+# wrapper (post-build.sh) runs this script, and S40bluetooth runs it at boot
+# when a device is paired.
+
+# A second run at the same time loses the start, but then the daemon runs.
+for d in dbus-daemon bluetoothd; do
+	pidof $d >/dev/null && continue
+	/etc/init.d/$d start >/dev/null || pidof $d >/dev/null ||
+		{ echo "bluetooth: $d did not start" >&2; exit 1; }
+done
+
+# Wait until bluetoothd has the adapter, so that the first command of a
+# script finds a controller.
+[ -e /sys/class/bluetooth/hci0 ] || exit 0
+i=0
+while [ $i -lt 20 ]; do
+	dbus-send --system --print-reply --dest=org.bluez / \
+		org.freedesktop.DBus.ObjectManager.GetManagedObjects 2>/dev/null |
+		grep -q org.bluez.Adapter1 && exit 0
+	sleep 0.5
+	i=$((i + 1))
+done
+echo "bluetooth: bluetoothd has no adapter" >&2

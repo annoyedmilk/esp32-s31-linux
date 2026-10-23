@@ -1,0 +1,13 @@
+#!/bin/sh
+# SPDX-License-Identifier: MIT
+# dbus-daemon and bluetoothd start at the first bluetoothctl.  A paired
+# device can connect at boot, so with one, start them now, in the background.
+
+case "$1" in
+start)
+	set -- /var/lib/bluetooth/*/*/info
+	[ -e "$1" ] && /usr/sbin/bluetooth-start &
+	;;
+esac
+
+exit 0
