@@ -1,0 +1,104 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Zhou Xiao <zhouxiao@espressif.com>
+Date: Fri, 24 Jul 2026 11:19:53 +0800
+Subject: [PATCH] fix(esp_timer): prevent restart expiry race
+
+
+Upstream: d11ebac1dfe (release/v6.1)
+---
+ components/esp_timer/src/esp_timer.c          |  8 ++-
+ .../esp_timer/test_apps/main/test_esp_timer.c | 56 +++++++++++++++++++
+ 2 files changed, 63 insertions(+), 1 deletion(-)
+
+diff --git a/components/esp_timer/src/esp_timer.c b/components/esp_timer/src/esp_timer.c
+index 9d0c2db5f2c..5330766c621 100644
+--- a/components/esp_timer/src/esp_timer.c
++++ b/components/esp_timer/src/esp_timer.c
+@@ -157,13 +157,19 @@ static esp_err_t ESP_TIMER_IRAM_ATTR timer_restart(esp_timer_handle_t timer, uin
+         return ESP_ERR_INVALID_ARG;
+     }
+ 
+-    if (!is_initialized() || !timer_armed(timer)) {
++    if (!is_initialized()) {
+         return ESP_ERR_INVALID_STATE;
+     }
+ 
+     esp_timer_dispatch_t dispatch_method = timer->flags & FL_ISR_DISPATCH_METHOD;
+     timer_list_lock(dispatch_method);
+ 
++    /* The timer may expire while this task is waiting for the list lock. */
++    if (!timer_armed(timer)) {
++        timer_list_unlock(dispatch_method);
++        return ESP_ERR_INVALID_STATE;
++    }
++
+     const int64_t now = esp_timer_impl_get_time();
+     const uint64_t period = timer->period;
+ 
+diff --git a/components/esp_timer/test_apps/main/test_esp_timer.c b/components/esp_timer/test_apps/main/test_esp_timer.c
+index 993273c9a06..25b727e8585 100644
+--- a/components/esp_timer/test_apps/main/test_esp_timer.c
++++ b/components/esp_timer/test_apps/main/test_esp_timer.c
+@@ -1025,6 +1025,62 @@ TEST_CASE("one-shot esp_timer can be restarted", "[esp_timer]")
+     vTaskDelay(3); // wait for the esp_timer task to delete all timers
+ }
+ 
++#if CONFIG_ESP_TIMER_SUPPORTS_ISR_DISPATCH_METHOD && !CONFIG_IDF_TARGET_LINUX
++IRAM_ATTR static void restart_expiry_race_timer_cb(void* arg)
++{
++    ++(*(volatile uint32_t*)arg);
++}
++
++TEST_CASE("one-shot timer expiry racing with restart", "[esp_timer]")
++{
++    volatile uint32_t callback_count = 0;
++    size_t restart_wins_count = 0;
++    size_t expiry_wins_count = 0;
++    esp_timer_handle_t timer;
++
++    const esp_timer_create_args_t create_args = {
++        .callback = restart_expiry_race_timer_cb,
++        .arg = (void*) &callback_count,
++        .dispatch_method = ESP_TIMER_ISR,
++        .name = "restart_expiry_race",
++    };
++    TEST_ESP_OK(esp_timer_create(&create_args, &timer));
++
++    const size_t iterations = 1000;
++    for (size_t i = 0; i < iterations; ++i) {
++        uint32_t previous_callback_count = callback_count;
++        TEST_ESP_OK(esp_timer_start_once(timer, 100));
++
++        uint64_t expiry;
++        TEST_ESP_OK(esp_timer_get_expiry_time(timer, &expiry));
++
++        while (esp_timer_get_time() + 1 < expiry) { };
++
++        /* The esp_timer_restart() and timer ISR race for the timer-list lock.
++         * - If restart() gets the lock first, it reschedules the armed timer and the old
++         * callback must not run, leaving callback_count unchanged.
++         * - If the ISR gets it first, it removes the expired one-shot timer.
++         * Restart then sees it unarmed and fails; the ISR subsequently invokes
++         * the callback, incrementing callback_count. */
++        esp_err_t result = esp_timer_restart(timer, SEC);
++        if (result == ESP_OK) {
++            ++restart_wins_count;
++            esp_rom_delay_us(50);
++            TEST_ASSERT_EQUAL_UINT32(previous_callback_count, callback_count);
++            TEST_ESP_OK(esp_timer_stop(timer));
++        } else {
++            ++expiry_wins_count;
++            TEST_ESP_ERR(ESP_ERR_INVALID_STATE, result);
++            esp_rom_delay_us(200);
++            TEST_ASSERT_NOT_EQUAL(previous_callback_count, callback_count);
++        }
++    }
++
++    printf("restart_wins_count=%zu, expiry_wins_count=%zu\n", restart_wins_count, expiry_wins_count);
++    TEST_ESP_OK(esp_timer_delete(timer));
++}
++#endif
++
+ #ifdef CONFIG_ESP_TIMER_SUPPORTS_ISR_DISPATCH_METHOD
+ static int64_t old_time[2];
+ 

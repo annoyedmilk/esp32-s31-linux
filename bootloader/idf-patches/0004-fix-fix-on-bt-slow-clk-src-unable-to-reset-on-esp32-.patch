@@ -1,0 +1,28 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Jin Chen <jinchen@espressif.com>
+Date: Thu, 30 Jul 2026 09:05:49 +0800
+Subject: [PATCH] fix: fix on bt slow clk src unable to reset on esp32-h4 and
+ esp32-s31
+
+(cherry picked from commit 287b7c72cd78dd7ad44b860a220852e5b6700927)
+
+Co-authored-by: cjin <jinchen@espressif.com>
+
+Upstream: d956326a93b (release/v6.1)
+---
+ components/bt/porting_btdm/controller/btdm_common/src/btdm_lp.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/components/bt/porting_btdm/controller/btdm_common/src/btdm_lp.c b/components/bt/porting_btdm/controller/btdm_common/src/btdm_lp.c
+index 7046b2f5698..d2adbb939dc 100644
+--- a/components/bt/porting_btdm/controller/btdm_common/src/btdm_lp.c
++++ b/components/bt/porting_btdm/controller/btdm_common/src/btdm_lp.c
+@@ -159,7 +159,7 @@ void btdm_lp_set_lpclk_src(modem_clock_lpclk_src_t clk_src)
+         return;
+     }
+ 
+-    if (clk_src >= MODEM_CLOCK_LPCLK_SRC_MAX || clk_src <= MODEM_CLOCK_LPCLK_SRC_INVALID) {
++    if (clk_src >= MODEM_CLOCK_LPCLK_SRC_MAX) {
+         return;
+     }
+ 

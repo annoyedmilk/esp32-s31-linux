@@ -383,7 +383,9 @@ the USB transport in shared SRAM. The layout is in
 - The ESP-Hosted Wi-Fi libraries need `rom.patch` of ESP-Hosted in ESP-IDF.
   Without it, the ROM handles the received EAPOL frames, and the 4-way
   handshake fails. `scripts/patch-esp-idf.sh` applies it as a local
-  commit.
+  commit, with the fixes from newer ESP-IDF in `bootloader/idf-patches`.
+  The backports are only fixes that do not need newer Wi-Fi or Bluetooth
+  libraries. The others wait until ESP-Hosted moves to a newer ESP-IDF.
 - With WPA3-SAE and protected management frames, the first connection
   after a reset can fail. The access point does not answer the first SAE
   commit, and after approximately 4 s the closed Wi-Fi library on hart 0

@@ -38,9 +38,9 @@ GMAKE ?= $(shell command -v gmake 2>/dev/null || command -v make)
 JOBS ?= $(shell sysctl -n hw.ncpu 2>/dev/null || nproc 2>/dev/null || echo 4)
 
 OPENSBI_DIR := external/opensbi
-# The ESP-Hosted firmware needs these patches in ESP-IDF (scripts/patch-esp-idf.sh).
-HOSTED_IDF_PATCHES := $(addprefix $(CURDIR)/external/esp-hosted-linux/esp/esp_driver/lib/, \
-	rom.patch)
+# The ESP-IDF patches: rom.patch of ESP-Hosted, then the backports.
+IDF_PATCHES := $(addprefix $(CURDIR)/external/esp-hosted-linux/esp/esp_driver/lib/, \
+	rom.patch) $(sort $(wildcard $(CURDIR)/bootloader/idf-patches/*.patch))
 OPENSBI_SRC := $(BUILD_DIR)/opensbi-src
 OPENSBI_OUT := $(CURDIR)/$(BUILD_DIR)/opensbi
 OPENSBI_PATCHES := $(sort $(wildcard opensbi/patches/*.patch))
@@ -208,10 +208,10 @@ bootloader:
 		fi; \
 	done
 	@mkdir -p "$(BUILD_DIR)"
-	@for p in $(HOSTED_IDF_PATCHES); do \
+	@for p in $(IDF_PATCHES); do \
 		git -C "$(IDF_PATH)" apply --recount --reverse --check "$$p" 2>/dev/null || exit 1; \
 	done || { \
-		echo 'apply the ESP-Hosted patches to ESP-IDF first:'; \
+		echo 'apply the ESP-Hosted patches and the backports to ESP-IDF first:'; \
 		echo '  IDF_PATH=$(IDF_PATH) scripts/patch-esp-idf.sh'; exit 1; }
 	@export IDF_PYTHON_ENV_PATH="$(IDF_PYTHON_ENV)"; \
 	if ! source "$(IDF_PATH)/export.sh" >"$(BUILD_DIR)/idf-export.log" 2>&1; then \
