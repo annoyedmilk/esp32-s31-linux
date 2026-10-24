@@ -231,6 +231,15 @@ This is the part that is most different from other RISC-V SoCs.
   the driver sets smaller ones (`patches/0004`). The DWC2 register window
   must include the FIFO windows at `0x1000 × (channel + 1)`.
 
+## Page blocks
+
+Without huge pages, the page block order is `PAGE_BLOCK_MAX_ORDER`, 10 by
+default: 4 MiB blocks, and 16 MiB has only 4. Page cache, slab and stacks
+then share 2 or 3 blocks, and each migrate-type fallback counts the free
+pages of a whole block, 1024 `struct page`. During a disk read, this took
+45% of the CPU time. The port uses order 3 (32 KiB, `PAGE_ALLOC_COSTLY_ORDER`):
+the disk read went from 9 to 19 MB/s.
+
 ## Protection
 
 - **PMP.** OpenSBI gives its memory (`0x50F00000`, 192 KiB) no S/U access.
