@@ -1,564 +1,216 @@
 # ESP32-S31 Linux
 
-Linux 7.3 and OpenSBI 1.9 on the ESP32-S31: on the ESP32-S31-Korvo-1 and
-ESP32-S31-Function-CoreBoard-1 boards, and on the ESP32-S31-WROOM-3-N16R16V
-module alone (the module of the two boards).
-Linux uses the 16 MiB octal PSRAM as its memory.
+Linux 7.3 and OpenSBI 1.9 on the Espressif ESP32-S31, a microcontroller
+with two RV32 harts at 320 MHz and 512 KiB of SRAM. Linux runs on hart 1
+in the 16 MiB octal PSRAM. Hart 0 runs the ESP-Hosted radio firmware for
+Wi-Fi and Bluetooth. A stock kernel with a small patch set boots a
+Buildroot userspace: a shell, `wpa_supplicant`, BlueZ, SSH, USB and more.
 
 ```text
-ESP ROM -> ESP-IDF 2nd stage -> loader -> OpenSBI -> Linux -> Buildroot root (card, USB stick or flash)
+ESP ROM -> ESP-IDF 2nd stage -> loader (hart 0) -> OpenSBI (hart 1) -> Linux (hart 1)
 ```
 
 ![fastfetch on the ESP32-S31-Korvo-1](docs/fastfetch.svg)
 
-## About
+[docs/internals.md](docs/internals.md) tells how the port works and where
+the code is. [docs/release-notes.md](docs/release-notes.md) lists the
+changes of each release.
 
-The ESP32-S31 is a microcontroller: two RV32 harts at 320 MHz, 512 KiB of
-SRAM, Wi-Fi 6 and Bluetooth. It was not made for Linux. This project runs a
-stock Linux 7.3 kernel with a small patch set on it, with a real userspace:
-a shell on the LCD, Wi-Fi with `wpa_supplicant`, Bluetooth with BlueZ, SSH,
-USB keyboards and sticks, `vim`, `gdb`, `strace`, MicroPython and a
-text-mode web browser (`links`).
+## Quick start
 
-You can use it in two ways:
+There are three builds. The ESP32-S31-WROOM-3-N16R16V module is the module
+of the two boards.
 
-- **To try it.** Flash a release, write the disk image (not for the
-  module alone), and log in. It takes about ten minutes.
-- **To learn from it.** The SoC has no PLIC, no Zicbom and no coherent DMA.
-  Each of these has a solution here that you can read in a few hundred
-  lines. [docs/internals.md](docs/internals.md)
-  tells the full story for kernel developers.
-
-## Boards
-
-There are three builds. Select one with `BOARD` for each `make` target. The
-Korvo-1 has its root on a microSD card and the Function-CoreBoard-1 on a USB
-stick. The disk has much space, so these two get the full set of tools. The
-module alone has only its 16 MB flash, so it gets a small set.
-
-The builds share one base configuration
-(`br2-external/board/esp32s31/defconfig/common.fragment`): the kernel, the
-toolchain, BusyBox, Dropbear, OpenSSL, `wpa_supplicant`, curl, iperf3,
-libgpiod and BlueZ. Each board fragment adds only its own parts.
-
-| | `esp32s31` (the default) | `coreboard1` | `korvo1` |
+| Board | Build | Root | Release files |
 | --- | --- | --- | --- |
-| Hardware | The ESP32-S31-WROOM-3-N16R16V alone (16 MB flash, 16 MB PSRAM), on any board with UART0 | ESP32-S31-Function-CoreBoard-1 | ESP32-S31-Korvo-1, with the ESP32-S31-WROOM-3-N16R16V |
-| Root | squashfs in the flash, with a writable UBIFS overlay (see [Flash root](#flash-root-esp32s31)) | ext4 on the USB stick | ext4 on the microSD card |
+| ESP32-S31-WROOM-3-N16R16V module alone, on any board with UART0 | `esp32s31` (the default) | flash | `*-esp32s31-flash.zip` |
+| ESP32-S31-Function-CoreBoard-1 | `coreboard1` | USB stick | `*-coreboard1-flash.zip`, `*-coreboard1-usb.img.xz` |
+| ESP32-S31-Korvo-1 | `korvo1` | microSD card | `*-korvo1-flash.zip`, `*-korvo1-sdcard.img.xz` |
+
+1. Get the files of your board from the newest
+   [release](https://github.com/annoyedmilk/esp32-s31-linux/releases).
+2. Install the tested esptool: `pip install "esptool==5.5.0"`
+   (the version in `bootloader/esptool.version`).
+3. Connect the UART port of the board. On the Korvo-1, this is the UART
+   Type-C port (a CP2102N bridge).
+4. Flash: `esptool --chip esp32s31 -p PORT -b 921600 write-flash 0x0 flash.bin`
+5. Write the disk image, for example with balenaEtcher. All data on the
+   disk is lost. Korvo-1: write `*-korvo1-sdcard.img.xz` to a microSD card.
+   Function-CoreBoard-1: write `*-coreboard1-usb.img.xz` to a USB stick.
+   Put the disk into the board. The module alone needs no disk.
+6. Open a terminal on the same port at 115200 baud. Push reset. When the
+   console shows `=== ESP32-S31 Linux / Buildroot ===`, you are root.
+
+On the Korvo-1, the LCD also shows a console. Connect a USB keyboard and
+log in on `tty1`: it starts a `tmux` desktop.
+
+### Wi-Fi
+
+```sh
+wpa_passphrase "<ssid>" "<passphrase>" >> /etc/wpa_supplicant.conf
+/etc/init.d/S40wifi restart
+wpa_cli status
+```
+
+For WPA3 and WPA2/WPA3 networks, the network block needs
+`key_mgmt=WPA-PSK SAE`, `ieee80211w=1` and the passphrase as `psk="..."`.
+The configuration stays after a reboot. `S40wifi` also reads
+`wpa_supplicant.conf` from p1 of the disk (the FAT partition), so a board
+without a console can get its network from a computer.
+
+### SSH
+
+The consoles log in as root. Dropbear takes root over SSH only with a key.
+On the console of the board, add your public key (one line):
+
+```sh
+mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@host' >> /root/.ssh/authorized_keys && chmod 600 /root/.ssh/authorized_keys && sync
+```
+
+Read the address with `ip -4 addr show wlan0` (`eth0` on the
+Function-CoreBoard-1 with a cable), then `ssh root@<address>`. To check the
+host key, run `dropbearkey -y -f /etc/dropbear/dropbear_ed25519_host_key |
+tail -1` on the console. A new disk image or `make sdroot` gives the board a
+new host key and no `authorized_keys`; then run `ssh-keygen -R <address>`
+on your computer. For your own builds, put the key into
+`local-overlay/root/.ssh/authorized_keys`.
+
+## What works
+
+| | `esp32s31` | `coreboard1` | `korvo1` |
+| --- | --- | --- | --- |
+| Root | squashfs in the flash, with a writable UBIFS overlay | ext4 on the USB stick | ext4 on the microSD card |
 | Persistence | All files: the overlay is in the flash | All files on the stick | All files on the card |
-| Swap | zram (6 MiB) only | zram (6 MiB), then 64 MiB on p3 of the stick | zram (6 MiB), then 64 MiB on p3 of the card |
+| Swap | zram (6 MiB) | zram, then 64 MiB on p3 of the stick | zram, then 64 MiB on p3 of the card |
 | RAM for Linux (MemTotal) | 12.2 MiB | 11.6 MiB | 10.8 MiB |
-| UART console | yes | yes | yes, on the CP2102N USB bridge |
-| LCD console, USB keyboard and tmux desktop | no | no | yes |
-| Touch (GT1151 on I2C) | no | no | yes |
+| UART console (`ttyS0`) | yes | yes | yes, on the CP2102N bridge |
+| LCD console, USB keyboard, tmux desktop, touch (GT1151) | no | no | yes |
 | Wi-Fi station (`wlan0`): WPA2 and WPA3 Personal | yes | yes | yes |
-| Wi-Fi station: WPA2 and WPA3 Enterprise (PEAP, TTLS, TLS) | available | available | available |
+| Wi-Fi Enterprise (PEAP, TTLS, TLS) | available, not tested | available, not tested | available, not tested |
 | Wi-Fi access point | `wpa_supplicant` | `wpa_supplicant`, `hostapd` | `wpa_supplicant`, `hostapd` |
 | Bluetooth (`hci0`): BlueZ, `bluetoothctl` | yes | yes | yes |
 | Classic BlueZ tools (`hciconfig`, `hcitool`) | no | yes | yes |
 | Gigabit Ethernet (`eth0`) | no | yes | no |
-| USB host | no | yes: the root stick, and more storage | yes: keyboards, mice, storage |
-| microSD | no | no | yes: the root card |
-| RGB LED (`/sys/class/leds/rgb:status`) | no | yes, on GPIO60 | yes, on GPIO37 |
-| GPIO, hardware RNG | yes | yes | yes |
-| SSH (Dropbear, key only) | yes | yes | yes |
-| Userspace | BusyBox, Dropbear, wpa_supplicant, iw, curl, bluetoothctl, iperf3, Lua, the GPIO tools, flash_erase | bash, tmux, vim, nano, gdb, strace, MicroPython, Lua, links, nnn, sqlite3, curl, tcpdump, htop, ethtool and more | A tmux desktop on the LCD, bash, vim, nano, gdb, strace, MicroPython, Lua, links, lynx, irssi, nnn, sqlite3, curl, tcpdump, htop and more |
+| USB host (DWC2) | no | the root stick, more storage | keyboards, mice, storage |
+| microSD | no | no | the root card |
+| RGB LED (`/sys/class/leds/rgb:status`) | no | GPIO60 | GPIO37 |
+| GPIO, hardware RNG, HTTPS with `curl`, SSH (Dropbear, key only) | yes | yes | yes |
 
-## Feature details
+Notes:
 
-On all boards:
+- The Korvo-1 and the Function-CoreBoard-1 do not boot without their root
+  disk. The kernel waits for it.
+- On the module alone, `flash_erase /dev/mtd1 0 0` and a reboot put the
+  root back to the image. `make flash` does not write the `data` partition,
+  so the overlay stays after an update.
+- `poweroff` puts the chip into deep sleep. Only the reset button starts it
+  again.
+- Linux is uniprocessor. The FPU is not used (F without D), so userspace is
+  soft-float.
+- With WPA3-SAE, the first connection can fail. `wpa_supplicant` tries again.
+- `hcitool lescan` fails. Use `bluetoothctl` and `scan le`.
+- There is no audio or camera driver.
 
-- UART console (`ttyS0`), on the CP2102N bridge of the Korvo-1.
-- Wi-Fi as `wlan0` (cfg80211 full-MAC) through the ESP-Hosted firmware on
-  hart 0: station, and access point with `wpa_supplicant` (`mode=2`). WPA2
-  and WPA3-SAE Personal. WPA2 and WPA3 Enterprise (PEAP, TTLS, TLS) are
-  available. The release notes give the iperf3 throughput of each release.
-- Bluetooth as `hci0` through the same firmware: BR/EDR and LE. BlueZ:
-  `bluetoothd` and `bluetoothctl`, LE scan and BR/EDR inquiry.
-- HTTPS with `curl`, which verifies certificates against the CA bundle.
-- Hardware RNG, GPIO, swap to zram, `reboot`, and `poweroff` into deep sleep.
+## Userspace
 
-On the Korvo-1 also:
+| Build | Packages |
+| --- | --- |
+| All boards | BusyBox, Dropbear, OpenSSL with the CA bundle, `wpa_supplicant` (WPA3, EAP, access point) with `wpa_cli` and `wpa_passphrase`, `iw`, `curl`, `iperf3`, the libgpiod 2 tools, BlueZ (`bluetoothd`, `bluetoothctl`), Lua |
+| `esp32s31` also | The MTD tools (`mtdinfo`, `flash_erase`) |
+| `coreboard1` and `korvo1` also | `hostapd`, the classic BlueZ tools (`hciconfig`, `hcitool`), bash, coreutils, vim, nano, less, file, htop, fastfetch, strace, gdb and `gdbserver`, tcpdump, links, MicroPython, tmux, nnn, ncdu, tree, bc, sqlite3, e2fsprogs, dosfstools, an SFTP server |
+| `coreboard1` also | `ethtool` |
+| `korvo1` also | `gpm`, `lynx`, `irssi`, `evtest` |
 
-- 800x480 LCD as `/dev/fb0` with `fbcon`, and a login on `tty1`.
-- A desktop for a USB keyboard on the LCD: the login on `tty1` starts
-  `tmux`, with a status bar for Wi-Fi, Bluetooth, the free memory and the
-  clock. A new login attaches to the same session. SSH and the UART get a
-  usual shell. The mouse works in the console (`gpm`).
-- The GT1151 touch controller of the LCD on I2C (`goodix`, polled), as an
-  input device. `i2cdetect -y 0` shows it and the ES8389 codec on the bus.
-- USB host (DWC2): keyboards, mice, `hidraw` and mass storage. A USB stick
-  is optional space for data: its FAT is on `/mnt/usb`, also when you
-  connect the stick after the boot.
-- microSD (`dw_mmc` with internal DMA): FAT on p1, ext4 root on p2, swap
-  on p3.
+`/etc/motd` lists the first commands. `/usr/share/examples` has example
+scripts.
 
-On the Function-CoreBoard-1 also:
-
-- Gigabit Ethernet as `eth0` (stmmac), with DHCP at boot. When `eth0` and
-  `wlan0` both have a lease, the traffic goes over Ethernet. Without the
-  cable, it goes over Wi-Fi.
-- USB host (DWC2): the root stick, and more USB storage through a hub. The
-  stick has FAT on p1 (`/mnt/usb`), the ext4 root on p2 and swap on p3.
-
-## Try it
-
-1. Get the files of your board from the newest release on the
-   [releases page](https://github.com/annoyedmilk/esp32-s31-linux/releases):
-   `*-esp32s31-flash.zip` for the ESP32-S31-WROOM-3-N16R16V alone,
-   `*-coreboard1-flash.zip` and `*-coreboard1-usb.img.xz` for the
-   Function-CoreBoard-1, or `*-korvo1-flash.zip` and
-   `*-korvo1-sdcard.img.xz` for the Korvo-1.
-2. Flash: `pip install "esptool==5.5.0"` (the tested version, in
-   `bootloader/esptool.version`), connect the UART port, then
-   `esptool --chip esp32s31 -p PORT -b 921600 write-flash 0x0 flash.bin`.
-3. Write the disk image to a microSD card (Korvo-1) or a USB stick
-   (Function-CoreBoard-1), for example with balenaEtcher, and put it into
-   the board. The module alone needs no disk.
-4. Open the console on the UART port at 115200 baud. Push reset. When the
-   console shows `=== ESP32-S31 Linux / Buildroot ===`, you are root.
-5. Connect to Wi-Fi (see [Wi-Fi](#wi-fi)), then add your SSH key (see
-   [First SSH connection](#first-ssh-connection)).
-
-## First SSH connection
-
-The consoles log in as root. Dropbear takes root over SSH only with a key
-(`-g` in `/etc/default/dropbear`). A new image has no key, so do the first
-steps on the UART console (on the Korvo-1, the LCD console with a USB
-keyboard also works).
-
-1. On your computer, show your public key. If you have none, make one with
-   `ssh-keygen -t ed25519`.
-
-   ```sh
-   cat ~/.ssh/id_ed25519.pub
-   ```
-
-2. On the console of the board, add the key. Put your key in place of
-   `ssh-ed25519 AAAA... you@host`. It is one line, so you can paste it:
-
-   ```sh
-   mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@host' >> /root/.ssh/authorized_keys && chmod 600 /root/.ssh/authorized_keys && sync
-   ```
-
-3. On the console, read the address of the board. Use `eth0` on the
-   Function-CoreBoard-1 when the Ethernet cable is in.
-
-   ```sh
-   ip -4 addr show wlan0
-   ```
-
-4. On your computer, connect:
-
-   ```sh
-   ssh root@<address>
-   ```
-
-   At the first connection, `ssh` asks you to accept the host key of the
-   board. To check it, compare its fingerprint with the output of this
-   command on the console:
-
-   ```sh
-   dropbearkey -y -f /etc/dropbear/dropbear_ed25519_host_key | tail -1
-   ```
-
-The board makes its host key at the first boot and keeps it in
-`/etc/dropbear` on the root. On the Korvo-1 and the Function-CoreBoard-1, a
-new disk image or `make sdroot` writes a new root: the board then has a new
-host key and no `authorized_keys`. On the module alone, both stay in the
-overlay until you erase `data`. After a new host key, `ssh` on your computer
-stops with `REMOTE HOST IDENTIFICATION HAS CHANGED`. Check the new key as in
-step 4, then remove the old key and connect again:
-
-```sh
-ssh-keygen -R <address>
-```
-
-For your own builds, put the key into `local-overlay/root/.ssh/authorized_keys`
-(see [Build, flash and monitor](#build-flash-and-monitor)). Then each image
-has it.
+- **Wi-Fi.** `iw dev wlan0 link` shows the connection, `iw dev wlan0 scan |
+  grep SSID` the networks. `/usr/share/examples/ap.sh SSID PASSPHRASE`
+  starts a WPA2 access point at 192.168.4.1 without DHCP.
+  `/etc/init.d/S40wifi restart` goes back to the station.
+- **Bluetooth.** `bluetoothctl`, then `scan le`, `scan bredr`, `devices`.
+  `bluetoothd` starts at the first `bluetoothctl`.
+  `/usr/share/examples/ble-scan.sh 10` lists the LE devices after a scan of
+  10 seconds.
+- **GPIO.** `gpiodetect`, `gpioinfo`, `gpioget --numeric -c gpiochip0 PIN`
+  and `gpioset -t0 -c gpiochip0 PIN=1`. `/usr/share/examples/gpio.sh PIN
+  [0|1]` reads or sets a pin. The kernel refuses the pins of the flash, the
+  console, the loader and the drivers (`gpio-reserved-ranges` in the device
+  tree).
+- **LED** (Function-CoreBoard-1, Korvo-1). The WS2812 is
+  `/sys/class/leds/rgb:status`: write `R G B` (0 to 255) to
+  `multi_intensity`, then `255` to `brightness`.
+  `/usr/share/examples/led.sh R G B` (Function-CoreBoard-1) and
+  `micropython /usr/share/examples/led.py R G B` (Korvo-1) do this.
+- **Network.** `iperf3` measures the throughput against a server.
+  `curl` verifies certificates against the CA bundle.
+  `/usr/share/examples/report.sh URL` sends the uptime and the free memory
+  with HTTPS; its comment shows the `crontab` line for each 5 minutes.
+- **Code.** `lua`, and `micropython` on the Function-CoreBoard-1 and the
+  Korvo-1. `gdbserver` and `strace` are there too.
+- **Web page.** `httpd -p 8080 -h /usr/share/examples/www` serves a page
+  that sets the pins and the LED. It has no password: start it only on a
+  network that you trust.
+- **Start at boot.** The board runs `autostart.sh` from p1 of the disk
+  (`/mnt/sd` on the Korvo-1, `/mnt/usb` on the Function-CoreBoard-1), or
+  `/root/autostart.sh` when the disk has none. Its output is in
+  `/tmp/autostart.log`. `/usr/share/examples/autostart.sh` is a template.
+  `scp file root@<address>:/mnt/sd/` puts a file on p1.
+- **Touch** (Korvo-1). `/usr/share/examples/touch.sh` prints the touches on
+  the LCD with `evtest`.
+- **Desktop** (Korvo-1). In tmux on the LCD: `Ctrl-b c` opens a window,
+  `Ctrl-b n` goes to the next, `Ctrl-b %` and `Ctrl-b "` split, `Ctrl-b d`
+  logs out.
+- **Time.** The clock is UTC. On the Function-CoreBoard-1 and the Korvo-1,
+  `ln -sf /usr/share/zoneinfo/Europe/Zurich /etc/localtime` sets a local
+  zone.
 
 ## Tested hardware
 
-Espressif makes new chip revisions, and a different revision can change
-the behavior. This port is tested on this hardware:
+The port is tested on the ESP32-S31-Korvo-1 with chip revision v0.0 and
+eFuse block revision v0.0, as the 2nd stage bootloader prints them in the
+boot log. A different revision can change the behavior.
+`python -m esptool --chip esp32s31 -p PORT chip-id` shows the revision of
+your board.
 
-| Item | Value |
-| --- | --- |
-| Board | ESP32-S31-Korvo-1 |
-| Chip | ESP32-S31, revision v0.0 (wafer major 0, minor 0) |
-| Package version (eFuse) | 0 |
-| eFuse block version | 0.0 |
-| PSRAM (eFuse vendor 1, capacity 1) | 16 MiB octal |
-| Flash | 16 MB NOR (JEDEC manufacturer 0x46, device 0x4018) |
-| Crystal | 40 MHz |
+## Build from source
 
-To read these values from your board:
+The host is macOS. The build needs:
 
-```sh
-python -m esptool --chip esp32s31 -p PORT chip-id
-python -m esptool --chip esp32s31 -p PORT flash-id
-python -m espefuse --chip esp32s31 -p PORT summary
-```
-
-## Design
-
-- **Harts.** Hart 0 stays in M-mode. It runs the ESP-IDF loader, which stays
-  resident as the radio firmware. Linux runs on hart 1 only.
-- **Loader.** The loader checks the size and CRC of the kernel. It copies the
-  kernel to `0x50000000` and OpenSBI to `0x50F00000`. It starts Wi-Fi and
-  Bluetooth, and on the Korvo-1 also the LCD. Then it releases hart 1 into
-  OpenSBI, and locks hart 0 out of PSRAM with PMP. Linux starts the SD slot,
-  the LED and the other peripherals itself.
-- **Interrupts.** OpenSBI gives the CLIC inputs to S-mode. If an input is not
-  in S-mode, Linux cannot see it. The S-mode trap entry must lower the
-  interrupt level with `sret` (`scause.spil`). `mret` locks
-  `mintstatus.SIL` and masks all supervisor interrupts.
-- **Cache.** PSRAM is write-back. The panel DMA reads the frame buffer from
-  PSRAM without the cache, so OpenSBI makes the frame buffer range uncached
-  with PMA entries. No bus master is coherent with the data cache, and the
-  hart has no Zicbom. DMA uses the cache sync engine, which OpenSBI programs
-  for Linux through a vendor SBI extension
-  (`drivers/cache/esp32s31-cache.c`). The I-cache refills from PSRAM, not
-  from the D-cache, so Linux writes the D-cache back before each `fence.i`.
-  Coherent DMA memory comes from a 64 KiB pool in SRAM at `0x2F040000`.
-- **Shared SRAM.** `0x2F040000`-`0x2F05D000` is outside the ESP-IDF heap:
-  the DMA pool, then the ESP-Hosted rings at `0x2F050000`
-  (`shared/esp32s31-hosted-shm.h`).
-- **Display (Korvo-1).** The frame buffer is at `0x50F40000`. The loader DMA
-  continues to scan it out after the handoff. Linux uses it as a
-  `simple-framebuffer`. The esp32s31 and coreboard1 builds have no frame
-  buffer, and Linux gets the 768 KiB.
-
-## Host requirements
-
-- macOS with Homebrew and GNU make (`brew install make`).
+- Homebrew and GNU make (`brew install make`).
 - ESP-IDF at `~/esp/esp-idf`, at the commit in `bootloader/esp-idf.version`,
-  with the `riscv32-esp-elf` toolchain and the ESP-Hosted patches
-  (`make bootloader` gives the command).
+  with the `riscv32-esp-elf` toolchain, the ESP-Hosted patches and the
+  backports (`make bootloader` gives the command).
 - esptool at the version in `bootloader/esptool.version`, in the Python
-  environment of ESP-IDF (`make check` gives the command). Move both pins
-  together, and test a `make flash` and a boot on the board.
-- Apple `container` CLI. Run `container system start` first.
+  environment of ESP-IDF (`make check` gives the command).
+- The Apple `container` CLI. Buildroot does not run on macOS: it runs in the
+  Debian image from `container/Containerfile`. Run `container system start`
+  first.
 
 On Linux, `scripts/ci-build.sh` builds everything without a container.
-
-Buildroot does not run on macOS. It runs in the Debian image from
-`container/Containerfile`, with 6 GB of memory (`BR_MEMORY`) and 5 jobs
-(`BR_JOBS`). The output of each board (`/br/<board>`), the downloads
-(`/br/dl`) and the ccache are in the `esp32s31-br` volume.
 
 ```sh
 git submodule update --init --recursive
 make container-image
 make check
 make ports
+make build   BOARD=korvo1
+make flash   BOARD=korvo1 FLASH_PORT=/dev/cu.usbserial-XXXX
+make monitor BOARD=korvo1 SERIAL_PORT=/dev/cu.usbserial-XXXX
 ```
 
-## Build, flash and monitor
-
-```sh
-make build
-make flash   FLASH_PORT=/dev/cu.usbserial-XXXX
-make monitor SERIAL_PORT=/dev/cu.usbserial-XXXX
-```
-
-- The default is the ESP32-S31-WROOM-3-N16R16V alone (`BOARD=esp32s31`).
-  Add `BOARD=coreboard1` for the Function-CoreBoard-1, or `BOARD=korvo1`
-  for the Korvo-1. The output of a board goes to `build/<board>/`.
-- `make build` builds the loader and OpenSBI on the Mac. Buildroot builds the
-  kernel, the rootfs and the disk images in the container.
-- `make monitor` resets the board and waits for
-  `=== ESP32-S31 Linux / Buildroot ===`. Then it stays open as a terminal.
-  Push `Ctrl-]` to exit. It writes a log to `logs/`.
-- Set `RESET_PORT` if the RTS line of `SERIAL_PORT` cannot reset the board.
-- Files in `local-overlay/` go into the root of all builds, for example
-  `root/.ssh/authorized_keys` and `etc/wpa_supplicant.conf`. git ignores
-  them, and `scripts/package-release.sh` stops when the directory has files.
-  A file that you remove from it stays in the Buildroot output until a
-  clean build.
-- Buildroot does not build a package again when only its options change.
-  After such a change in a fragment, run `<package>-dirclean` in the
-  Buildroot output of the board, or build from a clean volume.
+- `BOARD` selects the build for each target: `esp32s31` (the default),
+  `coreboard1` or `korvo1`. The output goes to `build/<board>/`.
+- `make build` builds the loader and OpenSBI on the Mac, and the kernel, the
+  rootfs and the disk images in the container.
+- `make monitor` resets the board, waits for the banner, then stays open as
+  a terminal. Push `Ctrl-]` to exit. Set `RESET_PORT` if the RTS line of
+  `SERIAL_PORT` cannot reset the board.
+- `make sdwrite SD_DISK=/dev/diskN` writes the disk image to a card or a
+  stick. `make sdpart` lays out a large disk. `make sdroot` writes only the
+  root partition, for an update. These targets erase data and ask first.
+- Files in `local-overlay/` go into the root of all builds. git ignores them.
 - `make help` shows all targets.
-
-## SD card and USB stick
-
-The disk is the microSD card on the Korvo-1 and the USB stick on the
-Function-CoreBoard-1. Its image is `sdcard.img`. The disk is MBR. p1 is
-FAT32 and is mounted on `/mnt/sd` (Korvo-1) or `/mnt/usb`
-(Function-CoreBoard-1). p2 is the ext4 root (512 MiB in the disk image). p3
-is swap (type `0x82`, 64 MiB). The disk image and `make sdpart` give the
-disk the signature `0x45533331`. `/etc/default/disk` finds the partitions
-of the disk with the root for the boot scripts. The targets below work for
-the card and the stick. Those that write erase data, and they ask for
-confirmation and `sudo`.
-
-| Command | Use |
-| --- | --- |
-| `make sdpart SD_DISK=/dev/diskN` | Partition a large disk. p1 gets `SD_DATA_SIZE` (28G, at least 4G), p3 64 MB, p2 the rest. |
-| `make sdwrite SD_DISK=/dev/diskN` | Write the full disk image. Use for a small disk. |
-| `make sdroot SD_DISK=/dev/diskN` | Write only the root partition. Use for updates. It stops when p2 is smaller than the root image. |
-
-If the root goes read-only, run `e2fsck -f` on p2 from the console. On the
-Function-CoreBoard-1, `. /etc/default/disk; echo $DISK` shows the root
-stick.
-
-When the board is reset with p1 mounted, the FAT keeps a dirty flag. Linux
-does not clear it, also not at a clean shutdown, and warns at each mount.
-`S10sdcard.sh` runs `fsck.fat -a` on a dirty p1 before it mounts it.
-`fsck.fat` needs approximately 8 bytes of memory for each cluster. That is
-less than 1 MB for the 64 MiB p1 of the disk image. `make sdpart` formats p1
-with 64 KiB clusters: a 28 GiB p1 then needs 3.3 MiB, not the 13 MiB of the
-16 KiB clusters that `diskutil` selects. `S10sdcard.sh` skips a p1 whose
-clusters do not fit in half of the free memory, for example a card that a
-camera formatted: check such a card on the host.
-
-## Userspace
-
-The serial and panel consoles log in as root automatically. SSH takes root
-only with a key: see [First SSH connection](#first-ssh-connection).
-
-Boot scripts of all boards, in `br2-external/board/esp32s31/rootfs-overlay`
-and the overlay of each board:
-
-- `S01clock.sh` sets the clock from `/etc/timestamp` at boot, and saves the
-  time there at shutdown. The board has no RTC.
-- `S05swap.sh` starts 6 MiB of LZ4 swap in RAM (`/dev/zram0`, priority 100).
-  Then, when the MBR gives p3 the type `0x82`, it formats p3 and swaps to
-  it at priority 10. The kernel uses the disk only when zram is full. A
-  disk without such a p3 swaps to zram only.
-- `/etc/sysctl.d/10-reserve.conf` keeps 512 KiB free for the zram writes.
-  A larger reserve takes memory from the page cache.
-- `S10sdcard.sh` mounts p1 of the disk on `/mnt/sd` or `/mnt/usb`.
-- `S10usb.sh` mounts the FAT of a USB stick on `/mnt/usb` on the Korvo-1. It
-  makes BusyBox `mdev` the uevent helper of
-  the kernel, so a stick that you connect later is also mounted
-  (`/etc/mdev.conf`).
-- `S40wifi` starts `wpa_supplicant` on `wlan0` in the background, so that
-  the console does not wait for it. `S40wifi restart` waits.
-- BlueZ (`dbus-daemon` and `bluetoothd`) starts at the first `bluetoothctl`,
-  because the two daemons hold memory while idle. `S40bluetooth` starts
-  them at boot when a device is paired, so that it can connect.
-- `S41ethernet.sh` (Function-CoreBoard-1) makes the stmmac rings smaller, then
-  starts DHCP on `eth0` in the background. Its udhcpc hook `wifi-metric` and
-  `/etc/sysctl.d/20-linkdown.conf` send the traffic over Ethernet when the
-  cable is in, else over Wi-Fi.
-- The udhcpc hook sets the clock with NTP on each new lease.
-- `S95autostart.sh` runs `autostart.sh` on p1 of the disk, or
-  `/root/autostart.sh` when the disk has none.
-- `S99banner.sh` prints the line that `make monitor` waits for. The consoles
-  show the full kernel log of the boot; after the banner, they show only
-  warnings and errors (`dmesg` has all messages).
-- `/etc/profile.d/desk.sh` (Korvo-1) starts the tmux desktop at the login on
-  `tty1`. Its first window shows `/etc/motd`.
-- The module alone also has `overlay-init` and `S00overlay.sh` (see
-  [Flash root](#flash-root-esp32s31)).
-
-`login` and SSH show `/etc/motd`, which lists the first commands.
-
-The clock is UTC. On the Korvo-1 and the Function-CoreBoard-1, the zone
-database is in `/usr/share/zoneinfo`: `ln -sf
-/usr/share/zoneinfo/Europe/Zurich /etc/localtime` sets a local zone for the
-programs that start after it. For the tmux clock, run `tmux kill-server` and
-log in again. The module alone stays UTC.
-
-The esp32s31 board has only the BusyBox tools and the programs in
-[Boards](#boards). The tools below are for the Korvo-1 and the
-Function-CoreBoard-1, and the tools marked (Korvo-1) only for the Korvo-1.
-
-### Tools
-
-| Use | Commands |
-| --- | --- |
-| System | `htop`, `free`, `df -h`, `dmesg`, `file`, `strace`, `gdbserver`, `tmux`, `ncdu` |
-| Files | `nnn`, `tree` |
-| Network | `ssh`, `scp`, `curl`, `links` (text), `iperf3`, `tcpdump`, `nslookup`, `lynx`, `irssi` (Korvo-1) |
-| Code | `micropython`, `lua`, `vim`, `nano`, `sqlite3`, `bc` |
-| Hardware | `gpioinfo`, `gpioget`, `gpioset` (libgpiod 2), `lsusb`, `evtest` (Korvo-1) |
-
-The shell is bash, with a history that stays after a reset.
-
-### Flash root (esp32s31)
-
-The ESP32-S31-WROOM-3-N16R16V alone has no card. Its root is in the flash,
-as in OpenWrt: a read-only squashfs on `/dev/mtdblock0` (`rootfs`, 7.5 MiB),
-and UBIFS on the `data` partition (`/dev/mtd1`, 2.4 MiB) as a writable
-overlay over it. `/sbin/overlay-init` mounts the two, then starts init. So
-all of `/` is writable, and each change stays: `/etc/wpa_supplicant.conf`,
-the SSH host keys, `/root/.ssh` and your own files. The squashfs is at
-`/rom`, the data partition at `/overlay`.
-
-```sh
-mtdinfo -a                 # the two partitions
-df -h /overlay             # free space in the overlay
-flash_erase /dev/mtd1 0 0  # then reboot: back to the image
-```
-
-Linux cannot drive the SPI flash itself: hart 0 runs its code from it.
-Linux reads the partitions through the flash cache, where the firmware on
-hart 0 maps them. The firmware programs and erases the flash for Linux
-with flash auto-suspend, so Linux runs on while it does.
-`make flash` and `flash.bin` do not write `data`, so the overlay stays
-after an update. After a change of the partition layout, erase `data`
-(for example `esptool erase-region` with its offset and size), so that UBI
-formats it again.
-
-### Files and scripts
-
-The paths below are for the Korvo-1. On the Function-CoreBoard-1, p1 is
-`/mnt/usb`.
-
-- **Copy files.** From a computer, `scp` and `sftp` work with the key in
-  `/root/.ssh/authorized_keys`: `scp file root@<address>:/mnt/sd/`.
-- **Web server.** `httpd -f -p 8080 -h /mnt/sd` gives the files of the card
-  to a browser, at `http://<address>:8080/<file name>`. It shows no list of
-  the files: a directory needs an `index.html`. Stop it with Ctrl-C.
-- **Start at boot.** The board runs `/mnt/sd/autostart.sh` at each boot, as
-  root. The file is on the FAT partition, so a computer can also write it,
-  and it stays after `make sdroot`.
-
-### Examples
-
-`/usr/share/examples` has these examples on all boards: `gpio.sh` reads or
-sets a pin, `report.sh` sends the uptime and the free memory with HTTPS
-(for `crontab`), `ble-scan.sh` lists the Bluetooth LE devices nearby, and
-`ap.sh` starts an access point.  Each board also has a web page in `www/`
-(`httpd -p 8080 -h /usr/share/examples/www`) and an `autostart.sh`:
-
-| Board | Web page | `autostart.sh` | Also |
-| --- | --- | --- | --- |
-| esp32s31 | Sets and reads pins | Starts the web page | |
-| coreboard1 | The RGB LED, and the pins of J2 | A green LED, and the web page as a comment | `led.sh` sets the LED |
-| korvo1 | The RGB LED | A green LED | `led.py` sets the LED from MicroPython, `touch.sh` prints the touches on the LCD |
-
-The web page has no password: each host that can open it can set the LED
-and the pins.  Start it only on a network that you trust.  The kernel
-refuses the pins of the flash, the console, the loader and the drivers
-(`gpio-reserved-ranges` in the device tree of each board).
-
-## Wi-Fi
-
-`wlan0` works with the standard `wpa_supplicant`. `S40wifi` starts it with
-`/etc/wpa_supplicant.conf`, or with `wpa_supplicant.conf` on p1 when that
-file exists. `make sdroot` does not delete p1, and a board without a console
-can get its network from that file. At each connection, the `wpa_cli` action
-script starts or renews the DHCP lease.
-
-```sh
-wpa_passphrase "<ssid>" "<passphrase>" >> /etc/wpa_supplicant.conf
-/etc/init.d/S40wifi restart
-wpa_cli status
-wpa_cli scan; wpa_cli scan_results
-```
-
-For WPA3 and WPA2/WPA3 networks, the network block needs
-`key_mgmt=WPA-PSK SAE`, `ieee80211w=1` and the passphrase as `psk="..."`.
-The hex PSK from `wpa_passphrase` is not sufficient for SAE. For WPA3 only,
-use `key_mgmt=SAE` with `ieee80211w=2`. Keep the default `sae_pwe=0`: with
-`sae_pwe=2`, an access point that answers without H2E is not accepted.
-
-For WPA2-Enterprise (for example eduroam), `wpa_supplicant` has PEAP,
-TTLS and TLS, with MSCHAPv2, GTC and MD5 inside. The other EAP methods,
-DPP, P2P and TDLS are not built, for flash.
-
-The default configuration has `pmf=1`: protected management frames when
-the access point offers them. Without them, a WPA2/WPA3 router gave less
-than half of the TX throughput.
-
-On the esp32s31 board, the network stays in the overlay.
-
-For an access point on all boards, stop `S40wifi` and start
-`wpa_supplicant -B -D nl80211 -i wlan0 -c /tmp/ap.conf` with a network
-block that has `mode=2`, for example `ssid="esp32s31"`, `mode=2`,
-`frequency=2437`, `key_mgmt=WPA-PSK`, `proto=RSN`, `pairwise=CCMP`,
-`group=CCMP` and `psk="..."`. The Korvo-1 and the Function-CoreBoard-1
-also have `hostapd`.
-
-The ESP-Hosted firmware on hart 0 runs the 802.11 MAC. The ESP-Hosted host
-driver (`esp32_shm`) is built into the kernel. `wpa_supplicant` runs the
-authentication and the key handshakes, and logs to syslog
-(`/var/log/messages`). `hostapd` with the nl80211 driver starts an access
-point. Stop `S40wifi` first: `wlan0` is a station or an
-access point, not the two at the same time.
-
-## Kernel
-
-Buildroot builds a stock kernel release (`BR2_LINUX_KERNEL_CUSTOM_VERSION_VALUE`
-in `br2-external/board/esp32s31/defconfig/common.fragment`).
-
-- A hook in `br2-external/external.mk` copies the new source files under
-  `linux/` (drivers, device trees, bindings) into the kernel tree.
-- Then Buildroot applies `linux/patches/`, which change existing kernel
-  files, mostly Kconfig and Makefiles.
-- The ESP-Hosted host driver comes from `external/esp-hosted-linux`, with the
-  patches in `br2-external/package/esp-hosted-linux/`. A Buildroot linux
-  extension (`br2-external/linux/`) copies it into the kernel tree.
-- The kernel config is `br2-external/board/esp32s31/linux.config`. Use
-  `make kernel-menuconfig` and `make kernel-saveconfig`. The esp32s31 board
-  adds `linux-esp32s31.fragment`, which turns off the parts of the Korvo-1.
-  The coreboard1 board adds `linux-coreboard1.fragment`, which turns off
-  the panel and the card, turns on Ethernet, and takes the root from the
-  USB stick.
-  Buildroot cannot save a config with a fragment, so change the fragment by
-  hand.
-- The device tree of each board is built into the kernel:
-  `esp32s31.dts`, `esp32s31_coreboard1.dts` or `esp32s31_korvo1.dts`.
-- `make kernel-check` applies the series at zero fuzz with GNU patch.
-- `make kernel` and `make rootfs` find a changed series or config. Then
-  they extract and patch the kernel again. `make kernel-clean` does this by
-  hand.
-
-## Flash layout
-
-| esp32s31 | coreboard1 | Korvo-1 | Contents |
-| ---: | ---: | ---: | --- |
-| `0x002000` | `0x002000` | `0x002000` | ESP-IDF second-stage bootloader |
-| `0x008000` | `0x008000` | `0x008000` | Partition table |
-| `0x009000` | `0x011000` | `0x011000` | NVS |
-| `0x00F000` | `0x019000` | `0x019000` | PHY calibration data |
-| `0x010000` | `0x220000` | `0x220000` | OpenSBI `fw_jump` (256 KiB, 512 KiB, 512 KiB) |
-| `0x050000` | `0x020000` | `0x020000` | Loader and radio firmware (1.75 MiB, 2 MiB, 2 MiB) |
-| `0x210000` | `0x2A0000` | `0x2A0000` | Linux Image with built-in DTB (4 MiB, 7.5 MiB, 7.5 MiB) |
-| `0x60FFF4` | `0xA1FFF4` | `0xA1FFF4` | Linux size and CRC manifest, at the end of the kernel partition |
-| `0x610000` | | | squashfs root `rootfs` (7.5 MiB) |
-| `0xD90000` | | | UBIFS overlay `data` (2.4375 MiB, to the end of the flash) |
-
-The partition tables are `bootloader/partitions-<board>.csv`. The Makefile
-takes all offsets from them.
-
-## Limits
-
-- Linux is uniprocessor on hart 1.
-- The hardware FPU is not used: the hart has F but not D, and Linux supports
-  an FPU only with D. Floating point works, because userspace is built
-  soft-float (ilp32), but it is slower.
-- OpenSBI protects its memory and the TEE/APM registers from S-mode with
-  PMP, and its memory from DMA with HP_APM. The radio firmware on hart 0
-  runs in M-mode. After it starts hart 1, it locks itself out of PSRAM and
-  the DMA pool with PMP.
-- `poweroff` puts the chip into deep sleep. Only the reset button starts
-  it again. The board itself stays powered.
-- The coherent DMA pool is 64 KiB.
-- The Korvo-1 and the Function-CoreBoard-1 do not boot without their root
-  disk: the microSD card on the Korvo-1, the USB stick on the
-  Function-CoreBoard-1. The kernel waits for it.
-- There is no audio or camera driver.
-- The firmware heap is small: see "Internal SRAM" in
-  [docs/internals.md](docs/internals.md).
-- With WPA3-SAE, the first connection can fail: SAE on hart 1 can take
-  longer than the closed Wi-Fi library on hart 0 waits for the
-  authentication. `wpa_supplicant` tries again and connects. WPA2 is not
-  affected.
-- On the esp32s31 board, a cold program start is slow: the root is a zstd
-  squashfs, and each page fault of a program decompresses one 32 KiB block.
-- WPA2/WPA3 Enterprise is not tested.
-- The access point mode is tested up to the started access point. No
-  client has connected to it.
-- `hcitool lescan` fails with "Set scan parameters failed". The kernel uses
-  the extended scan commands of the controller (Bluetooth 5.0 and later).
-  After that, the controller rejects the legacy ones that `hcitool` sends
-  (Command Disallowed). Use `bluetoothctl` and `scan le`.
 
 ## License
 
