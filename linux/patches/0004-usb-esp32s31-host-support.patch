@@ -1,3 +1,9 @@
+From: Marco Müller <hello@annoyedmilk.ch>
+Subject: [PATCH] usb: dwc2: add the ESP32-S31 parameters and USB PHY
+
+The controller RAM has 896 words, less than the reset FIFO sizes.  The
+PHY driver sets the clock, the reset and the host pull-downs.
+---
 diff --git a/drivers/phy/Kconfig b/drivers/phy/Kconfig
 --- a/drivers/phy/Kconfig
 +++ b/drivers/phy/Kconfig

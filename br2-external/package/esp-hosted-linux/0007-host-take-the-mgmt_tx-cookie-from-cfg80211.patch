@@ -1,16 +1,8 @@
 From: Marco Müller <hello@annoyedmilk.ch>
 Subject: [PATCH] host: take the mgmt_tx cookie from cfg80211
 
-Since Linux 7.3, cfg80211 makes the cookie of a management frame and
-gives it to mgmt_tx by value.  The driver must report the TX status
-with that cookie, not with one of its own.  Use the cookie of cfg80211
-for the pending frame.
-
-Linux 7.3 also removes the probe_client operation.  The driver only
-returned -EOPNOTSUPP for it, which is also the result without the
-operation, so remove it.
-
-This needs Linux 7.3 or later.
+Since Linux 7.3, cfg80211 gives mgmt_tx the cookie.  Report the TX status
+with it.  Remove probe_client, which 7.3 removed.
 
 Upstream: not sent
 ---

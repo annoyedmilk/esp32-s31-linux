@@ -4,8 +4,6 @@ Subject: [PATCH] wifi: add the ESP32-S31 ESP-Hosted directory
 The ESP-Hosted host driver for the firmware on hart 0 is in
 drivers/net/wireless/espressif.  Add the directory to the wireless
 Kconfig and Makefile.
-
-Signed-off-by: Marco Müller <hello@annoyedmilk.ch>
 ---
 diff --git a/drivers/net/wireless/Kconfig b/drivers/net/wireless/Kconfig
 --- a/drivers/net/wireless/Kconfig

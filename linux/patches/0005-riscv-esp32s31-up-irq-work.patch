@@ -1,3 +1,9 @@
+From: Marco Müller <hello@annoyedmilk.ch>
+Subject: [PATCH] riscv: irq_work: use the CLIC software interrupt in UP kernels
+
+Without SMP, RISC-V irq_work has no interrupt.  The ESP32-S31 CLIC gives
+one.
+---
 diff --git a/arch/riscv/include/asm/irq_work.h b/arch/riscv/include/asm/irq_work.h
 --- a/arch/riscv/include/asm/irq_work.h
 +++ b/arch/riscv/include/asm/irq_work.h

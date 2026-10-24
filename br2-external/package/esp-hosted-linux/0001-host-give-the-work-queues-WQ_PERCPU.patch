@@ -1,10 +1,8 @@
 From: Marco Müller <hello@annoyedmilk.ch>
 Subject: [PATCH] host: give the work queues WQ_PERCPU
 
-Since Linux 6.17, alloc_workqueue() warns when a queue has neither
-WQ_PERCPU nor WQ_UNBOUND, and the default will become unbound.  Keep the
-per-CPU queues and remove the warning at module load.  WQ_PERCPU does not
-exist before 6.17, so this needs a newer kernel.
+Since 6.17, alloc_workqueue() warns without WQ_PERCPU or WQ_UNBOUND.
+Keep the queues per CPU.
 
 Upstream: not sent
 ---

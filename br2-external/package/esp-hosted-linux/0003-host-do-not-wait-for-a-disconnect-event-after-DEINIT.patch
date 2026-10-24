@@ -1,17 +1,8 @@
 From: Marco Müller <hello@annoyedmilk.ch>
 Subject: [PATCH] host: do not wait for a disconnect event after DEINIT
 
-When wpa_supplicant stops, it disconnects and then sets the interface
-down.  esp_stop() sends DEINIT, and the firmware stops Wi-Fi.  When the
-DISCONNECTED event of the firmware is still in its event loop at that
-time, the event handler drops it as an event of a stopped incarnation.
-The host still waited for it: after 5 s the MLME timeout reported a
-second disconnect and requested a firmware restart.  When the interface
-then changed to AP, cfg80211 warned about the disconnect.  A fast
-transport hits this at each stop.
-
-esp_stop() reports the disconnect itself, so stop the wait when DEINIT
-succeeds.
+After DEINIT, the firmware drops its DISCONNECTED event.  The host waited
+5 s for it and then requested a firmware restart.
 
 Upstream: not sent
 ---

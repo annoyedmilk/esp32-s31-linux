@@ -3,8 +3,6 @@ Subject: [PATCH] i2c: esp32s31: add the ESP32-S31 I2C master driver
 
 The ESP32-S31 has two I2C controllers with a command list and a FIFO.
 Add their master driver to the I2C bus Kconfig and Makefile.
-
-Signed-off-by: Marco Müller <hello@annoyedmilk.ch>
 ---
 diff --git a/drivers/i2c/busses/Kconfig b/drivers/i2c/busses/Kconfig
 --- a/drivers/i2c/busses/Kconfig

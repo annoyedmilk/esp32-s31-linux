@@ -1,3 +1,9 @@
+From: Marco Müller <hello@annoyedmilk.ch>
+Subject: [PATCH] cache: add the ESP32-S31 cache controller
+
+No Zicbom: the sync engine keeps DMA coherent.  Enable non-coherent DMA in
+setup_arch(), so that slab gets the alignment before the initcalls.
+---
 diff --git a/arch/riscv/kernel/setup.c b/arch/riscv/kernel/setup.c
 --- a/arch/riscv/kernel/setup.c
 +++ b/arch/riscv/kernel/setup.c

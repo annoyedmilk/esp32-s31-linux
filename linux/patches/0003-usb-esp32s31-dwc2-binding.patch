@@ -1,3 +1,8 @@
+From: Marco Müller <hello@annoyedmilk.ch>
+Subject: [PATCH] dt-bindings: usb: dwc2: add esp,esp32s31-usb
+
+The ESP32-S31 USB controller is a DWC2 with its own parameters.
+---
 diff --git a/Documentation/devicetree/bindings/usb/dwc2.yaml b/Documentation/devicetree/bindings/usb/dwc2.yaml
 --- a/Documentation/devicetree/bindings/usb/dwc2.yaml
 +++ b/Documentation/devicetree/bindings/usb/dwc2.yaml

@@ -1,5 +1,9 @@
+From: Marco Müller <hello@annoyedmilk.ch>
+Subject: [PATCH] firmware: align the trap handlers to 64 bytes
+
+In CLIC mode, the mtvec BASE field is 64-byte aligned.
+---
 diff --git a/firmware/fw_base.S b/firmware/fw_base.S
-index a37a3d5b..ee334455 100644
 --- a/firmware/fw_base.S
 +++ b/firmware/fw_base.S
 @@ -737,7 +737,7 @@ _start_warm:
@@ -21,7 +25,6 @@ index a37a3d5b..ee334455 100644
  _trap_handler_hyp:
  	TRAP_SAVE_AND_SETUP_SP_T0
 diff --git a/lib/sbi/sbi_expected_trap.S b/lib/sbi/sbi_expected_trap.S
-index aabbccdd..eeff0011 100644
 --- a/lib/sbi/sbi_expected_trap.S
 +++ b/lib/sbi/sbi_expected_trap.S
 @@ -19,7 +19,7 @@

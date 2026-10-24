@@ -1,10 +1,8 @@
 From: Marco Müller <hello@annoyedmilk.ch>
 Subject: [PATCH] host: send the world regulatory domain as "01"
 
-cfg80211 sets the world domain "00" at the start.  ESP-IDF names the
-world-safe mode "01" and rejects "00" with ESP_ERR_INVALID_ARG, so each
-start logged a failed SET_REG command.  Map "00" to "01" before the check
-for a known domain, so that the firmware also gets it only one time.
+ESP-IDF rejects the world domain "00" and names it "01".  Map it, so
+that SET_REG does not fail at each start.
 
 Upstream: not sent
 ---

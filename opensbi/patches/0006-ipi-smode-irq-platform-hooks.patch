@@ -1,3 +1,8 @@
+From: Marco Müller <hello@annoyedmilk.ch>
+Subject: [PATCH] sbi_ipi: add platform hooks for the S-mode software interrupt
+
+As for the timer: the platform sets the pending bit in the CLIC.
+---
 diff --git a/include/sbi/sbi_ipi.h b/include/sbi/sbi_ipi.h
 --- a/include/sbi/sbi_ipi.h
 +++ b/include/sbi/sbi_ipi.h

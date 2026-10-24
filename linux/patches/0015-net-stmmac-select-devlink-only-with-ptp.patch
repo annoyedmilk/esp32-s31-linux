@@ -1,16 +1,8 @@
 From: Marco Müller <hello@annoyedmilk.ch>
 Subject: [PATCH] net: stmmac: select devlink only with PTP
 
-stmmac registers devlink only for its "phc_coarse_adj" parameter, and
-only when the MAC has a PTP clock.  Without PTP_1588_CLOCK it never
-registers it, but the select still builds all of devlink into the
-kernel: 183 KB on riscv32, on an SoC with 16 MiB of memory and the
-kernel in a 4 MiB flash partition.
-
-Select NET_DEVLINK only with PTP_1588_CLOCK, and use empty stubs when
-devlink is not built.
-
-Signed-off-by: Marco Müller <hello@annoyedmilk.ch>
+stmmac uses devlink only with a PTP clock.  Without PTP_1588_CLOCK the
+select cost 183 KB on riscv32.
 ---
 diff --git a/drivers/net/ethernet/stmicro/stmmac/Kconfig b/drivers/net/ethernet/stmicro/stmmac/Kconfig
 --- a/drivers/net/ethernet/stmicro/stmmac/Kconfig

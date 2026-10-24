@@ -3,8 +3,6 @@ Subject: [PATCH] nvmem: esp32s31: add the ESP32-S31 eFuse driver
 
 The ESP32-S31 has its factory MAC address in the eFuse.  Add a
 read-only nvmem driver for it to the nvmem Kconfig and Makefile.
-
-Signed-off-by: Marco Müller <hello@annoyedmilk.ch>
 ---
 diff --git a/drivers/nvmem/Kconfig b/drivers/nvmem/Kconfig
 --- a/drivers/nvmem/Kconfig

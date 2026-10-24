@@ -1,3 +1,8 @@
+From: Marco Müller <hello@annoyedmilk.ch>
+Subject: [PATCH] configure: add the RISC-V 32-bit architecture
+
+strace knows only RV64.  Add the RV32 target.
+---
 diff -urN a/configure.ac b/configure.ac
 --- a/configure.ac	2026-04-26 07:00:00.000000000 +0000
 +++ b/configure.ac	2026-09-24 22:18:53.103614459 +0000

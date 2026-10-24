@@ -1,10 +1,8 @@
 From: Marco Müller <hello@annoyedmilk.ch>
 Subject: [PATCH] main: count only the default parameters that are set
 
-parse_mode_config() counted each known parameter of [BR] and [LE], also
-when main.conf does not set it.  load_defaults() then found no value to
-send, and logged "Failed to set default system config for hciN" at
-each start, although nothing failed.
+parse_mode_config() counted parameters that main.conf does not set, so
+each start logged a false "Failed to set default system config".
 
 Upstream: not sent
 ---

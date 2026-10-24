@@ -1,22 +1,8 @@
 From: Marco Müller <hello@annoyedmilk.ch>
 Subject: [PATCH] riscv: esp32s31: sync the caches for new code
 
-The I-cache of each ESP32-S31 core refills from PSRAM, not from the
-shared D-cache.  With write-back PSRAM, new code can stay in the
-D-cache.  fence.i also does not invalidate the I-cache: a write, a
-flush and a call of the same address gave the old code in 292 of 300
-runs, until a timer tick replaced the line.
-
-Ask the firmware to write back the D-cache and to invalidate the
-I-cache.
-
-A new executable user page needs only its own range.  A sync of the
-full caches made the first run of a fresh copy of iperf3 and the musl
-loader 8 to 9 ms slower than the second run.  The page cache knows the
-folio, and the sync engine takes a range, so sync only the folio: now
-2 to 4 ms.  The other callers still sync the full caches.
-
-Signed-off-by: Marco Müller <hello@annoyedmilk.ch>
+The I-cache refills from PSRAM, and fence.i does not invalidate it.  Ask
+the firmware to sync, and for a new user page only its folio.
 ---
 diff --git a/arch/riscv/include/asm/cacheflush.h b/arch/riscv/include/asm/cacheflush.h
 --- a/arch/riscv/include/asm/cacheflush.h

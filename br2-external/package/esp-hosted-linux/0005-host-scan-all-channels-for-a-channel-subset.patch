@@ -1,14 +1,8 @@
 From: Marco Müller <hello@annoyedmilk.ch>
 Subject: [PATCH] host: scan all channels for a channel subset
 
-When the AP sends OBSS scan parameters, wpa_supplicant asks for a scan of
-the channels near the operating channel every 300 s (20/40 MHz BSS
-coexistence).  The firmware scans one channel or all channels, so the
-driver rejected each such request with -EOPNOTSUPP and logged an error.
-The OBSS scan never ran.
-
-Scan all channels for a subset.  The results are a superset of the
-requested channels, which cfg80211 and wpa_supplicant accept.
+The firmware scans one channel or all.  The OBSS scan asks for a subset:
+scan all, cfg80211 accepts the superset.
 
 Upstream: not sent
 ---

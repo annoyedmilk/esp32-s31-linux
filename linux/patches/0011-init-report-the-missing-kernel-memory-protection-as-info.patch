@@ -1,12 +1,8 @@
 From: Marco Müller <hello@annoyedmilk.ch>
 Subject: [PATCH] init: report the missing kernel memory protection as info
 
-On RV32, STRICT_KERNEL_RWX aligns the kernel sections to 4 MiB.  Linux
-has 15 MiB of RAM on the ESP32-S31, and the alignment would take most of
-it, so the option is off.  The warning at each boot then only fills the
-console of the panel.  Report it at info level, as for "rodata=off".
-
-Signed-off-by: Marco Müller <hello@annoyedmilk.ch>
+STRICT_KERNEL_RWX is off on RV32 (4 MiB alignment).  Do not warn at each
+boot.
 ---
 diff --git a/init/main.c b/init/main.c
 --- a/init/main.c

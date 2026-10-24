@@ -1,15 +1,8 @@
 From: Marco Müller <hello@annoyedmilk.ch>
 Subject: [PATCH] host: clear "BR/EDR Not Supported" of the ESP32-S31
 
-The ESP32-S31 dual-mode controller of ESP-IDF v6.1 answers Read Local
-Supported Features with byte 4 = 0xf8.  Bytes 0 to 3 have the BR/EDR LMP
-features, but bit 5 of byte 4, "BR/EDR Not Supported", comes from the LE
-part of the controller.  The Bluetooth core then uses the controller as
-LE only: no inquiry, paging or BR/EDR connections.  The controller does
-run an HCI Inquiry.
-
-When the firmware reports BR/EDR support, clear the bit in the command
-complete event before the Bluetooth core sees it.
+The controller sets "BR/EDR Not Supported" from its LE part, so the core
+used LE only.  Clear the bit when the firmware has BR/EDR.
 
 Upstream: not sent
 ---

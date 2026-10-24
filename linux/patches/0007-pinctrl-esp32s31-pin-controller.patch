@@ -1,12 +1,8 @@
 From: Marco Müller <hello@annoyedmilk.ch>
 Subject: [PATCH] pinctrl: esp32s31: add the ESP32-S31 pin controller
 
-The ESP32-S31 sets the function of each pad in the IO MUX and connects
-the peripheral signals in the GPIO matrix.  The GPIO registers are in the
-block of the matrix, so one driver is the pin controller and the GPIO
-controller.  Add it to the pinctrl Kconfig and Makefile.
-
-Signed-off-by: Marco Müller <hello@annoyedmilk.ch>
+One driver for the IO MUX, the GPIO matrix and the GPIO registers: they
+share a block.
 ---
 diff --git a/drivers/pinctrl/Kconfig b/drivers/pinctrl/Kconfig
 --- a/drivers/pinctrl/Kconfig

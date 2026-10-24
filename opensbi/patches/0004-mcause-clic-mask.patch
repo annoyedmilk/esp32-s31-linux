@@ -1,3 +1,8 @@
+From: Marco Müller <hello@annoyedmilk.ch>
+Subject: [PATCH] fw_base: mask the CLIC state bits of mcause
+
+The CLIC puts level bits in mcause.  Keep bit 31 and the code.
+---
 diff --git a/firmware/fw_base.S b/firmware/fw_base.S
 --- a/firmware/fw_base.S
 +++ b/firmware/fw_base.S

@@ -1,3 +1,8 @@
+From: Marco Müller <hello@annoyedmilk.ch>
+Subject: [PATCH] sbi_hart: do not write sie with CLIC_NO_SIE
+
+The ESP32-S31 has no sie CSR.
+---
 diff --git a/lib/sbi/sbi_hart.c b/lib/sbi/sbi_hart.c
 --- a/lib/sbi/sbi_hart.c
 +++ b/lib/sbi/sbi_hart.c
