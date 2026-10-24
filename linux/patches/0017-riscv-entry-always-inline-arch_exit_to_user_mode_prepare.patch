@@ -1,0 +1,20 @@
+From: Marco Müller <hello@annoyedmilk.ch>
+Subject: [PATCH] riscv: entry: always inline arch_exit_to_user_mode_prepare()
+
+It runs from noinstr code on each return to user mode.  With -Os, GCC
+made an out-of-line copy in .text.
+---
+diff --git a/arch/riscv/include/asm/entry-common.h b/arch/riscv/include/asm/entry-common.h
+--- a/arch/riscv/include/asm/entry-common.h
++++ b/arch/riscv/include/asm/entry-common.h
+@@ -7,8 +7,8 @@
+ #include <asm/thread_info.h>
+ #include <asm/vector.h>
+ 
+-static inline void arch_exit_to_user_mode_prepare(struct pt_regs *regs,
+-						  unsigned long ti_work)
++static __always_inline void arch_exit_to_user_mode_prepare(struct pt_regs *regs,
++							   unsigned long ti_work)
+ {
+ 	if (ti_work & _TIF_RISCV_V_DEFER_RESTORE) {
+ 		clear_thread_flag(TIF_RISCV_V_DEFER_RESTORE);
