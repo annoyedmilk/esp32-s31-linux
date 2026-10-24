@@ -1,0 +1,18 @@
+From: Marco Müller <hello@annoyedmilk.ch>
+Subject: [PATCH] riscv: esp32s31: compile the kernel with Zba, Zbb and Zbs
+
+All harts have the three extensions.
+---
+diff --git a/arch/riscv/Makefile b/arch/riscv/Makefile
+--- a/arch/riscv/Makefile
++++ b/arch/riscv/Makefile
+@@ -75,6 +75,9 @@
+ riscv-march-$(CONFIG_TOOLCHAIN_NEEDS_EXPLICIT_ZICSR_ZIFENCEI) := $(riscv-march-y)_zicsr_zifencei
+ endif
+ 
++# All harts of the ESP32-S31 have Zba, Zbb and Zbs: compile all code with them.
++riscv-march-$(CONFIG_SOC_ESP32S31) := $(riscv-march-y)_zba_zbb_zbs
++
+ KBUILD_BASE_ISA = -march=$(shell echo $(riscv-march-y) | sed -E 's/(rv32ima|rv64ima)fd([^v_]*)v?/\1\2/')
+ export KBUILD_BASE_ISA
+ 

@@ -16,7 +16,7 @@ the best public reference for addresses and fields.
 
 | Item | Value |
 | --- | --- |
-| Harts | 2 × RV32 at 320 MHz: `rv32imafc` + Zba/Zbb/Zbs, Zc*, vendor extensions |
+| Harts | 2 × RV32 at 320 MHz: `rv32imafc` + Zba/Zbb/Zbs, Zc*, vendor extensions. The kernel is compiled with Zba/Zbb/Zbs (`patches/0020`). |
 | Privilege modes | M, S, U. Sv32 MMU. |
 | FPU | F only, no D. Linux supports an FPU only with D, so the FPU stays off. Floating point works in software (soft-float userspace), only slower. |
 | I-cache | 32 KiB for each hart, 2-way, 64-byte lines: 256 sets, address bits 13:6 select the set. See "The instruction cache". |
