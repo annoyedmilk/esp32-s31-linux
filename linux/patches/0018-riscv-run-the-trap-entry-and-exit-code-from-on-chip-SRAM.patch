@@ -1,0 +1,289 @@
+From: Marco Müller <hello@annoyedmilk.ch>
+Subject: [PATCH] riscv: run the trap entry and exit code from on-chip SRAM
+
+Link the entry, irqentry and noinstr text for on-chip SRAM, which the
+core fetches without the I-cache.  See docs/internals.md, "The
+instruction cache".
+---
+diff --git a/arch/riscv/Kconfig b/arch/riscv/Kconfig
+--- a/arch/riscv/Kconfig
++++ b/arch/riscv/Kconfig
+@@ -937,7 +937,31 @@
+ 	help
+ 	  Specify the Pages of thread stack size (from 4KB to 64KB), which also
+ 	  affects irq stack size, which is equal to thread stack size.
++
++config RISCV_TRAP_SRAM
++	bool
++	depends on MMU && 32BIT && !XIP_KERNEL && !RELOCATABLE && !STRICT_KERNEL_RWX
++	help
++	  Run the trap entry and exit code, the noinstr text, from on-chip
++	  SRAM that the core fetches without its instruction cache.  Each
++	  trap then runs the same code at the same speed, and that code does
++	  not take ways of the instruction cache from other code.  Selected
++	  by SoCs with a small instruction cache.  Kallsyms does not cover
++	  this code, so backtraces show its raw addresses.
++
++config RISCV_TRAP_SRAM_PHYS
++	hex
++	depends on RISCV_TRAP_SRAM
++	help
++	  Physical address of the SRAM for the trap code, page aligned.  The
++	  device tree must reserve the same range.
+ 
++config RISCV_TRAP_SRAM_SIZE
++	hex
++	depends on RISCV_TRAP_SRAM
++	help
++	  Size of the SRAM for the trap code, a multiple of the page size.
++
+ config RISCV_MISALIGNED
+ 	bool
+ 	help
+diff --git a/arch/riscv/include/asm/pgtable.h b/arch/riscv/include/asm/pgtable.h
+--- a/arch/riscv/include/asm/pgtable.h
++++ b/arch/riscv/include/asm/pgtable.h
+@@ -40,6 +40,11 @@
+  */
+ #define KERN_VIRT_SIZE          ((PTRS_PER_PGD / 2 * PGDIR_SIZE) / 2)
+ 
++#ifdef CONFIG_RISCV_TRAP_SRAM
++/* Last PGD entry: above VMALLOC_START, as is_valid_bugaddr() wants. */
++#define TRAP_SRAM_VA		_AC(0xffc00000, UL)
++#endif
++
+ #define VMALLOC_SIZE     (KERN_VIRT_SIZE >> 1)
+ #define VMALLOC_END      PAGE_OFFSET
+ #define VMALLOC_START    (PAGE_OFFSET - VMALLOC_SIZE)
+diff --git a/arch/riscv/include/asm/sections.h b/arch/riscv/include/asm/sections.h
+--- a/arch/riscv/include/asm/sections.h
++++ b/arch/riscv/include/asm/sections.h
+@@ -14,7 +14,16 @@
+ extern char __init_text_begin[], __init_text_end[];
+ extern char __alt_start[], __alt_end[];
+ extern char __exittext_begin[], __exittext_end[];
++extern char __trap_sram_start[], __trap_sram_end[];
++extern char __trap_sram_load[], __trap_sram_load_end[];
+ 
++static inline bool is_trap_sram_text(unsigned long addr)
++{
++	return IS_ENABLED(CONFIG_RISCV_TRAP_SRAM) &&
++	       addr >= (unsigned long)__trap_sram_start &&
++	       addr < (unsigned long)__trap_sram_end;
++}
++
+ static inline bool is_va_kernel_text(uintptr_t va)
+ {
+ 	uintptr_t start = (uintptr_t)_start;
+diff --git a/arch/riscv/kernel/vmlinux.lds.S b/arch/riscv/kernel/vmlinux.lds.S
+--- a/arch/riscv/kernel/vmlinux.lds.S
++++ b/arch/riscv/kernel/vmlinux.lds.S
+@@ -10,6 +10,11 @@
+ #include <asm/pgtable.h>
+ #define LOAD_OFFSET KERNEL_LINK_ADDR
+ 
++#ifdef CONFIG_RISCV_TRAP_SRAM
++/* NOINSTR_TEXT goes to .trap_sram */
++#define TEXT_NOINSTR
++#endif
++
+ #include <asm/vmlinux.lds.h>
+ #include <asm/page.h>
+ #include <asm/cache.h>
+@@ -31,15 +36,33 @@
+ 	HEAD_TEXT_SECTION
+ 	. = ALIGN(PAGE_SIZE);
+ 
+-	.text : {
++#ifdef CONFIG_RISCV_TRAP_SRAM
++	/* Loaded here, copied to SRAM by setup_vm(). */
++	__trap_sram_load = .;
++	.trap_sram TRAP_SRAM_VA : AT(__trap_sram_load - LOAD_OFFSET) {
++		__trap_sram_start = .;
++		ENTRY_TEXT
++		IRQENTRY_TEXT
++		NOINSTR_TEXT
++		__trap_sram_end = .;
++	}
++	. = ALIGN(__trap_sram_load + SIZEOF(.trap_sram), PAGE_SIZE);
++	__trap_sram_load_end = .;
++	ASSERT(SIZEOF(.trap_sram) <= CONFIG_RISCV_TRAP_SRAM_SIZE,
++	       "the trap code is larger than CONFIG_RISCV_TRAP_SRAM_SIZE")
++#endif
++
++	.text : AT(ADDR(.text) - LOAD_OFFSET) {
+ 		_text = .;
+ 		_stext = .;
+ 		TEXT_TEXT
+ 		SCHED_TEXT
+ 		LOCK_TEXT
+ 		KPROBES_TEXT
++#ifndef CONFIG_RISCV_TRAP_SRAM
+ 		ENTRY_TEXT
+ 		IRQENTRY_TEXT
++#endif
+ 		SOFTIRQENTRY_TEXT
+ 		_etext = .;
+ 	}
+diff --git a/include/asm-generic/vmlinux.lds.h b/include/asm-generic/vmlinux.lds.h
+--- a/include/asm-generic/vmlinux.lds.h
++++ b/include/asm-generic/vmlinux.lds.h
+@@ -596,7 +596,14 @@
+  *
+  * Also placing .text.hot section at the beginning of a page, this
+  * would help the TLB performance.
++ *
++ * An architecture that places NOINSTR_TEXT in its own output section
++ * defines TEXT_NOINSTR as empty.
+  */
++#ifndef TEXT_NOINSTR
++#define TEXT_NOINSTR	NOINSTR_TEXT
++#endif
++
+ #define TEXT_TEXT							\
+ 		ALIGN_FUNCTION();					\
+ 		*(.text.asan.* .text.tsan.*)				\
+@@ -606,7 +613,7 @@
+ 		. = ALIGN(PAGE_SIZE);					\
+ 		TEXT_HOT						\
+ 		*(TEXT_MAIN .text.fixup)				\
+-		NOINSTR_TEXT						\
++		TEXT_NOINSTR						\
+ 		*(.ref.text)
+ 
+ /* sched.text is aling to function alignment to secure we have same
+diff --git a/arch/riscv/mm/init.c b/arch/riscv/mm/init.c
+--- a/arch/riscv/mm/init.c
++++ b/arch/riscv/mm/init.c
+@@ -213,6 +213,19 @@
+ 	return 0;
+ }
+ early_param("mem", early_mem);
++
++#ifdef CONFIG_RISCV_TRAP_SRAM
++/* The linear mapping must end below the trap code. */
++static void __init trap_sram_cap_memory(void)
++{
++	phys_addr_t end = __pa(TRAP_SRAM_VA);
++
++	if (memblock_end_of_DRAM() > end)
++		memblock_cap_memory_range(phys_ram_base, end - phys_ram_base);
++}
++#else
++static inline void trap_sram_cap_memory(void) { }
++#endif
+ 
+ static void __init setup_bootmem(void)
+ {
+@@ -265,6 +278,7 @@
+ 				&max_mapped_addr);
+ 		}
+ 	}
++	trap_sram_cap_memory();
+ 
+ 	/*
+ 	 * Reserve physical address space that would be mapped to virtual
+@@ -1034,6 +1048,38 @@
+ 	return 0;
+ }
+ early_param("nokaslr", print_nokaslr);
++#endif
++
++#ifdef CONFIG_RISCV_TRAP_SRAM
++static pte_t trap_sram_pte[PTRS_PER_PTE] __page_aligned_bss;
++
++/* MMU off.  The SRAM is not cached, so fence.i is enough. */
++static void __init trap_sram_setup_vm(void)
++{
++	unsigned long i;
++
++	memcpy((void *)CONFIG_RISCV_TRAP_SRAM_PHYS, __trap_sram_load,
++	       __trap_sram_end - __trap_sram_start);
++	asm volatile ("fence.i" ::: "memory");
++
++	for (i = 0; i < CONFIG_RISCV_TRAP_SRAM_SIZE >> PAGE_SHIFT; i++)
++		trap_sram_pte[i] = pfn_pte(PFN_DOWN(CONFIG_RISCV_TRAP_SRAM_PHYS) + i,
++					   PAGE_KERNEL_EXEC);
++	create_pgd_mapping(early_pg_dir, TRAP_SRAM_VA, (uintptr_t)trap_sram_pte,
++			   PGDIR_SIZE, PAGE_TABLE);
++
++}
++
++static void __init trap_sram_setup_vm_final(void)
++{
++	create_pgd_mapping(swapper_pg_dir, TRAP_SRAM_VA, __pa_symbol(trap_sram_pte),
++			   PGDIR_SIZE, PAGE_TABLE);
++	memblock_phys_free(__pa_symbol(__trap_sram_load),
++			   __trap_sram_load_end - __trap_sram_load);
++}
++#else
++static inline void trap_sram_setup_vm(void) { }
++static inline void trap_sram_setup_vm_final(void) { }
+ #endif
+ 
+ asmlinkage void __init setup_vm(uintptr_t dtb_pa)
+@@ -1152,6 +1198,7 @@
+ 	 * in setup_vm_final() below.
+ 	 */
+ 	create_kernel_page_table(early_pg_dir, true);
++	trap_sram_setup_vm();
+ 
+ 	/* Setup early mapping for FDT early scan */
+ 	create_fdt_early_page_table(__fix_to_virt(FIX_FDT), dtb_pa);
+@@ -1275,6 +1322,7 @@
+ 	create_pgd_mapping(swapper_pg_dir, FIXADDR_START,
+ 			   __pa_symbol(fixmap_pgd_next),
+ 			   PGDIR_SIZE, PAGE_TABLE);
++	trap_sram_setup_vm_final();
+ 
+ 	/* Map the linear mapping */
+ 	create_linear_mapping_page_table();
+diff --git a/arch/riscv/kernel/patch.c b/arch/riscv/kernel/patch.c
+--- a/arch/riscv/kernel/patch.c
++++ b/arch/riscv/kernel/patch.c
+@@ -44,6 +44,9 @@
+ 	uintptr_t uintaddr = (uintptr_t) addr;
+ 	phys_addr_t phys;
+ 
++	if (is_trap_sram_text(uintaddr))
++		return addr;
++
+ 	if (core_kernel_text(uintaddr) || is_kernel_exittext(uintaddr)) {
+ 		if (!IS_ENABLED(CONFIG_STRICT_KERNEL_RWX))
+ 			return addr;
+diff --git a/arch/riscv/kernel/stacktrace.c b/arch/riscv/kernel/stacktrace.c
+--- a/arch/riscv/kernel/stacktrace.c
++++ b/arch/riscv/kernel/stacktrace.c
+@@ -12,8 +12,14 @@
+ #include <linux/stacktrace.h>
+ #include <linux/ftrace.h>
+ 
++#include <asm/sections.h>
+ #include <asm/stacktrace.h>
+ 
++static inline bool stack_text_address(unsigned long pc)
++{
++	return __kernel_text_address(pc) || is_trap_sram_text(pc);
++}
++
+ #ifdef CONFIG_FRAME_POINTER
+ 
+ /*
+@@ -71,7 +77,7 @@
+ 	for (;;) {
+ 		struct stackframe *frame;
+ 
+-		if (unlikely(!__kernel_text_address(pc) || (level++ >= 0 && !fn(arg, pc))))
++		if (unlikely(!stack_text_address(pc) || (level++ >= 0 && !fn(arg, pc))))
+ 			break;
+ 
+ 		if (unlikely(!fp_is_valid(fp, sp)))
+@@ -127,7 +133,7 @@
+ 
+ 	ksp = (unsigned long *)sp;
+ 	while (!kstack_end(ksp)) {
+-		if (__kernel_text_address(pc) && unlikely(!fn(arg, pc)))
++		if (stack_text_address(pc) && unlikely(!fn(arg, pc)))
+ 			break;
+ 		pc = READ_ONCE_NOCHECK(*ksp++);
+ 	}

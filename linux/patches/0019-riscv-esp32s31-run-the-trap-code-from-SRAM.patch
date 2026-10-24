@@ -1,0 +1,27 @@
+From: Marco Müller <hello@annoyedmilk.ch>
+Subject: [PATCH] riscv: esp32s31: run the trap code from SRAM
+
+The last 8 KiB of the Linux SRAM window of the loader.
+---
+diff --git a/arch/riscv/Kconfig.socs b/arch/riscv/Kconfig.socs
+--- a/arch/riscv/Kconfig.socs
++++ b/arch/riscv/Kconfig.socs
+@@ -124,10 +124,18 @@
+ config SOC_ESP32S31
+ 	bool "Espressif ESP32-S31 SoC"
+ 	select ESP32S31_CLIC
++	select RISCV_TRAP_SRAM
+ 	help
+ 	  This enables support for the Espressif ESP32-S31 SoC.  The kernel
+ 	  runs in Supervisor mode on OpenSBI, with the Sv32 MMU.  It gets
+ 	  all interrupts through the ESP32-S31 CLIC, not through the
+ 	  standard RISC-V local interrupt CSRs.
+ 
++# The last 8 KiB of the loader's Linux SRAM window, after the DMA pool.
++config RISCV_TRAP_SRAM_PHYS
++	default 0x2f04e000 if SOC_ESP32S31
++
++config RISCV_TRAP_SRAM_SIZE
++	default 0x2000 if SOC_ESP32S31
++
+ endmenu # "SoC selection"

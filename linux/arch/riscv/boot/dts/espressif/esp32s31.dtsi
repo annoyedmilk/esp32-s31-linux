@@ -44,12 +44,18 @@
 		/*
 		 * Sv32 has no cacheability attribute, and the port does not
 		 * use the uncached alias of PSRAM at 0xc0000000.  Thus coherent
+
+		/* The kernel trap code, CONFIG_RISCV_TRAP_SRAM_PHYS. */
+		trap-sram@2f04e000 {
+			reg = <0x2f04e000 0x2000>;
+			no-map;
+		};
 		 * allocations come from internal SRAM, which the data cache
 		 * does not hold.
 		 */
 		dma_pool: dma-pool@2f040000 {
 			compatible = "shared-dma-pool";
-			reg = <0x2f040000 0x10000>;
+			reg = <0x2f040000 0xe000>;
 			linux,dma-default;
 			no-map;
 		};

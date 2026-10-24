@@ -19,10 +19,11 @@ the best public reference for addresses and fields.
 | Harts | 2 × RV32 at 320 MHz: `rv32imafc` + Zba/Zbb/Zbs, Zc*, vendor extensions |
 | Privilege modes | M, S, U. Sv32 MMU. |
 | FPU | F only, no D. Linux supports an FPU only with D, so the FPU stays off. Floating point works in software (soft-float userspace), only slower. |
-| Cache | I-cache per hart, one 64 KiB D-cache for the two harts, 64-byte lines |
+| I-cache | 32 KiB for each hart, 2-way, 64-byte lines: 256 sets, address bits 13:6 select the set. See "The instruction cache". |
+| D-cache | 64 KiB for the two harts, 2-way, 64-byte lines |
 | Cache maintenance | No Zicbom. A cache controller with a "sync engine" (MMIO). |
 | Interrupts | CLIC only. The standard `sie`/`sip` CSRs do not exist. |
-| Internal SRAM | 512 KiB at `0x2F000000`, not cached by the D-cache |
+| Internal SRAM | 512 KiB at `0x2F000000`. The harts access it without the I-cache and the D-cache. |
 | PSRAM | 16 MiB octal, cached. The loader maps it at `0x50000000` with the MMU of the PSRAM controller. Linux uses it as RAM. An uncached alias is at `0xC0000000`. |
 | Flash | 16 MB NOR, mapped by the MMU of the flash controller |
 
@@ -58,7 +59,8 @@ ROM -> ESP-IDF 2nd stage -> loader (hart 0) -> OpenSBI (hart 1, M) -> Linux (har
 
 | Address | Size | Use |
 | --- | --- | --- |
-| `0x2F040000` | 64 KiB | Coherent DMA pool for Linux (`shared-dma-pool`) |
+| `0x2F040000` | 56 KiB | Coherent DMA pool for Linux (`shared-dma-pool`) |
+| `0x2F04E000` | 8 KiB | Trap code of Linux (`CONFIG_RISCV_TRAP_SRAM`), see "The instruction cache" |
 | `0x2F050000` | 52 KiB | Shared block: requests, flash mailbox, ESP-Hosted rings |
 | `0x2F079000` | 4 KiB | LCD DMA descriptor ring (Korvo-1) |
 | `0x50000000` | 15 MiB - 4 KiB | Linux RAM, from the kernel image |
@@ -79,7 +81,7 @@ firmware):
 | Use | Size |
 | --- | --- |
 | Loader and ESP-Hosted firmware, static (`.text`, `.data`, `.bss`) | 165 KiB |
-| Linux: DMA pool and shared block (`0x2F040000`-`0x2F05D000`) | 116 KiB |
+| Linux: DMA pool, trap code and shared block (`0x2F040000`-`0x2F05D000`) | 116 KiB |
 | LCD descriptor ring and reserved blocks | 8 KiB |
 | ESP-IDF heap in HP SRAM | 211 KiB |
 
@@ -198,7 +200,7 @@ This is the part that is most different from other RISC-V SoCs.
   twice, as the ESP-IDF ROM patch does. A test of 360 write-backs did not
   show the loss, but ESP-IDF marks it as necessary for this chip.
 - **Coherent allocations come from SRAM.** The CPU accesses SRAM without
-  the D-cache. The 64 KiB `shared-dma-pool` at `0x2F040000` is the default
+  the D-cache. The 56 KiB `shared-dma-pool` at `0x2F040000` is the default
   for `dma_alloc_coherent()`.
 - **Streaming DMA uses the sync engine** through
   `riscv_noncoherent_register_cache_ops()`. `setup_arch()` enables
@@ -230,6 +232,43 @@ This is the part that is most different from other RISC-V SoCs.
   stays off. The reset FIFO sizes are larger than the 896-word FIFO RAM, so
   the driver sets smaller ones (`patches/0004`). The DWC2 register window
   must include the FIFO windows at `0x1000 × (channel + 1)`.
+
+## The instruction cache
+
+Each hart has a private I-cache of 32 KiB: 2 ways of 16 KiB, 64-byte lines,
+thus 256 sets. Address bits 13:6 select the set. Three sources agree: the
+datasheet (section 4.1.3.4), `MAX_L1_ICACHE_SIZE` in the ROM header
+`rom/cache.h`, and the reset value of `L1_ICACHE_CACHESIZE_CONF` (32K).
+A measurement on hart 1 also agrees (below). The ESP-IDF option
+`CONFIG_CACHE_L1_ICACHE_SIZE` gives 16 KiB, which is wrong for this chip.
+
+- **Three lines in one set.** The cache has only 2 ways. When three lines
+  that a path runs each time have the same set, they evict each other each
+  time. A syscall uses approximately 24 lines in 5 places of the kernel
+  (`arch/`, `kernel/`, `lib/`, the noinstr text and the entry code). A small
+  change elsewhere in the kernel moves these places against each other.
+  In one build, `handle_exception+0x80`, `task_active_pid_ns` and the
+  out-of-line `arch_exit_to_user_mode_prepare` had set 15: a `getpid()`
+  took 2.6 µs instead of 1.2 µs, with 3.2 line fills for each call instead
+  of 0.08. A refill from PSRAM takes approximately 450 ns.
+- **The counters.** The cache controller counts hits, misses and fills
+  for each bus (`0x2C000180`: enable and clear, `0x2C000194` and up: IBUS1,
+  the I-cache of hart 1; `0x2C0001D8` and up: DBUS1). S-mode can read them.
+  OpenSBI or `/dev/mem` can sample them without a change to the kernel image.
+- **SRAM.** The harts fetch internal SRAM without the I-cache, as fast as a
+  cache hit: 229 ns for a block of 61 instructions from PSRAM (a hit) and
+  from SRAM. Code in SRAM uses no line of the I-cache. A fetch loop of hart 1
+  in SRAM did not slow the Wi-Fi of hart 0 (iperf3 RX 35.0 against 34.6
+  Mbit/s with the same loop in PSRAM).
+- **The trap code in SRAM** (`CONFIG_RISCV_TRAP_SRAM`, `patches/0018`). The
+  entry, irqentry, noinstr and cpuidle text (4.6 KiB) is linked for the
+  virtual address `0xFFC00000` (the last PGD entry) and loaded in the image
+  before `.text`. `setup_vm()` copies it to `0x2F04E000` with the MMU off
+  and maps it in `early_pg_dir`; `setup_vm_final()` maps it in
+  `swapper_pg_dir` and frees the load pages. Thus the trap path does not
+  depend on the layout of the kernel. With all other code at the same
+  address, a pipe round trip between two processes took 136 µs, against
+  174 µs with the trap code in PSRAM. Kallsyms does not cover this range.
 
 ## Page blocks
 
@@ -267,7 +306,7 @@ the disk read went from 9 to 19 MB/s.
   an OpenSBI domain region.
 - **Hart 0.** It runs ESP-IDF in M-mode, where only a locked PMP entry
   applies. After the loader starts hart 1, it locks hart 0 out of PSRAM,
-  of the uncached PSRAM alias and of the DMA pool (PMP entries 13 to 15, no
+  of the uncached PSRAM alias and of its SRAM window (PMP entries 13 to 15, no
   access). The lock stays until the next reset. Hart 0 can still write the
   rest of SRAM and all peripherals.
 
@@ -433,6 +472,8 @@ and Bluetooth stack the same on all boards.
 | Flash program or erase | Freezes the cache of the two harts. Use auto-suspend. |
 | Core bus timeout | Fires behind flash suspends: access fault on PSRAM. Turn it off. |
 | DMA burst to PSRAM | More than 16 beats gives an MSPI error that stops hart 0. The GMAC uses PBL 16 without the x8. |
+| I-cache 2-way | Three hot lines in one set miss each time. A kernel change can make syscalls 2 times slower. |
+| ESP-IDF I-cache size | `CONFIG_CACHE_L1_ICACHE_SIZE` says 16 KiB. The hardware has 32 KiB. |
 
 ## Where to start reading
 
