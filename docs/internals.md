@@ -18,7 +18,7 @@ the best public reference for addresses and fields.
 | --- | --- |
 | Harts | 2 × RV32 at 320 MHz: `rv32imafc` + Zba/Zbb/Zbs, Zc*, vendor extensions. The kernel is compiled with Zba/Zbb/Zbs (`patches/0020`). |
 | Privilege modes | M, S, U. Sv32 MMU. |
-| FPU | F only, no D. Linux supports an FPU only with D, so the FPU stays off. Floating point works in software (soft-float userspace), only slower. |
+| FPU | F only, no D. Linux supports an FPU only with D, so the FPU stays off. Floating point works in software (soft-float userspace), only slower. See "The FPU". |
 | I-cache | 32 KiB for each hart, 2-way, 64-byte lines: 256 sets, address bits 13:6 select the set. See "The instruction cache". |
 | D-cache | 64 KiB for the two harts, 2-way, 64-byte lines |
 | Cache maintenance | No Zicbom. A cache controller with a "sync engine" (MMIO). |
@@ -278,6 +278,16 @@ then share 2 or 3 blocks, and each migrate-type fallback counts the free
 pages of a whole block, 1024 `struct page`. During a disk read, this took
 45% of the CPU time. The port uses order 3 (32 KiB, `PAGE_ALLOC_COSTLY_ORDER`):
 the disk read went from 9 to 19 MB/s.
+
+## The FPU
+
+The FPU has F (single precision) but not D. A kernel patch can save the F
+registers and let user programs use F: a single-precision benchmark ran 37
+times faster. But the userspace does almost no single-precision math. A
+scan of all programs and libraries of the rootfs found calls to the soft-float
+helpers for single precision only in `libgcc_s` itself and 36 in
+`libstdc++`. Lua, MicroPython and libm use double precision, which F does
+not help. Thus the FPU stays off.
 
 ## Protection
 
