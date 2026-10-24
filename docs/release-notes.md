@@ -40,12 +40,34 @@ alone with UART only.
 On the Korvo-1, the LCD shows the Tux logo and the kernel warnings, then
 the tmux desktop for a USB keyboard.
 
-## New in v0.7.2
+## New in v0.8.0
 
+- SD card reads on the Korvo-1 are approximately two times faster: 18 to
+  20 MB/s (v0.7.1: 6 to 9 MB/s). Writes are 8 to 10 MB/s (v0.7.1:
+  7 MB/s). The page allocator used 4 MiB page blocks, and on 16 MiB of
+  RAM its fallback scan used half of the CPU. The blocks are now 32 KiB.
+- System calls and interrupts are faster and stable. The trap entry and
+  exit code runs from on-chip SRAM, which the core reads without the
+  I-cache. Before, the speed changed with each kernel build: `getpid()`
+  took 1.2 to 2.6 µs, now it takes 1.1 to 1.2 µs. A pipe round trip
+  between two processes takes approximately 20% less time.
+- Wi-Fi TX uses less CPU. The ESP-Hosted driver aligns the header in the
+  headroom of the frame, and does not copy each frame. With all changes
+  of this release, hart 1 has 5 to 8% more idle time at 20 Mbit/s TX, and
+  TCP TX is approximately 7% faster.
+- The kernel uses the Zba, Zbb and Zbs instructions of the harts.
+- ESP-Hosted is at the current master (firmware NG-1.0.6.0.21). The
+  firmware runs the WPA2 Enterprise callbacks, the removal of an AP
+  station and the deauthentication at interface stop in the Wi-Fi task.
+- The loader has six fixes from newer ESP-IDF, in
+  `bootloader/idf-patches`: a false PSRAM error interrupt that stopped
+  hart 0, a hang when Wi-Fi stops while Bluetooth runs, the RF power-down
+  at deep sleep, the Bluetooth slow clock reset, and two `esp_timer`
+  races.
 - Linux has approximately 360 KiB more RAM on each board. The linker
   removes the kernel code and data that nothing uses (approximately
   300 KiB), and OpenSBI gives Linux the 64 KiB of its area that it did not
-  use. On the Korvo-1, MemTotal is 11036 kB (v0.7.1: 10668 kB).
+  use. On the Korvo-1, MemTotal is 11060 kB (v0.7.1: 10668 kB).
 - `dbus-daemon` and `bluetoothd` start at the first `bluetoothctl`, and not
   at each boot. When a device is paired, they start at boot as before, so
   that the device can connect.
