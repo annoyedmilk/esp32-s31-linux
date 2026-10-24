@@ -361,6 +361,11 @@ the USB transport in shared SRAM. The layout is in
   access the flash. Linux then asks for the same service
   (`esp32_shm.radio_service=bt`), which changes nothing.
 - The IEEE 802.15.4 radio is not used. Its RCP took SRAM from the Wi-Fi
+- The host driver pads the payload header (offset 12 to 15 bytes) so that
+  the header starts aligned in the headroom (`esp-hosted-linux/0008`).
+  Before, it copied each TX frame into a new skb: 15% of the CPU time.
+- GRO through `gro_cells` gave no gain: the RX work gives one frame at a
+  time, and each `local_bh_enable()` runs the poll for that frame only.
   buffers, and its coexistence scheme halved the Wi-Fi throughput.
 - The Bluetooth controller reports "BR/EDR Not Supported" in its LMP
   features, although it has BR/EDR. A host patch clears the bit

@@ -1,0 +1,91 @@
+From: Marco Müller <hello@annoyedmilk.ch>
+Subject: [PATCH] host: align the TX header in the headroom, do not copy the frame
+
+The header offset can be 12 to 15 bytes.  Pad it so that the header
+starts aligned, instead of copying each frame into a new skb.
+
+Upstream: not sent
+---
+diff --git a/host/main.c b/host/main.c
+--- a/host/main.c
++++ b/host/main.c
+@@ -488,13 +488,10 @@
+ 	struct esp_wifi_device *priv = NULL;
+ 	struct esp_skb_cb *cb = NULL;
+ 	struct esp_payload_header *payload_header = NULL;
+-	struct sk_buff *new_skb = NULL;
+ 	int ret = 0;
+-	u8 pad_len = 0, realloc_skb = 0;
++	u8 pad_len = 0;
+ 	u16 len = 0;
+-	u16 total_len = 0;
+ 	static u8 c;
+-	u8 *pos = NULL;
+ 	bool is_eapol;
+ 
+ 	c++;
+@@ -519,54 +516,17 @@
+ 	len = skb->len;
+ 	is_eapol = (skb->protocol == htons(ETH_P_PAE));
+ 
+-	/* Create space for payload header */
+-	pad_len = sizeof(struct esp_payload_header);
+-
+-	total_len = len + pad_len;
+-
+-	/* Align buffer length */
+-	pad_len += (SKB_DATA_ADDR_ALIGNMENT - (total_len % SKB_DATA_ADDR_ALIGNMENT)) %
+-		SKB_DATA_ADDR_ALIGNMENT;
+-
+-	if (skb_headroom(skb) < pad_len) {
+-		/* Headroom is not sufficient */
+-		realloc_skb = 1;
++	/* Align the header start; the firmware finds the frame by offset. */
++	if (skb_cow_head(skb, sizeof(struct esp_payload_header) +
++			      SKB_DATA_ADDR_ALIGNMENT - 1)) {
++		priv->stats.tx_errors++;
++		dev_kfree_skb(skb);
++		esp_err("Failed to make headroom");
++		return NETDEV_TX_OK;
+ 	}
+-
+-	if (realloc_skb || !IS_ALIGNED((unsigned long) skb->data, SKB_DATA_ADDR_ALIGNMENT)) {
+-		/* Realloc SKB */
+-		if (skb_linearize(skb)) {
+-			priv->stats.tx_errors++;
+-			dev_kfree_skb(skb);
+-			esp_err("Failed to linearize SKB");
+-			return NETDEV_TX_OK;
+-		}
+-
+-		new_skb = esp_if_alloc_skb(priv->adapter, skb->len + pad_len);
+-
+-		if (!new_skb) {
+-			esp_err("Failed to allocate SKB");
+-			priv->stats.tx_errors++;
+-			dev_kfree_skb(skb);
+-			return NETDEV_TX_OK;
+-		}
+-
+-		pos = new_skb->data;
+-		pos += pad_len;
+-
+-		/* Populate new SKB */
+-		skb_copy_from_linear_data(skb, pos, skb->len);
+-		skb_put(new_skb, skb->len + pad_len);
+-		new_skb->protocol = skb->protocol;
+-		((struct esp_skb_cb *)new_skb->cb)->priv = priv;
+-
+-		/* Replace old SKB */
+-		dev_kfree_skb_any(skb);
+-		skb = new_skb;
+-	} else {
+-		/* Realloc is not needed, Make space for interface header */
+-		skb_push(skb, pad_len);
+-	}
++	pad_len = sizeof(struct esp_payload_header);
++	pad_len += ((unsigned long)skb->data - pad_len) & (SKB_DATA_ADDR_ALIGNMENT - 1);
++	skb_push(skb, pad_len);
+ 
+ 	/* Set payload header */
+ 	payload_header = (struct esp_payload_header *) skb->data;
