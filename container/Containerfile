@@ -2,7 +2,7 @@
 # silicon, so there is no emulation.
 FROM debian:bookworm
 
-# Buildroot host dependencies, plus dosfstools/mtools for genimage and
+# The Buildroot host packages, dosfstools and mtools for genimage, and
 # python3 for post-image.sh.
 RUN apt-get update && apt-get install -y --no-install-recommends \
         bc binutils build-essential bzip2 ca-certificates cpio diffutils \

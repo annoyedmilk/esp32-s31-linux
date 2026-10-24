@@ -3,7 +3,7 @@
 This document tells how Linux runs on the ESP32-S31, and why the port has
 its current form. It is for developers who know the RISC-V Linux kernel and
 want to understand this SoC. All facts are from chip revision v0.0 on the
-ESP32-S31-Korvo-1 board. Most of them were measured with JTAG, because
+ESP32-S31-Korvo-1 board. JTAG measurements gave most of them, because
 Espressif does not publish a technical reference manual for this chip yet.
 The port has three builds: `esp32s31` for the ESP32-S31-WROOM-3-N16R16V
 module alone, `coreboard1` for the ESP32-S31-Function-CoreBoard-1, and
@@ -161,9 +161,12 @@ idle and when it is busy: -17 ppm and +10 ppm against a host clock, with a
 resolution of approximately 30 ppm. It also counts in WFI when
 `CPU_WAIT_MODE_FORCE_ON` (`0x20586118`, bit 0) is cleared.
 
-A uniprocessor kernel still needs a self-interrupt for `irq_work`. CLIC
-input 1 accepts IP writes but does not arbitrate on this revision. So the
-driver uses external input 16 as a software interrupt (`patches/0005`).
+A uniprocessor kernel still needs a self-interrupt for `irq_work`. Without
+one, the work waits for the next tick, and with `NO_HZ_IDLE` the kernel can
+deadlock when the only task that can run waits for the work (Tiny SRCU
+does this when it replaces the boot console). CLIC input 1 accepts IP
+writes but does not arbitrate on this revision. So the driver uses external
+input 16 as a software interrupt (`patches/0005`).
 
 ## Cache and DMA
 
@@ -296,7 +299,7 @@ not help. Thus the FPU stays off.
 - **APM.** `HP_APM` checks the accesses of the bus masters, also DMA to
   PSRAM. M-mode is TEE mode, and the DMA masters are REE mode. OpenSBI
   gives its memory to TEE mode only and locks the regions. A blocked access
-  returns 0 and is recorded, with no bus error. PMP does not cover the
+  returns 0, and the APM records it, with no bus error. PMP does not cover the
   uncached alias of the OpenSBI memory (`0xC0F00000`). There, an S-mode
   read also returns 0 and a write is lost. A read that hits the D-cache is
   not checked: the APM sees only bus accesses, so PMP must protect the
@@ -358,6 +361,11 @@ the USB transport in shared SRAM. The layout is in
   At full iperf3 TCP load, Linux has almost no idle time: the copy from
   SRAM, the RX worker and the network stack use the hart. The release
   notes give the throughput of each release.
+- The host driver pads the payload header (offset 12 to 15 bytes) so that
+  the header starts aligned in the headroom (`esp-hosted-linux/0008`).
+  Before, it copied each TX frame into a new skb: 15% of the CPU time.
+- GRO through `gro_cells` gave no gain: the RX work gives one frame at a
+  time, and each `local_bh_enable()` runs the poll for that frame only.
 - A restart of the firmware also restarts Linux. Thus when the host driver
   opens or closes the data path, the firmware only sends its boot event
   again. Over USB, close restarts the firmware. Here the firmware keeps its
@@ -370,13 +378,9 @@ the USB transport in shared SRAM. The layout is in
 - The loader starts Bluetooth before hart 1, as Wi-Fi: a radio start can
   access the flash. Linux then asks for the same service
   (`esp32_shm.radio_service=bt`), which changes nothing.
-- The IEEE 802.15.4 radio is not used. Its RCP took SRAM from the Wi-Fi
-- The host driver pads the payload header (offset 12 to 15 bytes) so that
-  the header starts aligned in the headroom (`esp-hosted-linux/0008`).
-  Before, it copied each TX frame into a new skb: 15% of the CPU time.
-- GRO through `gro_cells` gave no gain: the RX work gives one frame at a
-  time, and each `local_bh_enable()` runs the poll for that frame only.
-  buffers, and its coexistence scheme halved the Wi-Fi throughput.
+- The port does not use the IEEE 802.15.4 radio. Its RCP took SRAM from
+  the Wi-Fi buffers, and its coexistence scheme halved the Wi-Fi
+  throughput.
 - The Bluetooth controller reports "BR/EDR Not Supported" in its LMP
   features, although it has BR/EDR. A host patch clears the bit
   (`0006-*`).
@@ -491,6 +495,9 @@ and Bluetooth stack the same on all boards.
 | DMA burst to PSRAM | More than 16 beats gives an MSPI error that stops hart 0. The GMAC uses PBL 16 without the x8. |
 | I-cache 2-way | Three hot lines in one set miss each time. A kernel change can make syscalls 2 times slower. |
 | ESP-IDF I-cache size | `CONFIG_CACHE_L1_ICACHE_SIZE` says 16 KiB. The hardware has 32 KiB. |
+| TRNG after the 2nd stage | ESP-IDF v6.1 stops it. The loader starts it again for `esp_random()` and the Linux hwrng. Its noise source does not use the RF. |
+| USB Serial/JTAG without a host | `TX_FREE` stays clear, and the console slows to approximately 130 B/s. OpenSBI stops the copy after one timeout. |
+| ROM stack of hart 1 | The ROM start code of hart 1 uses 1 KiB below `0x2F07E600`. ESP-IDF gives this area to its heap, so the loader reserves it. |
 
 ## Where to start reading
 

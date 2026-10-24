@@ -8,8 +8,7 @@ FASTFETCH_VERSION = 2.70.0
 FASTFETCH_SITE = $(call github,fastfetch-cli,fastfetch,$(FASTFETCH_VERSION))
 FASTFETCH_LICENSE = MIT
 FASTFETCH_LICENSE_FILES = LICENSE
-# No desktop, GPU, audio or image libraries on this board.  SET_TWEAK would
-# add a git suffix to the version.
+# No desktop, GPU, audio or image libraries.  SET_TWEAK adds a git suffix.
 FASTFETCH_CONF_OPTS = \
 	-DBUILD_FLASHFETCH=OFF \
 	-DBUILD_TESTS=OFF \

@@ -21,21 +21,14 @@
 #include "soc/lcd_cam_struct.h"
 #include "display.h"
 
-/*
- * Frame buffer: RGB565 at 800x480 is 750 KiB at the top of PSRAM, above
- * OpenSBI (0x50F00000, 192 KiB) and 64 KiB of Linux RAM.
- */
+/* RGB565 800x480 at the top of PSRAM, above OpenSBI and 64 KiB of Linux RAM. */
 #define LCD_FB_ADDR            0x50F40000U
 #define LCD_H_RES              800U
 #define LCD_V_RES              480U
 #define LCD_FB_SIZE            (LCD_H_RES * LCD_V_RES * 2U)
 #define LCD_PCLK_HZ            18000000U
 
-/*
- * The AXI DMA descriptor ring is in upper SRAM, outside the ESP-IDF heap.
- * The DMA engine reads this ring after the handoff, so nothing must use
- * that memory again.
- */
+/* The descriptor ring, outside the heap: the DMA reads it after the handoff. */
 #define LCD_DMA_LINK_ADDR      0x2F079000U
 #define LCD_DMA_LINK_SIZE      0x1000U
 #define LCD_DMA_CHUNK_SIZE     DMA_DESCRIPTOR_BUFFER_MAX_SIZE_64B_ALIGNED
@@ -65,12 +58,7 @@ static void fill_color_bars(void)
     }
 }
 
-/*
- * Build a descriptor ring for the full frame buffer.  One descriptor cannot
- * hold 750 KiB, so each one holds DMA_DESCRIPTOR_BUFFER_MAX_SIZE_64B_ALIGNED
- * bytes.  The last descriptor points to the first.  Thus the DMA engine reads
- * the frame buffer continuously, and the CPU does nothing after the handoff.
- */
+/* A ring of descriptors over the frame buffer: the DMA scans it out forever. */
 static void build_dma_link(void)
 {
     dma_descriptor_align8_t *link = (dma_descriptor_align8_t *)LCD_DMA_LINK_ADDR;
@@ -186,11 +174,7 @@ bool display_init(void)
         goto fail;
     }
 
-    /*
-     * Replace the driver's descriptor chain with the ring in SRAM, and start
-     * the transfer again from it.  Disable the interrupts first, because
-     * nothing handles them after Linux controls the CLIC.
-     */
+    /* The ring in SRAM, interrupts off: nothing handles them under Linux. */
     build_dma_link();
     silence_lcd_interrupts(channel);
     start_dma_link(channel);

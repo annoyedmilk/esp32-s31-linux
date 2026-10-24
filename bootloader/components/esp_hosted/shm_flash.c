@@ -58,28 +58,14 @@ static esp_err_t flash_op(uint32_t cmd, uint32_t addr, uint32_t len)
 	return esp_flash_erase_region(NULL, s_base + addr, len);
 }
 
-/*
- * A cache miss of hart 1 can wait behind the suspends of a program or erase
- * longer than the core bus timeout (65535 cycles at most).  The bus then
- * answers with an error, and Linux gets an access fault on a correct PSRAM
- * address.  Turn the timeout off for the two harts: the access then gets its
- * data later.
- */
+/* A cache miss behind flash suspends can exceed the bus timeout: a fault. */
 static void disable_bus_timeouts(void)
 {
 	REG_CLR_BIT(HP_SYSTEM_CORE_IBUS_TIMEOUT_CONF_REG, HP_SYSTEM_CORE_IBUS_TIMEOUT_PROTECT_EN);
 	REG_CLR_BIT(HP_SYSTEM_CORE_DBUS_TIMEOUT_CONF_REG, HP_SYSTEM_CORE_DBUS_TIMEOUT_PROTECT_EN);
 }
 
-/*
- * After each program or erase, ESP-IDF invalidates the window through the
- * ROM, which uses the cache sync engine.  OpenSBI programs the same engine
- * for Linux at any time, so the two take the lock word of the shared block
- * for each operation.  The lock covers the short ROM call, not the program
- * or erase, so Linux does not wait for the flash.  The firmware calls no
- * other ROM sync function after hart 1 starts (see the CMakeLists.txt).
- * Before that, the lock word is not set up, and no other hart uses the engine.
- */
+/* The ROM cache syncs take the lock (docs/internals.md, "Cache and DMA"). */
 #define CACHE_LOCK ((uint32_t *)(ESP_SHM_ADDR + ESP_SHM_CTRL + ESP_SHM_CACHE_LOCK_OFF))
 
 void shm_flash_share_cache(void)

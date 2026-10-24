@@ -19,8 +19,8 @@ jobs:
     strategy:
       matrix:
         board: [esp32s31, coreboard1, korvo1]
-    # Buildroot builds a toolchain, the kernel and the userspace: about 2 to 3
-    # hours on a hosted runner.  The limit for a job is 6 hours.
+    # Buildroot builds a toolchain, the kernel and the userspace: approximately
+    # 2 to 3 hours on a hosted runner.  The limit for a job is 6 hours.
     timeout-minutes: 350
     steps:
       - name: Free disk space

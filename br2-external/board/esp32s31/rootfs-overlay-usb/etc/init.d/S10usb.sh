@@ -15,8 +15,7 @@ mount_usb()
 	mkdir -p $MNT
 	dev=/dev/$disk
 	[ -b ${dev}1 ] && dev=${dev}1
-	# flush writes the data soon, so a stick pulled without umount loses
-	# less.
+	# flush writes the data soon: a stick pulled without umount loses less.
 	if mount -t vfat -o rw,noatime,flush $dev $MNT 2>/dev/null; then
 		logger -t usb "$dev on $MNT"
 	else
@@ -33,9 +32,7 @@ stop)
 	mountpoint -q $MNT && umount $MNT
 	;;
 hotplug)
-	# mdev runs the events of a stick in parallel, so only one of them
-	# mounts: the first partition, or the full stick when it has none.  The
-	# kernel adds the partitions before the event of the stick.
+	# The events run in parallel: mount only p1, or the stick without a p1.
 	if [ "$ACTION" != remove ]; then
 		case $MDEV in
 		sd?1) mount_usb "$MDEV" ;;

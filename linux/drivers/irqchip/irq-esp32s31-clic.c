@@ -31,12 +31,7 @@
 
 #define ESP32S31_CLIC_BASE 0x10a00000	/* S-mode sclicbase window */
 
-/*
- * The per-interrupt control registers start at 0x10a0_1000.  Each interrupt
- * has a 32-bit word with four byte registers.  All cores use the same
- * address, and each core gets its own registers.  The registers of the other
- * core are at +0x10000.
- */
+/* A word of four byte registers for each input; the other core at +0x10000. */
 #define ESP32S31_CLIC_CTRL_BASE 0x10a01000	/* S-mode per-interrupt window */
 #define ESP32S31_CLIC_INT_STRIDE 4		/* Bytes per interrupt */
 #define ESP32S31_CLIC_INT_IP 0x0		/* Pending (byte 0, bit 0) */
@@ -50,11 +45,7 @@
 #define CLIC_NR_IRQS 48				/* 16 local + 32 external */
 #define ESP32S31_CLIC_IRQ_WORK_ID CLIC_EXT_MIN_ID
 
-/*
- * In CLIC mode, the low cause bits hold the interrupt ID.  The high bits hold
- * CLIC data, for example the previous interrupt level.  CAUSE_IRQ_FLAG does
- * not remove them, so use a mask to get the exception code.
- */
+/* CLIC mode keeps the level in the high cause bits: mask the exception code. */
 #define CLIC_CAUSE_EXCCODE_MASK 0xfff
 
 /* CLIC configuration constants */
@@ -68,33 +59,18 @@
 #define CSR_SINTTHRESH 0x147
 #endif
 
-/*
- * clicintctl[i], byte 3 of the per-interrupt word.  OpenSBI sets CLICCFG to
- * 0x23: snlbits = 0, so all supervisor inputs have level 255, and the three
- * implemented bits are only the priority.  CLICCTL_MAKE(1, 3) gives 0xe0,
- * which also keeps level 255 when snlbits is 1.
- */
+/* cliccfg 0x23 (snlbits 0): the bits are priority; 0xe0 keeps level 255. */
 #define CLICCTL_MAKE(level, prio) \
 	(((level) << (8 - ESP32S31_CLICNLBITS)) | \
 	 ((prio) << (8 - ESP32S31_CLICINTCTLBITS)))
 
-/*
- * Interrupt attribute bits (byte 2 of the per-interrupt word):
- *   bit 0:      SHV, 0 for non-vectored interrupts
- *   bits [2:1]: TRIG, trigger type
- *     X0 = level, 01 = rising edge, 11 = falling edge
- *   bits [7:6]: MODE, supervisor mode for the Linux inputs
- */
+/* Byte 2: SHV bit 0, TRIG [2:1] (X0 level, 01 rise, 11 fall), MODE [7:6]. */
 #define CLIC_ATTR_TRIG_LEVEL 0x00
 #define CLIC_ATTR_TRIG_EDGE_RISE 0x02
 #define CLIC_ATTR_TRIG_EDGE 0x02 /* bit 1: 1 = edge, 0 = level */
 #define CLIC_ATTR_MODE_S 0x40
 
-/*
- * The Interrupt Matrix connects SoC interrupt sources to CLIC inputs.  Each
- * core has its own block.  Linux maps only the block of its hart.  The other
- * block is for the M-mode firmware.
- */
+/* The Interrupt Matrix block of this hart; the other is for the firmware. */
 #define ESP32S31_INTMATRIX_CORE_STRIDE 0x800
 #define ESP32S31_INTMATRIX_MAP_MASK 0x3f
 #define ESP32S31_INTMATRIX_PASS_LEVEL_SHIFT 8
@@ -111,11 +87,7 @@ struct esp32s31_clic {
 
 static DEFINE_PER_CPU(struct esp32s31_clic *, clic_per_cpu);
 
-/*
- * Each core finds its own per-interrupt registers at
- * ESP32S31_CLIC_CTRL_BASE + irq_id * 4 + byte_offset.  This driver does not
- * use the +0x10000 alias of the other core.
- */
+/* The per-interrupt registers of this core; the +0x10000 alias is not used. */
 static inline u8 clic_readb(struct esp32s31_clic *clic, unsigned int irq_id,
 			    unsigned int byte_off)
 {
@@ -148,23 +120,14 @@ static void esp32s31_clic_irq_unmask(struct irq_data *d)
 	esp32s31_clic_irq_enable(d, 1);
 }
 
-/*
- * Empty EOI, as riscv_intc_irq_eoi(): a level input clears when the device
- * releases it, and the irq_work handler clears its own IP.  Without the
- * callback, chained_irq_enter() and chained_irq_exit() in child irqchip
- * drivers do mask and unmask cycles that are not necessary.
- */
+/* Empty, as riscv_intc_irq_eoi(): chained_irq_enter() then skips the mask. */
 static void esp32s31_clic_irq_eoi(struct irq_data *d)
 {
 }
 
 static int esp32s31_clic_set_type(struct irq_data *d, unsigned int flow_type)
 {
-	/*
-	 * All peripheral sources are levels.  The CLIC has no level-low mode,
-	 * so the two Linux levels become level.  Linux uses only S-mode,
-	 * non-vectored CLIC inputs.
-	 */
+	/* The CLIC has no level-low: the two Linux levels become level. */
 	if (!(flow_type & IRQ_TYPE_LEVEL_MASK))
 		return -EINVAL;
 
@@ -182,14 +145,7 @@ static struct irq_chip esp32s31_clic_chip = {
 };
 
 #if defined(CONFIG_IRQ_WORK) && !defined(CONFIG_SMP)
-/*
- * Upstream RISC-V has arch_irq_work_raise() in smp.c.  Thus a UP kernel
- * waits for the next timer tick.  With NO_HZ_IDLE, this is a deadlock when
- * the only task that can run waits for irq_work.  Tiny SRCU does this when it
- * replaces the boot console.  CLIC local cause 1 accepts IP writes on S31
- * v0.0, but the CLIC does not arbitrate it.  Thus use the first unused
- * external CLIC input as a software interrupt.
- */
+/* UP RISC-V has no self-interrupt; input 1 does not arbitrate: use 16. */
 void arch_irq_work_raise(void)
 {
 	struct esp32s31_clic *clic = this_cpu_read(clic_per_cpu);
@@ -203,11 +159,7 @@ void arch_irq_work_raise(void)
 
 static irqreturn_t esp32s31_irq_work_interrupt(int irq, void *dev_id)
 {
-	/*
-	 * Clear the software pending bit before the work runs.  An item that
-	 * adds more work sets IP again in irq_work_run(), and that IP must
-	 * stay set.
-	 */
+	/* Clear IP before the work runs: an item that adds work sets it. */
 	clic_writeb(dev_id, ESP32S31_CLIC_IRQ_WORK_ID, ESP32S31_CLIC_INT_IP, 0);
 
 	irq_work_run();
@@ -247,14 +199,7 @@ static int __init esp32s31_irq_work_init(struct esp32s31_clic *clic)
 }
 #endif
 
-/*
- * S-mode CLIC chip for the riscv,cpu-intc domain.
- *
- * On the ESP32-S31 in CLIC mode, the standard S-mode interrupt-enable CSRs
- * (sie/sieh) are illegal.  Thus mask and unmask the local riscv,cpu-intc
- * interrupts (timer, IPI) through the S-mode CLIC MMIO window.  This chip
- * replaces the upstream riscv_intc_chip on the INTC domain.
- */
+/* sie/sieh are illegal in CLIC mode: mask the local causes in the CLIC. */
 static void esp32s31_intc_clic_irq_mask(struct irq_data *d)
 {
 	clic_writeb(this_cpu_read(clic_per_cpu), d->hwirq,
@@ -298,11 +243,7 @@ static void esp32s31_intmatrix_route(struct esp32s31_clic *clic,
 	writel(val, reg);
 }
 
-/*
- * ESP32-S31 interrupt specifiers are <CLIC ID, SoC interrupt source, type>.
- * For example, UART0 is <32 9 IRQ_TYPE_LEVEL_HIGH>.  Source 9 is
- * ETS_UART0_INTR_SOURCE in the S31 ESP-IDF table.
- */
+/* <CLIC ID, SoC source, type>: UART0 is <32 9 IRQ_TYPE_LEVEL_HIGH>. */
 static int esp32s31_clic_parse_fwspec(struct irq_fwspec *fwspec,
 				     irq_hw_number_t *hwirq,
 				     unsigned int *source,
@@ -383,10 +324,7 @@ static const struct irq_domain_ops esp32s31_clic_domain_ops = {
 	.translate = esp32s31_clic_domain_translate,
 };
 
-/*
- * handle_exception() calls this through do_irq() for interrupts.  regs->cause
- * has the unchanged CLIC cause.
- */
+/* do_irq() calls this with the unchanged CLIC cause in regs->cause. */
 static void (*fallback_handle_irq)(struct pt_regs *);
 
 void esp32s31_clic_handle_irq(struct pt_regs *regs)
@@ -401,10 +339,7 @@ void esp32s31_clic_handle_irq(struct pt_regs *regs)
 	raw_cause = regs->cause;
 	irq_id = raw_cause & CLIC_CAUSE_EXCCODE_MASK;
 
-	/*
-	 * Interrupt IDs below the first CLIC external source are standard
-	 * local RISC-V interrupts for the riscv,cpu-intc domain.
-	 */
+	/* IDs below 16 are the local interrupts of the riscv,cpu-intc domain. */
 	if (irq_id < CLIC_EXT_MIN_ID) {
 		/* Clear pending state for S-mode edge-triggered local interrupts. */
 		u8 attr = clic_readb(clic, irq_id, ESP32S31_CLIC_INT_ATTR);
@@ -434,11 +369,7 @@ static void __init esp32s31_clic_init_cpu(struct esp32s31_clic *clic, int cpu)
 
 	csr_write(CSR_SINTTHRESH, 0);
 
-	/*
-	 * OpenSBI controls the local CLIC slots.  Linux sets up only the
-	 * external inputs.  It does not change the machine and supervisor
-	 * timer inputs.
-	 */
+	/* OpenSBI controls the local inputs; set up only the external ones. */
 	for (i = CLIC_EXT_MIN_ID; i < CLIC_NR_IRQS; i++) {
 		clic_writeb(clic, i, ESP32S31_CLIC_INT_IP, 0);
 		clic_writeb(clic, i, ESP32S31_CLIC_INT_IE, 0);
@@ -465,10 +396,7 @@ static int __init esp32s31_clic_probe(struct device_node *node,
 	if (!clic)
 		return -ENOMEM;
 
-	/*
-	 * Map the full S-mode window.  It includes the threshold register and
-	 * the registers of the other core at +0x10000.
-	 */
+	/* The full S-mode window: threshold register and the other core too. */
 	ret = of_address_to_resource(node, 0, &res);
 	if (ret)
 		goto err_free;

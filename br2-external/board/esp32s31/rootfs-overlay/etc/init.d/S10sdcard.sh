@@ -8,17 +8,14 @@
 [ -n "${DISK_FAT:-}" ] || exit 0
 P1=$DISK_FAT
 
-# After a reset, the dirty flag of p1 stays set, and the kernel warns at each
-# mount.  fsck.fat checks p1 and clears the flag.  It needs approximately 8
-# bytes of memory for each cluster, so check only when that fits.
+# fsck.fat (8 bytes for each cluster) clears the dirty flag of p1 when it fits.
 check_p1()
 {
 	set -- $(od -An -tu1 -v -N66 $P1 2>/dev/null)
 	[ $# -eq 66 ] || return
 	cluster=$(( (${12} + ${13} * 256) * ${14} ))
 	[ "$cluster" -gt 0 ] || return
-	# The flags are at byte 37 on FAT12/16 and at byte 65 on FAT32, which
-	# has no 16-bit FAT size.
+	# The flags: byte 37 on FAT12/16, byte 65 on FAT32 (16-bit FAT size 0).
 	if [ $(( ${23} + ${24} * 256 )) -ne 0 ]; then flags=${38}; else flags=${66}; fi
 	[ $(( flags & 1 )) -eq 1 ] || return
 

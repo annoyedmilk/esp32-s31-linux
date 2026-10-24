@@ -28,11 +28,7 @@
 #include "esp32s31-hosted-shm.h"
 #include "shm_flash.h"
 
-/*
- * The largest frames.  To the host: the same as on USB.  To the firmware: the
- * RX buffer size of the boot event, which the host checks against the USB
- * rules (a multiple of 512, at most 16 KiB).
- */
+/* To the host as on USB; to the firmware the RX size of the boot event. */
 #define SHM_TO_HOST_FRAME_MAX	(16 * 1024)
 #define SHM_TO_FW_FRAME_MAX	(8 * 1024)
 #define SHM_TX_TIMEOUT_MS	1000
@@ -89,11 +85,7 @@ static void shm_store(uint32_t off, uint32_t val)
 	__atomic_store_n(shm_word(off), val, __ATOMIC_RELEASE);
 }
 
-/*
- * Order a store before a later load.  Each side stores its own index or the
- * wait flag, then loads the index of the other side.  Without the fence, the
- * two sides can each miss the store of the other, and no doorbell comes.
- */
+/* Store an index before the load of the other one: no missed doorbell. */
 static void shm_fence(void)
 {
 	__atomic_thread_fence(__ATOMIC_SEQ_CST);
@@ -121,11 +113,7 @@ static void ring_copy_out(const struct shm_ring *r, uint32_t pos,
 	memcpy((uint8_t *)dst + first, data, len - first);
 }
 
-/*
- * Add one frame: the header and the payload.  Returns false when it is full.
- * Sets *kick when the consumer had read all frames: then it can be idle and
- * needs the doorbell.  Else it reads this frame before it stops.
- */
+/* Add one frame.  *kick: the consumer had read all frames and can be idle. */
 static bool ring_push(const struct shm_ring *r, const void *hdr,
 		      uint32_t hdr_len, const void *payload, uint32_t len,
 		      bool *kick)
@@ -163,14 +151,7 @@ static void shm_free_frame(void *buf)
 	heap_caps_free(buf);
 }
 
-/*
- * The host asks for a boot event when it opens or closes the data path.  On
- * USB, close is a soft reset: the firmware calls esp_restart().  Here that
- * restarts the full chip, also Linux on hart 1.  Thus the firmware only sends
- * the boot event again.  The host starts a new session, but the Wi-Fi state
- * of the firmware stays.  The fatal error paths of the firmware still call
- * esp_restart(), and that restarts Linux too.
- */
+/* A restart would restart Linux: on open or close, resend the boot event. */
 static void shm_service_host_requests(void)
 {
 	uint32_t req = __atomic_exchange_n(shm_word(ESP_SHM_CTRL + ESP_SHM_HOST_REQ_OFF),
@@ -237,10 +218,7 @@ static int32_t shm_write(interface_handle_t *handle,
 	hdr.len = htole16(buf_handle->payload_len);
 	hdr.offset = htole16(sizeof(hdr));
 
-	/*
-	 * Ask for a doorbell before the second try, so that space which the
-	 * host frees in between is not missed.
-	 */
+	/* Wait flag before the second try: freed space is not missed. */
 	while (!ring_push(&to_host, &hdr, sizeof(hdr), buf_handle->payload,
 			  buf_handle->payload_len, &kick)) {
 		shm_store(to_host.ctrl + ESP_SHM_WAIT_OFF, 1);
@@ -268,10 +246,7 @@ static int shm_read(interface_handle_t *handle,
 	if (!handle || !buf_handle)
 		return ESP_FAIL;
 
-	/*
-	 * Wait for a frame.  recv_task sleeps one tick after each empty read, so
-	 * do not return without one.  The host rings for each request.
-	 */
+	/* recv_task sleeps a tick after an empty read: wait for a frame here. */
 	tail = *shm_word(to_fw.ctrl + ESP_SHM_TAIL_OFF);
 	for (;;) {
 		shm_service_host_requests();

@@ -5,11 +5,7 @@
 /* The two L1 caches have 64-byte lines, the same as RISC-V L1_CACHE_BYTES. */
 #define ESP32S31_CACHE_LINE_SIZE	64
 
-/*
- * The cache controller handles only the external memory aperture.  The CPU
- * accesses internal SRAM and MMIO without the data cache.  A range outside
- * this window does not need a sync operation, and must not get one.
- */
+/* Only the external memory aperture is cached; SRAM and MMIO need no sync. */
 #define ESP32S31_CACHE_EXTRAM_BASE	0x50000000UL
 #define ESP32S31_CACHE_EXTRAM_SIZE	0x04000000UL
 

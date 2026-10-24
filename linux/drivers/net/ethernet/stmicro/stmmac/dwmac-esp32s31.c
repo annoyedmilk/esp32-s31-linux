@@ -108,10 +108,7 @@ static int esp32s31_dwmac_probe(struct platform_device *pdev)
 				     "failed to get the TX clock\n");
 	plat_dat->set_clk_tx_rate = stmmac_set_clk_tx_rate;
 
-	/*
-	 * stmmac selects the descriptor ops before it reads the DMA
-	 * capabilities, so it must know the enhanced descriptors here.
-	 */
+	/* stmmac picks the descriptor ops before the DMA capabilities. */
 	plat_dat->enh_desc = true;
 	plat_dat->bsp_priv = regmap;
 	plat_dat->init = esp32s31_dwmac_init;

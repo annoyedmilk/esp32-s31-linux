@@ -24,10 +24,7 @@
 };
 
 &pinctrl {
-	/*
-	 * The pins of the SoC list, ETH_INTN of the PHY (GPIO4, also on J2), and
-	 * the LED (GPIO60)
-	 */
+	/* The SoC list, ETH_INTN of the PHY (GPIO4, on J2), the LED (GPIO60). */
 	gpio-reserved-ranges = <4 1>, <26 9>, <41 1>, <58 2>, <60 1>;
 
 	/* The RGMII pins of the IO MUX, function 2 */
@@ -69,12 +66,7 @@
 	};
 };
 
-/*
- * A Motorcomm YT8531DC-CA on RGMII, with its own crystal and its reset on
- * GPIO7.  The PHY adds the RX and TX clock delays.  After a chip reset alone
- * its link comes up but passes no frames, so the MDIO bus resets it before
- * the first access.
- */
+/* YT8531 PHY: after a chip reset it passes no frames, so MDIO resets it. */
 &emac {
 	pinctrl-names = "default";
 	pinctrl-0 = <&rgmii_cfg>, <&mdio_cfg>;

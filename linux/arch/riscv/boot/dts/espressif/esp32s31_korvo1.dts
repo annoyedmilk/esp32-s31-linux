@@ -17,11 +17,7 @@
 		#size-cells = <1>;
 		ranges;
 
-		/*
-		 * The loader DMA reads this buffer also after the handoff.
-		 * OpenSBI makes this range uncached with two PMA entries, so
-		 * it goes to the end of PSRAM.
-		 */
+		/* The LCD DMA reads it after the handoff, uncached (PMA). */
 		fb_region: framebuffer@50f40000 {
 			reg = <0x50f40000 0xc0000>;
 			no-map;
@@ -40,14 +36,7 @@
 	chosen {
 		stdout-path = "serial0:115200n8";
 
-		/*
-		 * The loader starts the 800x480 RGB panel of the Korvo-1.  The
-		 * LCD_CAM DMA then reads an RGB565 buffer at the top of PSRAM,
-		 * so Linux only describes it.  fb_region reserves the memory.
-		 * of_platform makes this device for a simple-framebuffer under
-		 * /chosen.  If the loader gives GPIO33/34 to USB Serial/JTAG,
-		 * it does not start the display: fb0 exists but shows nothing.
-		 */
+		/* The panel of the loader; blank with USB Serial/JTAG on. */
 		framebuffer {
 			compatible = "simple-framebuffer";
 			width = <800>;
@@ -59,10 +48,7 @@
 	};
 };
 
-/*
- * The slot has no card-detect or write-protect contact, and the root is on
- * the card.
- */
+/* No card-detect or write-protect contact, and the root is on the card. */
 &sdmmc0 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&sd_cfg>;
@@ -87,11 +73,7 @@
 	status = "okay";
 };
 
-/*
- * The loader drives the LCD (GPIO8-19, 33-36, 38, 40, 43-45).  The card pins
- * (GPIO20-25) and the LED (GPIO37) belong to drivers.  With the flash, GPIO41
- * and UART0, Linux must not use them as GPIOs.  GPIO39 is the card power.
- */
+/* The LCD (loader), the card and LED (drivers), the flash, GPIO41, UART0. */
 &pinctrl {
 	gpio-reserved-ranges = <8 31>, <40 2>, <43 3>, <58 2>;
 
@@ -132,11 +114,7 @@
 	};
 };
 
-/*
- * The board I2C bus: the ES8389 codec at 0x10 and the GT1151 touch
- * controller of the LCD at 0x14.  The touch INT and reset lines are not
- * connected, so the driver polls the controller.
- */
+/* ES8389 codec at 0x10, GT1151 touch at 0x14 (no INT line: polled). */
 &i2c0 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&i2c0_cfg>;

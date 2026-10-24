@@ -33,9 +33,8 @@ foreach(blob core espnow mesh net80211 pp smartconfig wapi target)
     endif()
 endforeach()
 
-# The supplicant runs on Linux.  Only the IE parser of esp_wpa_main.o stays.
-# The ROM functions of the cache sync engine that run after hart 1 starts
-# take the lock of OpenSBI (shm_flash.c).
+# Only the IE parser of the supplicant stays.  The ROM cache syncs take the
+# lock of OpenSBI (shm_flash.c).
 target_link_libraries(${COMPONENT_LIB} INTERFACE
     "-Wl,--wrap=esp_supplicant_init"
     "-Wl,--wrap=esp_supplicant_deinit"

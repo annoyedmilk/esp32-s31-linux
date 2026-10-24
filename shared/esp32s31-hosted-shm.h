@@ -34,10 +34,7 @@
 #define ESP_SHM_MAGIC_OFF	0x00
 #define ESP_SHM_VERSION_OFF	0x04
 #define ESP_SHM_HOST_REQ_OFF	0x08	/* host requests, firmware clears */
-/*
- * The cache sync engine holds one operation at a time.  OpenSBI and the
- * firmware hold this word at 1 for each operation.
- */
+/* The sync engine holds one operation: OpenSBI and the firmware set this. */
 #define ESP_SHM_CACHE_LOCK_OFF	0x0c
 
 /* Ring control words, at ESP_SHM_TO_*_CTRL. */
@@ -45,24 +42,15 @@
 #define ESP_SHM_TAIL_OFF	0x40
 #define ESP_SHM_WAIT_OFF	0x80	/* producer waits for space */
 
-/*
- * The flash mailbox, at ESP_SHM_FLASH: a window of the flash for Linux, as an
- * MTD device.  The window is the "rootfs" and "data" partitions of the
- * firmware.  At start, the firmware maps the window in the flash cache and
- * writes its size and address (size 0 when there is none).  Linux reads the
- * window there.  For a program or an erase, Linux writes ADDR (in the
- * window), LEN and for a program the data, then CMD, and rings.  The
- * firmware writes STATUS (0 or an esp_err_t), clears CMD and rings.  A
- * program is at most ESP_SHM_FLASH_DATA_SIZE bytes in one 4 KiB sector.  An
- * erase is one block of ESP_SHM_FLASH_BLOCK bytes.
- */
+/* The flash mailbox (docs/internals.md, "The flash root without a card"). */
 #define ESP_SHM_FLASH		0x0300
-#define ESP_SHM_FLASH_SIZE_OFF	0x00
-#define ESP_SHM_FLASH_CMD_OFF	0x04
-#define ESP_SHM_FLASH_STATUS_OFF	0x08
-#define ESP_SHM_FLASH_ADDR_OFF	0x0c
+#define ESP_SHM_FLASH_SIZE_OFF	0x00	/* 0 without a window */
+#define ESP_SHM_FLASH_CMD_OFF	0x04	/* Linux sets, the firmware clears */
+#define ESP_SHM_FLASH_STATUS_OFF	0x08	/* 0 or an esp_err_t */
+#define ESP_SHM_FLASH_ADDR_OFF	0x0c	/* in the window */
 #define ESP_SHM_FLASH_LEN_OFF	0x10
-#define ESP_SHM_FLASH_MAP_OFF	0x14
+#define ESP_SHM_FLASH_MAP_OFF	0x14	/* the window in the flash cache */
+/* A program is at most DATA_SIZE bytes in one sector; an erase is one BLOCK. */
 #define ESP_SHM_FLASH_DATA	0x0800
 #define ESP_SHM_FLASH_DATA_SIZE	0x0800
 #define ESP_SHM_FLASH_SECTOR	0x1000

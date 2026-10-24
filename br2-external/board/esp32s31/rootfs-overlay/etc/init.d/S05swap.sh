@@ -17,8 +17,7 @@ start_zram()
 		echo "swap: /dev/zram0 ($ZRAM_SIZE, lz4) active"
 }
 
-# Only type 0x82 (byte 482 of the MBR) marks p3 as swap: never format other
-# data.  mkswap at each boot fits the header to the partition size.
+# Only MBR type 0x82 (byte 482) marks p3 as swap; mkswap fits it at each boot.
 start_disk()
 {
 	[ -b "${DISK_SWAP:-}" ] || return

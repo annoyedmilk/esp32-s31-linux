@@ -46,11 +46,7 @@
 #define PSRAM_UNCACHED_BASE         0xC0000000U
 #define LINUX_HART                  1U
 
-/*
- * Coherent DMA pool for the kernel.  It is outside the ESP-IDF heap because
- * this firmware stays in memory.  The dma-pool node in esp32s31.dtsi has the
- * same range.
- */
+/* SRAM of the kernel (dma-pool and trap-sram in esp32s31.dtsi), not heap. */
 #define LINUX_DMA_POOL_ADDR         0x2F040000U
 #define LINUX_DMA_POOL_SIZE         0x00010000U
 
@@ -58,11 +54,7 @@ SOC_RESERVE_MEMORY_REGION(LINUX_DMA_POOL_ADDR,
                           LINUX_DMA_POOL_ADDR + LINUX_DMA_POOL_SIZE,
                           linux_dma_pool);
 
-/*
- * The ROM start code of hart 1 uses a stack below this address until it
- * jumps to linux_hart_entry().  ESP-IDF gives this area to the heap after
- * startup.  Hart 1 starts later than that, so keep the area out of the heap.
- */
+/* The ROM start code of hart 1 uses this stack: keep it out of the heap. */
 #define ROM_HART1_STACK_TOP         0x2F07E600U
 #define ROM_HART1_STACK_SIZE        0x00000400U
 
@@ -70,19 +62,10 @@ SOC_RESERVE_MEMORY_REGION(ROM_HART1_STACK_TOP - ROM_HART1_STACK_SIZE,
                           ROM_HART1_STACK_TOP,
                           rom_hart1_stack);
 
-/*
- * APM region attribute word: one nibble for each of the REE modes 0 to 2,
- * then one for TEE mode.  Each nibble has X at bit 0, W at bit 1 and R at
- * bit 2.  0x7777 gives read, write and execute to all modes.  OpenSBI makes
- * the HP_APM regions smaller later, to protect its memory.
- */
+/* One nibble (X bit 0, W bit 1, R bit 2) for REE modes 0 to 2 and for TEE. */
 #define APM_REGION_ATTR_ALL_RWX     0x7777U
 
-/*
- * MSPI PMS section attribute: read and write for secure and non-secure
- * access, ECC off.  The flash and PSRAM controllers use the same bit layout,
- * so the SPI_FMEM_C names apply to all four register banks below.
- */
+/* R/W for secure and non-secure access, no ECC; same bits on all banks. */
 #define MSPI_PMS_ATTR_RW \
     (SPI_FMEM_C_PMS0_RD_ATTR | SPI_FMEM_C_PMS0_WR_ATTR | \
      SPI_FMEM_C_PMS0_NONSECURE_RD_ATTR | SPI_FMEM_C_PMS0_NONSECURE_WR_ATTR)
@@ -139,12 +122,7 @@ static void flush_l1_cache_before_handoff(void)
     fence_i();
 }
 
-/*
- * Open all Access Permission Managers on the chip.  Each APM gets one region
- * for the full 32-bit address space, with RWX for all modes.  Then its
- * filter is enabled.  FUNC_CTRL enables the filter for each bus master.  All
- * bits are set, so all masters get the same permissions.
- */
+/* Open each APM: one region, all addresses, RWX for all modes and masters. */
 static void open_apm(void)
 {
     for (size_t i = 0; i < sizeof(apm_blocks) / sizeof(apm_blocks[0]); i++) {
@@ -157,12 +135,7 @@ static void open_apm(void)
         REG_WRITE(b->func_ctrl, 0xFFFFFFFF);
     }
 
-    /*
-     * Open all four PMS sections on the two MSPI controllers.  The PSRAM
-     * controller has the SPI_MEM_C register layout at
-     * DR_REG_PSRAM_MSPI0_BASE, so the loop writes the attributes again at
-     * that offset.
-     */
+    /* The four PMS sections of the flash and of the PSRAM controller. */
     for (int i = 0; i < 4; i++) {
         const uint32_t psram_off = DR_REG_PSRAM_MSPI0_BASE - DR_REG_FLASH_SPI0_BASE;
 
@@ -195,10 +168,7 @@ static void disable_watchdogs(void)
     disable_watchdog(WDT_RWDT);
 }
 
-/*
- * The stack-spill monitor of the Linux hart would trigger on kernel stacks.
- * Disable it and set its range to all memory.  Hart 0 keeps its monitor.
- */
+/* The stack-spill monitor of hart 1 would trigger on kernel stacks. */
 static void disable_linux_hart_stack_protector(void)
 {
     assist_debug_ll_sp_spill_monitor_disable(LINUX_HART);
@@ -207,12 +177,7 @@ static void disable_linux_hart_stack_protector(void)
     assist_debug_ll_sp_spill_set_max(LINUX_HART, 0xffffffff);
 }
 
-/*
- * Lock hart 0 out of the memory of hart 1: PSRAM, its uncached alias and the
- * DMA pool.  The firmware runs in M-mode, where only a locked PMP entry stops
- * a wild store.  The lock stays until the next reset.  ESP-IDF does not use
- * the PMP of hart 0 on this chip, so read the entries back to be sure.
- */
+/* Lock hart 0 out of the memory of hart 1 (docs/internals.md, "Protection"). */
 #define PMP_NO_ACCESS               (PMP_L | PMP_NAPOT)
 
 static void protect_linux_memory(void)
@@ -233,19 +198,14 @@ static void protect_linux_memory(void)
     }
 }
 
-/*
- * Reset entry for hart 1.  PMA is per hart, and the ROM gives this hart only
- * read and execute access to PSRAM.  Without a write entry, OpenSBI faults on
- * its first BSS write.  A lower index has priority over the ROM entry.  Use
- * the index that esp32s31_pma_init() writes again later.  Do not call
- * esp_cpu_configure_region_protection() here: it locks all 16 PMP entries and
- * makes PSRAM non-executable.  Entry ABI: hart ID in a0, DTB in a1.
- */
+/* Reset entry of hart 1.  esp_cpu_configure_region_protection() locks PMP. */
 static void IRAM_ATTR linux_hart_entry(void)
 {
+    /* The ROM PMA entry gives hart 1 no write to PSRAM; a lower index wins. */
     PMA_ENTRY_SET_NAPOT(2, PSRAM_BASE, PSRAM_PMA_SIZE,
                         PMA_NAPOT | PMA_EN | PMA_R | PMA_W | PMA_X);
 
+    /* Hart ID in a0, no DTB in a1. */
     __asm__ volatile (
         "li   a0, %0\n\t"
         "li   a1, 0\n\t"
@@ -366,10 +326,7 @@ static bool load_opensbi_partition(void)
         return false;
     }
 
-    /*
-     * fw_jump has no size manifest.  Copy a fixed window.  OpenSBI clears
-     * the area after its image as BSS.
-     */
+    /* fw_jump has no size manifest: a fixed window, OpenSBI clears its BSS. */
     if (!read_partition(part, OPENSBI_LOAD_ADDR, OPENSBI_LOAD_SIZE)) {
         return false;
     }
@@ -385,11 +342,7 @@ void app_main(void)
 {
     open_apm();
     disable_watchdogs();
-    /*
-     * ESP-IDF v6.1 stops the TRNG after the second stage.  esp_random() and
-     * the Linux hwrng need it.  Its noise source does not use the RF.  Linux
-     * reads it with timeriomem-rng and credits it as entropy without a check.
-     */
+    /* ESP-IDF stops the TRNG after the 2nd stage; the Linux hwrng needs it. */
     bootloader_random_enable();
 
     if (!esp_psram_is_initialized()) {
@@ -406,14 +359,9 @@ void app_main(void)
     ESP_LOGI(TAG, "handoff: OpenSBI=0x%08" PRIx32 " kernel=0x%08" PRIx32,
              (uint32_t)OPENSBI_LOAD_ADDR, (uint32_t)KERNEL_LOAD_ADDR);
 
-    /*
-     * The radio start reads the flash, and NVS can write it.  A flash
-     * transaction disables the cache that Linux executes from.  Thus this
-     * must be complete before hart 1 starts.  ESP-Hosted starts Bluetooth
-     * at the first request of the host, so start it here.  The request of
-     * the host then changes nothing.
-     */
+    /* A radio start accesses the flash (cache off): do it before hart 1. */
     esp_hosted_main();
+    /* ESP-Hosted starts Bluetooth at the first host request: do it now too. */
     if (esp_radio_service_apply(ESP_RADIO_SERVICE_BT, NULL, NULL, NULL) != ESP_OK) {
         ESP_LOGW(TAG, "Bluetooth did not start");
     }
@@ -427,10 +375,6 @@ void app_main(void)
     ESP_LOGI(TAG, "hart 0 resident, heap: %u bytes free",
              (unsigned)heap_caps_get_free_size(MALLOC_CAP_8BIT));
 
-    /*
-     * Linux now uses the same UART.  From here, the firmware prints only
-     * errors, so that its lines do not mix with the Linux console.  Linux
-     * reports the Wi-Fi events itself.
-     */
+    /* Linux has the UART now: print only errors, so the lines do not mix. */
     esp_log_level_set("*", ESP_LOG_ERROR);
 }

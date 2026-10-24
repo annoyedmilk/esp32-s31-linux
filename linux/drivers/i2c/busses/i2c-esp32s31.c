@@ -196,10 +196,7 @@ static bool esp32s31_i2c_queue_write(struct esp32s31_i2c *i2c,
 	return true;
 }
 
-/*
- * Put the next part of the messages into the command list.  One command is
- * kept for the END or STOP.
- */
+/* Fill the command list from the messages; one slot stays for END or STOP. */
 static void esp32s31_i2c_fill(struct esp32s31_i2c *i2c)
 {
 	struct esp32s31_i2c_batch b = { };
@@ -285,11 +282,7 @@ static void esp32s31_i2c_reset_fifos(struct esp32s31_i2c *i2c)
 	       i2c->base + I2C_FIFO_CONF);
 }
 
-/*
- * The timing registers count source clock cycles.  half is half an SCL
- * period.  SCL stays low for half; after the controller releases SCL, it
- * waits up to WAIT_HIGH for the rise, then counts HIGH_PERIOD.
- */
+/* In source clock cycles: half is half an SCL period, WAIT_HIGH the rise. */
 static void esp32s31_i2c_set_timing(struct esp32s31_i2c *i2c)
 {
 	u32 half = DIV_ROUND_UP(clk_get_rate(i2c->clk), 2 * i2c->bus_freq);
@@ -310,11 +303,7 @@ static void esp32s31_i2c_set_timing(struct esp32s31_i2c *i2c)
 	       base + I2C_TO);
 }
 
-/*
- * Reset the controller and set it up.  After an error, also give 9 SCL
- * pulses to free a bus that a device holds.  Not on an idle bus: the GT1151
- * touch controller NACKs a transfer right after the pulses.
- */
+/* 9 SCL pulses after an error free the bus; idle, the GT1151 would NACK. */
 static int esp32s31_i2c_init(struct esp32s31_i2c *i2c, bool clear_bus)
 {
 	void __iomem *base = i2c->base;

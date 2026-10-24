@@ -36,15 +36,7 @@
 #define ESP32S31_APM_TEE_RWX		0x7000UL
 #define ESP32S31_APM_LOCK		(1UL << 16)
 
-/*
- * HP_APM checks the accesses of the bus masters, also DMA to PSRAM.  M-mode
- * is TEE mode, and the DMA masters are REE mode.  Region 1 gives the OpenSBI
- * area (the reserved-memory node in esp32s31.dtsi) to TEE mode only.  Thus no
- * DMA master can read or write it, except its last word, which HP_APM puts
- * into region 2.  OpenSBI does not use that word.  Regions 0 and 2 are all
- * other addresses.
- * A lock keeps each region until the next reset.
- */
+/* HP_APM region 1 gives the OpenSBI area to TEE (M-mode) only, not DMA. */
 #define ESP32S31_HP_APM_BASE		0x20504400UL
 #define ESP32S31_HP_APM_FILTER_EN	ESP32S31_HP_APM_BASE
 #define ESP32S31_HP_APM_START(n)	(ESP32S31_HP_APM_BASE + 0x04UL + 0x0cUL * (n))
@@ -54,17 +46,11 @@
 /* The two PMP regions of the root domain: 128 KiB code, 64 KiB data. */
 #define ESP32S31_FW_SIZE		0x00030000UL
 
-/*
- * The TEE mode and APM registers.  S-mode must not change them, so a domain
- * region gives this page to M-mode only.
- */
+/* The TEE mode and APM registers: a domain region keeps them M-mode only. */
 #define ESP32S31_TEE_APM_BASE		0x20504000UL
 #define ESP32S31_TEE_APM_SIZE		0x1000UL
 
-/*
- * CPU_APM controls the CPU-local bus.  Open one region for all addresses, so
- * S-mode can access the CLIC and machine-timer windows.
- */
+/* CPU_APM checks the CPU-local bus: open it for the CLIC and the timer. */
 #define ESP32S31_CPU_APM_BASE		0x20504c00UL
 #define ESP32S31_CPU_APM_FILTER_EN	(ESP32S31_CPU_APM_BASE + 0x00UL)
 #define ESP32S31_CPU_APM_REGION0_START	(ESP32S31_CPU_APM_BASE + 0x04UL)
@@ -72,19 +58,7 @@
 #define ESP32S31_CPU_APM_ATTR0		(ESP32S31_CPU_APM_BASE + 0x0cUL)
 #define ESP32S31_CPU_APM_FUNC_CTRL	(ESP32S31_CPU_APM_BASE + 0xc4UL)
 
-/*
- * PSRAM is cached and write-back.  The LCD DMA engine reads the frame buffer
- * directly from PSRAM, without the CPU cache or the DMA API.  If the frame
- * buffer is cached, dirty lines stay in L1, the panel does not see them, and
- * the text is corrupted.  Thus the frame buffer is not cached: bit 27 of a
- * PMA cfg makes a range uncached, and the entry with the lowest index has
- * priority.  The two NAPOT ranges together are the fb_region node in
- * esp32s31_korvo1.dts.  The Makefile sets ESP32S31_FB_UNCACHED when the loader
- * starts the LCD.  SD and USB use the DMA API, and the esp32s31-cache driver
- * does their cache maintenance.
- *
- * SRAM and the peripherals need no PMA entry.
- */
+/* PMA cfg bit 27 makes the frame buffer uncached for the LCD DMA. */
 #define ESP32S31_PMAADDR0		0xbd0
 #define ESP32S31_PMACFG0		0xbc0
 #define ESP32S31_PMA_NAPOT(base, size)	(((base) | (((size) >> 1) - 1)) >> 2)
@@ -117,12 +91,7 @@ static void esp32s31_apm_init(void)
 {
 	unsigned long fw_end = ESP32S31_FW_BASE + ESP32S31_FW_SIZE;
 
-	/*
-	 * The loader opened region 0 for all addresses.  Set regions 2 and 1
-	 * first, and make region 0 smaller last.  Thus no access is outside a
-	 * region in between.  A region is for TEE mode only after reset, so
-	 * set its attribute before the filter enables it.
-	 */
+	/* Regions 2 and 1 first, then shrink region 0: no gap in between. */
 	reg_write(ESP32S31_HP_APM_START(2), fw_end);
 	reg_write(ESP32S31_HP_APM_END(2), 0xffffffffUL);
 	reg_write(ESP32S31_HP_APM_ATTR(2), ESP32S31_APM_REE_TEE_RWX | ESP32S31_APM_LOCK);
@@ -160,14 +129,7 @@ static void esp32s31_pma_init(void)
 #if ESP32S31_USB_SERIAL_JTAG_CONSOLE
 static void esp32s31_usb_serial_jtag_putc(char ch)
 {
-	/*
-	 * When no host reads the endpoint, TX_FREE stays clear.  A full poll
-	 * then takes milliseconds for each character, and the full console
-	 * (also the UART) slows to approximately 130 B/s.  After one full
-	 * timeout, the host is absent: check TX_FREE one time for each
-	 * character and discard the output.  When a host connects later, it
-	 * reads the endpoint, TX_FREE is set again, and the copy starts again.
-	 */
+	/* No host: TX_FREE stays clear.  After a timeout, poll once and drop. */
 	static bool host_absent;
 	u32 limit = host_absent ? 1 : 100000;
 	u32 i;
@@ -237,11 +199,7 @@ static int esp32s31_system_reset_check(u32 type, u32 reason)
 	       type == SBI_SRST_RESET_TYPE_WARM_REBOOT;
 }
 
-/*
- * The chip has no power switch.  Ask the firmware on hart 0 to put the chip
- * into deep sleep, through the request word that Linux also uses.  If the
- * firmware does not answer, this hart only stops.
- */
+/* No power switch: ask the firmware on hart 0 for deep sleep. */
 static void esp32s31_request_poweroff(void)
 {
 	atomic_raw_set_bit(__builtin_ctz(ESP_SHM_REQ_POWEROFF),
@@ -301,33 +259,13 @@ static int esp32s31_final_init(bool cold_boot)
 	if (!cold_boot)
 		return 0;
 
-	/*
-	 * sbi_hart_switch_mode() keeps MSTATUS_SPIE.  Set it, so that the mret
-	 * into S-mode sets SIE to 1.  Without it, the kernel starts with
-	 * interrupts disabled and never gets a CLIC S-mode interrupt.
-	 */
+	/* sbi_hart_switch_mode() keeps SPIE: set it, so Linux gets SIE = 1. */
 	csr_set(CSR_MSTATUS, MSTATUS_SPIE);
 
 	return 0;
 }
 
-/*
- * The machine-timer window is at 0x10000000, as on a CLINT: mtime at
- * +0xbff8, mtimecmp at +0x4000 and a control register at +0x4010.  An
- * mtimecmp match goes to CLIC input 7, the standard machine-timer interrupt
- * ID.  The ESP-IDF loader sets the CPU and machine-timer clock to 320 MHz
- * before it starts OpenSBI.
- *
- * mcliccfg.NMBITS is writable.  NMBITS=2 enables clicintattr[i].MODE, so a
- * CLIC input can go directly to S-mode.  CLIC input 5 is also the S-mode
- * timer interrupt: in CLIC mode the interrupt ID goes into the scause
- * exception-code field, and 5 == IRQ_S_TIMER.
- *
- * Sequence: mtimecmp match -> CLIC ID7 -> M-mode trap (standard
- * IRQ_M_TIMER handling, no platform hook) -> sbi_timer_process() -> the
- * S-mode event callback sets CLIC ID5 pending -> the hardware jumps to the
- * S-mode stvec when sstatus.SIE is set.
- */
+/* The machine timer (docs/internals.md, "Timer and IPI"). */
 #define ESP32S31_MTIMER_BASE		0x10000000UL
 #define ESP32S31_MTIMECMP_LO		(ESP32S31_MTIMER_BASE + 0x4000UL)
 #define ESP32S31_MTIMECMP_HI		(ESP32S31_MTIMER_BASE + 0x4004UL)
@@ -336,14 +274,7 @@ static int esp32s31_final_init(bool cold_boot)
 #define ESP32S31_MTIME_HI		(ESP32S31_MTIMER_BASE + 0xbffcUL)
 #define ESP32S31_MTIMER_FREQ		320000000UL
 
-/*
- * cliccfg is per hart.  Measured layout: mnlbits at [3:0], nmbits at [5:4],
- * snlbits at [19:16], unlbits at [27:24].  The ESP-IDF header shows an older
- * layout.  Write all fields: the Linux hart does not run the ESP-IDF startup.
- * mnlbits = 3: the three clicintctl bits are the machine level.  nmbits = 2:
- * clicintattr[i].MODE selects M, S or U, so an input can go directly to
- * S-mode.  snlbits = 0: all S-mode inputs have level 255.
- */
+/* The measured layout (docs/internals.md, "Interrupts: the CLIC"). */
 #define ESP32S31_MCLICCFG		0x10800000UL
 #define ESP32S31_MCLICCFG_MNLBITS_3	(3UL << 0)
 #define ESP32S31_MCLICCFG_NMBITS_2	(2UL << 4)
@@ -356,11 +287,7 @@ static int esp32s31_final_init(bool cold_boot)
 #define ESP32S31_CLIC_ATTR(id)		(ESP32S31_CLIC_CTRL_BASE + 4UL * (id) + 2)
 #define ESP32S31_CLIC_CTL(id)		(ESP32S31_CLIC_CTRL_BASE + 4UL * (id) + 3)
 
-/*
- * clicintattr byte: SHV at bit 0 (0 for non-vectored), TRIG at [2:1], MODE
- * at [7:6].  MODE selects the privilege mode that gets the input.  It also
- * controls if the supervisor register window can see the input.
- */
+/* clicintattr: SHV bit 0, TRIG [2:1], MODE [7:6] (the mode that sees it). */
 #define ESP32S31_CLIC_ATTR_TRIG_EDGE	(1UL << 1)
 #define ESP32S31_CLIC_ATTR_MODE_S	(1UL << 6)
 #define ESP32S31_CLIC_ATTR_MODE_M	(3UL << 6)
@@ -401,10 +328,7 @@ static void esp32s31_timer_event_start(u64 next_event)
 	/* Clear an old edge latch.  esp32s31_timer_init() set ATTR and IE. */
 	reg_write8(ESP32S31_CLIC_IP(ESP32S31_CLIC_MTIMER_ID), 0);
 
-	/*
-	 * Set the high compare word to its maximum first, so the 64-bit update
-	 * cannot match a half-written value.
-	 */
+	/* High word first, at its maximum: no match on a half-written value. */
 	reg_write(ESP32S31_MTIMECMP_HI, 0xffffffffUL);
 	reg_write(ESP32S31_MTIMECMP_LO, (u32)next_event);
 	reg_write(ESP32S31_MTIMECMP_HI, (u32)(next_event >> 32));
@@ -425,10 +349,7 @@ static struct sbi_timer_device esp32s31_timer = {
 	.timer_event_stop = esp32s31_timer_event_stop,
 };
 
-/*
- * Replace the weak MIP.STIP hooks from sbi_timer.c.  On this core MIP is not
- * writable, and the S-mode timer interrupt is CLIC input 5.
- */
+/* MIP.STIP is not writable: the S-mode timer interrupt is CLIC input 5. */
 void sbi_timer_plat_sirq_set(void)
 {
 	/* ATTR and CTL are configuration.  An interrupt only sets IP. */
@@ -440,12 +361,7 @@ void sbi_timer_plat_sirq_clear(void)
 	reg_write8(ESP32S31_CLIC_IP(ESP32S31_CLIC_STIMER_ID), 0);
 }
 
-/*
- * MIP.SSIP is not writable on this CLIC-only hart.  SBI self-IPIs go through
- * CLIC input 1, which has the cause code of the standard supervisor software
- * interrupt.  The Linux CLIC driver does not use them: on this revision the
- * CLIC does not arbitrate input 1, so its irq_work uses external input 16.
- */
+/* MIP.SSIP is not writable: SBI IPIs use CLIC input 1 (Linux does not). */
 void sbi_ipi_plat_sirq_set(void)
 {
 	reg_write8(ESP32S31_CLIC_IP(ESP32S31_CLIC_SSOFT_ID), 1);
@@ -473,23 +389,13 @@ static int esp32s31_timer_init(void)
 	csr_write(ESP32S31_CSR_MINTTHRESH, 0);
 	csr_write(ESP32S31_CSR_SINTTHRESH, 0);
 
-	/*
-	 * M-mode owns the CLIC.  The supervisor register window can only access
-	 * an input when its MODE is S.  From S-mode, the other inputs read as
-	 * zero and ignore writes.  Give all Interrupt Matrix inputs to the
-	 * kernel, disabled.  The kernel sets the trigger and the level.
-	 */
+	/* All matrix inputs go to S-mode, disabled; the kernel sets the rest. */
 	for (i = ESP32S31_CLIC_EXT_MIN_ID; i < ESP32S31_CLIC_NUM_INT; i++) {
 		reg_write8(ESP32S31_CLIC_IE(i), 0);
 		reg_write8(ESP32S31_CLIC_ATTR(i), ESP32S31_CLIC_ATTR_S_LEVEL);
 	}
 
-	/*
-	 * The machine timer, the S-mode timer and the S-mode software
-	 * interrupt (for the SBI IPI extension).  Enable the S-mode timer
-	 * here, so a payload without a CLIC driver gets it.  An S-mode kernel
-	 * can control IE itself.
-	 */
+	/* Enable the S-mode timer: a payload without a CLIC driver gets it. */
 	esp32s31_clic_setup(ESP32S31_CLIC_MTIMER_ID, ESP32S31_CLIC_ATTR_M_EDGE);
 	esp32s31_clic_setup(ESP32S31_CLIC_STIMER_ID, ESP32S31_CLIC_ATTR_S_EDGE);
 	esp32s31_clic_setup(ESP32S31_CLIC_SSOFT_ID, ESP32S31_CLIC_ATTR_S_EDGE);
@@ -501,18 +407,7 @@ static int esp32s31_timer_init(void)
 	return 0;
 }
 
-/*
- * Cache sync engine.  Its SYNC_* registers are global and hold one operation
- * at a time.  OpenSBI programs them for Linux under one lock.  The ESP-IDF
- * firmware on hart 0 also programs them, through the ROM, when it
- * invalidates the flash window after a program or erase for Linux
- * (shm_flash.c).  So the lock is a word in the shared block, which the
- * firmware also takes.  OpenSBI runs only on hart 1.  Linux asks for
- * operations through the vendor SBI extension (0x09000000 + mvendorid).  A size of 0 selects the full
- * cache, as the ROM Cache_WriteBack_All() does.  Linux also needs the
- * operations before it can map the cache registers: to make new code
- * visible to the I-cache.
- */
+/* The cache sync engine for Linux (docs/internals.md, "Cache and DMA"). */
 #define ESP32S31_CACHE_BASE		0x2c000000UL
 #define ESP32S31_CACHE_SYNC_CTRL	(ESP32S31_CACHE_BASE + 0x9cUL)
 #define ESP32S31_CACHE_SYNC_MAP		(ESP32S31_CACHE_BASE + 0xa0UL)
@@ -535,10 +430,7 @@ static int esp32s31_timer_init(void)
 #define ESP32S31_CACHE_LOCK \
 	((volatile unsigned long *)(ESP_SHM_ADDR + ESP_SHM_CTRL + ESP_SHM_CACHE_LOCK_OFF))
 
-/*
- * Erratum: a writeback can lose part of the range if it runs only once.  The
- * ESP-IDF ROM patch also runs it twice.  An invalidate runs once.
- */
+/* Erratum: a single write-back can lose part of the range, so run it twice. */
 static void esp32s31_cache_sync(unsigned long map, unsigned long op,
 				unsigned long addr, unsigned long size)
 {
@@ -558,11 +450,7 @@ static void esp32s31_cache_sync(unsigned long map, unsigned long op,
 	atomic_raw_xchg_ulong(ESP32S31_CACHE_LOCK, 0);
 }
 
-/*
- * The sync operations for each vendor SBI function ID: one for the D-cache,
- * then one for the I-cache of the calling hart, or 0 for none.  fence.i does
- * not invalidate the I-cache on this SoC, so new code needs ICACHE_SYNC.
- */
+/* D-cache op, then I-cache op of this hart (fence.i does not invalidate). */
 static const struct {
 	unsigned long dcache_op;
 	unsigned long icache_op;
@@ -575,6 +463,7 @@ static const struct {
 				       ESP32S31_CACHE_INVALIDATE },
 };
 
+/* A size of 0 selects the full cache, as the ROM Cache_WriteBack_All() does. */
 static int esp32s31_vendor_ext(long funcid, struct sbi_trap_regs *regs,
 			       struct sbi_ecall_return *out)
 {
@@ -601,10 +490,7 @@ const struct sbi_platform_operations platform_ops = {
 	.vendor_ext_provider = esp32s31_vendor_ext,
 };
 
-/*
- * Hart 0 stays in M-mode and runs the ESP-IDF firmware for the WLAN modem.
- * OpenSBI controls only the Linux hart: hart 1.
- */
+/* Hart 0 runs the ESP-IDF firmware in M-mode; OpenSBI controls hart 1 only. */
 static const u32 esp32s31_hart_index2id[] = { 1 };
 
 const struct sbi_platform platform = {

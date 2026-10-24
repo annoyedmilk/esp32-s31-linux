@@ -32,12 +32,7 @@ static int esp32s31_efuse_read(void *context, unsigned int offset, void *val,
 	return 0;
 }
 
-/*
- * The cell argument selects the address as ESP-IDF makes it from the factory
- * address, with two universal addresses for each chip: 0 Wi-Fi station,
- * 1 Wi-Fi access point, 2 Bluetooth, 3 Ethernet.  The odd ones are the
- * locally administered form of the even ones.
- */
+/* The ESP-IDF addresses: 0 Wi-Fi, 1 AP, 2 Bluetooth, 3 Ethernet; odd: local. */
 static int esp32s31_efuse_mac_pp(void *context, const char *id, int index,
 				 unsigned int offset, void *data, size_t bytes)
 {

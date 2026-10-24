@@ -73,10 +73,7 @@ static void shm_write32(struct esp_shm_context *ctx, u32 off, u32 val)
 	iowrite32(val, ctx->shm + off);
 }
 
-/*
- * dst is 4-byte aligned.  memcpy_toio() reads src byte by byte on RV32, so
- * copy whole words when src is aligned too.
- */
+/* memcpy_toio() copies bytes on RV32: use words when src is aligned too. */
 static void shm_copy_to(void __iomem *dst, const void *src, u32 len)
 {
 	const u32 *s = src;
@@ -98,10 +95,7 @@ static void ring_copy_in(struct esp_shm_context *ctx,
 	shm_copy_to(ctx->shm + r->data, src + first, len - first);
 }
 
-/*
- * dst and src are 4-byte aligned.  memcpy_fromio() cannot know that for dst,
- * and on RV32 it then stores each word as four bytes.
- */
+/* memcpy_fromio() stores each word as bytes on RV32; both sides are aligned. */
 static void shm_copy_from(void *dst, const void __iomem *src, u32 len)
 {
 	u32 *d = dst;
@@ -137,11 +131,7 @@ static void esp_shm_request_ready_replay(struct esp_shm_context *ctx)
 	esp_shm_ring_firmware(ctx);
 }
 
-/*
- * Add one frame.  Returns false when the ring is full.  Sets *kick when the
- * firmware had read all frames: then it can wait for the doorbell.  Else it
- * reads this frame before it waits.
- */
+/* Add one frame.  *kick: the firmware had read all frames and can wait. */
 static bool esp_shm_push(struct esp_shm_context *ctx, const struct sk_buff *skb,
 			 bool *kick)
 {
@@ -158,10 +148,7 @@ static bool esp_shm_push(struct esp_shm_context *ctx, const struct sk_buff *skb,
 	/* The firmware reads head, then the frame. */
 	wmb();
 	shm_write32(ctx, to_fw.ctrl + ESP_SHM_HEAD_OFF, head + need);
-	/*
-	 * Store head before the load of tail.  The firmware stores tail before
-	 * it loads head, so one of the two sides sees the other.
-	 */
+	/* Store head before the load of tail; the firmware does the reverse. */
 	mb();
 	*kick |= shm_read32(ctx, to_fw.ctrl + ESP_SHM_TAIL_OFF) == head;
 	return true;
@@ -193,10 +180,7 @@ static void esp_shm_tx_flush(struct esp_shm_context *ctx)
 		return;
 
 	while ((skb = skb_peek(&ctx->tx_queue))) {
-		/*
-		 * Ask for a doorbell before the second try, so that space which
-		 * the firmware frees in between is not missed.
-		 */
+		/* Wait flag before the second try: freed space is not missed. */
 		if (!esp_shm_push(ctx, skb, &kick)) {
 			shm_write32(ctx, to_fw.ctrl + ESP_SHM_WAIT_OFF, 1);
 			/* The flag before the second read of the ring index. */
@@ -350,10 +334,7 @@ static void esp_shm_set_tx_quiesced(struct esp_shm_context *ctx, bool quiesced)
 	spin_unlock_bh(&ctx->tx_lock);
 }
 
-/*
- * The firmware never restarts without Linux, so a "firmware reset" here is a
- * new boot event.  Drop the frames of the old session in the two directions.
- */
+/* A "firmware reset" is a new boot event: drop the old session's frames. */
 static int esp_shm_quiesce_for_fw_reset(struct esp_adapter *adapter)
 {
 	struct esp_shm_context *ctx = adapter ? adapter->if_context : NULL;
@@ -455,11 +436,7 @@ static int esp_shm_probe(struct platform_device *pdev)
 		return ret;
 	}
 
-	/*
-	 * The firmware put its boot event into the ring before Linux started.
-	 * Read it now.  If it is missing, the recovery watchdog asks for a new
-	 * one through recover_transport().
-	 */
+	/* The boot event is in the ring; else the watchdog asks for one. */
 	esp_process_new_packet_intr(adapter);
 	ctx->flash = esp_shm_flash_probe(dev, ctx->shm, ctx->doorbell);
 	schedule_delayed_work(&adapter->fw_recovery_work,
@@ -510,11 +487,7 @@ static struct platform_driver esp_shm_driver = {
 	},
 };
 
-/*
- * On USB, close is a soft reset of the firmware.  Here a firmware restart
- * also restarts Linux, so open and close only ask for a new boot event.  The
- * driver core starts a new session, but the firmware keeps its Wi-Fi state.
- */
+/* A firmware restart restarts Linux: open and close ask for a boot event. */
 int generate_slave_intr(void *context, u8 data)
 {
 	struct esp_shm_context *ctx = context;

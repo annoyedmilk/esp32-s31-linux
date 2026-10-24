@@ -1,7 +1,6 @@
 #!/bin/sh
 # SPDX-License-Identifier: MIT
-# udhcpc hook.  The default route of each lease has metric 0.  Give the one of
-# wlan0 metric 10, so that Ethernet is used when both links are up.
+# udhcpc hook: the default route of wlan0 gets metric 10, so Ethernet wins.
 
 [ "$interface" = wlan0 ] || exit 0
 case "$1" in

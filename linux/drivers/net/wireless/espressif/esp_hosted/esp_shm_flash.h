@@ -1,8 +1,5 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
-/*
- * The flash window of the ESP32-S31 firmware as an MTD device.  Without MTD,
- * these do nothing.
- */
+/* The flash window of the firmware as an MTD device; nothing without MTD. */
 #ifndef _ESP_SHM_FLASH_H
 #define _ESP_SHM_FLASH_H
 

@@ -31,32 +31,23 @@
 			no-map;
 		};
 
-		/*
-		 * HP_APM puts the last word below a region into that region, so
-		 * the word at 0x50effffc is M-mode only.  DMA writes to it are
-		 * lost, and S-mode reads of it return wrong data.
-		 */
+		/* HP_APM: 0x50effffc, the word below OpenSBI, is M-mode only. */
 		apm-guard@50eff000 {
 			reg = <0x50eff000 0x1000>;
 			no-map;
 		};
 
-		/*
-		 * Sv32 has no cacheability attribute, and the port does not
-		 * use the uncached alias of PSRAM at 0xc0000000.  Thus coherent
-
-		/* The kernel trap code, CONFIG_RISCV_TRAP_SRAM_PHYS. */
-		trap-sram@2f04e000 {
-			reg = <0x2f04e000 0x2000>;
-			no-map;
-		};
-		 * allocations come from internal SRAM, which the data cache
-		 * does not hold.
-		 */
+		/* Sv32 has no uncached mapping: coherent memory is in SRAM. */
 		dma_pool: dma-pool@2f040000 {
 			compatible = "shared-dma-pool";
 			reg = <0x2f040000 0xe000>;
 			linux,dma-default;
+			no-map;
+		};
+
+		/* The kernel trap code, CONFIG_RISCV_TRAP_SRAM_PHYS. */
+		trap-sram@2f04e000 {
+			reg = <0x2f04e000 0x2000>;
 			no-map;
 		};
 	};
@@ -70,10 +61,7 @@
 		#size-cells = <0>;
 		timebase-frequency = <320000000>;
 
-		/*
-		 * Hart 0 stays in M-mode and runs the ESP-IDF firmware for
-		 * the WLAN modem.  Linux uses hart 1.
-		 */
+		/* Hart 0 runs the ESP-IDF firmware; Linux uses hart 1. */
 		cpu1: cpu@1 {
 			device_type = "cpu";
 			compatible = "esp,esp32s31", "riscv";
@@ -116,11 +104,7 @@
 		#size-cells = <1>;
 		compatible = "simple-bus";
 		ranges;
-		/*
-		 * No bus master on this SoC is coherent with the data cache,
-		 * and the hart has no Zicbom.  Thus all DMA devices below use
-		 * the sync engine of the cache controller.
-		 */
+		/* No bus master snoops the D-cache: DMA uses the sync engine. */
 		dma-noncoherent;
 
 		cache: cache-controller@2c000000 {
@@ -182,13 +166,7 @@
 			gpio-controller;
 			#gpio-cells = <2>;
 			gpio-ranges = <&pinctrl 0 0 62>;
-			/*
-			 * Pins that Linux must not use: the flash (GPIO26-32),
-			 * the USB Serial/JTAG of hart 0 (GPIO33/34), GPIO41,
-			 * which has no package pin, and the UART0 console.
-			 * A board with other pins of the firmware or the loader
-			 * replaces this list.
-			 */
+			/* Flash, USB Serial/JTAG (33/34), 41 (no pin), UART0. */
 			gpio-reserved-ranges = <26 9>, <41 1>, <58 2>;
 		};
 
@@ -229,11 +207,7 @@
 			clocks = <&xtal>;
 		};
 
-		/*
-		 * RMT channel 0 drives a WS2812 LED.  A board routes the
-		 * channel 0 output to its LED pin.  The second register is the
-		 * power control of the RMT RAM in HP_SYSTEM.
-		 */
+		/* WS2812 on RMT channel 0; the second reg powers the RMT RAM. */
 		rgb_led: led-controller@20355000 {
 			compatible = "esp,esp32s31-rmt-ws2812";
 			reg = <0x20355000 0x1000>, <0x20586204 0x4>;
@@ -257,14 +231,7 @@
 			quality = <1000>;
 		};
 
-		/*
-		 * The ESP-Hosted firmware on hart 0, through its shared-memory
-		 * transport.  The rings are in internal SRAM.  The doorbells are
-		 * the cross-core interrupt registers.  Linux sets FROM_CPU_1.
-		 * The firmware sets FROM_CPU_2 and Linux clears it.  FROM_CPU_0
-		 * is not usable: ESP-IDF on hart 0 clears it in its own
-		 * cross-core interrupt.
-		 */
+		/* ESP-Hosted on hart 0: SRAM rings, FROM_CPU_1/2 doorbells. */
 		wifi: wifi@2f050000 {
 			compatible = "esp,esp32s31-hosted-shm";
 			reg = <0x2f050000 0xd000>, <0x20586014 0x8>;
@@ -286,10 +253,7 @@
 
 		usb0: usb@20300000 {
 			compatible = "esp,esp32s31-usb", "snps,dwc2";
-			/*
-			 * The full aperture up to the PAU block.  The FIFO
-			 * window of each channel is at 0x1000 * (channel + 1).
-			 */
+			/* With the FIFO windows at 0x1000 * (channel + 1). */
 			reg = <0x20300000 0x40000>;
 			interrupt-parent = <&clic>;
 			interrupts = <33 99 IRQ_TYPE_LEVEL_HIGH>;
@@ -328,11 +292,7 @@
 			status = "disabled";
 		};
 
-		/*
-		 * The RX FIFO has only 256 bytes, so the DMA uses thresholds.  A
-		 * burst of more than 16 beats to PSRAM stops hart 0 with an
-		 * MSPI error, so the PBL must not be multiplied by 8.
-		 */
+		/* Small RX FIFO; a burst over 16 beats to PSRAM stops hart 0. */
 		emac: ethernet@20350000 {
 			compatible = "esp,esp32s31-dwmac", "snps,dwmac-3.70a";
 			reg = <0x20350000 0x4000>;

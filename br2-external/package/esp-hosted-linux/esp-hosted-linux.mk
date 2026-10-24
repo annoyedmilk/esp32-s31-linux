@@ -4,9 +4,8 @@
 #
 ################################################################################
 
-# The host driver of the submodule, which the linux extension in
-# br2-external/linux copies into the kernel.  Buildroot does not patch a
-# local package, so the hook applies the patches of this directory.
+# The host driver of the submodule (br2-external/linux copies it into the
+# kernel).  Buildroot does not patch a local package, so a hook does.
 ESP_HOSTED_LINUX_VERSION = local
 ESP_HOSTED_LINUX_SITE = $(BR2_EXTERNAL_ESP32S31_PATH)/../external/esp-hosted-linux
 ESP_HOSTED_LINUX_SITE_METHOD = local

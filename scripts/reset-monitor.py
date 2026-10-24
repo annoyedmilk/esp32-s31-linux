@@ -16,8 +16,7 @@ def now_name():
 
 
 def pulse_reset(ser):
-    # RTS drives the active-low EN pin, as esptool does.  DTR drives GPIO0 on
-    # most boards.  Keep DTR inactive for a normal boot.
+    # RTS drives EN (reset), as esptool does.  DTR drives GPIO0: keep it off.
     ser.dtr = False
     ser.rts = True
     time.sleep(0.1)

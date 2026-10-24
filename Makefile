@@ -1,9 +1,6 @@
 SHELL := /bin/bash
 
-# The board to build for: esp32s31 (the ESP32-S31-WROOM-3-N16R16V alone:
-# UART0, root in the flash), coreboard1 (ESP32-S31-Function-CoreBoard-1:
-# Ethernet, USB, LED, root on a USB stick) or korvo1 (ESP32-S31-Korvo-1: LCD,
-# microSD, USB, LED, root on the card).
+# The board: esp32s31 (the module alone), coreboard1 or korvo1.  See help.
 BOARD ?= esp32s31
 ifeq ($(filter $(BOARD),esp32s31 coreboard1 korvo1),)
 $(error BOARD must be esp32s31, coreboard1 or korvo1, not "$(BOARD)")
@@ -18,17 +15,13 @@ IDF_VERSION := $(shell sed -n 's/^set(IDF_VERSION_M[AI][JN]OR \([0-9]*\))/\1/p' 
 	"$(IDF_PATH)/tools/cmake/version.cmake" 2>/dev/null | paste -sd. -)
 PYTHON ?= $(lastword $(foreach p,$(sort $(wildcard $(IDF_TOOLS_PATH)/python_env/idf$(IDF_VERSION)_*/bin/python)),$(if $(realpath $(p)),$(p))))
 ESPTOOL := $(PYTHON) -m esptool
-# The tested esptool.  Its flasher stub for the chip comes with it, so a new
-# esptool can change how the board is flashed.  Move it with the ESP-IDF pin.
+# The tested esptool, with its flasher stub.  Move it with the ESP-IDF pin.
 ESPTOOL_VERSION := $(shell cat bootloader/esptool.version)
 ESPTOOL_CHECK = @v=$$($(ESPTOOL) version 2>/dev/null | tail -1); \
 	test "$$v" = "$(ESPTOOL_VERSION)" || { \
 	echo "esptool is $$v, but bootloader/esptool.version wants $(ESPTOOL_VERSION):"; \
 	echo '  $(PYTHON) -m pip install esptool==$(ESPTOOL_VERSION)'; exit 1; }
-# export.sh names its virtualenv after the python3 that it finds.  After a
-# host Python upgrade, that virtualenv does not exist, and the old one can
-# have a broken python link.  PYTHON is the newest one that works, for the
-# ESP-IDF version at IDF_PATH.
+# A host Python upgrade breaks the old virtualenv: PYTHON is the newest one.
 IDF_PYTHON_ENV := $(patsubst %/bin/python,%,$(PYTHON))
 ESP_RISCV_BIN := $(lastword $(sort $(wildcard $(IDF_TOOLS_PATH)/tools/riscv32-esp-elf/*/riscv32-esp-elf/bin)))
 CROSS_COMPILE ?= $(ESP_RISCV_BIN)/riscv32-esp-elf-
@@ -46,17 +39,13 @@ OPENSBI_OUT := $(CURDIR)/$(BUILD_DIR)/opensbi
 OPENSBI_PATCHES := $(sort $(wildcard opensbi/patches/*.patch))
 # The loader config of the board: the common defaults, then the board.
 SDKCONFIG_DEFAULTS := sdkconfig.defaults;sdkconfig.defaults.$(BOARD)
-# The LCD DMA reads PSRAM without the cache, so the frame buffer must not be
-# cached when the loader starts the LCD.
+# The LCD DMA bypasses the cache: an uncached frame buffer when the LCD is on.
 FB_UNCACHED := $(shell grep -q '^CONFIG_ESP_CONSOLE_SECONDARY_NONE=y' \
 	bootloader/sdkconfig.defaults.$(BOARD) && echo 1 || echo 0)
-# The LCD has the pins of the USB Serial/JTAG, so OpenSBI copies its console
-# to USB only when the loader does not start the LCD.
+# The LCD uses the USB Serial/JTAG pins: the USB console only without the LCD.
 USB_CONSOLE := $(if $(filter 1,$(FB_UNCACHED)),0,1)
 
-# Buildroot cannot build on macOS, so it runs in a container.  Its output
-# directory for each board and dl/ are in a volume, because virtiofs is slow
-# for many gigabytes.
+# Buildroot runs in a container.  Its output is in a volume: virtiofs is slow.
 BR_DIR := external/buildroot
 BR_IMAGE ?= esp32s31-buildroot:bookworm
 BR_VOLUME ?= esp32s31-br
@@ -65,12 +54,10 @@ BR_DEFCONFIG := $(BOARD)_defconfig
 # The kernel release that Buildroot builds and that kernel-check uses.
 LINUX_VERSION := $(shell sed -n 's/^BR2_LINUX_KERNEL_CUSTOM_VERSION_VALUE="\(.*\)"/\1/p' \
 	br2-external/configs/$(BR_DEFCONFIG))
-# The guest page cache grows to the full limit.  With 8G on an 8 GB Mac,
-# macOS swapped during a build.
+# With 8G on an 8 GB Mac, macOS swapped during a build.
 BR_MEMORY ?= 6G
 BR_OUT := $(BUILD_DIR)/buildroot
-# GCC needs approximately 1 GB for each of its largest files.  With 6G and
-# the default of one job more than the CPUs, the kernel killed cc1plus.
+# GCC needs approximately 1 GB for each job: with more jobs, OOM killed cc1plus.
 BR_JOBS ?= 5
 BR_O := /br/$(BOARD)
 BR_MAKE := make O=$(BR_O) BR2_EXTERNAL=/work/br2-external BR2_DL_DIR=/br/dl \
@@ -83,21 +70,16 @@ BR_RUN = "$(CONTAINER)" run --rm --cpus $(JOBS) --memory $(BR_MEMORY) \
 BR_TOOLS = "$(CONTAINER)" run --rm --uid $(shell id -u) --gid $(shell id -g) \
 	-v "$(CURDIR)":/work "$(BR_IMAGE)"
 
-# The flash layout of the board, from its partition table: field 4 is the
-# offset, field 5 the size.
+# The partition table of the board: field 4 is the offset, field 5 the size.
 PARTITIONS := bootloader/partitions-$(BOARD).csv
 part_field = $(shell awk -F'[ ,]+' '$$1 == "$(1)" { print $$$(2) }' $(PARTITIONS))
 
-# The squashfs root in the flash, on the module alone.  The Korvo-1 and the
-# Function-CoreBoard-1 have their root on a disk and no rootfs partition.
+# The squashfs root in the flash: empty on a board with its root on a disk.
 ROOT_OFFSET := $(call part_field,rootfs,4)
 ROOT_SIZE := $(call part_field,rootfs,5)
 SD_DISK ?=
 SD_RAW = $(subst /dev/disk,/dev/rdisk,$(SD_DISK))
-# Size of the FAT partition.  The root partition gets the rest of the card,
-# except 64 MB of swap at the end.
-# Make it smaller for a small card, but not below 4G.  diskutil stops if it
-# does not fit.
+# The FAT partition of sdpart, not below 4G.  The root gets the rest minus swap.
 SD_DATA_SIZE ?= 28G
 
 FLASH_PORT ?=
@@ -169,9 +151,8 @@ help:
 		'FLASH_PORT is the esptool target: the native USB Serial/JTAG' \
 		'(/dev/cu.usbmodem*) or the CP2102N UART bridge (/dev/cu.usbserial-*).' \
 		'SERIAL_PORT is the external UART carrying the Linux console.' \
-		'RESET_PORT optionally names a second port whose RTS pulse resets the' \
-		'board before monitoring when SERIAL_PORT cannot (BAUD, BOOT_TIMEOUT' \
-		'tune the monitor).' \
+		'RESET_PORT is a second port.  Its RTS pulse resets the board when' \
+		'SERIAL_PORT cannot.  BAUD and BOOT_TIMEOUT set the monitor.' \
 		'' \
 		'BOARD selects the board, for each target: esp32s31 (the default),' \
 		'coreboard1 or korvo1.  The output of a board goes to build/BOARD.' \
@@ -197,9 +178,7 @@ ports:
 
 build: bootloader opensbi rootfs
 
-# idf.py reads sdkconfig.defaults only when it creates sdkconfig.  Then it
-# writes sdkconfig at each build, so it ignores changes to the defaults.
-# Here the defaults have priority, also over "idf.py menuconfig".
+# idf.py ignores a changed sdkconfig.defaults.  Here the defaults have priority.
 bootloader:
 	@for f in bootloader/sdkconfig.defaults bootloader/sdkconfig.defaults.$(BOARD); do \
 		if test -f $(BUILD_DIR)/sdkconfig && test $$f -nt $(BUILD_DIR)/sdkconfig; then \
@@ -228,8 +207,7 @@ opensbi:
 	@mkdir -p "$(OPENSBI_SRC)"
 	@cp -R "$(OPENSBI_DIR)"/* "$(OPENSBI_SRC)/"
 	@rm -rf "$(OPENSBI_OUT)"
-	@# A for loop returns the status of its last iteration.  Without the exit,
-	@# a failed patch before the last one gives an unpatched OpenSBI.
+	@# A for loop returns the status of its last iteration: exit on failure.
 	@for patch_file in $(OPENSBI_PATCHES); do \
 		patch -d "$(OPENSBI_SRC)" -p1 -F0 -s < "$$patch_file" || \
 			{ echo "$$patch_file does not apply"; exit 1; }; \
@@ -242,15 +220,11 @@ opensbi:
 	@cp "$(OPENSBI_OUT)/platform/esp32s31/firmware/fw_jump.elf" "$(BUILD_DIR)/opensbi.elf"
 	@cp "$(OPENSBI_OUT)/platform/esp32s31/firmware/fw_jump.bin" "$(BUILD_DIR)/opensbi.bin"
 
-# The defconfigs are made from the common fragment, the root fragment and
-# the fragment of each board.
+# From the common fragment, the root fragment and the fragment of each board.
 defconfigs:
 	@$(BR_TOOLS) sh -c 'cd /work && scripts/mkdefconfigs.sh'
 
-# Apply the series in order to a clean extract of the kernel release, in the
-# container at zero fuzz, as Buildroot does.  The macOS patch accepts old
-# context that GNU patch rejects.  A kernel version change must also pass
-# this test.
+# Dry-run the series at zero fuzz in the container: the macOS patch is lenient.
 kernel-check: br-volume
 	@$(BR_RUN) sh -c 'set -e; \
 		cd /work/$(BR_DIR); \
@@ -267,12 +241,7 @@ kernel-check: br-volume
 				then echo applies; else echo FAILS; fail=1; fi; \
 		done; rm -rf /br/check; exit $$fail'
 
-# Buildroot copies linux/ and applies the patches only when it extracts the
-# kernel, and it ignores changes to the custom config and to the ESP-Hosted
-# sources.  Thus keep a hash of all of them in the volume.  When the hash changes, delete the
-# extracted kernel, headers and ESP-Hosted sources, so Buildroot extracts,
-# patches and configures them again.  Runs in the container, in the Buildroot
-# directory.
+# Buildroot ignores changes to linux/ after the extract: hash, then dirclean.
 KERNEL_SYNC = sum=$$({ find /work/linux -type f ! -name ._\* | sort | xargs cat; \
 		cat /work/br2-external/board/esp32s31/linux* \
 		/work/br2-external/configs/$(BR_DEFCONFIG) \
@@ -294,9 +263,7 @@ kernel: br-volume
 		$(BR_MAKE) linux-rebuild all'
 	@$(MAKE) --no-print-directory br-artifacts
 
-# Delete the extracted kernel and headers by hand.  "make kernel" and
-# "make rootfs" do this themselves when linux/, the config or the
-# ESP-Hosted sources change.
+# By hand.  make kernel and make rootfs do this when the kernel inputs change.
 kernel-clean: br-volume
 	@$(BR_RUN) sh -c 'cd /work/$(BR_DIR); $(BR_MAKE) linux-dirclean linux-headers-dirclean'
 
@@ -334,9 +301,7 @@ rootfs: br-volume
 		$(BR_MAKE)'
 	@$(MAKE) --no-print-directory br-artifacts
 
-# Copy the kernel and its manifest from the volume for flashing, next to the
-# loader and OpenSBI binaries: also the squashfs root of a board without a
-# disk, and the disk images of a board with a disk.
+# Copy the images to flash and to write from the volume to build/BOARD.
 br-artifacts:
 	@$(BR_RUN) sh -c 'set -e; \
 		mkdir -p /work/$(BR_OUT) /work/$(BUILD_DIR); \
@@ -368,10 +333,7 @@ SD_CONFIRM = @read -r -p 'Type $(1) to continue: ' reply; \
 	test "$$reply" = $(1) || { echo aborted; exit 1; }
 SD_SHOW = @diskutil info "$(SD_DISK)" | grep -E 'Device Node|Media Name|Disk Size|Removable Media'
 
-# Partition a large disk: a large FAT partition for the Mac and a small ext4
-# root.  Use this and not sdwrite when the disk is larger than the image.
-# fsck.fat on the board needs approximately 8 bytes for each cluster, so p1
-# gets 64 KiB clusters (128 sectors).  FAT32 then needs 4 GiB or more.
+# For a disk larger than the image.  64 KiB clusters, for fsck.fat: 4G or more.
 sdpart:
 	$(SD_DISK_REQUIRED)
 	$(SD_SHOW)
@@ -383,10 +345,7 @@ sdpart:
 		"MS-DOS FAT32" SWAP 64M
 	@diskutil unmountDisk "$(SD_DISK)"
 	@sudo newfs_msdos -F 32 -c 128 -v ESP32S31 "$(SD_RAW)s1"
-# The kernel ignores the type byte of p2.  With 0x83, macOS does not try to
-# mount the ext4 partition as FAT at each insertion.  S05swap.sh uses p3 only
-# with 0x82.  The disk signature of genimage.cfg (0x45533331, little endian)
-# lets the Function-CoreBoard-1 kernel find its root stick.
+# As genimage.cfg: signature, 0x83 (macOS skips p2), 0x82 (S05swap.sh uses p3).
 	@sudo sh -c 'dd if="$(SD_RAW)" of="$(BUILD_DIR)/mbr.bin" bs=512 count=1 && \
 		printf "\\x31\\x33\\x53\\x45" | dd of="$(BUILD_DIR)/mbr.bin" bs=1 seek=440 conv=notrunc && \
 		printf "\\x83" | dd of="$(BUILD_DIR)/mbr.bin" bs=1 seek=466 conv=notrunc && \
@@ -425,8 +384,7 @@ sdroot:
 	@sync
 	@diskutil eject "$(SD_DISK)"
 
-# Offset and file of each flash region.  The release package uses the same
-# list (make flash-args).
+# Offset and file of each flash region.  package-release.sh reads flash-args.
 FLASH_IMAGES = \
 	$(BOOTLOADER_OFFSET) $(BUILD_DIR)/bootloader/bootloader/bootloader.bin \
 	$(PARTITION_TABLE_OFFSET) $(BUILD_DIR)/bootloader/partition_table/partition-table.bin \

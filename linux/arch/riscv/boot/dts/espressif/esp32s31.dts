@@ -16,10 +16,7 @@
 	};
 };
 
-/*
- * The "rootfs" and "data" partitions of bootloader/partitions-esp32s31.csv,
- * from the start of "rootfs".
- */
+/* The "rootfs" and "data" partitions of partitions-esp32s31.csv. */
 &wifi {
 	flash {
 		partitions {

@@ -5,7 +5,7 @@ config ESP32S31_HOSTED
 	help
 	  The ESP-Hosted host driver for the ESP-Hosted firmware on hart 0:
 	  Wi-Fi (cfg80211 full-MAC) and Bluetooth HCI.  The frames go
-	  through rings in internal SRAM.  Buildroot copies the upstream driver into
-	  esp_hosted/ (br2-external/linux).  With MTD, the flash window of
-	  the firmware is the MTD device esp32s31-flash, with the partitions
-	  of the "flash" child node.
+	  through rings in internal SRAM.  Buildroot copies the upstream
+	  driver into esp_hosted/ (br2-external/linux).  With MTD, the
+	  flash window of the firmware is the MTD device esp32s31-flash,
+	  with the partitions of the "flash" child node.

@@ -158,11 +158,7 @@ static int esp32s31_lp_init(struct esp32s31_clk *ec)
 	return 0;
 }
 
-/*
- * The SDIO LS clock of the SD host: MPLL divided by 2 to 16 with edge
- * counters.  Its source select keeps the reset value 0, MPLL.  The phase
- * clocks get the ESP-IDF defaults: drive on edge 1, sample on edge 0.
- */
+/* The SD host clock: MPLL / 2 to 16 by edge counters, ESP-IDF phases. */
 static unsigned long esp32s31_sdio_div(unsigned long rate,
 				       unsigned long parent_rate)
 {
@@ -209,11 +205,7 @@ static const struct clk_ops esp32s31_sdio_ops = {
 	.set_rate = esp32s31_sdio_set_rate,
 };
 
-/*
- * A peripheral clock register: the bus gate in bit 0, the reset in bit 1,
- * and the function clock: source, divider (DIV_NUM + 1), gate.  The bus gate
- * has the ID id, the function clock id + 1.
- */
+/* Bit 0 bus gate (ID id), bit 1 reset, then the function clock (ID id + 1). */
 struct esp32s31_periph {
 	const char *names[4];
 	u16 offset;

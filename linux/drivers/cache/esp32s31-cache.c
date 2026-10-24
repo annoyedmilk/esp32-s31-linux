@@ -35,24 +35,14 @@
 #define ESP32S31_SBI_CACHE_WBACK_INV	3
 #define ESP32S31_SBI_ICACHE_SYNC	4
 
-/*
- * Make new code visible: write back the D-cache, then invalidate the I-cache
- * of this hart.  A size of 0 means the full caches.  The kernel calls this at
- * any time.
- */
+/* For new code: D-cache write-back, then I-cache invalidate.  Size 0: all. */
 void esp32s31_icache_sync(phys_addr_t paddr, size_t size)
 {
 	sbi_ecall(ESP32S31_SBI_EXT, ESP32S31_SBI_ICACHE_SYNC,
 		  paddr, size, 0, 0, 0, 0);
 }
 
-/*
- * Do one sync operation on the range.  The coherent DMA pool is in internal
- * SRAM.  The CPU accesses SRAM without the data cache, and the sync engine
- * cannot use it.  A buffer is never in SRAM and PSRAM at the same time.  Thus
- * a range that is not fully in PSRAM needs no maintenance.  A size of 0 means
- * the full cache for the engine, so never send an empty range.
- */
+/* Ranges fully in PSRAM only: SRAM is uncached, and size 0 means all. */
 static void esp32s31_cache_sync(phys_addr_t paddr, size_t size,
 				unsigned long funcid)
 {
@@ -110,18 +100,10 @@ static int __init esp32s31_cache_init(void)
 		return -ENODEV;
 	}
 
-	/*
-	 * setup_arch() already set the line size and enabled non-coherent DMA,
-	 * because the slab allocator sets its DMA alignment before the
-	 * initcalls.
-	 */
+	/* setup_arch() set this up before slab took its DMA alignment. */
 	riscv_noncoherent_register_cache_ops(&esp32s31_cache_ops);
 
-	/*
-	 * This alignment prevents a kmalloc DMA buffer from sharing a cache
-	 * line with a different allocation.  A value below the line size means
-	 * that setup_arch() did not enable non-coherent DMA.
-	 */
+	/* An alignment below the line size: setup_arch() did not enable it. */
 	pr_info("esp32s31-cache: non-coherent DMA cache ops registered (%u-byte lines, DMA alignment %d)\n",
 		ESP32S31_CACHE_LINE_SIZE, dma_get_cache_alignment());
 

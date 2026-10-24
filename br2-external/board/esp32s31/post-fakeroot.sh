@@ -1,24 +1,16 @@
 #!/bin/sh
 # SPDX-License-Identifier: MIT
-# Runs on the copy of the target directory that each image is made from.
-# A change here does not touch target/, so the next build starts from the
-# complete tree.
+# Runs on the copy of target/ that the images are made from: target/ itself
+# stays complete for the next build.
 set -eu
 
-# ca-certificates installs each certificate twice: as a file with a link in
-# /etc/ssl/certs, and in the bundle, which curl reads.  Keep the bundle, and
-# make it the default file of OpenSSL for the other programs.  The bundle is
-# made from the single files at each build, so they must stay in target/.
+# Keep only the CA bundle (curl reads it) and make it the OpenSSL default file.
 rm -rf "$1/usr/share/ca-certificates"
 find "$1/etc/ssl/certs" -type l -delete
 ln -sf certs/ca-certificates.crt "$1/etc/ssl/cert.pem"
 
-# Packages install libraries that nothing here uses: glib2 five next to
-# libglib (and its tools), libnl, ncurses and readline their extra parts,
-# BlueZ a libbluetooth that its programs do not link.  Remove the glib2
-# tools, then each library that no ELF file in the image needs.  A library
-# comes before the ones it needs.  OpenSSL modules and libgcc_s are not on
-# the list: programs load them with dlopen.
+# Remove the glib2 tools, then each listed library that no ELF file needs.
+# A library comes before the ones it needs.  dlopen users are not listed.
 readelf --version >/dev/null
 cd "$1"
 rm -f usr/bin/gapplication usr/bin/gdbus usr/bin/gi-compile-repository \
