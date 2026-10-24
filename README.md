@@ -111,6 +111,57 @@ Notes:
 - `hcitool lescan` fails. Use `bluetoothctl` and `scan le`.
 - There is no audio or camera driver.
 
+## Performance
+
+Medians of two runs on the Korvo-1 (chip revision v0.0) with v0.8.0.
+The Wi-Fi numbers depend on the access point and the air.
+
+### Application start and storage
+
+Time from `fork()` to the exit of the program. Cold: the page cache is
+empty, so the program and its libraries come from the card. Warm: they
+are in the page cache.
+
+| Program | Cold | Warm |
+| --- | --- | --- |
+| BusyBox `true` | 25 ms | 13 ms |
+| Lua `-e x=1` | 62 ms | 19 ms |
+| MicroPython `-c pass` | 84 ms | 18 ms |
+| bash `-c :` | 157 ms | 37 ms |
+| SQLite `-version` | 162 ms | 31 ms |
+| coreutils `true` | 190 ms | 34 ms |
+| fastfetch | 240 ms | 70 ms |
+| vim `--version` | 469 ms | 86 ms |
+
+| microSD card | Result |
+| --- | --- |
+| Sequential read, cold (raw partition and a 20 MiB file on ext4) | 18 to 19 MB/s |
+| Sequential write, 20 MiB file with `fsync` | 9 MB/s |
+| Random 4 KiB read, `O_DIRECT` | 670 IOPS |
+| Random 4 KiB write, `O_DIRECT` | 98 IOPS |
+
+### Network and IPC
+
+| Test | Result |
+| --- | --- |
+| Wi-Fi TCP (`iperf3`) | 45 Mbit/s TX, 38 Mbit/s RX |
+| Wi-Fi UDP TX | 35 Mbit/s |
+| Wi-Fi UDP RX at 30 Mbit/s | 28.5 Mbit/s, 5% loss |
+| Ping to a host on the same Wi-Fi | 5.3 ms minimum, 22 to 27 ms average |
+| HCI command from Linux (hart 1) to the Bluetooth controller (hart 0) and back | 1.0 ms |
+| Pipe round trip between two processes | 140 µs |
+| `getpid()` | 1.2 µs |
+
+### Memory
+
+| Data set | Read | Write | Copy |
+| --- | --- | --- | --- |
+| 4 KiB, in the D-cache | 175 MB/s | 435 MB/s | 415 MB/s |
+| 512 KiB, in the PSRAM | 98 MB/s | 86 MB/s | 45 MB/s |
+
+A chain of dependent loads takes 17 ns for each load from the D-cache, and
+505 ns from the PSRAM (490 ns without TLB misses).
+
 ## Userspace
 
 | Build | Packages |
