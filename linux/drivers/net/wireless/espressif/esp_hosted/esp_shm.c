@@ -279,6 +279,7 @@ static struct sk_buff *esp_shm_read(struct esp_adapter *adapter)
 
 		ring_copy_out(ctx, &to_host, tail, &len, 4);
 		if (len < sizeof(struct esp_payload_header) ||
+		    len > to_host.size ||
 		    ESP_SHM_RECORD_LEN(len) > head - tail) {
 			dev_err_ratelimited(ctx->dev, "bad frame length %u\n", len);
 			shm_write32(ctx, to_host.ctrl + ESP_SHM_TAIL_OFF, head);
