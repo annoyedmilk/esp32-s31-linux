@@ -417,6 +417,12 @@ static int esp_shm_probe(struct platform_device *pdev)
 	spin_lock_init(&ctx->tx_lock);
 	INIT_WORK(&ctx->tx_work, esp_shm_tx_work);
 
+	/* Enabled after the adapter is set up, so a failure needs no undo. */
+	ret = devm_request_irq(dev, irq, esp_shm_irq, IRQF_NO_AUTOEN,
+			       dev_name(dev), ctx);
+	if (ret)
+		return ret;
+
 	adapter->if_context = ctx;
 	adapter->if_ops = &esp_shm_if_ops;
 	adapter->if_type = ESP_IF_TYPE_USB;
@@ -427,15 +433,7 @@ static int esp_shm_probe(struct platform_device *pdev)
 	atomic_set(&adapter->state, ESP_CONTEXT_RX_READY);
 	ctx->running = true;
 	platform_set_drvdata(pdev, ctx);
-
-	ret = devm_request_irq(dev, irq, esp_shm_irq, 0, dev_name(dev), ctx);
-	if (ret) {
-		ctx->running = false;
-		adapter->if_context = NULL;
-		adapter->dev = NULL;
-		atomic_set(&adapter->state, ESP_CONTEXT_DISABLED);
-		return ret;
-	}
+	enable_irq(irq);
 
 	/* The boot event is in the ring; else the watchdog asks for one. */
 	esp_process_new_packet_intr(adapter);
