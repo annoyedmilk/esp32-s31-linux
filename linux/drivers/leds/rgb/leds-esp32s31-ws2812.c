@@ -188,6 +188,11 @@ static int esp32s31_ws2812_probe(struct platform_device *pdev)
 	       FIELD_PREP(RMT_CONF0_MEM_SIZE, 1) | RMT_CONF0_IDLE_OUT_EN,
 	       priv->base + RMT_CH0_CONF0);
 
+	/* The LED can keep a color from before a reset. */
+	ret = esp32s31_ws2812_send(priv, 0);
+	if (ret)
+		return ret;
+
 	child = of_get_next_available_child(dev->of_node, NULL);
 	if (!child)
 		return dev_err_probe(dev, -EINVAL, "no LED node\n");
@@ -209,8 +214,7 @@ static int esp32s31_ws2812_probe(struct platform_device *pdev)
 	if (ret)
 		return dev_err_probe(dev, ret, "cannot register the LED\n");
 
-	/* The LED can keep a color from before a reset. */
-	return esp32s31_ws2812_send(priv, 0);
+	return 0;
 }
 
 static const struct of_device_id esp32s31_ws2812_of_match[] = {
