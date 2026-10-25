@@ -179,11 +179,12 @@ static interface_handle_t *shm_init(void)
 	memset((void *)ESP_SHM_ADDR, 0, ESP_SHM_SIZE);
 	shm_flash_init();
 	shm_store(ESP_SHM_CTRL + ESP_SHM_VERSION_OFF, ESP_SHM_VERSION);
-	shm_store(ESP_SHM_CTRL + ESP_SHM_MAGIC_OFF, ESP_SHM_MAGIC);
 
 	if (esp_intr_alloc(DOORBELL_FROM_HOST_SRC, 0, shm_doorbell_isr, NULL,
 			   &s_intr) != ESP_OK)
 		goto fail;
+	/* Last: Linux binds only to a transport with its doorbell ready. */
+	shm_store(ESP_SHM_CTRL + ESP_SHM_MAGIC_OFF, ESP_SHM_MAGIC);
 
 	s_handle.state = INIT;
 	ESP_LOGI(TAG, "shared-memory transport at 0x%08x", ESP_SHM_ADDR);
