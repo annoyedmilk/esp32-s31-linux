@@ -32,7 +32,8 @@ of the two boards.
 2. Install the tested esptool: `pip install "esptool==5.5.0"`
    (the version in `bootloader/esptool.version`).
 3. Connect the UART port of the board. On the Korvo-1, this is the UART
-   Type-C port (a CP2102N bridge).
+   Type-C port. The USB bridge is a CP2102N on the Korvo-1 and the
+   Function-CoreBoard-1. Some Function-CoreBoard-1 boards have a CH9102X.
 4. Flash: `esptool --chip esp32s31 -p PORT -b 921600 write-flash 0x0 flash.bin`
 5. Write the disk image, for example with balenaEtcher. All data on the
    disk is lost. Korvo-1: write `*-korvo1-sdcard.img.xz` to a microSD card.
@@ -83,7 +84,7 @@ on your computer. For your own builds, put the key into
 | Persistence | All files: the overlay is in the flash | All files on the stick | All files on the card |
 | Swap | zram (6 MiB) | zram, then 64 MiB on p3 of the stick | zram, then 64 MiB on p3 of the card |
 | RAM for Linux (MemTotal) | 12.2 MiB | 11.6 MiB | 10.8 MiB |
-| UART console (`ttyS0`) | yes | yes | yes, on the CP2102N bridge |
+| UART console (`ttyS0`) | yes | yes | yes |
 | LCD console, USB keyboard, tmux desktop, touch (GT1151) | no | no | yes |
 | Wi-Fi station (`wlan0`): WPA2 and WPA3 Personal | yes | yes | yes |
 | Wi-Fi Enterprise (PEAP, TTLS, TLS) | available, not tested | available, not tested | available, not tested |
