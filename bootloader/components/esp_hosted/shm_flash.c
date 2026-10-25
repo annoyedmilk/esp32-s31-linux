@@ -19,10 +19,13 @@
 #include "esp_partition.h"
 #include "esp_attr.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
+#include "freertos/task.h"
 #include "spi_flash_mmap.h"
 #include "soc/hp_system_reg.h"
 #include "esp32s31-hosted-shm.h"
 #include "shm_flash.h"
+#include "esp.h"
 
 /* Without auto-suspend, a program or erase freezes the cache under Linux. */
 #if !CONFIG_SPI_FLASH_AUTO_SUSPEND
@@ -43,6 +46,8 @@ static const char *TAG = "FW_FLASH";
 static uint32_t s_base;
 static uint32_t s_size;
 static bool s_cache_shared;
+static SemaphoreHandle_t s_kick;
+static void (*s_done)(void);
 
 static volatile uint32_t *flash_word(uint32_t off)
 {
@@ -111,31 +116,8 @@ static bool flash_request_valid(uint32_t cmd, uint32_t addr, uint32_t len)
 	       addr % ESP_SHM_FLASH_SECTOR + len <= ESP_SHM_FLASH_SECTOR;
 }
 
-void shm_flash_init(void)
-{
-	const esp_partition_t *root = esp_partition_find_first(ESP_PARTITION_TYPE_DATA,
-							      0x40, "rootfs");
-	const esp_partition_t *data = esp_partition_find_first(ESP_PARTITION_TYPE_DATA,
-							      0x40, "data");
-
-	const void *map = NULL;
-	spi_flash_mmap_handle_t handle;
-
-	disable_bus_timeouts();
-	s_base = 0;
-	s_size = 0;
-	if (root && data && data->address == root->address + root->size &&
-	    spi_flash_mmap(root->address, root->size + data->size,
-			   SPI_FLASH_MMAP_DATA, &map, &handle) == ESP_OK) {
-		s_base = root->address;
-		s_size = root->size + data->size;
-	}
-	*flash_word(ESP_SHM_FLASH_MAP_OFF) = (uint32_t)map;
-	*flash_word(ESP_SHM_FLASH_SIZE_OFF) = s_size;
-}
-
 /* Returns true when it completed a request, which Linux waits for. */
-bool shm_flash_service(void)
+static bool shm_flash_service(void)
 {
 	uint32_t cmd = __atomic_load_n(flash_word(ESP_SHM_FLASH_CMD_OFF), __ATOMIC_ACQUIRE);
 	uint32_t addr = *flash_word(ESP_SHM_FLASH_ADDR_OFF);
@@ -156,3 +138,59 @@ bool shm_flash_service(void)
 	__atomic_store_n(flash_word(ESP_SHM_FLASH_CMD_OFF), 0, __ATOMIC_RELEASE);
 	return true;
 }
+
+/* Its own task: an erase in the receive task would stop all Linux frames. */
+static void flash_task(void *arg)
+{
+	for (;;) {
+		xSemaphoreTake(s_kick, portMAX_DELAY);
+		if (shm_flash_service())
+			s_done();
+	}
+}
+
+/* The priority of the receive task, so that the two share the CPU. */
+static bool flash_task_start(void (*done)(void))
+{
+	s_done = done;
+	s_kick = xSemaphoreCreateBinary();
+	if (s_kick && xTaskCreate(flash_task, "shm_flash", TASK_DEFAULT_STACK_SIZE,
+				  NULL, TASK_DEFAULT_PRIO, NULL) == pdPASS)
+		return true;
+	ESP_LOGE(TAG, "no mailbox task: Linux gets no flash window");
+	if (s_kick)
+		vSemaphoreDelete(s_kick);
+	s_kick = NULL;
+	return false;
+}
+
+void shm_flash_kick(void)
+{
+	if (s_kick)
+		xSemaphoreGive(s_kick);
+}
+
+void shm_flash_init(void (*done)(void))
+{
+	const esp_partition_t *root = esp_partition_find_first(ESP_PARTITION_TYPE_DATA,
+							      0x40, "rootfs");
+	const esp_partition_t *data = esp_partition_find_first(ESP_PARTITION_TYPE_DATA,
+							      0x40, "data");
+
+	const void *map = NULL;
+	spi_flash_mmap_handle_t handle;
+
+	disable_bus_timeouts();
+	s_base = 0;
+	s_size = 0;
+	if (root && data && data->address == root->address + root->size &&
+	    spi_flash_mmap(root->address, root->size + data->size,
+			   SPI_FLASH_MMAP_DATA, &map, &handle) == ESP_OK &&
+	    flash_task_start(done)) {
+		s_base = root->address;
+		s_size = root->size + data->size;
+	}
+	*flash_word(ESP_SHM_FLASH_MAP_OFF) = (uint32_t)map;
+	*flash_word(ESP_SHM_FLASH_SIZE_OFF) = s_size;
+}
+

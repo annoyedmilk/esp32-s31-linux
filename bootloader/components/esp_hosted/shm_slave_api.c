@@ -151,6 +151,11 @@ static void shm_free_frame(void *buf)
 	heap_caps_free(buf);
 }
 
+static void ring_host_doorbell(void)
+{
+	REG_WRITE(DOORBELL_TO_HOST_REG, 1);
+}
+
 /* A restart would restart Linux: on open or close, resend the boot event. */
 static void shm_service_host_requests(void)
 {
@@ -160,8 +165,7 @@ static void shm_service_host_requests(void)
 	if ((req & ESP_SHM_REQ_READY_REPLAY) && s_boot_cap_valid &&
 	    send_bootup_event_to_host(s_boot_cap, s_boot_ext_cap) != ESP_OK)
 		ESP_LOGW(TAG, "READY replay enqueue failed");
-	if (shm_flash_service())
-		REG_WRITE(DOORBELL_TO_HOST_REG, 1);
+	shm_flash_kick();
 	/* Linux is off.  Without a wake-up source, only a reset starts the chip. */
 	if (req & ESP_SHM_REQ_POWEROFF) {
 		esp_wifi_stop();
@@ -177,7 +181,7 @@ static interface_handle_t *shm_init(void)
 		goto fail;
 
 	memset((void *)ESP_SHM_ADDR, 0, ESP_SHM_SIZE);
-	shm_flash_init();
+	shm_flash_init(ring_host_doorbell);
 	shm_store(ESP_SHM_CTRL + ESP_SHM_VERSION_OFF, ESP_SHM_VERSION);
 
 	if (esp_intr_alloc(DOORBELL_FROM_HOST_SRC, 0, shm_doorbell_isr, NULL,
