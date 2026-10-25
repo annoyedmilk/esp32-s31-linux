@@ -463,6 +463,19 @@ static const struct {
 				       ESP32S31_CACHE_INVALIDATE },
 };
 
+/* An invalidate drops dirty lines: keep it out of the memory of OpenSBI. */
+static bool esp32s31_cache_op_allowed(unsigned long op, unsigned long addr,
+				      unsigned long size)
+{
+	unsigned long end = addr + size;
+
+	if (op != ESP32S31_CACHE_INVALIDATE)
+		return true;
+	return size && end > addr &&
+	       (end <= ESP32S31_FW_BASE ||
+		addr >= ESP32S31_FW_BASE + ESP32S31_FW_SIZE);
+}
+
 /* A size of 0 selects the full cache, as the ROM Cache_WriteBack_All() does. */
 static int esp32s31_vendor_ext(long funcid, struct sbi_trap_regs *regs,
 			       struct sbi_ecall_return *out)
@@ -473,6 +486,9 @@ static int esp32s31_vendor_ext(long funcid, struct sbi_trap_regs *regs,
 
 	if (funcid < 0 || funcid >= array_size(esp32s31_cache_ops))
 		return SBI_ENOTSUPP;
+	if (!esp32s31_cache_op_allowed(esp32s31_cache_ops[funcid].dcache_op,
+				       addr, size))
+		return SBI_EINVAL;
 
 	esp32s31_cache_sync(ESP32S31_CACHE_MAP_L1_DCACHE,
 			    esp32s31_cache_ops[funcid].dcache_op, addr, size);
