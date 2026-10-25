@@ -30,7 +30,7 @@ jobs:
             /opt/hostedtoolcache/CodeQL /usr/local/share/boost
           df -h /
 
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: recursive
 
@@ -39,7 +39,7 @@ jobs:
         run: echo "commit=$(cat bootloader/esp-idf.version)" >> "$GITHUB_OUTPUT"
 
       - name: Cache ESP-IDF and its tools
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/esp/esp-idf
@@ -50,7 +50,7 @@ jobs:
         run: scripts/ci-setup.sh
 
       - name: Cache the Buildroot downloads
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: build/br-dl
           key: br-dl-${{ matrix.board }}-${{ hashFiles(format('br2-external/configs/{0}_defconfig', matrix.board), '.gitmodules') }}
@@ -67,7 +67,7 @@ jobs:
           ESPTOOL="$python -m esptool" scripts/package-release.sh "$version" ${{ matrix.board }}
           rm build/release/SHA256SUMS
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: esp32s31-linux-${{ matrix.board }}
           path: build/release/*
@@ -76,7 +76,7 @@ jobs:
     needs: build
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           path: release
           merge-multiple: true
@@ -84,12 +84,12 @@ jobs:
       - name: Make the checksums
         run: cd release && sha256sum * > SHA256SUMS
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: esp32s31-linux
           path: release/*
 
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: github.ref_type == 'tag'
         with:
           path: src
@@ -97,7 +97,7 @@ jobs:
 
       - name: Publish the release
         if: github.ref_type == 'tag'
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           files: release/*
           body_path: src/docs/release-notes.md
