@@ -150,7 +150,7 @@ void arch_irq_work_raise(void)
 {
 	struct esp32s31_clic *clic = this_cpu_read(clic_per_cpu);
 
-	/* The first timer tick after the probe runs the queued work. */
+	/* Before the probe: esp32s31_irq_work_init() raises it once. */
 	if (!clic)
 		return;
 
@@ -190,6 +190,8 @@ static int __init esp32s31_irq_work_init(struct esp32s31_clic *clic)
 		return ret;
 	}
 
+	/* The tick does not run raised work here: run what came before. */
+	clic_writeb(clic, ESP32S31_CLIC_IRQ_WORK_ID, ESP32S31_CLIC_INT_IP, 1);
 	return 0;
 }
 #else
