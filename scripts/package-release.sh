@@ -77,7 +77,7 @@ cat > "$stage/FLASH.txt" <<TXT
 ESP32-S31 Linux $version for $title
 
 Install the tested esptool:  pip install "esptool==$esptool_version"
-Connect the UART port of UART0. Then flash one of the two ways:
+Connect the UART0 port of the board. Then flash one of the two ways:
 
   esptool --chip esp32s31 -p PORT -b 921600 write-flash 0x0 flash.bin
   esptool --chip esp32s31 -p PORT -b 921600 write-flash @flash_args

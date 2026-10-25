@@ -362,7 +362,8 @@ the USB transport in shared SRAM. The layout is in
   SRAM, the RX worker and the network stack use the hart. The release
   notes give the throughput of each release.
 - The host driver pads the payload header (offset 12 to 15 bytes) so that
-  the header starts aligned in the headroom (`esp-hosted-linux/0008`).
+  the header starts aligned in the headroom
+  (`br2-external/package/esp-hosted-linux/0008-*`).
   Before, it copied each TX frame into a new skb: 15% of the CPU time.
 - GRO through `gro_cells` gave no gain: the RX work gives one frame at a
   time, and each `local_bh_enable()` runs the poll for that frame only.

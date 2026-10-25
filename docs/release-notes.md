@@ -14,9 +14,9 @@ alone with UART only.
 | --- | --- |
 | `esp32s31-linux-*-korvo1-flash.zip` | Korvo-1 flash images. `flash.bin` goes to offset 0. `FLASH.txt` tells how. |
 | `esp32s31-linux-*-korvo1-sdcard.img.xz` | Korvo-1 microSD card image. p1 is FAT for your files, p2 is the ext4 root, p3 is swap. |
-| `esp32s31-linux-*-coreboard1-flash.zip` | Function-CoreBoard-1 flash images. `flash.bin` goes to offset 0. |
+| `esp32s31-linux-*-coreboard1-flash.zip` | Function-CoreBoard-1 flash images. `flash.bin` goes to offset 0. `FLASH.txt` tells how. |
 | `esp32s31-linux-*-coreboard1-usb.img.xz` | Function-CoreBoard-1 USB stick image. p1 is FAT for your files, p2 is the ext4 root, p3 is swap. |
-| `esp32s31-linux-*-esp32s31-flash.zip` | Flash images for the module alone. The full system is in the flash. |
+| `esp32s31-linux-*-esp32s31-flash.zip` | Flash images for the module alone. The full system is in the flash. `FLASH.txt` tells how. |
 | `SHA256SUMS` | Checksums of the files. |
 
 ## Quick start
@@ -73,6 +73,8 @@ the tmux desktop for a USB keyboard.
   that the device can connect.
 - Thus after the boot, the tmux status bar of the Korvo-1 shows Bluetooth
   as off until the first `bluetoothctl`.
+- The README is shorter and has a Performance section with measurements
+  on the Korvo-1.
 
 Flash the new `flash.bin` on all boards: the loader, OpenSBI and the kernel
 must come from the same release. With the OpenSBI of v0.7.1, DMA writes to
@@ -404,8 +406,9 @@ card image erases the card, so save your files from the FAT partition first.
 ## Known limits
 
 - The tested hardware is the Korvo-1 with chip revision v0.0. The esp32s31
-  build is tested on the Korvo-1. The coreboard1 build is tested on the
-  Korvo-1 with its root on a USB stick, not on a Function-CoreBoard-1.
+  build is tested on the Korvo-1. The coreboard1 build of v0.8.0 is not
+  tested on hardware. Earlier releases tested it on the Korvo-1 with its
+  root on a USB stick, not on a Function-CoreBoard-1.
 - `/dev/hwrng` gives approximately 0.4 kB/s, because Linux runs without
   high-resolution timers. The kernel random number generator is ready
   0.3 s after the start of Linux and does not depend on this speed.
