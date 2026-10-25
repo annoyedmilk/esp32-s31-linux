@@ -168,7 +168,7 @@ static void esp32_uart_rxint(struct uart_port *port)
 	if (!rx_fifo_cnt)
 		return;
 
-	spin_lock_irqsave(&port->lock, flags);
+	uart_port_lock_irqsave(port, &flags);
 
 	for (i = 0; i < rx_fifo_cnt; ++i) {
 		u32 rx = esp32_uart_read(port, UART_FIFO_REG);
@@ -185,7 +185,7 @@ static void esp32_uart_rxint(struct uart_port *port)
 			++port->icount.rx;
 		}
 	}
-	spin_unlock_irqrestore(&port->lock, flags);
+	uart_port_unlock_irqrestore(port, flags);
 
 	tty_flip_buffer_push(tty_port);
 }
@@ -273,7 +273,7 @@ static int esp32_uart_startup(struct uart_port *port)
 		return ret;
 	}
 
-	spin_lock_irqsave(&port->lock, flags);
+	uart_port_lock_irqsave(port, &flags);
 	esp32_uart_write(port, ESP32S3_UART_CLK_CONF_REG,
 			 ESP32S3_UART_CLK_CONF_DEFAULT);
 	esp32_uart_write(port, UART_CONF1_REG,
@@ -281,7 +281,7 @@ static int esp32_uart_startup(struct uart_port *port)
 			 (1 << UART_TXFIFO_EMPTY_THRHD_SHIFT));
 	esp32_uart_write(port, UART_INT_CLR_REG, UART_RXFIFO_FULL_INT | UART_BRK_DET_INT);
 	esp32_uart_write(port, UART_INT_ENA_REG, UART_RXFIFO_FULL_INT | UART_BRK_DET_INT);
-	spin_unlock_irqrestore(&port->lock, flags);
+	uart_port_unlock_irqrestore(port, flags);
 
 	return 0;
 }
@@ -335,7 +335,7 @@ static void esp32_uart_set_termios(struct uart_port *port,
 				  port->uartclk / max_div,
 				  port->uartclk / 16);
 
-	spin_lock_irqsave(&port->lock, flags);
+	uart_port_lock_irqsave(port, &flags);
 
 	conf0 = esp32_uart_read(port, UART_CONF0_REG);
 	conf0 &= ~(UART_PARITY_EN | UART_PARITY | UART_BIT_NUM | UART_STOP_BIT_NUM);
@@ -389,7 +389,7 @@ static void esp32_uart_set_termios(struct uart_port *port,
 				 baud);
 		}
 	}
-	spin_unlock_irqrestore(&port->lock, flags);
+	uart_port_unlock_irqrestore(port, flags);
 }
 
 static const char *esp32_uart_type(struct uart_port *port)
@@ -450,14 +450,14 @@ esp32_uart_console_write(struct console *co, const char *s, unsigned int count)
 	if (port->sysrq)
 		locked = false;
 	else if (oops_in_progress)
-		locked = spin_trylock_irqsave(&port->lock, flags);
+		locked = uart_port_trylock_irqsave(port, &flags);
 	else
-		spin_lock_irqsave(&port->lock, flags);
+		uart_port_lock_irqsave(port, &flags);
 
 	uart_console_write(port, s, count, esp32_uart_put_char_sync);
 
 	if (locked)
-		spin_unlock_irqrestore(&port->lock, flags);
+		uart_port_unlock_irqrestore(port, flags);
 }
 
 static int __init esp32_uart_console_setup(struct console *co, char *options)
