@@ -1,30 +1,29 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
+"""Reset an ESP32-S31 board and capture its UART output to a log file."""
+
 import argparse
+import contextlib
 import os
 import select
 import sys
 import termios
 import time
 import tty
+from collections.abc import Iterator
+from typing import BinaryIO
 
 import serial
 
+CTRL_RBRACKET = b"\x1d"
+SEEN_MAX = 4096
 
-def now_name():
+
+def now_name() -> str:
     return time.strftime("%Y%m%d-%H%M%S")
 
 
-def pulse_reset(ser):
-    # RTS drives EN (reset), as esptool does.  DTR drives GPIO0: keep it off.
-    ser.dtr = False
-    ser.rts = True
-    time.sleep(0.1)
-    ser.rts = False
-    time.sleep(0.1)
-
-
-def main():
+def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Reset an ESP32-S31 board and capture UART output"
     )
@@ -44,78 +43,116 @@ def main():
         action="store_true",
         help="stay connected as a terminal after the success pattern (Ctrl-] exits)",
     )
-    args = parser.parse_args()
+    return parser.parse_args()
 
+
+def pulse_reset(ser: serial.Serial) -> None:
+    # RTS drives EN (reset), as esptool does.  DTR drives GPIO0: keep it off.
+    ser.dtr = False
+    ser.rts = True
+    time.sleep(0.1)
+    ser.rts = False
+    time.sleep(0.1)
+
+
+def reset_board(ser: serial.Serial, args: argparse.Namespace, log: BinaryIO) -> None:
+    reset_port = args.reset_port or args.port
+    log.write(f"reset_pulse={reset_port}\n".encode())
+    log.flush()
+    if reset_port == args.port:
+        pulse_reset(ser)
+        return
+    with serial.Serial(reset_port, args.baud, timeout=0.1) as reset_ser:
+        pulse_reset(reset_ser)
+
+
+@contextlib.contextmanager
+def raw_stdin(interactive: bool) -> Iterator[int | None]:
+    """Yield stdin in raw mode, or None when the session is not interactive."""
+    if not interactive:
+        yield None
+        return
+    fd = sys.stdin.fileno()
+    old = termios.tcgetattr(fd)
+    try:
+        tty.setraw(fd)
+        sys.stderr.write("console connected; press Ctrl-] to exit\r\n")
+        sys.stderr.flush()
+        yield fd
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, old)
+        sys.stderr.write("\r\nconsole disconnected\n")
+        sys.stderr.flush()
+
+
+def forward_serial(ser: serial.Serial, log: BinaryIO) -> bytes:
+    """Copy the waiting UART bytes to stdout and to the log, and return them."""
+    data = ser.read(ser.in_waiting or 1)
+    sys.stdout.buffer.write(data)
+    sys.stdout.buffer.flush()
+    log.write(data)
+    log.flush()
+    return data
+
+
+def forward_stdin(fd: int, ser: serial.Serial) -> bool:
+    """Send the typed bytes to the UART; return False for Ctrl-]."""
+    data = os.read(fd, 1024)
+    if CTRL_RBRACKET in data:
+        return False
+    ser.write(data)
+    return True
+
+
+def capture(
+    ser: serial.Serial,
+    log: BinaryIO,
+    pattern: bytes,
+    deadline: float,
+    stdin_fd: int | None,
+) -> bool:
+    """Copy the UART until the pattern, the deadline or Ctrl-]."""
+    success = not pattern
+    seen = b""
+    readers = [ser.fileno()] + ([stdin_fd] if stdin_fd is not None else [])
+    while success or time.monotonic() < deadline:
+        ready, _, _ = select.select(readers, [], [], 0.1)
+        hit = False
+        if ser.fileno() in ready:
+            seen = (seen + forward_serial(ser, log))[-SEEN_MAX:]
+            hit = not success and pattern in seen
+            success = success or hit
+        if hit and stdin_fd is None:
+            return True
+        if stdin_fd in ready and not forward_stdin(stdin_fd, ser):
+            break
+    return success
+
+
+def run(args: argparse.Namespace, log: BinaryIO, deadline: float) -> bool:
+    with serial.Serial(args.port, args.baud, timeout=0) as ser:
+        ser.reset_input_buffer()
+        if not args.no_reset:
+            reset_board(ser, args, log)
+        with raw_stdin(args.interactive and sys.stdin.isatty()) as stdin_fd:
+            return capture(ser, log, args.success_pattern.encode(), deadline, stdin_fd)
+
+
+def main() -> int:
+    args = parse_args()
     os.makedirs(args.log_dir, exist_ok=True)
     path = os.path.join(args.log_dir, f"{now_name()}-reset-uart.log")
     deadline = time.monotonic() + args.timeout
-    success = not args.success_pattern
 
     print(f"log={path}")
     with open(path, "wb") as log:
-        header = (
+        log.write(
             f"port={args.port} reset_port={args.reset_port or args.port} "
-            f"baud={args.baud} timeout={args.timeout}\n"
-        ).encode()
-        log.write(header)
+            f"baud={args.baud} timeout={args.timeout}\n".encode()
+        )
         log.flush()
         try:
-            with serial.Serial(args.port, args.baud, timeout=0) as ser:
-                ser.reset_input_buffer()
-                if not args.no_reset:
-                    reset_port = args.reset_port or args.port
-                    log.write(f"reset_pulse={reset_port}\n".encode())
-                    log.flush()
-                    if reset_port == args.port:
-                        pulse_reset(ser)
-                    else:
-                        with serial.Serial(
-                            reset_port, args.baud, timeout=0.1
-                        ) as reset_ser:
-                            pulse_reset(reset_ser)
-                interactive = args.interactive and sys.stdin.isatty()
-                stdin_fd = sys.stdin.fileno() if interactive else None
-                old_tty = termios.tcgetattr(stdin_fd) if interactive else None
-                seen = bytearray()
-                try:
-                    if interactive:
-                        tty.setraw(stdin_fd)
-                        sys.stderr.write("console connected; press Ctrl-] to exit\r\n")
-                        sys.stderr.flush()
-                    while True:
-                        if not success and time.monotonic() >= deadline:
-                            break
-                        readers = [ser.fileno()]
-                        if interactive:
-                            readers.append(stdin_fd)
-                        ready, _, _ = select.select(readers, [], [], 0.1)
-                        if ser.fileno() in ready:
-                            data = ser.read(ser.in_waiting or 1)
-                            if data:
-                                sys.stdout.buffer.write(data)
-                                sys.stdout.buffer.flush()
-                                log.write(data)
-                                log.flush()
-                                if not success:
-                                    seen.extend(data)
-                                    if len(seen) > 4096:
-                                        del seen[:-4096]
-                                    pattern = args.success_pattern.encode()
-                                    if pattern and pattern in seen:
-                                        success = True
-                                        if not interactive:
-                                            break
-                        if interactive and stdin_fd in ready:
-                            data = os.read(stdin_fd, 1024)
-                            if b"\x1d" in data:
-                                break
-                            if data:
-                                ser.write(data)
-                finally:
-                    if old_tty is not None:
-                        termios.tcsetattr(stdin_fd, termios.TCSADRAIN, old_tty)
-                        sys.stderr.write("\r\nconsole disconnected\n")
-                        sys.stderr.flush()
+            success = run(args, log, deadline)
         except serial.SerialException as exc:
             log.write(f"serial_error={exc}\n".encode())
             print(f"ERR serial {exc}")
