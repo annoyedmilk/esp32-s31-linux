@@ -6,6 +6,8 @@
 #include <inttypes.h>
 #include <string.h>
 #include "sdkconfig.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include "esp_log.h"
 #include "esp_err.h"
 #include "esp_heap_caps.h"
@@ -338,6 +340,14 @@ static bool load_opensbi_partition(void)
     return true;
 }
 
+/* A restart at full speed loops and scrolls the error away: wait first. */
+static void restart_after_error(void)
+{
+    ESP_LOGE(TAG, "restart in 5 s");
+    vTaskDelay(pdMS_TO_TICKS(5000));
+    esp_restart();
+}
+
 void app_main(void)
 {
     open_apm();
@@ -347,11 +357,11 @@ void app_main(void)
 
     if (!esp_psram_is_initialized()) {
         ESP_LOGE(TAG, "PSRAM not initialized");
-        esp_restart();
+        restart_after_error();
     }
 
     if (!load_opensbi_partition() || !load_kernel_partition()) {
-        esp_restart();
+        restart_after_error();
     }
 
     board_start_display();
