@@ -29,10 +29,8 @@
 
 /* CLIC register map */
 
-#define ESP32S31_CLIC_BASE 0x10a00000	/* S-mode sclicbase window */
-
 /* A word of four byte registers for each input; the other core at +0x10000. */
-#define ESP32S31_CLIC_CTRL_BASE 0x10a01000	/* S-mode per-interrupt window */
+#define ESP32S31_CLIC_CTRL_OFF 0x1000	/* per-interrupt window in sclicbase */
 #define ESP32S31_CLIC_INT_STRIDE 4		/* Bytes per interrupt */
 #define ESP32S31_CLIC_INT_IP 0x0		/* Pending (byte 0, bit 0) */
 #define ESP32S31_CLIC_INT_IE 0x1		/* Enable (byte 1, bit 0) */
@@ -66,8 +64,7 @@
 
 /* Byte 2: SHV bit 0, TRIG [2:1] (X0 level, 01 rise, 11 fall), MODE [7:6]. */
 #define CLIC_ATTR_TRIG_LEVEL 0x00
-#define CLIC_ATTR_TRIG_EDGE_RISE 0x02
-#define CLIC_ATTR_TRIG_EDGE 0x02 /* bit 1: 1 = edge, 0 = level */
+#define CLIC_ATTR_TRIG_EDGE 0x02 /* rising edge; bit 1 tells edge from level */
 #define CLIC_ATTR_MODE_S 0x40
 
 /* The Interrupt Matrix block of this hart; the other is for the firmware. */
@@ -91,15 +88,15 @@ static DEFINE_PER_CPU(struct esp32s31_clic *, clic_per_cpu);
 static inline u8 clic_readb(struct esp32s31_clic *clic, unsigned int irq_id,
 			    unsigned int byte_off)
 {
-	return readb(clic->regs + ESP32S31_CLIC_CTRL_BASE - ESP32S31_CLIC_BASE +
+	return readb(clic->regs + ESP32S31_CLIC_CTRL_OFF +
 		     (irq_id * ESP32S31_CLIC_INT_STRIDE) + byte_off);
 }
 
 static inline void clic_writeb(struct esp32s31_clic *clic, unsigned int irq_id,
 			       unsigned int byte_off, u8 val)
 {
-	writeb(val, clic->regs + ESP32S31_CLIC_CTRL_BASE - ESP32S31_CLIC_BASE +
-			    (irq_id * ESP32S31_CLIC_INT_STRIDE) + byte_off);
+	writeb(val, clic->regs + ESP32S31_CLIC_CTRL_OFF +
+	       (irq_id * ESP32S31_CLIC_INT_STRIDE) + byte_off);
 }
 
 /* irq_chip callbacks */
@@ -175,7 +172,7 @@ static int __init esp32s31_irq_work_init(struct esp32s31_clic *clic)
 	/* Slot 16 has no Interrupt Matrix source.  Software sets its IP bit. */
 	clic_writeb(clic, ESP32S31_CLIC_IRQ_WORK_ID, ESP32S31_CLIC_INT_IP, 0);
 	clic_writeb(clic, ESP32S31_CLIC_IRQ_WORK_ID, ESP32S31_CLIC_INT_ATTR,
-		    CLIC_ATTR_MODE_S | CLIC_ATTR_TRIG_EDGE_RISE);
+		    CLIC_ATTR_MODE_S | CLIC_ATTR_TRIG_EDGE);
 	clic_writeb(clic, ESP32S31_CLIC_IRQ_WORK_ID, ESP32S31_CLIC_INT_CTL,
 		    CLICCTL_MAKE(1, ESP32S31_MAX_PRIORITY));
 
@@ -298,9 +295,7 @@ static int esp32s31_clic_domain_alloc(struct irq_domain *domain,
 		return -EINVAL;
 
 	esp32s31_intmatrix_route(clic, source, hwirq);
-
-	irq_domain_set_info(domain, virq, hwirq, &esp32s31_clic_chip, clic,
-			    handle_fasteoi_irq, NULL, NULL);
+	esp32s31_clic_domain_map(domain, virq, hwirq);
 
 	clic_writeb(clic, hwirq, ESP32S31_CLIC_INT_CTL,
 		    CLICCTL_MAKE(1, ESP32S31_MAX_PRIORITY));
