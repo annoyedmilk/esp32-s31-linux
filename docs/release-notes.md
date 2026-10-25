@@ -40,6 +40,35 @@ alone with UART only.
 On the Korvo-1, the LCD shows the Tux logo and the kernel warnings, then
 the tmux desktop for a USB keyboard.
 
+## New in v0.8.1
+
+- On the module alone, Wi-Fi TX during writes to the flash root is
+  approximately 40% faster: 36 Mbit/s (v0.8.0: 25 Mbit/s). The firmware
+  programs and erases the flash in its own task, so it takes the next
+  Linux frame during an erase.
+- The root password is locked. All images had the password
+  `korvo-bringup`, which is public in the repository. The consoles log in
+  without a password and SSH takes keys, as before.
+- Fixes found in a review of all code:
+  - A frame length from the firmware larger than the ring no longer
+    crashes the kernel. The transport starts its recovery.
+  - OpenSBI rejects a cache invalidate from Linux that touches its own
+    memory, or that covers the full cache.
+  - irq_work that the kernel queues before the interrupt controller is
+    ready now runs.
+  - An I2C transfer timeout waits for the interrupt handler.
+  - The RGB LED goes off at boot before its trigger can set it.
+  - The firmware shows its shared-memory transport only when its
+    doorbell interrupt is ready.
+- After a load error, the loader waits 5 s before it restarts, so the
+  error stays on the console.
+
+Flash the new `flash.bin` on all boards: the loader, OpenSBI and the kernel
+changed. The locked password is in the root: on the Korvo-1 and the
+Function-CoreBoard-1, write the new disk image or run `make sdroot`. On the
+module, the root is in `flash.bin`, and the overlay keeps your files. If
+you set a root password on the module, the overlay keeps that password.
+
 ## New in v0.8.0
 
 - SD card reads on the Korvo-1 are approximately two times faster: 18 to
