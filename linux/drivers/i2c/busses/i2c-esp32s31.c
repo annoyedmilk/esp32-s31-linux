@@ -101,6 +101,7 @@ struct esp32s31_i2c {
 	struct i2c_adapter adap;
 	struct device *dev;
 	void __iomem *base;
+	int irq;
 	struct clk *clk;
 	struct reset_control *rst;
 	u32 bus_freq;
@@ -363,6 +364,8 @@ static int esp32s31_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg *msgs,
 
 	if (!wait_for_completion_timeout(&i2c->done, adap->timeout)) {
 		writel(0, i2c->base + I2C_INT_ENA);
+		/* A handler that already runs must not touch msgs after return. */
+		synchronize_irq(i2c->irq);
 		i2c->err = -ETIMEDOUT;
 	}
 
@@ -408,6 +411,7 @@ static int esp32s31_i2c_probe(struct platform_device *pdev)
 	irq = platform_get_irq(pdev, 0);
 	if (irq < 0)
 		return irq;
+	i2c->irq = irq;
 
 	apb = devm_clk_get_enabled(dev, "apb");
 	if (IS_ERR(apb))
