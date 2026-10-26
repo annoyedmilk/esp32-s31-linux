@@ -2,8 +2,12 @@
 /*
  * Author: Marco Müller <hello@annoyedmilk.ch>
  *
- * UART of the Espressif ESP32-S31.  It is the same block as on the
- * ESP32-S3.  Based on the ESP32 UART driver by Max Filippov.
+ * UART of the Espressif ESP32-S31.  Based on the ESP32 UART driver by Max
+ * Filippov.  The block is the one of the ESP32-C6 generation, not the
+ * ESP32-S3 one: the registers with _SYNC in their name are shadow
+ * registers, which take effect after a write of REG_UPDATE.  The clock
+ * source and its divider are in HP_SYS_CLKRST, which the ROM leaves on the
+ * XTAL.  Only the 12.4-bit divider of the UART sets the baud rate here.
  */
 
 #include <linux/bitfield.h>
@@ -12,6 +16,7 @@
 #include <linux/console.h>
 #include <linux/delay.h>
 #include <linux/io.h>
+#include <linux/iopoll.h>
 #include <linux/irq.h>
 #include <linux/module.h>
 #include <linux/of.h>
@@ -19,13 +24,14 @@
 #include <linux/serial_core.h>
 #include <linux/slab.h>
 #include <linux/tty_flip.h>
-#include <asm/serial.h>
 
 #define DRIVER_NAME	"esp32-uart"
 #define DEV_NAME	"ttyS"
 #define UART_NR		3
 
 #define ESP32_UART_TX_FIFO_SIZE	127
+/* RTS goes inactive at this RX FIFO level, of 128. */
+#define ESP32_UART_RX_FLOW_THRHD	120
 
 #define UART_FIFO_REG			0x00
 #define UART_INT_ST_REG			0x08
@@ -34,15 +40,15 @@
 #define UART_RXFIFO_FULL_INT			BIT(0)
 #define UART_TXFIFO_EMPTY_INT			BIT(1)
 #define UART_BRK_DET_INT			BIT(7)
-#define UART_CLKDIV_REG			0x14
+#define UART_CLKDIV_SYNC_REG		0x14
 #define UART_CLKDIV				GENMASK(11, 0)
 #define UART_CLKDIV_FRAG			GENMASK(23, 20)
 #define UART_STATUS_REG			0x1c
-#define UART_RXFIFO_CNT				GENMASK(9, 0)
+#define UART_RXFIFO_CNT				GENMASK(7, 0)
 #define UART_DSRN				BIT(13)
 #define UART_CTSN				BIT(14)
-#define UART_TXFIFO_CNT				GENMASK(25, 16)
-#define UART_CONF0_REG			0x20
+#define UART_TXFIFO_CNT				GENMASK(23, 16)
+#define UART_CONF0_SYNC_REG		0x20
 #define UART_PARITY				BIT(0)
 #define UART_PARITY_EN				BIT(1)
 #define UART_BIT_NUM				GENMASK(3, 2)
@@ -53,28 +59,27 @@
 #define UART_STOP_BIT_NUM			GENMASK(5, 4)
 #define UART_STOP_BIT_NUM_1			1
 #define UART_STOP_BIT_NUM_2			3
-#define UART_SW_RTS				BIT(6)
-#define UART_SW_DTR				BIT(7)
-#define UART_LOOPBACK				BIT(14)
-#define UART_RTS_INV				BIT(23)
-#define UART_DTR_INV				BIT(24)
+#define UART_LOOPBACK				BIT(12)
+#define UART_TX_FLOW_EN				BIT(13)
+#define UART_SW_RTS				BIT(21)
 #define UART_CONF1_REG			0x24
-#define UART_RXFIFO_FULL_THRHD_SHIFT		0
-#define UART_TXFIFO_EMPTY_THRHD_SHIFT		10
-#define UART_RX_FLOW_EN				BIT(22)
-#define ESP32S3_UART_CLK_CONF_REG	0x78
-#define ESP32S3_UART_SCLK_DIV_NUM		GENMASK(19, 12)
-#define ESP32S3_UART_SCLK_SEL			GENMASK(21, 20)
-#define XTAL_CLK				3
-#define ESP32S3_UART_SCLK_EN			BIT(22)
-#define ESP32S3_UART_TX_SCLK_EN			BIT(24)
-#define ESP32S3_UART_RX_SCLK_EN			BIT(25)
+#define UART_RXFIFO_FULL_THRHD			GENMASK(7, 0)
+#define UART_TXFIFO_EMPTY_THRHD			GENMASK(15, 8)
+#define UART_RTS_INV				BIT(18)
+#define UART_DTR_INV				BIT(19)
+#define UART_SW_DTR				BIT(20)
+#define UART_HWFC_CONF_SYNC_REG		0x2c
+#define UART_RX_FLOW_THRHD			GENMASK(7, 0)
+#define UART_RX_FLOW_EN				BIT(8)
+#define UART_CLK_CONF_REG		0x88
+#define UART_TX_SCLK_EN				BIT(24)
+#define UART_RX_SCLK_EN				BIT(25)
+#define UART_REG_UPDATE_REG		0x98
+#define UART_REG_UPDATE				BIT(0)
 
-#define ESP32S3_UART_CLK_CONF_DEFAULT \
-	(ESP32S3_UART_RX_SCLK_EN | \
-	 ESP32S3_UART_TX_SCLK_EN | \
-	 ESP32S3_UART_SCLK_EN | \
-	 FIELD_PREP(ESP32S3_UART_SCLK_SEL, XTAL_CLK))
+/* The divider in 1/16 steps: 8.0 to 4095.9375.  At 40 MHz: 9767 to 5M baud. */
+#define ESP32_UART_DIV16_MIN		(16 * 8)
+#define ESP32_UART_DIV16_MAX		(16 * UART_CLKDIV + 15)
 
 struct esp32_port {
 	struct uart_port port;
@@ -99,6 +104,16 @@ static u32 esp32_uart_read(struct uart_port *port, unsigned long reg)
 	return readl(port->membase + reg);
 }
 
+/* Latch the _SYNC registers.  The UART clears the bit when it is done. */
+static void esp32_uart_update(struct uart_port *port)
+{
+	u32 val;
+
+	esp32_uart_write(port, UART_REG_UPDATE_REG, UART_REG_UPDATE);
+	readl_poll_timeout_atomic(port->membase + UART_REG_UPDATE_REG, val,
+				  !(val & UART_REG_UPDATE), 1, 100);
+}
+
 static u32 esp32_uart_tx_fifo_cnt(struct uart_port *port)
 {
 	u32 status = esp32_uart_read(port, UART_STATUS_REG);
@@ -120,20 +135,22 @@ static unsigned int esp32_uart_tx_empty(struct uart_port *port)
 
 static void esp32_uart_set_mctrl(struct uart_port *port, unsigned int mctrl)
 {
-	u32 conf0 = esp32_uart_read(port, UART_CONF0_REG);
+	u32 conf0 = esp32_uart_read(port, UART_CONF0_SYNC_REG);
+	u32 conf1 = esp32_uart_read(port, UART_CONF1_REG);
 
-	conf0 &= ~(UART_LOOPBACK |
-		   UART_SW_RTS | UART_RTS_INV |
-		   UART_SW_DTR | UART_DTR_INV);
+	conf0 &= ~(UART_LOOPBACK | UART_SW_RTS);
+	conf1 &= ~(UART_SW_DTR | UART_RTS_INV | UART_DTR_INV);
 
 	if (mctrl & TIOCM_RTS)
 		conf0 |= UART_SW_RTS;
 	if (mctrl & TIOCM_DTR)
-		conf0 |= UART_SW_DTR;
+		conf1 |= UART_SW_DTR;
 	if (mctrl & TIOCM_LOOP)
 		conf0 |= UART_LOOPBACK;
 
-	esp32_uart_write(port, UART_CONF0_REG, conf0);
+	esp32_uart_write(port, UART_CONF0_SYNC_REG, conf0);
+	esp32_uart_write(port, UART_CONF1_REG, conf1);
+	esp32_uart_update(port);
 }
 
 static unsigned int esp32_uart_get_mctrl(struct uart_port *port)
@@ -261,6 +278,7 @@ static int esp32_uart_startup(struct uart_port *port)
 {
 	struct esp32_port *sport = container_of(port, struct esp32_port, port);
 	unsigned long flags;
+	u32 conf1;
 	int ret;
 
 	ret = clk_prepare_enable(sport->clk);
@@ -274,11 +292,14 @@ static int esp32_uart_startup(struct uart_port *port)
 	}
 
 	uart_port_lock_irqsave(port, &flags);
-	esp32_uart_write(port, ESP32S3_UART_CLK_CONF_REG,
-			 ESP32S3_UART_CLK_CONF_DEFAULT);
-	esp32_uart_write(port, UART_CONF1_REG,
-			 (1 << UART_RXFIFO_FULL_THRHD_SHIFT) |
-			 (1 << UART_TXFIFO_EMPTY_THRHD_SHIFT));
+	esp32_uart_write(port, UART_CLK_CONF_REG,
+			 esp32_uart_read(port, UART_CLK_CONF_REG) |
+			 UART_TX_SCLK_EN | UART_RX_SCLK_EN);
+	conf1 = esp32_uart_read(port, UART_CONF1_REG);
+	conf1 &= ~(UART_RXFIFO_FULL_THRHD | UART_TXFIFO_EMPTY_THRHD);
+	conf1 |= FIELD_PREP(UART_RXFIFO_FULL_THRHD, 1) |
+		 FIELD_PREP(UART_TXFIFO_EMPTY_THRHD, 1);
+	esp32_uart_write(port, UART_CONF1_REG, conf1);
 	esp32_uart_write(port, UART_INT_CLR_REG, UART_RXFIFO_FULL_INT | UART_BRK_DET_INT);
 	esp32_uart_write(port, UART_INT_ENA_REG, UART_RXFIFO_FULL_INT | UART_BRK_DET_INT);
 	uart_port_unlock_irqrestore(port, flags);
@@ -295,29 +316,21 @@ static void esp32_uart_shutdown(struct uart_port *port)
 	clk_disable_unprepare(sport->clk);
 }
 
+/* The caller latches it with esp32_uart_update(). */
 static bool esp32_uart_set_baud(struct uart_port *port, u32 baud)
 {
-	u32 sclk = port->uartclk;
-	u32 div = sclk / baud;
-	u32 sclk_div = div / UART_CLKDIV;
+	u32 div16;
 
-	if (div > UART_CLKDIV) {
-		sclk /= (sclk_div + 1);
-		div = sclk / baud;
-	}
-	esp32_uart_write(port, ESP32S3_UART_CLK_CONF_REG,
-			 FIELD_PREP(ESP32S3_UART_SCLK_DIV_NUM, sclk_div) |
-			 ESP32S3_UART_CLK_CONF_DEFAULT);
+	if (!baud)
+		return false;
+	div16 = DIV_ROUND_CLOSEST(port->uartclk * 16, baud);
+	if (div16 < ESP32_UART_DIV16_MIN || div16 > ESP32_UART_DIV16_MAX)
+		return false;
 
-	if (div <= UART_CLKDIV) {
-		u32 frag = (sclk * 16) / baud - div * 16;
-
-		esp32_uart_write(port, UART_CLKDIV_REG,
-				 div | FIELD_PREP(UART_CLKDIV_FRAG, frag));
-		return true;
-	}
-
-	return false;
+	esp32_uart_write(port, UART_CLKDIV_SYNC_REG,
+			 FIELD_PREP(UART_CLKDIV, div16 >> 4) |
+			 FIELD_PREP(UART_CLKDIV_FRAG, div16 & 15));
+	return true;
 }
 
 static void esp32_uart_set_termios(struct uart_port *port,
@@ -325,23 +338,21 @@ static void esp32_uart_set_termios(struct uart_port *port,
 				   const struct ktermios *old)
 {
 	unsigned long flags;
-	u32 conf0, conf1;
-	u32 max_div = UART_CLKDIV * FIELD_MAX(ESP32S3_UART_SCLK_DIV_NUM);
+	u32 conf0, hwfc = 0;
 	u32 baud;
 
 	termios->c_cflag &= ~CMSPAR;
 
 	baud = uart_get_baud_rate(port, termios, old,
-				  port->uartclk / max_div,
-				  port->uartclk / 16);
+				  DIV_ROUND_UP(port->uartclk * 16,
+					       ESP32_UART_DIV16_MAX),
+				  port->uartclk * 16 / ESP32_UART_DIV16_MIN);
 
 	uart_port_lock_irqsave(port, &flags);
 
-	conf0 = esp32_uart_read(port, UART_CONF0_REG);
-	conf0 &= ~(UART_PARITY_EN | UART_PARITY | UART_BIT_NUM | UART_STOP_BIT_NUM);
-
-	conf1 = esp32_uart_read(port, UART_CONF1_REG);
-	conf1 &= ~UART_RX_FLOW_EN;
+	conf0 = esp32_uart_read(port, UART_CONF0_SYNC_REG);
+	conf0 &= ~(UART_PARITY_EN | UART_PARITY | UART_BIT_NUM |
+		   UART_STOP_BIT_NUM | UART_TX_FLOW_EN);
 
 	if (termios->c_cflag & PARENB) {
 		conf0 |= UART_PARITY_EN;
@@ -369,32 +380,28 @@ static void esp32_uart_set_termios(struct uart_port *port,
 	else
 		conf0 |= FIELD_PREP(UART_STOP_BIT_NUM, UART_STOP_BIT_NUM_1);
 
-	if (termios->c_cflag & CRTSCTS)
-		conf1 |= UART_RX_FLOW_EN;
-
-	esp32_uart_write(port, UART_CONF0_REG, conf0);
-	esp32_uart_write(port, UART_CONF1_REG, conf1);
-
-	if (baud) {
-		esp32_uart_set_baud(port, baud);
-		uart_update_timeout(port, termios->c_cflag, baud);
-	} else {
-		if (esp32_uart_set_baud(port, 115200)) {
-			baud = 115200;
-			tty_termios_encode_baud_rate(termios, baud, baud);
-			uart_update_timeout(port, termios->c_cflag, baud);
-		} else {
-			dev_warn(port->dev,
-				 "unable to set speed to %d baud or the default 115200\n",
-				 baud);
-		}
+	if (termios->c_cflag & CRTSCTS) {
+		conf0 |= UART_TX_FLOW_EN;
+		hwfc = FIELD_PREP(UART_RX_FLOW_THRHD, ESP32_UART_RX_FLOW_THRHD) |
+		       UART_RX_FLOW_EN;
 	}
+
+	esp32_uart_write(port, UART_CONF0_SYNC_REG, conf0);
+	esp32_uart_write(port, UART_HWFC_CONF_SYNC_REG, hwfc);
+
+	if (!esp32_uart_set_baud(port, baud) && esp32_uart_set_baud(port, 115200)) {
+		baud = 115200;
+		tty_termios_encode_baud_rate(termios, baud, baud);
+	}
+	if (baud)
+		uart_update_timeout(port, termios->c_cflag, baud);
+	esp32_uart_update(port);
 	uart_port_unlock_irqrestore(port, flags);
 }
 
 static const char *esp32_uart_type(struct uart_port *port)
 {
-	return "ESP32S3 UART";
+	return "ESP32-S31 UART";
 }
 
 static void esp32_uart_config_port(struct uart_port *port, int flags)
@@ -541,8 +548,9 @@ static int __init esp32s3_uart_early_console_setup(struct earlycon_device *devic
 #ifdef CONFIG_CONSOLE_POLL
 	device->con->read = esp32_uart_earlycon_read;
 #endif
-	if (device->port.uartclk != BASE_BAUD * 16)
-		esp32_uart_set_baud(&device->port, device->baud);
+	if (device->port.uartclk && device->baud &&
+	    esp32_uart_set_baud(&device->port, device->baud))
+		esp32_uart_update(&device->port);
 
 	return 0;
 }
