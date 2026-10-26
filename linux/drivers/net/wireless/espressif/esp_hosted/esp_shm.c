@@ -460,11 +460,12 @@ static void esp_shm_remove(struct platform_device *pdev)
 	if (adapter->if_rx_workqueue)
 		cancel_work_sync(&adapter->if_rx_work);
 	esp_remove_card(adapter, false);
+	/* The handler uses the adapter and the mailbox: free the IRQ first. */
+	devm_free_irq(&pdev->dev, platform_get_irq(pdev, 0), ctx);
 	esp_shm_flash_remove(ctx->flash);
 
 	esp_shm_set_tx_quiesced(ctx, true);
 	ctx->running = false;
-	devm_free_irq(&pdev->dev, platform_get_irq(pdev, 0), ctx);
 	cancel_work_sync(&ctx->tx_work);
 	esp_shm_tx_purge(ctx);
 	adapter->if_context = NULL;
