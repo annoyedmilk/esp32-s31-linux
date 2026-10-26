@@ -40,6 +40,7 @@
 #define UART_RXFIFO_FULL_INT			BIT(0)
 #define UART_TXFIFO_EMPTY_INT			BIT(1)
 #define UART_BRK_DET_INT			BIT(7)
+#define UART_RXFIFO_TOUT_INT			BIT(8)
 #define UART_CLKDIV_SYNC_REG		0x14
 #define UART_CLKDIV				GENMASK(11, 0)
 #define UART_CLKDIV_FRAG			GENMASK(23, 20)
@@ -71,11 +72,20 @@
 #define UART_HWFC_CONF_SYNC_REG		0x2c
 #define UART_RX_FLOW_THRHD			GENMASK(7, 0)
 #define UART_RX_FLOW_EN				BIT(8)
+#define UART_TOUT_CONF_SYNC_REG		0x64
+#define UART_RX_TOUT_EN				BIT(0)
+#define UART_RX_TOUT_THRHD			GENMASK(11, 2)
 #define UART_CLK_CONF_REG		0x88
 #define UART_TX_SCLK_EN				BIT(24)
 #define UART_RX_SCLK_EN				BIT(25)
 #define UART_REG_UPDATE_REG		0x98
 #define UART_REG_UPDATE				BIT(0)
+
+/* An RX interrupt at half of the 128-byte FIFO, or 10 bit times after a byte. */
+#define ESP32_UART_RX_THRHD		64
+#define ESP32_UART_RX_TOUT		10
+#define ESP32_UART_RX_INTS \
+	(UART_RXFIFO_FULL_INT | UART_RXFIFO_TOUT_INT | UART_BRK_DET_INT)
 
 /* The divider in 1/16 steps: 8.0 to 4095.9375.  At 40 MHz: 9767 to 5M baud. */
 #define ESP32_UART_DIV16_MIN		(16 * 8)
@@ -255,7 +265,7 @@ static irqreturn_t esp32_uart_int(int irq, void *dev_id)
 
 	status = esp32_uart_read(port, UART_INT_ST_REG);
 
-	if (status & (UART_RXFIFO_FULL_INT | UART_BRK_DET_INT))
+	if (status & ESP32_UART_RX_INTS)
 		esp32_uart_rxint(port);
 	if (status & UART_TXFIFO_EMPTY_INT)
 		esp32_uart_transmit_buffer(port);
@@ -270,7 +280,7 @@ static void esp32_uart_stop_rx(struct uart_port *port)
 	u32 int_ena;
 
 	int_ena = esp32_uart_read(port, UART_INT_ENA_REG);
-	int_ena &= ~UART_RXFIFO_FULL_INT;
+	int_ena &= ~(UART_RXFIFO_FULL_INT | UART_RXFIFO_TOUT_INT);
 	esp32_uart_write(port, UART_INT_ENA_REG, int_ena);
 }
 
@@ -297,11 +307,15 @@ static int esp32_uart_startup(struct uart_port *port)
 			 UART_TX_SCLK_EN | UART_RX_SCLK_EN);
 	conf1 = esp32_uart_read(port, UART_CONF1_REG);
 	conf1 &= ~(UART_RXFIFO_FULL_THRHD | UART_TXFIFO_EMPTY_THRHD);
-	conf1 |= FIELD_PREP(UART_RXFIFO_FULL_THRHD, 1) |
+	conf1 |= FIELD_PREP(UART_RXFIFO_FULL_THRHD, ESP32_UART_RX_THRHD) |
 		 FIELD_PREP(UART_TXFIFO_EMPTY_THRHD, 1);
 	esp32_uart_write(port, UART_CONF1_REG, conf1);
-	esp32_uart_write(port, UART_INT_CLR_REG, UART_RXFIFO_FULL_INT | UART_BRK_DET_INT);
-	esp32_uart_write(port, UART_INT_ENA_REG, UART_RXFIFO_FULL_INT | UART_BRK_DET_INT);
+	esp32_uart_write(port, UART_TOUT_CONF_SYNC_REG,
+			 FIELD_PREP(UART_RX_TOUT_THRHD, ESP32_UART_RX_TOUT) |
+			 UART_RX_TOUT_EN);
+	esp32_uart_update(port);
+	esp32_uart_write(port, UART_INT_CLR_REG, ESP32_UART_RX_INTS);
+	esp32_uart_write(port, UART_INT_ENA_REG, ESP32_UART_RX_INTS);
 	uart_port_unlock_irqrestore(port, flags);
 
 	return 0;
