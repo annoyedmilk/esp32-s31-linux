@@ -304,10 +304,15 @@ static int esp_shm_write(struct esp_adapter *adapter, struct sk_buff *skb)
 
 	if (!skb)
 		return -EINVAL;
-	if (!ctx || skb->len > adapter->tx_aggr_size ||
-	    (skb_is_nonlinear(skb) && skb_linearize(skb))) {
+	if (!ctx)
+		ret = -ENODEV;
+	else if (skb->len > adapter->tx_aggr_size)
+		ret = -EMSGSIZE;
+	else if (skb_is_nonlinear(skb) && skb_linearize(skb))
+		ret = -ENOMEM;
+	if (ret) {
 		dev_kfree_skb_any(skb);
-		return ctx ? -EMSGSIZE : -ENODEV;
+		return ret;
 	}
 
 	spin_lock_bh(&ctx->tx_lock);
