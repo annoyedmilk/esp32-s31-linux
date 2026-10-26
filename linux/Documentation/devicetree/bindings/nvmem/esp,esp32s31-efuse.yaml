@@ -14,11 +14,11 @@ description: |
   offset of a cell is the register offset. The factory MAC address is at
   0x50, 6 bytes, in the reverse order.
 
-  A cell with the name "mac-address" takes one argument. It selects the
-  address as ESP-IDF makes it from the factory address, with two universal
-  addresses for each chip: 0 Wi-Fi station, 1 Wi-Fi access point,
-  2 Bluetooth, 3 Ethernet. 1 and 3 are the locally administered forms of
-  0 and 2.
+  A "mac-base" cell with the name "mac-address" takes one argument. It
+  selects the address as ESP-IDF makes it from the factory address, with
+  two universal addresses for each chip: 0 Wi-Fi station, 1 Wi-Fi access
+  point, 2 Bluetooth, 3 Ethernet. 1 and 3 are the locally administered
+  forms of 0 and 2.
 
 allOf:
   - $ref: nvmem.yaml#
@@ -49,6 +49,7 @@ examples:
             #size-cells = <1>;
 
             mac_address: mac-address@50 {
+                compatible = "mac-base";
                 reg = <0x50 0x6>;
                 #nvmem-cell-cells = <1>;
             };

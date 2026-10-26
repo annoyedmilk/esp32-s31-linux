@@ -38,6 +38,9 @@ properties:
 
   interrupt-controller: true
 
+  "#address-cells":
+    const: 0
+
   "#interrupt-cells":
     const: 3
 

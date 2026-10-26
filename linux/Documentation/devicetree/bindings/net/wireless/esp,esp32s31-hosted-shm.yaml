@@ -38,14 +38,11 @@ properties:
 
   flash:
     type: object
+    $ref: /schemas/mtd/mtd.yaml#
+    unevaluatedProperties: false
     description: >
       The flash window of the firmware, as an MTD device. Its partitions
       node describes the layout of the window.
-    properties:
-      partitions:
-        type: object
-        $ref: /schemas/mtd/partitions/partitions.yaml
-    additionalProperties: false
 
 required:
   - compatible
