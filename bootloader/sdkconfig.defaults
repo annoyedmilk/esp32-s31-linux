@@ -40,6 +40,12 @@ CONFIG_BT_LE_HCI_EVT_LO_BUF_COUNT=4
 # The ESP-Hosted default for the ESP32-S31 adds the IEEE 802.15.4 RCP.
 # CONFIG_ESP_HOSTED_RCP is not set
 CONFIG_ESP_COEX_SW_COEXIST_ENABLE=y
+# Hart 0 runs from the 512 KiB of SRAM that Linux shares: optimize the
+# compiled code for size.  The radio code is prebuilt and does not change.
+CONFIG_COMPILER_OPTIMIZATION_SIZE=y
+# The chip never sleeps under Linux: keep the beacon code of light sleep,
+# and the sleep code it selects, out of IRAM.
+# CONFIG_ESP_WIFI_SLP_IRAM_OPT is not set
 # The supplicant runs on Linux, so Wi-Fi keeps nothing in NVS.
 # CONFIG_ESP_WIFI_NVS_ENABLED is not set
 # CONFIG_ESP_WIFI_ENABLE_WPA3_SAE is not set
