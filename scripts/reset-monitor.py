@@ -111,11 +111,15 @@ def capture(
     deadline: float,
     stdin_fd: int | None,
 ) -> bool:
-    """Copy the UART until the pattern, the deadline or Ctrl-]."""
+    """Copy the UART until the pattern, the deadline or Ctrl-].
+
+    Without a pattern, copy until the deadline.  After the pattern, an
+    interactive session stays connected until Ctrl-].
+    """
     success = not pattern
     seen = b""
     readers = [ser.fileno()] + ([stdin_fd] if stdin_fd is not None else [])
-    while success or time.monotonic() < deadline:
+    while time.monotonic() < deadline or (success and stdin_fd is not None):
         ready, _, _ = select.select(readers, [], [], 0.1)
         hit = False
         if ser.fileno() in ready:
