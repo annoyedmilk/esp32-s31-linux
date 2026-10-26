@@ -15,7 +15,6 @@ CONFIG_CMDLINE="earlycon=sbi console=ttyS0,115200 esp32_shm.radio_service=bt roo
 # No card, USB, LED or I2C device.  zram stays.
 # CONFIG_MMC is not set
 # CONFIG_I2C is not set
-# CONFIG_REGULATOR is not set
 # CONFIG_USB_SUPPORT is not set
 # CONFIG_PHY_ESP32S31_USB is not set
 # CONFIG_SCSI is not set

@@ -13,7 +13,6 @@ CONFIG_CMDLINE="earlycon=sbi console=ttyS0,115200 esp32_shm.radio_service=bt roo
 # CONFIG_INPUT is not set
 # CONFIG_HID is not set
 # CONFIG_MMC is not set
-# CONFIG_REGULATOR is not set
 # CONFIG_I2C is not set
 # The stick is the root, and no script waits for a second one.
 # CONFIG_UEVENT_HELPER is not set

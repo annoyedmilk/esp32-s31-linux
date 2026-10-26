@@ -24,15 +24,6 @@
 		};
 	};
 
-	/* GPIO39 low switches the power of the microSD slot on. */
-	sd_vdd: regulator-sd {
-		compatible = "regulator-fixed";
-		regulator-name = "sd-vdd";
-		regulator-min-microvolt = <3300000>;
-		regulator-max-microvolt = <3300000>;
-		gpio = <&pinctrl 39 GPIO_ACTIVE_LOW>;
-	};
-
 	chosen {
 		stdout-path = "serial0:115200n8";
 
@@ -52,7 +43,6 @@
 &sdmmc0 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&sd_cfg>;
-	vmmc-supply = <&sd_vdd>;
 	non-removable;
 	status = "okay";
 };
@@ -76,6 +66,14 @@
 /* The LCD (loader), the card and LED (drivers), the flash, GPIO41, UART0. */
 &pinctrl {
 	gpio-reserved-ranges = <8 31>, <40 2>, <43 3>, <58 2>;
+
+	/* GPIO39 low switches the power of the microSD slot on. */
+	sd-power-hog {
+		gpio-hog;
+		gpios = <39 GPIO_ACTIVE_LOW>;
+		output-high;
+		line-name = "sd-power";
+	};
 
 	/* The SD host on its IO MUX pins, function 4 */
 	sd_cfg: sd-cfg {

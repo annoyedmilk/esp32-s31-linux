@@ -47,6 +47,11 @@ properties:
       loader, which the operating system must not use as GPIOs.
 
 patternProperties:
+  '-hog(-[0-9]+)?$':
+    type: object
+    required:
+      - gpio-hog
+
   '-cfg$':
     type: object
     additionalProperties: false
