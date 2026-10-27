@@ -128,8 +128,9 @@ Notes:
 `/etc/motd` lists the first commands. `/usr/share/examples` has example
 scripts.
 
-- **Wi-Fi.** `iw dev wlan0 link` shows the connection, `iw dev wlan0 scan |
-  grep SSID` the networks. `/usr/share/examples/ap.sh SSID PASSPHRASE`
+- **Wi-Fi.** `iw dev wlan0 link` shows the connection, and
+  `/usr/share/examples/wifi-scan.sh` lists the networks in range with
+  their signal and channel. `/usr/share/examples/ap.sh SSID PASSPHRASE`
   starts a WPA2 access point at 192.168.4.1 without DHCP.
   `/etc/init.d/S40wifi restart` goes back to the station.
 - **Bluetooth.** `bluetoothctl`, then `scan le`, `scan bredr`, `devices`.
@@ -150,7 +151,9 @@ scripts.
   `_meshcop._udp`. Wi-Fi and 802.15.4 share the radio: while the Thread
   radio receives, Wi-Fi gives approximately 12 Mbit/s instead of 42.
   `thread-start stop` ends the network and the daemon. Nothing starts at
-  boot.
+  boot. `/usr/share/examples/thread-hub.sh` is a sensor hub: it starts
+  the network, prints the dataset for the sensors, and logs each UDP
+  datagram on port 4242 with the time and the sender to p1 of the disk.
 - **GPIO.** `gpiodetect`, `gpioinfo`, `gpioget --numeric -c gpiochip0 PIN`
   and `gpioset -t0 -c gpiochip0 PIN=1`. `/usr/share/examples/gpio.sh PIN
   [0|1]` reads or sets a pin. The kernel refuses the pins of the flash, the
