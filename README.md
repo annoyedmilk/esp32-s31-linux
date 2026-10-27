@@ -1,5 +1,7 @@
 # ESP32-S31 Linux
 
+English | [简体中文](README.zh-CN.md)
+
 Linux 7.3 and OpenSBI 1.9 on the Espressif ESP32-S31, a microcontroller
 with two RV32 harts at 320 MHz and 512 KiB of SRAM. Linux runs on hart 1
 in the 16 MiB octal PSRAM. Hart 0 runs the ESP-Hosted radio firmware for
