@@ -1,0 +1,34 @@
+From: Marco Müller <hello@annoyedmilk.ch>
+Subject: [PATCH] host: keep the firmware when the ESP32-S31 RCP stream closes
+
+When userspace closes /dev/esp_rcp0, the driver asks for a firmware
+restart, so that the next session gets a fresh OpenThread backend.  On
+the ESP32-S31 with Linux on the same chip, the firmware cannot restart
+without Linux, and the request only replays the boot event.  OpenThread
+is not reset, but the driver sets up Wi-Fi again, and the network is
+lost.
+
+Keep the firmware incarnation on the ESP32-S31.  A Thread host resets
+the RCP with Spinel RESET when it opens the stream.
+
+Upstream: not sent
+---
+diff --git a/host/esp_rcp.c b/host/esp_rcp.c
+--- a/host/esp_rcp.c
++++ b/host/esp_rcp.c
+@@ -321,8 +321,14 @@
+ 	 * worker-owned stateful traffic is flushed/waited first, then the old
+ 	 * firmware incarnation is destroyed. A subsequent open is rejected while
+ 	 * recovery is pending by esp_rcp_session_ready().
++	 *
++	 * On the ESP32-S31 with Linux on the same chip, the firmware cannot
++	 * restart without Linux.  A restart request only replays the boot event:
++	 * it does not reset OpenThread, but it stops Wi-Fi.  A Thread host resets
++	 * the RCP with Spinel RESET when it opens the stream, so keep the
++	 * incarnation.
+ 	 */
+-	if (session_current && adapter &&
++	if (!IS_ENABLED(CONFIG_ESP32S31_HOSTED) && session_current && adapter &&
+ 	    !test_bit(ESP_DRIVER_UNLOADING, &adapter->state_flags) &&
+ 	    !test_bit(ESP_TRANSPORT_REMOVING, &adapter->state_flags)) {
+ 		esp_info("RCP userspace session closed; reincarnating firmware to fence backend state\n");

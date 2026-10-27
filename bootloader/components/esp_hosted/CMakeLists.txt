@@ -8,11 +8,12 @@ set(hosted_main ${hosted}/network_adapter/main)
 idf_component_register(
     SRCS ${hosted_main}/app_main.c ${hosted_main}/slave_bt.c
          ${hosted_main}/cmd.c ${hosted_main}/stats.c
+         ${hosted_main}/esp_rcp.c ${hosted_main}/esp_rcp_openthread.c
          shm_slave_api.c shm_flash.c
     INCLUDE_DIRS . ${hosted_main}/include ../../../shared
     REQUIRES esp_wifi esp_event nvs_flash app_update protocomm
              wpa_supplicant esp_timer esp_driver_gpio esp_driver_uart
-             esp_hw_support esp_system heap freertos log bt
+             esp_hw_support esp_system heap freertos log bt openthread
              esp_coex vfs esp_partition spi_flash)
 
 set_source_files_properties(${hosted_main}/app_main.c

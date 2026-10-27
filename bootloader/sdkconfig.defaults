@@ -37,8 +37,18 @@ CONFIG_BT_LE_MSYS_2_BLOCK_COUNT=8
 CONFIG_BT_LE_ACL_BUF_COUNT=8
 CONFIG_BT_LE_HCI_EVT_HI_BUF_COUNT=16
 CONFIG_BT_LE_HCI_EVT_LO_BUF_COUNT=4
-# The ESP-Hosted default for the ESP32-S31 adds the IEEE 802.15.4 RCP.
-# CONFIG_ESP_HOSTED_RCP is not set
+# The OpenThread RCP on the IEEE 802.15.4 radio: a Spinel stream for the
+# Thread host on Linux (/dev/esp_rcp0, ot-daemon).
+CONFIG_ESP_HOSTED_RCP=y
+CONFIG_ESP_HOSTED_RCP_OPENTHREAD=y
+CONFIG_OPENTHREAD_ENABLED=y
+CONFIG_OPENTHREAD_RADIO=y
+CONFIG_OPENTHREAD_RADIO_NATIVE=y
+CONFIG_OPENTHREAD_RCP_CUSTOM=y
+CONFIG_OPENTHREAD_NCP_VENDOR_HOOK=y
+# CONFIG_OPENTHREAD_CONSOLE_ENABLE is not set
+# CONFIG_OPENTHREAD_CLI is not set
+# CONFIG_OPENTHREAD_DIAG is not set
 CONFIG_ESP_COEX_SW_COEXIST_ENABLE=y
 # Hart 0 runs from the 512 KiB of SRAM that Linux shares: optimize the
 # compiled code for size.  The radio code is prebuilt and does not change.

@@ -33,7 +33,8 @@ JOBS ?= $(shell sysctl -n hw.ncpu 2>/dev/null || nproc 2>/dev/null || echo 4)
 OPENSBI_DIR := external/opensbi
 # The ESP-IDF patches: rom.patch of ESP-Hosted, then the backports.
 IDF_PATCHES := $(addprefix $(CURDIR)/external/esp-hosted-linux/esp/esp_driver/lib/, \
-	rom.patch) $(sort $(wildcard $(CURDIR)/bootloader/idf-patches/*.patch))
+	rom.patch idf-openthread-custom-rcp-v6.1.patch) \
+	$(sort $(wildcard $(CURDIR)/bootloader/idf-patches/*.patch))
 OPENSBI_SRC := $(BUILD_DIR)/opensbi-src
 OPENSBI_OUT := $(CURDIR)/$(BUILD_DIR)/opensbi
 OPENSBI_PATCHES := $(sort $(wildcard opensbi/patches/*.patch))

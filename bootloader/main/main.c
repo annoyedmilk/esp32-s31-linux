@@ -19,6 +19,7 @@
 #include "bootloader_random.h"
 #include "esp_attr.h"
 #include "esp_cpu.h"
+#include "esp_coex_i154.h"
 #include "esp32s31/rom/ets_sys.h"
 #include "riscv/csr.h"
 #include "hal/assist_debug_ll.h"
@@ -395,10 +396,12 @@ void app_main(void)
 
     /* A radio start accesses the flash (cache off): do it before hart 1. */
     esp_hosted_main();
-    /* ESP-Hosted starts Bluetooth at the first host request: do it now too. */
-    if (esp_radio_service_apply(ESP_RADIO_SERVICE_BT, NULL, NULL, NULL) != ESP_OK) {
-        ESP_LOGW(TAG, "Bluetooth did not start");
+    /* ESP-Hosted starts the radios at the first host request: do it now too. */
+    if (esp_radio_service_apply(ESP_RADIO_SERVICE_ALL, NULL, NULL, NULL) != ESP_OK) {
+        ESP_LOGW(TAG, "Bluetooth or 802.15.4 did not start");
     }
+    /* The Wi-Fi/802.15.4 coexistence takes 70% of the Wi-Fi throughput. */
+    esp_coex_ieee802154_status_disable();
 
     disable_linux_hart_stack_protector();
     flush_l1_cache_before_handoff();
