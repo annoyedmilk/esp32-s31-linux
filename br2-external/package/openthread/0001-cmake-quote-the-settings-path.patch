@@ -1,0 +1,21 @@
+From: Marco Müller <hello@annoyedmilk.ch>
+Subject: [PATCH] cmake: quote the settings path
+
+OT_POSIX_SETTINGS_PATH goes into the definition as it is, so the
+compiler gets a bare path unless the caller adds quotes, which do not
+survive make and the shell.  Add the quotes here.
+
+Upstream: not sent
+---
+diff --git a/etc/cmake/options.cmake b/etc/cmake/options.cmake
+--- a/etc/cmake/options.cmake
++++ b/etc/cmake/options.cmake
+@@ -381,7 +381,7 @@
+ endif()
+ 
+ if(OT_POSIX_SETTINGS_PATH)
+-    target_compile_definitions(ot-config INTERFACE "OPENTHREAD_CONFIG_POSIX_SETTINGS_PATH=${OT_POSIX_SETTINGS_PATH}")
++    target_compile_definitions(ot-config INTERFACE "OPENTHREAD_CONFIG_POSIX_SETTINGS_PATH=\"${OT_POSIX_SETTINGS_PATH}\"")
+ endif()
+ 
+ #-----------------------------------------------------------------------------------------------------------------------

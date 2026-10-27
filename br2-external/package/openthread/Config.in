@@ -1,0 +1,13 @@
+config BR2_PACKAGE_OPENTHREAD
+	bool "openthread"
+	depends on BR2_INSTALL_LIBSTDCPP
+	depends on BR2_TOOLCHAIN_HAS_THREADS
+	depends on BR2_USE_MMU
+	help
+	  OpenThread as a Thread host: ot-daemon, which runs the Thread
+	  stack on a radio co-processor, and ot-ctl to control it.
+
+	  https://openthread.io
+
+comment "openthread needs a toolchain w/ C++, threads"
+	depends on !BR2_INSTALL_LIBSTDCPP || !BR2_TOOLCHAIN_HAS_THREADS

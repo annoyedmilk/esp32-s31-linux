@@ -1,0 +1,3 @@
+# Locally computed, from the git tarball that Buildroot makes.
+sha256  db3b828bf04cc6048c3fa982287321411d624b0fb0868e64f3c51bef0b82232b  openthread-v2026.10.0-git4.tar.gz
+sha256  e164182fc3e6378533ba706800087469a14dcd5913ee55e2e8ae3fb14f3cdbbb  LICENSE

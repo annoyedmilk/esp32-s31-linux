@@ -1,0 +1,67 @@
+#!/bin/sh
+# SPDX-License-Identifier: MIT
+# thread-start [BACKBONE]: start ot-daemon, the Thread host, on the IEEE
+# 802.15.4 RCP of the firmware.  With a backbone interface (wlan0 or eth0,
+# the default is wlan0 when it is up, else eth0), ot-daemon is a border
+# router and routes IPv6 between wpan0 and the backbone.
+# thread-start stop: stop the Thread network and ot-daemon, which turns the
+# 802.15.4 radio off.  Nothing starts at boot: the radio takes Wi-Fi time
+# only while it runs.  The ot-ctl wrapper of post-build.sh runs
+# "thread-start" first.
+
+CTL=/usr/libexec/openthread/ot-ctl
+DAEMON=/usr/sbin/ot-daemon
+DATA=/var/lib/thread
+
+stop()
+{
+	pidof ot-daemon >/dev/null || return 0
+	$CTL thread stop >/dev/null 2>&1
+	$CTL ifconfig down >/dev/null 2>&1
+	start-stop-daemon --stop --exec $DAEMON --retry 10
+	echo "thread: stopped"
+}
+
+backbone()
+{
+	[ -n "$1" ] && { echo "$1"; return; }
+	for i in wlan0 eth0; do
+		[ -e /sys/class/net/$i ] && [ "$(cat /sys/class/net/$i/operstate)" = up ] &&
+			{ echo $i; return; }
+	done
+}
+
+start()
+{
+	[ -c /dev/esp_rcp0 ] || { echo "thread: no RCP at /dev/esp_rcp0" >&2; return 1; }
+	pidof ot-daemon >/dev/null && return 0
+	mkdir -p $DATA
+	bb=$(backbone "$1")
+	if [ -n "$bb" ]; then
+		sysctl -q -w net.ipv6.conf.all.forwarding=1
+		set -- -B "$bb"
+	else
+		set --
+	fi
+	start-stop-daemon --start --background --exec $DAEMON -- \
+		-v "$@" 'spinel+hdlc+uart:///dev/esp_rcp0' || return 1
+	# Wait for the daemon socket, so that the first command finds it.
+	i=0
+	while [ $i -lt 40 ]; do
+		if $CTL state >/dev/null 2>&1; then
+			$CTL srp server enable >/dev/null
+			echo "thread: ot-daemon on ${bb:-no backbone}"
+			return 0
+		fi
+		sleep 0.25
+		i=$((i + 1))
+	done
+	echo "thread: ot-daemon did not start" >&2
+	return 1
+}
+
+case "${1:-start}" in
+stop) stop ;;
+start) start "$2" ;;
+*) start "$1" ;;
+esac

@@ -34,6 +34,19 @@ if ! grep -q bluetooth-start "$1/usr/bin/bluetoothctl"; then
 	chmod 755 "$1/usr/bin/bluetoothctl"
 fi
 
+# ot-daemon holds memory while idle: thread-start starts it at the first
+# ot-ctl, as bluetooth-start does for bluetoothd.
+for d in usr/sbin usr/bin; do
+	if [ -x "$1/$d/ot-ctl" ] && ! grep -q thread-start "$1/$d/ot-ctl"; then
+		mkdir -p "$1/usr/libexec/openthread"
+		mv "$1/$d/ot-ctl" "$1/usr/libexec/openthread/ot-ctl"
+		printf '#!/bin/sh\n%s\n' \
+			'/usr/sbin/thread-start && exec /usr/libexec/openthread/ot-ctl "$@"' \
+			>"$1/$d/ot-ctl"
+		chmod 755 "$1/$d/ot-ctl"
+	fi
+done
+
 # Buildroot copies the overlays with go=rX; local-overlay/ can add a key here.
 chmod 600 "$1/etc/wpa_supplicant.conf"
 
