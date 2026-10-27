@@ -49,6 +49,8 @@ BR2_PACKAGE_SQLITE=y
 BR2_TARGET_TZ_INFO=y
 # An access point with all features, next to the AP mode of wpa_supplicant.
 BR2_PACKAGE_HOSTAPD=y
+# The firewall: nft loads the rules into the nf_tables of the kernel.
+BR2_PACKAGE_NFTABLES=y
 # The BlueZ tools and the deprecated ones (hciconfig, hcitool, hcidump).
 BR2_PACKAGE_BLUEZ5_UTILS_TOOLS=y
 BR2_PACKAGE_BLUEZ5_UTILS_DEPRECATED=y
