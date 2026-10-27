@@ -1,0 +1,21 @@
+From: Marco Müller <hello@annoyedmilk.ch>
+Subject: [PATCH] iomap: keep four entries in the ioend mempools
+
+Each of the two ioend bio sets preallocated 32 bios with a bio_vec of
+256 entries: 192 KiB on a machine with 16 MiB, whose ext4 root does not
+write through iomap at all.  The pools are the reserve for forward
+progress under memory pressure, and four entries in each are enough for
+that.
+---
+diff --git a/fs/iomap/ioend.c b/fs/iomap/ioend.c
+--- a/fs/iomap/ioend.c
++++ b/fs/iomap/ioend.c
+@@ -514,7 +514,7 @@
+ 
+ static int __init iomap_ioend_init(void)
+ {
+-	const unsigned int nr_mempool_entries = 4 * (PAGE_SIZE / SECTOR_SIZE);
++	const unsigned int nr_mempool_entries = 4;
+ 	int error;
+ 
+ 	error = bioset_init(&iomap_ioend_bioset, nr_mempool_entries,
