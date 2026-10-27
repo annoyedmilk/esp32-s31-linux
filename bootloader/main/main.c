@@ -400,7 +400,7 @@ void app_main(void)
     if (esp_radio_service_apply(ESP_RADIO_SERVICE_ALL, NULL, NULL, NULL) != ESP_OK) {
         ESP_LOGW(TAG, "Bluetooth or 802.15.4 did not start");
     }
-    /* The Wi-Fi/802.15.4 coexistence takes 70% of the Wi-Fi throughput. */
+    /* Off until the Thread radio receives: radio_coex.c. */
     esp_coex_ieee802154_status_disable();
 
     disable_linux_hart_stack_protector();
