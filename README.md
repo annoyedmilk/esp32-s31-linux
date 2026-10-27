@@ -76,19 +76,20 @@ new host key and no `authorized_keys`; then run `ssh-keygen -R <address>`
 on your computer. For your own builds, put the key into
 `local-overlay/root/.ssh/authorized_keys`.
 
-## What works
+## Features
 
-| | `esp32s31` | `coreboard1` | `korvo1` |
+| Feature | `esp32s31` | `coreboard1` | `korvo1` |
 | --- | --- | --- | --- |
 | Root | squashfs in the flash, with a writable UBIFS overlay | ext4 on the USB stick | ext4 on the microSD card |
 | Persistence | All files: the overlay is in the flash | All files on the stick | All files on the card |
 | Swap | zram (6 MiB) | zram, then 64 MiB on p3 of the stick | zram, then 64 MiB on p3 of the card |
-| RAM for Linux (MemTotal) | 12.2 MiB | 11.6 MiB | 10.8 MiB |
-| UART console (`ttyS0`) | yes | yes | yes |
+| RAM for Linux (MemTotal) | 12.2 MiB | 11.4 MiB | 10.7 MiB |
+| UART console (`ttyS0`), 9767 baud to 5 Mbaud with `stty` | yes | yes | yes |
 | LCD console, USB keyboard, tmux desktop, touch (GT1151) | no | no | yes |
 | Wi-Fi station (`wlan0`): WPA2 and WPA3 Personal | yes | yes | yes |
 | Wi-Fi Enterprise (PEAP, TTLS, TLS) | available, not tested | available, not tested | available, not tested |
 | Wi-Fi access point | `wpa_supplicant` | `wpa_supplicant`, `hostapd` | `wpa_supplicant`, `hostapd` |
+| Firewall and NAT (`nft`, rules load at boot) | no | yes | yes |
 | Bluetooth (`hci0`): BlueZ, `bluetoothctl` | yes | yes | yes |
 | Classic BlueZ tools (`hciconfig`, `hcitool`) | no | yes | yes |
 | Gigabit Ethernet (`eth0`) | no | yes | no |
@@ -111,57 +112,6 @@ Notes:
 - With WPA3-SAE, the first connection can fail. `wpa_supplicant` tries again.
 - `hcitool lescan` fails. Use `bluetoothctl` and `scan le`.
 - There is no audio or camera driver.
-
-## Performance
-
-Medians of two runs on the Korvo-1 (chip revision v0.0) with v0.8.0.
-The Wi-Fi numbers depend on the access point and the air.
-
-### Application start and storage
-
-Time from `fork()` to the exit of the program. Cold: the page cache is
-empty, so the program and its libraries come from the card. Warm: they
-are in the page cache.
-
-| Program | Cold | Warm |
-| --- | --- | --- |
-| BusyBox `true` | 25 ms | 13 ms |
-| Lua `-e x=1` | 62 ms | 19 ms |
-| MicroPython `-c pass` | 84 ms | 18 ms |
-| bash `-c :` | 157 ms | 37 ms |
-| SQLite `-version` | 162 ms | 31 ms |
-| coreutils `true` | 190 ms | 34 ms |
-| fastfetch | 240 ms | 70 ms |
-| vim `--version` | 469 ms | 86 ms |
-
-| microSD card | Result |
-| --- | --- |
-| Sequential read, cold (raw partition and a 20 MiB file on ext4) | 18 to 19 MB/s |
-| Sequential write, 20 MiB file with `fsync` | 9 MB/s |
-| Random 4 KiB read, `O_DIRECT` | 670 IOPS |
-| Random 4 KiB write, `O_DIRECT` | 98 IOPS |
-
-### Network and IPC
-
-| Test | Result |
-| --- | --- |
-| Wi-Fi TCP (`iperf3`) | 45 Mbit/s TX, 38 Mbit/s RX |
-| Wi-Fi UDP TX | 35 Mbit/s |
-| Wi-Fi UDP RX at 30 Mbit/s | 28.5 Mbit/s, 5% loss |
-| Ping to a host on the same Wi-Fi | 5.3 ms minimum, 22 to 27 ms average |
-| HCI command from Linux (hart 1) to the Bluetooth controller (hart 0) and back | 1.0 ms |
-| Pipe round trip between two processes | 140 µs |
-| `getpid()` | 1.2 µs |
-
-### Memory
-
-| Data set | Read | Write | Copy |
-| --- | --- | --- | --- |
-| 4 KiB, in the D-cache | 175 MB/s | 435 MB/s | 415 MB/s |
-| 512 KiB, in the PSRAM | 98 MB/s | 86 MB/s | 45 MB/s |
-
-A chain of dependent loads takes 17 ns for each load from the D-cache, and
-505 ns from the PSRAM (490 ns without TLB misses).
 
 ## Userspace
 
@@ -203,8 +153,12 @@ scripts.
 - **Firewall** (Function-CoreBoard-1, Korvo-1). `/etc/nftables.conf`
   loads at boot: the board answers ping, DHCP and mDNS and takes SSH, and
   it drops and logs all other new connections. `nft add rule inet filter
-  input tcp dport 8080 accept` opens a port; the file tells how to keep
-  it, and how to route with NAT.
+  input tcp dport 8080 accept` opens a port until the next boot; a line in
+  the file keeps it. For a router between an access point and `eth0`:
+  `sysctl -w net.ipv4.ip_forward=1`, then `nft add table ip nat`, `nft
+  'add chain ip nat postrouting { type nat hook postrouting priority
+  srcnat; }'` and `nft add rule ip nat postrouting oifname eth0
+  masquerade`, and a forward rule for the access point interface.
 - **Web page.** `nft add rule inet filter input tcp dport 8080 accept`,
   then `httpd -p 8080 -h /usr/share/examples/www` serves a page that sets
   the pins and the LED. It has no password: open the port only on a
