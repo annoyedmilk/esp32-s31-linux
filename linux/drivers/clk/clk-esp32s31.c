@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * Author: Marco Mueller <hello@annoyedmilk.ch>
+ * Author: Marco Müller <hello@annoyedmilk.ch>
  *
  * ESP32-S31 clock and reset controllers
  *

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * Author: Marco Mueller <hello@annoyedmilk.ch>
+ * Author: Marco Müller <hello@annoyedmilk.ch>
  *
  * ESP32-S31 eFuse, read only
  *
@@ -112,5 +112,5 @@ static struct platform_driver esp32s31_efuse_driver = {
 module_platform_driver(esp32s31_efuse_driver);
 
 MODULE_DESCRIPTION("ESP32-S31 eFuse driver");
-MODULE_AUTHOR("Marco Mueller <hello@annoyedmilk.ch>");
+MODULE_AUTHOR("Marco Müller <hello@annoyedmilk.ch>");
 MODULE_LICENSE("GPL");

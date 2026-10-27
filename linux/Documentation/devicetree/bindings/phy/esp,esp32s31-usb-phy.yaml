@@ -7,7 +7,7 @@ $schema: http://devicetree.org/meta-schemas/core.yaml#
 title: Espressif ESP32-S31 USB 2.0 UTMI PHY
 
 maintainers:
-  - Marco Mueller <hello@annoyedmilk.ch>
+  - Marco Müller <hello@annoyedmilk.ch>
 
 description:
   The ESP32-S31 has a high-speed UTMI PHY for its Synopsys DWC2 controller.

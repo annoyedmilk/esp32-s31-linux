@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause) */
 /*
- * Author: Marco Mueller <hello@annoyedmilk.ch>
+ * Author: Marco Müller <hello@annoyedmilk.ch>
  *
  * Clocks and resets of the Espressif ESP32-S31.
  */
