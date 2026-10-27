@@ -481,13 +481,13 @@ card image erases the card, so save your files from the FAT partition first.
 ## Known limits
 
 - The tested hardware is the Korvo-1 with chip revision v0.0. The esp32s31
-  build is tested on the Korvo-1. The coreboard1 build of v0.8.0 is not
-  tested on hardware. Earlier releases tested it on the Korvo-1 with its
-  root on a USB stick, not on a Function-CoreBoard-1.
+  build is tested on the Korvo-1. The coreboard1 builds of v0.8.0 and
+  later are not tested on hardware. Earlier releases tested it on the
+  Korvo-1 with its root on a USB stick, not on a Function-CoreBoard-1.
 - `/dev/hwrng` gives approximately 0.4 kB/s, because Linux runs without
   high-resolution timers. The kernel random number generator is ready
   0.3 s after the start of Linux and does not depend on this speed.
-- One hart runs Linux. The other runs the Wi-Fi firmware.
+- One hart runs Linux. The other runs the radio firmware.
 - Floating point works in software; the hardware FPU is not used.
 - No audio or camera driver.
 - `poweroff` puts the chip into deep sleep. It does not remove power.

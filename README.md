@@ -3,7 +3,7 @@
 Linux 7.3 and OpenSBI 1.9 on the Espressif ESP32-S31, a microcontroller
 with two RV32 harts at 320 MHz and 512 KiB of SRAM. Linux runs on hart 1
 in the 16 MiB octal PSRAM. Hart 0 runs the ESP-Hosted radio firmware for
-Wi-Fi and Bluetooth. A stock kernel with a small patch set boots a
+Wi-Fi, Bluetooth and Thread. A stock kernel with a small patch set boots a
 Buildroot userspace: a shell, `wpa_supplicant`, BlueZ, SSH, USB and more.
 
 ```text
@@ -163,9 +163,9 @@ scripts.
   Korvo-1. `gdbserver` and `strace` are there too.
 - **Firewall** (Function-CoreBoard-1, Korvo-1). `/etc/nftables.conf`
   loads at boot: the board answers ping, DHCP and mDNS and takes SSH and
-  the Thread mesh, and it drops and logs all other new connections. `nft add rule inet filter
-  input tcp dport 8080 accept` opens a port until the next boot; a line in
-  the file keeps it. For a router between an access point and `eth0`:
+  the Thread mesh, and it drops and logs all other new connections. `nft
+  add rule inet filter input tcp dport 8080 accept` opens a port until the
+  next boot; a line in the file keeps it. For a router between an access point and `eth0`:
   `sysctl -w net.ipv4.ip_forward=1`, then `nft add table ip nat`, `nft
   'add chain ip nat postrouting { type nat hook postrouting priority
   srcnat; }'` and `nft add rule ip nat postrouting oifname eth0

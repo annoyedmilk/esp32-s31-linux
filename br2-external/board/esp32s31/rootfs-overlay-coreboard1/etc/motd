@@ -6,6 +6,7 @@ Wi-Fi     wpa_passphrase "<ssid>" "<passphrase>" >> /etc/wpa_supplicant.conf
           /etc/init.d/S40wifi restart
           iw dev wlan0 link; iw dev wlan0 scan | grep SSID
 Bluetooth bluetoothctl, then: scan le, scan bredr, devices
+Thread    thread-start, then ot-ctl state; thread-start stop ends it
 System    htop, free, df -h, ncdu, dmesg, tmux
 Time      UTC; local zone: ln -sf /usr/share/zoneinfo/Europe/Zurich /etc/localtime
 Network   ssh, scp, curl, links, iperf3, tcpdump

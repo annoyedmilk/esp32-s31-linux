@@ -43,7 +43,7 @@ ROM -> ESP-IDF 2nd stage -> loader (hart 0) -> OpenSBI (hart 1, M) -> Linux (har
 3. The loader writes the D-cache back, sets the PMA of hart 1 for PSRAM and
    releases hart 1 at the OpenSBI entry. Then it locks hart 0 out of PSRAM
    and the DMA pool with PMP.
-4. Hart 0 stays in the loader. The loader is now the ESP-Hosted Wi-Fi
+4. Hart 0 stays in the loader. The loader is now the ESP-Hosted radio
    firmware.
 5. OpenSBI sets up the CLIC, the timer, PMP, APM and the SBI extensions.
    Then it jumps to the kernel in S-mode.
@@ -101,11 +101,11 @@ during iperf3 with a BLE scan and a BR/EDR inquiry (v0.4.0).
 
 ## Why Linux uses only hart 1
 
-The Wi-Fi and Bluetooth radios need the ESP-IDF libraries. These libraries
-are binary, run in M-mode and use FreeRTOS. So hart 0 keeps a small
-ESP-IDF application that owns the radio, the ESP-Hosted firmware, and
-Linux talks to it through shared SRAM (see "Wi-Fi"). The price is a
-uniprocessor Linux.
+The Wi-Fi, Bluetooth and 802.15.4 radios need the ESP-IDF libraries.
+These libraries are binary, run in M-mode and use FreeRTOS. So hart 0
+keeps a small ESP-IDF application that owns the radios, the ESP-Hosted
+firmware, and Linux talks to it through shared SRAM (see "Radios"). The
+price is a uniprocessor Linux.
 
 ## Interrupts: the CLIC
 
@@ -330,10 +330,10 @@ not help. Thus the FPU stays off.
 - **The APM registers themselves** (`0x20504000`) are M-mode only, through
   an OpenSBI domain region.
 - **Hart 0.** It runs ESP-IDF in M-mode, where only a locked PMP entry
-  applies. After the loader starts hart 1, it locks hart 0 out of PSRAM,
-  of the uncached PSRAM alias and of its SRAM window (PMP entries 13 to 15, no
-  access). The lock stays until the next reset. Hart 0 can still write the
-  rest of SRAM and all peripherals.
+  applies. After the loader starts hart 1, it locks hart 0 out of PSRAM
+  except the heap of the firmware, of the uncached PSRAM alias and of its
+  SRAM window (PMP entries 10 to 15, no access). The lock stays until the
+  next reset. Hart 0 can still write the rest of SRAM and all peripherals.
 
 ## Radios
 
@@ -488,7 +488,7 @@ in `br2-external/configs/` differs from its fragments.
 | Base | Kernel, toolchain, BusyBox, Dropbear, OpenSSL, `wpa_supplicant` (WPA3, PEAP/TTLS/TLS, AP mode), curl, iperf3, libgpiod, BlueZ (`bluetoothd`, `bluetoothctl`), Lua | The same | The same |
 | Root | squashfs root in the flash, UBIFS overlay, the MTD tools | ext4 root on the USB stick | ext4 root on the card |
 | Board parts | | Ethernet, USB, the LED | LCD, touch, the card, USB, the LED |
-| Tools | The base only | `nft` with a firewall, `hostapd`, the classic BlueZ tools, bash, vim, gdb, strace, tcpdump, links, MicroPython, htop, filesystem tools, tmux, nano, nnn, ncdu, tree, bc, sqlite3, ethtool | `nft` with a firewall, `hostapd`, the classic BlueZ tools, bash, vim, gdb, strace, tcpdump, links, MicroPython, htop, filesystem tools, tmux, nano, nnn, ncdu, tree, bc, sqlite3, `evtest`, `gpm`, a tmux desktop on the LCD, lynx, irssi |
+| Tools | The base only | `nft` with a firewall, `hostapd`, the classic BlueZ tools, OpenThread (`ot-daemon`, `ot-ctl`), bash, vim, gdb, strace, tcpdump, links, MicroPython, htop, filesystem tools, tmux, nano, nnn, ncdu, tree, bc, sqlite3, ethtool | `nft` with a firewall, `hostapd`, the classic BlueZ tools, OpenThread (`ot-daemon`, `ot-ctl`), bash, vim, gdb, strace, tcpdump, links, MicroPython, htop, filesystem tools, tmux, nano, nnn, ncdu, tree, bc, sqlite3, `evtest`, `gpm`, a tmux desktop on the LCD, lynx, irssi |
 | Swap | zram only | zram, then p3 of the stick | zram, then p3 of the card |
 
 The Korvo-1 and the Function-CoreBoard-1 have a disk with much space, and
@@ -539,4 +539,5 @@ and Bluetooth stack the same on all boards.
 | The console | `linux/drivers/tty/serial/esp32_uart.c` |
 | Kernel memory | `br2-external/board/esp32s31/linux.config`, `linux/patches/0021`, `0022` |
 | The firewall | `br2-external/board/esp32s31/rootfs-overlay-usb/etc/nftables.conf` |
+| Thread | `br2-external/board/esp32s31/rootfs-overlay-usb/usr/sbin/thread-start`, `bootloader/main/radio_coex.c` |
 | Device tree | `linux/arch/riscv/boot/dts/espressif/esp32s31.dtsi` |
