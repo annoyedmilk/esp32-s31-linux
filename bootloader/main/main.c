@@ -11,6 +11,7 @@
 #include "esp_log.h"
 #include "esp_err.h"
 #include "esp_heap_caps.h"
+#include "esp_heap_caps_init.h"
 #include "esp_system.h"
 #include "esp_partition.h"
 #include "esp_psram.h"
@@ -47,6 +48,10 @@
 #define PSRAM_PMA_SIZE              0x01000000U
 #define PSRAM_UNCACHED_BASE         0xC0000000U
 #define LINUX_HART                  1U
+
+/* 256 KiB of PSRAM for the heap of the firmware (fw-heap in esp32s31.dtsi). */
+#define FW_PSRAM_HEAP_ADDR          0x50E80000U
+#define FW_PSRAM_HEAP_SIZE          0x00040000U
 
 /* SRAM of the kernel (dma-pool and trap-sram in esp32s31.dtsi), not heap. */
 #define LINUX_DMA_POOL_ADDR         0x2F040000U
@@ -179,13 +184,30 @@ static void disable_linux_hart_stack_protector(void)
     assist_debug_ll_sp_spill_set_max(LINUX_HART, 0xffffffff);
 }
 
+/* The heap of the firmware in PSRAM, with the capabilities that esp_psram gives. */
+static void add_psram_heap(void)
+{
+    uint32_t caps[] = { MALLOC_CAP_SPIRAM | MALLOC_CAP_DEFAULT, 0,
+                        MALLOC_CAP_8BIT | MALLOC_CAP_32BIT };
+    esp_err_t err = heap_caps_add_region_with_caps(caps, FW_PSRAM_HEAP_ADDR,
+                                                   FW_PSRAM_HEAP_ADDR + FW_PSRAM_HEAP_SIZE);
+
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "no PSRAM heap: %s", esp_err_to_name(err));
+    }
+}
+
 /* Lock hart 0 out of the memory of hart 1 (docs/internals.md, "Protection"). */
 #define PMP_NO_ACCESS               (PMP_L | PMP_NAPOT)
+#define PMP_NO_ACCESS_TOR           (PMP_L | PMP_TOR)
 
+/* Two TOR ranges keep the PSRAM heap out: PMP entries must not overlap. */
 static void protect_linux_memory(void)
 {
-    PMP_RESET_AND_ENTRY_SET(13, PMPADDR_NAPOT(PSRAM_BASE, PSRAM_BASE + PSRAM_PMA_SIZE),
-                            PMP_NO_ACCESS);
+    PMP_ENTRY_SET(10, PSRAM_BASE, 0);
+    PMP_RESET_AND_ENTRY_SET(11, FW_PSRAM_HEAP_ADDR, PMP_NO_ACCESS_TOR);
+    PMP_ENTRY_SET(12, FW_PSRAM_HEAP_ADDR + FW_PSRAM_HEAP_SIZE, 0);
+    PMP_RESET_AND_ENTRY_SET(13, PSRAM_BASE + PSRAM_PMA_SIZE, PMP_NO_ACCESS_TOR);
     PMP_RESET_AND_ENTRY_SET(14, PMPADDR_NAPOT(PSRAM_UNCACHED_BASE,
                                               PSRAM_UNCACHED_BASE + PSRAM_PMA_SIZE),
                             PMP_NO_ACCESS);
@@ -193,10 +215,11 @@ static void protect_linux_memory(void)
                                               LINUX_DMA_POOL_ADDR + LINUX_DMA_POOL_SIZE),
                             PMP_NO_ACCESS);
 
-    if (PMP_ENTRY_CFG_READ(13) != PMP_NO_ACCESS ||
+    if (PMP_ENTRY_CFG_READ(11) != PMP_NO_ACCESS_TOR ||
+        PMP_ENTRY_CFG_READ(13) != PMP_NO_ACCESS_TOR ||
         PMP_ENTRY_CFG_READ(14) != PMP_NO_ACCESS ||
         PMP_ENTRY_CFG_READ(15) != PMP_NO_ACCESS) {
-        ESP_LOGW(TAG, "PMP entries 13-15 are in use: Linux memory not protected");
+        ESP_LOGW(TAG, "PMP entries 10-15 are in use: Linux memory not protected");
     }
 }
 
@@ -300,7 +323,7 @@ static bool load_kernel_partition(void)
            (const void *)(KERNEL_LOAD_ADDR + KERNEL_IMAGE_SIZE_OFFSET),
            sizeof(memory_size));
     if (memory_size < image_size ||
-        KERNEL_LOAD_ADDR + memory_size > OPENSBI_LOAD_ADDR) {
+        KERNEL_LOAD_ADDR + memory_size > FW_PSRAM_HEAP_ADDR) {
         ESP_LOGE(TAG, "invalid kernel memory size 0x%08" PRIx32,
                  (uint32_t)memory_size);
         return false;
@@ -364,6 +387,7 @@ void app_main(void)
         restart_after_error();
     }
 
+    add_psram_heap();
     board_start_display();
 
     ESP_LOGI(TAG, "handoff: OpenSBI=0x%08" PRIx32 " kernel=0x%08" PRIx32,
@@ -382,8 +406,9 @@ void app_main(void)
     shm_flash_share_cache();
     start_linux_hart();
     protect_linux_memory();
-    ESP_LOGI(TAG, "hart 0 resident, heap: %u bytes free",
-             (unsigned)heap_caps_get_free_size(MALLOC_CAP_8BIT));
+    ESP_LOGI(TAG, "hart 0 resident, heap: %u bytes free, %u internal",
+             (unsigned)heap_caps_get_free_size(MALLOC_CAP_8BIT),
+             (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
 
     /* Linux has the UART now: print only errors, so the lines do not mix. */
     esp_log_level_set("*", ESP_LOG_ERROR);

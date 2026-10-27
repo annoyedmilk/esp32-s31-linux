@@ -83,7 +83,7 @@ on your computer. For your own builds, put the key into
 | Root | squashfs in the flash, with a writable UBIFS overlay | ext4 on the USB stick | ext4 on the microSD card |
 | Persistence | All files: the overlay is in the flash | All files on the stick | All files on the card |
 | Swap | zram (6 MiB) | zram, then 64 MiB on p3 of the stick | zram, then 64 MiB on p3 of the card |
-| RAM for Linux (MemTotal) | 12.2 MiB | 11.4 MiB | 10.7 MiB |
+| RAM for Linux (MemTotal) | 11.9 MiB | 11.2 MiB | 10.4 MiB |
 | UART console (`ttyS0`), 9767 baud to 5 Mbaud with `stty` | yes | yes | yes |
 | LCD console, USB keyboard, tmux desktop, touch (GT1151) | no | no | yes |
 | Wi-Fi station (`wlan0`): WPA2 and WPA3 Personal | yes | yes | yes |

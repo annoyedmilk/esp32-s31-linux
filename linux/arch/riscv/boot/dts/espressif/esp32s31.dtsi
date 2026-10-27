@@ -50,6 +50,12 @@
 			reg = <0x2f04e000 0x2000>;
 			no-map;
 		};
+
+		/* The heap of the radio firmware on hart 0 (main.c of the loader). */
+		fw-heap@50e80000 {
+			reg = <0x50e80000 0x40000>;
+			no-map;
+		};
 	};
 
 	aliases {

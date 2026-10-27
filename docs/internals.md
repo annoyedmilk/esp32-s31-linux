@@ -63,7 +63,9 @@ ROM -> ESP-IDF 2nd stage -> loader (hart 0) -> OpenSBI (hart 1, M) -> Linux (har
 | `0x2F04E000` | 8 KiB | Trap code of Linux (`CONFIG_RISCV_TRAP_SRAM`), see "The instruction cache" |
 | `0x2F050000` | 52 KiB | Shared block: requests, flash mailbox, ESP-Hosted rings |
 | `0x2F079000` | 4 KiB | LCD DMA descriptor ring (Korvo-1) |
-| `0x50000000` | 15 MiB - 4 KiB | Linux RAM, from the kernel image |
+| `0x50000000` | 14.5 MiB | Linux RAM, from the kernel image |
+| `0x50E80000` | 256 KiB | Heap of the radio firmware on hart 0 (reserved, no-map), see "Internal SRAM" |
+| `0x50EC0000` | 252 KiB | Linux RAM |
 | `0x50EFF000` | 4 KiB | Guard page below OpenSBI (reserved, no-map, see Protection) |
 | `0x50F00000` | 192 KiB | OpenSBI (reserved, no-map): 128 KiB code, 64 KiB data, heap and stack |
 | `0x50F30000` | 64 KiB | Linux RAM |
@@ -87,7 +89,10 @@ firmware):
 
 The loader is built with `-Os`, and without the light-sleep code of Wi-Fi
 in IRAM: the static part was 165 KiB before (v0.8.1). The heap also has
-32 KiB of LP SRAM. Of the controllers, Bluetooth takes the most: 42 KiB of
+32 KiB of LP SRAM, and 256 KiB of PSRAM at `0x50E80000`, which the loader
+adds with the capabilities of `esp_psram`: no DMA, no internal memory. An
+allocation goes there when the internal heap is full, or when it asks for
+`MALLOC_CAP_SPIRAM`. Of the controllers, Bluetooth takes the most: 42 KiB of
 code in SRAM and 61 KiB of heap (v0.4.0). 117 KiB of heap are free when
 hart 1 starts (v0.8.1: 100 KiB). With 32 dynamic Wi-Fi buffers in each
 direction, the minimum was 35.9 KiB during iperf3 with a BLE scan and a
@@ -298,7 +303,10 @@ not help. Thus the FPU stays off.
 ## Protection
 
 - **PMP.** OpenSBI gives its memory (`0x50F00000`, 192 KiB) no S/U access.
-  PMP entries must not overlap on this CPU, even for a short time.
+  PMP entries must not overlap on this CPU, even for a short time. The
+  loader locks hart 0 out of the PSRAM with two TOR ranges, which leave
+  the heap of the firmware at `0x50E80000` out, and out of the uncached
+  alias and the DMA pool with NAPOT entries (`protect_linux_memory()`).
 - **APM.** `HP_APM` checks the accesses of the bus masters, also DMA to
   PSRAM. M-mode is TEE mode, and the DMA masters are REE mode. OpenSBI
   gives its memory to TEE mode only and locks the regions. A blocked access

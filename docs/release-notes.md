@@ -58,10 +58,13 @@ the tmux desktop for a USB keyboard.
   the iomap bio pools 4 entries instead of 32. Both were preallocated and
   idle; Slab at idle on the Korvo-1 goes from 2304 to 1856 kB. The card
   power of the Korvo-1 is a GPIO hog, which saves the regulator framework.
-  With the firewall, MemTotal on the Korvo-1 is 10.7 MiB (v0.8.1: 10.8).
-- More SRAM for the radio firmware: the loader is built for size and
-  without the light-sleep code in IRAM. 117 KiB of heap are free when
-  Linux starts (v0.8.1: 100 KiB).
+  With the firewall, MemTotal on the Korvo-1 would be 10.7 MiB (v0.8.1:
+  10.8); see the next item.
+- More memory for the radio firmware: the loader is built for size and
+  without the light-sleep code in IRAM, and it gets 256 KiB of PSRAM as
+  heap for the allocations that need no internal memory. 372 KiB of heap
+  are free when Linux starts, 117 KiB of it internal (v0.8.1: 100 KiB).
+  Linux gives the 256 KiB up: MemTotal on the Korvo-1 is 10.4 MiB.
 - The build: `make kernel` builds only the kernel and its manifest, in
   under a minute on an unchanged tree. The container image is Debian
   trixie, 504 MB.
