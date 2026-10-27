@@ -173,13 +173,13 @@ scripts.
 - **Firewall** (Function-CoreBoard-1, Korvo-1). `/etc/nftables.conf`
   loads at boot: the board answers ping, DHCP and mDNS and takes SSH and
   the Thread mesh, and it drops and logs all other new connections. `nft
-  add rule inet filter input tcp dport 8080 accept` opens a port until the
+  insert rule inet filter input tcp dport 8080 accept` opens a port until the
   next boot; a line in the file keeps it. For a router between an access point and `eth0`:
   `sysctl -w net.ipv4.ip_forward=1`, then `nft add table ip nat`, `nft
   'add chain ip nat postrouting { type nat hook postrouting priority
   srcnat; }'` and `nft add rule ip nat postrouting oifname eth0
   masquerade`, and a forward rule for the access point interface.
-- **Web page.** `nft add rule inet filter input tcp dport 8080 accept`,
+- **Web page.** `nft insert rule inet filter input tcp dport 8080 accept`,
   then `httpd -p 8080 -h /usr/share/examples/www` serves a page that sets
   the pins and the LED. It has no password: open the port only on a
   network that you trust.
