@@ -174,10 +174,10 @@ diff --git a/drivers/tty/serial/Kconfig b/drivers/tty/serial/Kconfig
 +	select SERIAL_CORE_CONSOLE
 +	select SERIAL_EARLYCON
 +	help
-+	  Driver for the UART of the Espressif ESP32-S31, which is the
-+	  same block as on the ESP32-S3.  The driver gives the ttyS serial
-+	  console and an earlycon.  If you compile it as a module, the
-+	  module name is esp32_uart.
++	  Driver for the UART of the Espressif ESP32-S31, the block of the
++	  ESP32-C6 generation.  The driver gives the ttyS serial console
++	  and an earlycon.  If you compile it as a module, the module name
++	  is esp32_uart.
  
  config SERIAL_MCTRL_GPIO
  	tristate
