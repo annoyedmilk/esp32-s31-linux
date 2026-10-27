@@ -85,6 +85,7 @@ on your computer. For your own builds, put the key into
 | Swap | zram (6 MiB) | zram, then 64 MiB on p3 of the stick | zram, then 64 MiB on p3 of the card |
 | RAM for Linux (MemTotal) | 11.9 MiB | 11.2 MiB | 10.4 MiB |
 | UART console (`ttyS0`), 9767 baud to 5 Mbaud with `stty` | yes | yes | yes |
+| Copy of the boot log and JTAG on the native USB port | yes | yes | no: the LCD uses the pins |
 | LCD console, USB keyboard, tmux desktop, touch (GT1151) | no | no | yes |
 | Wi-Fi station (`wlan0`): WPA2 and WPA3 Personal | yes | yes | yes |
 | Wi-Fi Enterprise (PEAP, TTLS, TLS) | available, not tested | available, not tested | available, not tested |
@@ -94,7 +95,7 @@ on your computer. For your own builds, put the key into
 | Classic BlueZ tools (`hciconfig`, `hcitool`) | no | yes | yes |
 | Thread (IEEE 802.15.4): OpenThread border router for Matter, `ot-ctl` | no | yes | yes |
 | Gigabit Ethernet (`eth0`) | no | yes | no |
-| USB host (DWC2) | no | the root stick, more storage | keyboards, mice, storage |
+| USB host (DWC2) | no | the root stick; a second stick by hand | keyboards, mice, storage, mounted at plug-in |
 | microSD | no | no | the root card |
 | RGB LED (`/sys/class/leds/rgb:status`) | no | GPIO60 | GPIO37 |
 | GPIO, hardware RNG, HTTPS with `curl`, SSH (Dropbear, key only) | yes | yes | yes |
