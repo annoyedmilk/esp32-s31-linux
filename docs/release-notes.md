@@ -40,6 +40,29 @@ alone with UART only.
 On the Korvo-1, the LCD shows the Tux logo and the kernel warnings, then
 the tmux desktop for a USB keyboard.
 
+## New in v0.9.1
+
+- The firewall drops stay off the consoles. In v0.9.0, the Korvo-1 and
+  the Function-CoreBoard-1 wrote an "nft drop" line to the serial console
+  and the LCD for each broadcast on the LAN, such as NetBIOS and the
+  discovery probes of smart home apps. The drops now log at info level,
+  to `dmesg` only. Broadcast and multicast that no rule accepts are
+  dropped without a log line, so they do not push the boot messages out
+  of the kernel log. New connections to closed ports are logged as before.
+- To open a port, use `nft insert rule inet filter input tcp dport 8080
+  accept`. The README of v0.9.0 told `nft add rule`, which puts the rule
+  after the log rule: the port opened, but each new connection logged a
+  false "nft drop" line.
+- The motd of the Korvo-1 and the Function-CoreBoard-1 shows the firewall
+  and how to open a port. On all boards, the Wi-Fi line names
+  `/usr/share/examples/wifi-scan.sh`.
+
+Only the root changed. On the Korvo-1 and the Function-CoreBoard-1, write
+the new disk image or run `make sdroot`. To keep the disk, copy only
+`/etc/nftables.conf` of the image to the board and run
+`/etc/init.d/S35nftables start`. On the module, the new `flash.bin` only
+changes the motd.
+
 ## New in v0.9.0
 
 - A firewall on the Korvo-1 and the Function-CoreBoard-1: nftables with
