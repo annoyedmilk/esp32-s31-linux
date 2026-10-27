@@ -75,20 +75,23 @@ own copies of these numbers. The device trees must agree with them.
 ### Internal SRAM
 
 The HP SRAM is 512 KiB (`0x2F000000`-`0x2F080000`). Measured on the
-Korvo-1 with Wi-Fi and Bluetooth, at v0.4.0 (the numbers change with the
+Korvo-1 with Wi-Fi and Bluetooth, at v0.9.0 (the numbers change with the
 firmware):
 
 | Use | Size |
 | --- | --- |
-| Loader and ESP-Hosted firmware, static (`.text`, `.data`, `.bss`) | 165 KiB |
+| Loader and ESP-Hosted firmware, static (`.text`, `.data`, `.bss`) | 156 KiB |
 | Linux: DMA pool, trap code and shared block (`0x2F040000`-`0x2F05D000`) | 116 KiB |
 | LCD descriptor ring and reserved blocks | 8 KiB |
-| ESP-IDF heap in HP SRAM | 211 KiB |
+| ESP-IDF heap in HP SRAM | 220 KiB |
 
-The heap also has 32 KiB of LP SRAM. Of the controllers, Bluetooth takes the
-most: 42 KiB of code in SRAM and 61 KiB of heap. 100 KiB of heap are free
-when hart 1 starts. With 32 dynamic Wi-Fi buffers in each direction, the
-minimum was 35.9 KiB during iperf3 with a BLE scan and a BR/EDR inquiry.
+The loader is built with `-Os`, and without the light-sleep code of Wi-Fi
+in IRAM: the static part was 165 KiB before (v0.8.1). The heap also has
+32 KiB of LP SRAM. Of the controllers, Bluetooth takes the most: 42 KiB of
+code in SRAM and 61 KiB of heap (v0.4.0). 117 KiB of heap are free when
+hart 1 starts (v0.8.1: 100 KiB). With 32 dynamic Wi-Fi buffers in each
+direction, the minimum was 35.9 KiB during iperf3 with a BLE scan and a
+BR/EDR inquiry (v0.4.0).
 
 ## Why Linux uses only hart 1
 
@@ -467,7 +470,7 @@ in `br2-external/configs/` differs from its fragments.
 | Base | Kernel, toolchain, BusyBox, Dropbear, OpenSSL, `wpa_supplicant` (WPA3, PEAP/TTLS/TLS, AP mode), curl, iperf3, libgpiod, BlueZ (`bluetoothd`, `bluetoothctl`), Lua | The same | The same |
 | Root | squashfs root in the flash, UBIFS overlay, the MTD tools | ext4 root on the USB stick | ext4 root on the card |
 | Board parts | | Ethernet, USB, the LED | LCD, touch, the card, USB, the LED |
-| Tools | The base only | `hostapd`, the classic BlueZ tools, bash, vim, gdb, strace, tcpdump, links, MicroPython, htop, filesystem tools, tmux, nano, nnn, ncdu, tree, bc, sqlite3, ethtool | `hostapd`, the classic BlueZ tools, bash, vim, gdb, strace, tcpdump, links, MicroPython, htop, filesystem tools, tmux, nano, nnn, ncdu, tree, bc, sqlite3, `evtest`, `gpm`, a tmux desktop on the LCD, lynx, irssi |
+| Tools | The base only | `nft` with a firewall, `hostapd`, the classic BlueZ tools, bash, vim, gdb, strace, tcpdump, links, MicroPython, htop, filesystem tools, tmux, nano, nnn, ncdu, tree, bc, sqlite3, ethtool | `nft` with a firewall, `hostapd`, the classic BlueZ tools, bash, vim, gdb, strace, tcpdump, links, MicroPython, htop, filesystem tools, tmux, nano, nnn, ncdu, tree, bc, sqlite3, `evtest`, `gpm`, a tmux desktop on the LCD, lynx, irssi |
 | Swap | zram only | zram, then p3 of the stick | zram, then p3 of the card |
 
 The Korvo-1 and the Function-CoreBoard-1 have a disk with much space, and
@@ -499,6 +502,7 @@ and Bluetooth stack the same on all boards.
 | TRNG after the 2nd stage | ESP-IDF v6.1 stops it. The loader starts it again for `esp_random()` and the Linux hwrng. Its noise source does not use the RF. |
 | USB Serial/JTAG without a host | `TX_FREE` stays clear, and the console slows to approximately 130 B/s. OpenSBI stops the copy after one timeout. |
 | ROM stack of hart 1 | The ROM start code of hart 1 uses 1 KiB below `0x2F07E600`. ESP-IDF gives this area to its heap, so the loader reserves it. |
+| UART registers | The block is the one of the ESP32-C6 generation, not the ESP32-S3 one. The `_SYNC` registers are shadow registers: a write takes effect after a write of `REG_UPDATE`. |
 
 ## Where to start reading
 
@@ -514,4 +518,7 @@ and Bluetooth stack the same on all boards.
 | The boards | `bootloader/main/board_*.c`, `br2-external/board/esp32s31/defconfig/*.fragment` (`make defconfigs` makes `br2-external/configs/*_defconfig`) |
 | Pins and GPIO | `linux/drivers/pinctrl/pinctrl-esp32s31.c` |
 | Clocks and resets | `linux/drivers/clk/clk-esp32s31.c` |
+| The console | `linux/drivers/tty/serial/esp32_uart.c` |
+| Kernel memory | `br2-external/board/esp32s31/linux.config`, `linux/patches/0021`, `0022` |
+| The firewall | `br2-external/board/esp32s31/rootfs-overlay-usb/etc/nftables.conf` |
 | Device tree | `linux/arch/riscv/boot/dts/espressif/esp32s31.dtsi` |

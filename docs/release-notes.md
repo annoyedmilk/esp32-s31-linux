@@ -40,6 +40,40 @@ alone with UART only.
 On the Korvo-1, the LCD shows the Tux logo and the kernel warnings, then
 the tmux desktop for a USB keyboard.
 
+## New in v0.9.0
+
+- A firewall on the Korvo-1 and the Function-CoreBoard-1: nftables with
+  connection tracking and NAT in the kernel, and `nft` on the disk.
+  `/etc/nftables.conf` loads at boot: the board answers ping, DHCP and
+  mDNS and takes SSH, and it drops and logs all other new connections.
+  A service that listens on another port needs a rule now; the README
+  tells how. The module alone has no firewall.
+- The serial console takes `stty`: baud rates from 9767 to 5 Mbaud,
+  framing and flow control. The UART driver used the register layout of
+  the ESP32-S3, but the ESP32-S31 has the block of the ESP32-C6
+  generation, whose configuration registers take effect only after a
+  write of `REG_UPDATE`. So no setting ever changed. RX interrupts now
+  come per 64 bytes or after an idle of 10 bit times, not per byte.
+- More RAM for Linux: the MMC queue keeps 8 requests instead of 64, and
+  the iomap bio pools 4 entries instead of 32. Both were preallocated and
+  idle; Slab at idle on the Korvo-1 goes from 2304 to 1856 kB. The card
+  power of the Korvo-1 is a GPIO hog, which saves the regulator framework.
+  With the firewall, MemTotal on the Korvo-1 is 10.7 MiB (v0.8.1: 10.8).
+- More SRAM for the radio firmware: the loader is built for size and
+  without the light-sleep code in IRAM. 117 KiB of heap are free when
+  Linux starts (v0.8.1: 100 KiB).
+- The build: `make kernel` builds only the kernel and its manifest, in
+  under a minute on an unchanged tree. The container image is Debian
+  trixie, 504 MB.
+- Fixes: a freed wait queue on driver unbind, a wrong error code in the
+  transport, the monitor script without a success pattern, and the
+  device tree bindings of the eFuse, the CLIC and the shared-memory
+  transport, which now pass `dtbs_check`.
+
+Flash the new `flash.bin` on all boards: the loader and the kernel
+changed. On the Korvo-1 and the Function-CoreBoard-1, write the new disk
+image or run `make sdroot` for `nft` and the firewall.
+
 ## New in v0.8.1
 
 - On the module alone, Wi-Fi TX during writes to the flash root is
