@@ -47,7 +47,7 @@ USB_CONSOLE := $(if $(filter 1,$(FB_UNCACHED)),0,1)
 
 # Buildroot runs in a container.  Its output is in a volume: virtiofs is slow.
 BR_DIR := external/buildroot
-BR_IMAGE ?= esp32s31-buildroot:bookworm
+BR_IMAGE ?= esp32s31-buildroot:trixie
 BR_VOLUME ?= esp32s31-br
 BR_VOLUME_SIZE ?= 60G
 BR_DEFCONFIG := $(BOARD)_defconfig

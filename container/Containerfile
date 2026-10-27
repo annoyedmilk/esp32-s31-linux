@@ -1,7 +1,7 @@
 # Buildroot does not build on macOS.  arm64 Debian runs natively on Apple
 # silicon, so there is no emulation.  The slim image has the essential
 # tools: bash, sed, tar, gzip, diffutils, findutils, which.
-FROM debian:bookworm-slim
+FROM debian:trixie-slim
 
 # The other Buildroot host packages, dosfstools and mtools for genimage, and
 # python3 for post-image.sh.  The recommended packages and the apt lists
