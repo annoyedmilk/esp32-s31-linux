@@ -169,7 +169,7 @@ A chain of dependent loads takes 17 ns for each load from the D-cache, and
 | --- | --- |
 | All boards | BusyBox, Dropbear, OpenSSL with the CA bundle, `wpa_supplicant` (WPA3, EAP, access point) with `wpa_cli` and `wpa_passphrase`, `iw`, `curl`, `iperf3`, the libgpiod 2 tools, BlueZ (`bluetoothd`, `bluetoothctl`), Lua |
 | `esp32s31` also | The MTD tools (`mtdinfo`, `flash_erase`) |
-| `coreboard1` and `korvo1` also | `hostapd`, the classic BlueZ tools (`hciconfig`, `hcitool`), bash, coreutils, vim, nano, less, file, htop, fastfetch, strace, gdb and `gdbserver`, tcpdump, links, MicroPython, tmux, nnn, ncdu, tree, bc, sqlite3, e2fsprogs, dosfstools, an SFTP server |
+| `coreboard1` and `korvo1` also | `nft` with a firewall, `hostapd`, the classic BlueZ tools (`hciconfig`, `hcitool`), bash, coreutils, vim, nano, less, file, htop, fastfetch, strace, gdb and `gdbserver`, tcpdump, links, MicroPython, tmux, nnn, ncdu, tree, bc, sqlite3, e2fsprogs, dosfstools, an SFTP server |
 | `coreboard1` also | `ethtool` |
 | `korvo1` also | `gpm`, `lynx`, `irssi`, `evtest` |
 
@@ -200,8 +200,14 @@ scripts.
   with HTTPS; its comment shows the `crontab` line for each 5 minutes.
 - **Code.** `lua`, and `micropython` on the Function-CoreBoard-1 and the
   Korvo-1. `gdbserver` and `strace` are there too.
-- **Web page.** `httpd -p 8080 -h /usr/share/examples/www` serves a page
-  that sets the pins and the LED. It has no password: start it only on a
+- **Firewall** (Function-CoreBoard-1, Korvo-1). `/etc/nftables.conf`
+  loads at boot: the board answers ping, DHCP and mDNS and takes SSH, and
+  it drops and logs all other new connections. `nft add rule inet filter
+  input tcp dport 8080 accept` opens a port; the file tells how to keep
+  it, and how to route with NAT.
+- **Web page.** `nft add rule inet filter input tcp dport 8080 accept`,
+  then `httpd -p 8080 -h /usr/share/examples/www` serves a page that sets
+  the pins and the LED. It has no password: open the port only on a
   network that you trust.
 - **Start at boot.** The board runs `autostart.sh` from p1 of the disk
   (`/mnt/sd` on the Korvo-1, `/mnt/usb` on the Function-CoreBoard-1), or
