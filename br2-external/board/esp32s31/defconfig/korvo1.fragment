@@ -1,8 +1,9 @@
 # ESP32-S31-Korvo-1, with the ESP32-S31-WROOM-3-N16R16V module: root on the
 # microSD card (diskroot.fragment), and the LCD with its touch controller.
 #
-# The USB stick mount, then the examples.
-BR2_ROOTFS_OVERLAY="$(BR2_EXTERNAL_ESP32S31_PATH)/board/esp32s31/rootfs-overlay $(BR2_EXTERNAL_ESP32S31_PATH)/board/esp32s31/rootfs-overlay-usb $(BR2_EXTERNAL_ESP32S31_PATH)/board/esp32s31/rootfs-overlay-korvo1 $(BR2_EXTERNAL_ESP32S31_PATH)/../local-overlay"
+# The firewall and Thread of the disk boards, the USB stick mount, then the
+# examples.
+BR2_ROOTFS_OVERLAY="$(BR2_EXTERNAL_ESP32S31_PATH)/board/esp32s31/rootfs-overlay $(BR2_EXTERNAL_ESP32S31_PATH)/board/esp32s31/rootfs-overlay-diskroot $(BR2_EXTERNAL_ESP32S31_PATH)/board/esp32s31/rootfs-overlay-usb $(BR2_EXTERNAL_ESP32S31_PATH)/board/esp32s31/rootfs-overlay-korvo1 $(BR2_EXTERNAL_ESP32S31_PATH)/../local-overlay"
 # A login on the panel.
 BR2_ROOTFS_POST_SCRIPT_ARGS="tty1"
 # The mouse on the panel console.

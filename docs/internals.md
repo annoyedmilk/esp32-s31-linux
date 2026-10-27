@@ -538,6 +538,6 @@ and Bluetooth stack the same on all boards.
 | Clocks and resets | `linux/drivers/clk/clk-esp32s31.c` |
 | The console | `linux/drivers/tty/serial/esp32_uart.c` |
 | Kernel memory | `br2-external/board/esp32s31/linux.config`, `linux/patches/0021`, `0022` |
-| The firewall | `br2-external/board/esp32s31/rootfs-overlay-usb/etc/nftables.conf` |
-| Thread | `br2-external/board/esp32s31/rootfs-overlay-usb/usr/sbin/thread-start`, `bootloader/main/radio_coex.c` |
+| The firewall | `br2-external/board/esp32s31/rootfs-overlay-diskroot/etc/nftables.conf` |
+| Thread | `br2-external/board/esp32s31/rootfs-overlay-diskroot/usr/sbin/thread-start`, `bootloader/main/radio_coex.c` |
 | Device tree | `linux/arch/riscv/boot/dts/espressif/esp32s31.dtsi` |
