@@ -58,6 +58,10 @@ the tmux desktop for a USB keyboard.
   802.15.4 share the radio: while the Thread radio receives, Wi-Fi gives
   approximately 12 Mbit/s instead of 42. With Thread stopped, nothing
   changes.
+- Two examples: `wifi-scan.sh` lists the networks in range with their
+  signal and channel, and `thread-hub.sh` on the disk boards starts the
+  Thread network, prints the dataset for the sensors and logs their UDP
+  datagrams to p1 of the disk.
 - The serial console takes `stty`: baud rates from 9767 to 5 Mbaud,
   framing and flow control. The UART driver used the register layout of
   the ESP32-S3, but the ESP32-S31 has the block of the ESP32-C6
@@ -486,6 +490,10 @@ card image erases the card, so save your files from the FAT partition first.
   build is tested on the Korvo-1. The coreboard1 builds of v0.8.0 and
   later are not tested on hardware. Earlier releases tested it on the
   Korvo-1 with its root on a USB stick, not on a Function-CoreBoard-1.
+- The Thread border router is tested up to its own records: the network
+  forms, the Mac sees the border agent with mDNS, and the hub example
+  logs datagrams from the board itself. No Thread device or Matter
+  device has joined it yet.
 - `/dev/hwrng` gives approximately 0.4 kB/s, because Linux runs without
   high-resolution timers. The kernel random number generator is ready
   0.3 s after the start of Linux and does not depend on this speed.
