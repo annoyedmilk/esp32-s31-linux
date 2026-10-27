@@ -92,7 +92,7 @@ on your computer. For your own builds, put the key into
 | Firewall and NAT (`nft`, rules load at boot) | no | yes | yes |
 | Bluetooth (`hci0`): BlueZ, `bluetoothctl` | yes | yes | yes |
 | Classic BlueZ tools (`hciconfig`, `hcitool`) | no | yes | yes |
-| Thread (IEEE 802.15.4): OpenThread border router, `ot-ctl` | no | yes | yes |
+| Thread (IEEE 802.15.4): OpenThread border router for Matter, `ot-ctl` | no | yes | yes |
 | Gigabit Ethernet (`eth0`) | no | yes | no |
 | USB host (DWC2) | no | the root stick, more storage | keyboards, mice, storage |
 | microSD | no | no | the root card |
@@ -137,14 +137,19 @@ scripts.
   10 seconds.
 - **Thread** (Function-CoreBoard-1, Korvo-1). `thread-start` starts
   `ot-daemon` on the IEEE 802.15.4 radio as a border router on `wlan0` or
-  `eth0` (`thread-start eth0` chooses), with the SRP and DNS-SD servers
-  for Matter devices; `ot-ctl` starts it at the first command. `ot-ctl
-  dataset init new`, `ot-ctl dataset commit active`, `ot-ctl ifconfig up`
-  and `ot-ctl thread start` form a network; `ot-ctl state` shows it, and
-  `ot-ctl dataset active -x` prints the key for other devices. Wi-Fi and
-  802.15.4 share the radio: while the Thread radio receives, Wi-Fi gives
-  approximately 12 Mbit/s instead of 42. `thread-start stop` ends the
-  network and the daemon. Nothing starts at boot.
+  `eth0` (`thread-start eth0` chooses); `ot-ctl` starts it at the first
+  command. `ot-ctl dataset init new`, `ot-ctl dataset commit active`,
+  `ot-ctl ifconfig up` and `ot-ctl thread start` form a network; `ot-ctl
+  state` shows it, and `ot-ctl dataset active -x` prints the dataset for
+  other devices. The border router routes IPv6 between the mesh and the
+  backbone, runs the SRP and DNS-SD servers, and publishes the services
+  of the Thread devices with mDNS on the backbone, so a Matter controller
+  on the LAN (chip-tool, a phone) commissions Matter devices on Thread
+  and talks to them through the board. The board itself announces
+  `_meshcop._udp`. Wi-Fi and 802.15.4 share the radio: while the Thread
+  radio receives, Wi-Fi gives approximately 12 Mbit/s instead of 42.
+  `thread-start stop` ends the network and the daemon. Nothing starts at
+  boot.
 - **GPIO.** `gpiodetect`, `gpioinfo`, `gpioget --numeric -c gpiochip0 PIN`
   and `gpioset -t0 -c gpiochip0 PIN=1`. `/usr/share/examples/gpio.sh PIN
   [0|1]` reads or sets a pin. The kernel refuses the pins of the flash, the

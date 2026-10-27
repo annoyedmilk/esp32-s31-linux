@@ -51,7 +51,9 @@ the tmux desktop for a USB keyboard.
 - Thread on the Korvo-1 and the Function-CoreBoard-1: the IEEE 802.15.4
   RCP of ESP-Hosted is back in the firmware, and `ot-daemon` of
   OpenThread runs the Thread stack on it, as a border router with the
-  SRP and DNS-SD servers. `thread-start` starts it, `ot-ctl` controls
+  SRP and DNS-SD servers, the mDNS advertising proxy and the border
+  agent: a Matter controller on the LAN finds the Matter devices on
+  Thread through the board. `thread-start` starts it, `ot-ctl` controls
   it, and `thread-start stop` ends it; nothing starts at boot. Wi-Fi and
   802.15.4 share the radio: while the Thread radio receives, Wi-Fi gives
   approximately 12 Mbit/s instead of 42. With Thread stopped, nothing

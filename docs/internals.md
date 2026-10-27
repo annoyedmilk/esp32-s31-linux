@@ -395,7 +395,11 @@ the USB transport in shared SRAM. The layout is in
   stream at `/dev/esp_rcp0`, and a host patch keeps the firmware when the
   stream closes (`0009-*`). `ot-daemon` of OpenThread on the disk boards
   is the Thread host (`br2-external/package/openthread/`), and `wpan0`
-  is its TUN interface.
+  is its TUN interface. The daemon is a border router with the SRP and
+  DNS-SD servers, the mDNS responder of the OpenThread core on the
+  backbone, the SRP advertising proxy and the border agent: no
+  otbr-agent, avahi or D-Bus. It takes 2.1 MB on the disk and 230 KiB
+  of memory while it runs.
 - Wi-Fi and 802.15.4 share the RF. The coexistence scheme of ESP-IDF
   leaves Wi-Fi 13 Mbit/s, and without the scheme Wi-Fi stops while the
   802.15.4 radio receives. The loader turns the scheme off, and

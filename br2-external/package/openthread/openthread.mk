@@ -15,8 +15,11 @@ OPENTHREAD_DEPENDENCIES = host-pkgconf
 
 # ot-daemon as a full Thread device and border router on a radio
 # co-processor, with the SRP and DNS-SD servers that Matter devices need,
-# and ot-ctl.  Static libraries: shared ones make a cycle between the FTD
-# and TCP libraries, which CMake rejects.
+# and ot-ctl.  The mDNS responder and the SRP advertising proxy publish the
+# services of the Thread devices on the backbone, where a Matter controller
+# finds them; the border agent announces the board as _meshcop._udp.
+# Static libraries: shared ones make a cycle between the FTD and TCP
+# libraries, which CMake rejects.
 OPENTHREAD_CONF_OPTS = \
 	-DBUILD_SHARED_LIBS=OFF \
 	-DOT_PLATFORM=posix \
@@ -36,6 +39,14 @@ OPENTHREAD_CONF_OPTS = \
 	-DOT_DNSSD_SERVER=ON \
 	-DOT_ECDSA=ON \
 	-DOT_SLAAC=ON \
+	-DOT_MDNS=ON \
+	-DOT_SRP_ADV_PROXY=ON \
+	-DOT_BORDER_AGENT=ON \
+	-DOT_BORDER_AGENT_ID=ON \
+	-DOT_BORDER_AGENT_MESHCOP_SERVICE=ON \
+	-DOT_BORDER_AGENT_SERVICE_NAME="ESP32-S31 Linux" \
+	-DOT_VENDOR_NAME="ESP32-S31 Linux" \
+	-DOT_VENDOR_MODEL="ESP32-S31" \
 	-DOT_POSIX_SETTINGS_PATH=/var/lib/thread
 
 $(eval $(cmake-package))
