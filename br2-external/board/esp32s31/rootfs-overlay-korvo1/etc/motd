@@ -3,9 +3,11 @@ Linux on the ESP32-S31-Korvo-1: RV32 at 320 MHz, 16 MiB PSRAM.
 
 Wi-Fi     wpa_passphrase "<ssid>" "<passphrase>" >> /etc/wpa_supplicant.conf
           /etc/init.d/S40wifi restart
-          iw dev wlan0 link; iw dev wlan0 scan | grep SSID
+          iw dev wlan0 link; /usr/share/examples/wifi-scan.sh
 Bluetooth bluetoothctl, then: scan le, scan bredr, devices
 Thread    thread-start, then ot-ctl state; thread-start stop ends it
+Firewall  nft list ruleset; open a port until the next boot:
+          nft insert rule inet filter input tcp dport 8080 accept
 Desktop   tmux on the panel: Ctrl-b c new window, Ctrl-b n next window,
           Ctrl-b % and Ctrl-b " split, Ctrl-b d log out
 System    htop, free, df -h, ncdu, dmesg

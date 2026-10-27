@@ -3,7 +3,7 @@ Linux on the ESP32-S31-WROOM-3-N16R16V: RV32 at 320 MHz, 16 MiB PSRAM.
 
 Wi-Fi     wpa_passphrase "<ssid>" "<passphrase>" >> /etc/wpa_supplicant.conf
           /etc/init.d/S40wifi restart
-          iw dev wlan0 link; iw dev wlan0 scan | grep SSID
+          iw dev wlan0 link; /usr/share/examples/wifi-scan.sh
 Bluetooth bluetoothctl, then: scan le, scan bredr, devices
 System    free, df -h, dmesg, mtdinfo
 Network   ssh, scp -O, curl, iperf3
