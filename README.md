@@ -92,6 +92,7 @@ on your computer. For your own builds, put the key into
 | Firewall and NAT (`nft`, rules load at boot) | no | yes | yes |
 | Bluetooth (`hci0`): BlueZ, `bluetoothctl` | yes | yes | yes |
 | Classic BlueZ tools (`hciconfig`, `hcitool`) | no | yes | yes |
+| Thread (IEEE 802.15.4): OpenThread border router, `ot-ctl` | no | yes | yes |
 | Gigabit Ethernet (`eth0`) | no | yes | no |
 | USB host (DWC2) | no | the root stick, more storage | keyboards, mice, storage |
 | microSD | no | no | the root card |
@@ -119,7 +120,7 @@ Notes:
 | --- | --- |
 | All boards | BusyBox, Dropbear, OpenSSL with the CA bundle, `wpa_supplicant` (WPA3, EAP, access point) with `wpa_cli` and `wpa_passphrase`, `iw`, `curl`, `iperf3`, the libgpiod 2 tools, BlueZ (`bluetoothd`, `bluetoothctl`), Lua |
 | `esp32s31` also | The MTD tools (`mtdinfo`, `flash_erase`) |
-| `coreboard1` and `korvo1` also | `nft` with a firewall, `hostapd`, the classic BlueZ tools (`hciconfig`, `hcitool`), bash, coreutils, vim, nano, less, file, htop, fastfetch, strace, gdb and `gdbserver`, tcpdump, links, MicroPython, tmux, nnn, ncdu, tree, bc, sqlite3, e2fsprogs, dosfstools, an SFTP server |
+| `coreboard1` and `korvo1` also | `nft` with a firewall, `hostapd`, the classic BlueZ tools (`hciconfig`, `hcitool`), OpenThread (`ot-daemon`, `ot-ctl`), bash, coreutils, vim, nano, less, file, htop, fastfetch, strace, gdb and `gdbserver`, tcpdump, links, MicroPython, tmux, nnn, ncdu, tree, bc, sqlite3, e2fsprogs, dosfstools, an SFTP server |
 | `coreboard1` also | `ethtool` |
 | `korvo1` also | `gpm`, `lynx`, `irssi`, `evtest` |
 
@@ -134,6 +135,16 @@ scripts.
   `bluetoothd` starts at the first `bluetoothctl`.
   `/usr/share/examples/ble-scan.sh 10` lists the LE devices after a scan of
   10 seconds.
+- **Thread** (Function-CoreBoard-1, Korvo-1). `thread-start` starts
+  `ot-daemon` on the IEEE 802.15.4 radio as a border router on `wlan0` or
+  `eth0` (`thread-start eth0` chooses), with the SRP and DNS-SD servers
+  for Matter devices; `ot-ctl` starts it at the first command. `ot-ctl
+  dataset init new`, `ot-ctl dataset commit active`, `ot-ctl ifconfig up`
+  and `ot-ctl thread start` form a network; `ot-ctl state` shows it, and
+  `ot-ctl dataset active -x` prints the key for other devices. Wi-Fi and
+  802.15.4 share the radio: while the Thread radio receives, Wi-Fi gives
+  approximately 12 Mbit/s instead of 42. `thread-start stop` ends the
+  network and the daemon. Nothing starts at boot.
 - **GPIO.** `gpiodetect`, `gpioinfo`, `gpioget --numeric -c gpiochip0 PIN`
   and `gpioset -t0 -c gpiochip0 PIN=1`. `/usr/share/examples/gpio.sh PIN
   [0|1]` reads or sets a pin. The kernel refuses the pins of the flash, the
@@ -151,8 +162,8 @@ scripts.
 - **Code.** `lua`, and `micropython` on the Function-CoreBoard-1 and the
   Korvo-1. `gdbserver` and `strace` are there too.
 - **Firewall** (Function-CoreBoard-1, Korvo-1). `/etc/nftables.conf`
-  loads at boot: the board answers ping, DHCP and mDNS and takes SSH, and
-  it drops and logs all other new connections. `nft add rule inet filter
+  loads at boot: the board answers ping, DHCP and mDNS and takes SSH and
+  the Thread mesh, and it drops and logs all other new connections. `nft add rule inet filter
   input tcp dport 8080 accept` opens a port until the next boot; a line in
   the file keeps it. For a router between an access point and `eth0`:
   `sysctl -w net.ipv4.ip_forward=1`, then `nft add table ip nat`, `nft

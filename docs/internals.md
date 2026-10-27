@@ -39,7 +39,7 @@ ROM -> ESP-IDF 2nd stage -> loader (hart 0) -> OpenSBI (hart 1, M) -> Linux (har
    (`board_korvo1.c`). It copies two flash partitions
    to PSRAM and checks them: the kernel `Image` (size and CRC32 from a
    manifest at the end of the kernel partition) and OpenSBI `fw_jump`. It
-   starts Wi-Fi and Bluetooth.
+   starts Wi-Fi, Bluetooth and the IEEE 802.15.4 RCP.
 3. The loader writes the D-cache back, sets the PMA of hart 1 for PSRAM and
    releases hart 1 at the OpenSBI entry. Then it locks hart 0 out of PSRAM
    and the DMA pool with PMP.
@@ -77,26 +77,27 @@ own copies of these numbers. The device trees must agree with them.
 ### Internal SRAM
 
 The HP SRAM is 512 KiB (`0x2F000000`-`0x2F080000`). Measured on the
-Korvo-1 with Wi-Fi and Bluetooth, at v0.9.0 (the numbers change with the
-firmware):
+Korvo-1 with Wi-Fi, Bluetooth and the IEEE 802.15.4 RCP, at v0.9.0 (the
+numbers change with the firmware):
 
 | Use | Size |
 | --- | --- |
-| Loader and ESP-Hosted firmware, static (`.text`, `.data`, `.bss`) | 156 KiB |
+| Loader and ESP-Hosted firmware, static (`.text`, `.data`, `.bss`) | 178 KiB |
 | Linux: DMA pool, trap code and shared block (`0x2F040000`-`0x2F05D000`) | 116 KiB |
 | LCD descriptor ring and reserved blocks | 8 KiB |
-| ESP-IDF heap in HP SRAM | 220 KiB |
+| ESP-IDF heap in HP SRAM | 210 KiB |
 
 The loader is built with `-Os`, and without the light-sleep code of Wi-Fi
-in IRAM: the static part was 165 KiB before (v0.8.1). The heap also has
-32 KiB of LP SRAM, and 256 KiB of PSRAM at `0x50E80000`, which the loader
-adds with the capabilities of `esp_psram`: no DMA, no internal memory. An
-allocation goes there when the internal heap is full, or when it asks for
-`MALLOC_CAP_SPIRAM`. Of the controllers, Bluetooth takes the most: 42 KiB of
-code in SRAM and 61 KiB of heap (v0.4.0). 117 KiB of heap are free when
-hart 1 starts (v0.8.1: 100 KiB). With 32 dynamic Wi-Fi buffers in each
-direction, the minimum was 35.9 KiB during iperf3 with a BLE scan and a
-BR/EDR inquiry (v0.4.0).
+in IRAM: the static part is 156 KiB without the RCP, and was 165 KiB
+before (v0.8.1). The heap also has 32 KiB of LP SRAM, and 256 KiB of PSRAM
+at `0x50E80000`, which the loader adds with the capabilities of
+`esp_psram`: no DMA, no internal memory. An allocation goes there when the
+internal heap is full, or when it asks for `MALLOC_CAP_SPIRAM`. Of the
+controllers, Bluetooth takes the most: 42 KiB of code in SRAM and 61 KiB
+of heap (v0.4.0). The RCP takes 49 KiB of the internal heap: 70 KiB are
+free when hart 1 starts, 117 KiB without the RCP (v0.8.1: 100 KiB). With
+32 dynamic Wi-Fi buffers in each direction, the minimum was 35.9 KiB
+during iperf3 with a BLE scan and a BR/EDR inquiry (v0.4.0).
 
 ## Why Linux uses only hart 1
 
@@ -387,12 +388,21 @@ the USB transport in shared SRAM. The layout is in
   event loop. The host waited 5 s for such a disconnect event and then asked
   for a firmware restart. A patch of the host driver stops that wait when
   `DEINIT` succeeds (`br2-external/package/esp-hosted-linux/0003-*`).
-- The loader starts Bluetooth before hart 1, as Wi-Fi: a radio start can
-  access the flash. Linux then asks for the same service
-  (`esp32_shm.radio_service=bt`), which changes nothing.
-- The port does not use the IEEE 802.15.4 radio. Its RCP took SRAM from
-  the Wi-Fi buffers, and its coexistence scheme halved the Wi-Fi
-  throughput.
+- The loader starts Bluetooth and the IEEE 802.15.4 RCP before hart 1, as
+  Wi-Fi: a radio start can access the flash. Linux then asks for the same
+  services (`esp32_shm.radio_service=bt+154`), which changes nothing.
+- The RCP is the OpenThread RCP of ESP-Hosted. Linux gets its Spinel
+  stream at `/dev/esp_rcp0`, and a host patch keeps the firmware when the
+  stream closes (`0009-*`). `ot-daemon` of OpenThread on the disk boards
+  is the Thread host (`br2-external/package/openthread/`), and `wpan0`
+  is its TUN interface.
+- Wi-Fi and 802.15.4 share the RF. The coexistence scheme of ESP-IDF
+  leaves Wi-Fi 13 Mbit/s, and without the scheme Wi-Fi stops while the
+  802.15.4 radio receives. The loader turns the scheme off, and
+  `bootloader/main/radio_coex.c` turns it on while the radio receives:
+  the linker wraps the receive, sleep and disable calls of the OpenThread
+  radio port. iperf3 on the Korvo-1: 42/30 Mbit/s with Thread stopped or
+  `wpan0` down, 12/14 as a Thread leader.
 - The Bluetooth controller reports "BR/EDR Not Supported" in its LMP
   features, although it has BR/EDR. A host patch clears the bit
   (`0006-*`).

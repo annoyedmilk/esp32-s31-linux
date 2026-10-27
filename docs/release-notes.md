@@ -48,6 +48,14 @@ the tmux desktop for a USB keyboard.
   mDNS and takes SSH, and it drops and logs all other new connections.
   A service that listens on another port needs a rule now; the README
   tells how. The module alone has no firewall.
+- Thread on the Korvo-1 and the Function-CoreBoard-1: the IEEE 802.15.4
+  RCP of ESP-Hosted is back in the firmware, and `ot-daemon` of
+  OpenThread runs the Thread stack on it, as a border router with the
+  SRP and DNS-SD servers. `thread-start` starts it, `ot-ctl` controls
+  it, and `thread-start stop` ends it; nothing starts at boot. Wi-Fi and
+  802.15.4 share the radio: while the Thread radio receives, Wi-Fi gives
+  approximately 12 Mbit/s instead of 42. With Thread stopped, nothing
+  changes.
 - The serial console takes `stty`: baud rates from 9767 to 5 Mbaud,
   framing and flow control. The UART driver used the register layout of
   the ESP32-S3, but the ESP32-S31 has the block of the ESP32-C6
@@ -62,8 +70,9 @@ the tmux desktop for a USB keyboard.
   10.8); see the next item.
 - More memory for the radio firmware: the loader is built for size and
   without the light-sleep code in IRAM, and it gets 256 KiB of PSRAM as
-  heap for the allocations that need no internal memory. 372 KiB of heap
-  are free when Linux starts, 117 KiB of it internal (v0.8.1: 100 KiB).
+  heap for the allocations that need no internal memory. 325 KiB of heap
+  are free when Linux starts, 70 KiB of it internal; the RCP takes
+  49 KiB (v0.8.1: 100 KiB internal, without the RCP).
   Linux gives the 256 KiB up: MemTotal on the Korvo-1 is 10.4 MiB.
 - The build: `make kernel` builds only the kernel and its manifest, in
   under a minute on an unchanged tree. The container image is Debian
@@ -75,7 +84,7 @@ the tmux desktop for a USB keyboard.
 
 Flash the new `flash.bin` on all boards: the loader and the kernel
 changed. On the Korvo-1 and the Function-CoreBoard-1, write the new disk
-image or run `make sdroot` for `nft` and the firewall.
+image or run `make sdroot` for `nft`, the firewall and OpenThread.
 
 ## New in v0.8.1
 
