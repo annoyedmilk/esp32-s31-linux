@@ -237,7 +237,7 @@ static int32_t shm_write(interface_handle_t *handle,
 	}
 
 	if (kick)
-		REG_WRITE(DOORBELL_TO_HOST_REG, 1);
+		ring_host_doorbell();
 	return buf_handle->payload_len;
 }
 
@@ -280,7 +280,7 @@ static int shm_read(interface_handle_t *handle,
 
 	if (shm_load(to_fw.ctrl + ESP_SHM_WAIT_OFF)) {
 		shm_store(to_fw.ctrl + ESP_SHM_WAIT_OFF, 0);
-		REG_WRITE(DOORBELL_TO_HOST_REG, 1);
+		ring_host_doorbell();
 	}
 
 	hdr = (const struct esp_payload_header *)buf;
