@@ -258,9 +258,14 @@ KERNEL_SYNC = sum=$$({ find /work/linux -type f ! -name ._\* | sort | xargs cat;
 	fi; \
 	mkdir -p $(BR_O); echo "$$sum" > $$stamp
 
+# Only the kernel: the images do not contain it, so "all" would only write
+# the card image again.  The defconfig first, as in rootfs.
 kernel: br-volume
-	@$(BR_RUN) sh -c 'set -e; cd /work/$(BR_DIR); $(KERNEL_SYNC); \
-		$(BR_MAKE) linux-rebuild all'
+	@$(BR_RUN) sh -c 'set -e; cd /work/$(BR_DIR); \
+		$(BR_MAKE) $(BR_DEFCONFIG); $(KERNEL_SYNC); \
+		$(BR_MAKE) linux-rebuild; \
+		/work/br2-external/board/esp32s31/mklinuxsize.py \
+			$(BR_O)/images/Image $(BR_O)/images/linux.size'
 	@$(MAKE) --no-print-directory br-artifacts
 
 # By hand.  make kernel and make rootfs do this when the kernel inputs change.

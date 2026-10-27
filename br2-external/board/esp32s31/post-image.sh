@@ -14,17 +14,7 @@ The board mounts this FAT32 partition on /mnt/sd (Korvo-1) or /mnt/usb
 the ext4 root, the third is swap.  macOS cannot read them.
 TXT
 
-# The loader checks the Image with this manifest before it copies the Image
-# to PSRAM.  make flash writes it at LINUX_SIZE_OFFSET.
-python3 - "${BINARIES_DIR}" <<'PY'
-import struct, sys, zlib, pathlib
-
-images = pathlib.Path(sys.argv[1])
-data = (images / "Image").read_bytes()
-manifest = struct.pack("<III", 0x455A4953, len(data), zlib.crc32(data))
-(images / "linux.size").write_bytes(manifest)
-print("linux.size: %d bytes, crc32 %#010x" % (len(data), zlib.crc32(data)))
-PY
+"${BOARD_DIR}/mklinuxsize.py" "${BINARIES_DIR}/Image" "${BINARIES_DIR}/linux.size"
 
 # Only a board with a disk has an ext4 root and gets a disk image.
 if [ -f "${BINARIES_DIR}/rootfs.ext2" ]; then
