@@ -1,0 +1,21 @@
+From: Marco Müller <hello@annoyedmilk.ch>
+Subject: [PATCH] mmc: queue: eight requests in the queue
+
+The queue depth of 64 gives each request a scatterlist of max_segs
+entries: 4 KiB with the 256 descriptors of dw_mmc, 256 KiB in all for a
+card that takes one request at a time.  Eight requests queue 1 MiB of
+I/O, more than the card has in flight.  On a machine with 16 MiB, the
+difference is 1.5 % of the RAM.
+---
+diff --git a/drivers/mmc/core/queue.c b/drivers/mmc/core/queue.c
+--- a/drivers/mmc/core/queue.c
++++ b/drivers/mmc/core/queue.c
+@@ -419,7 +419,7 @@
+ }
+ 
+ /* Set queue depth to get a reasonable value for q->nr_requests */
+-#define MMC_QUEUE_DEPTH 64
++#define MMC_QUEUE_DEPTH 8
+ 
+ /**
+  * mmc_init_queue - initialise a queue structure.
