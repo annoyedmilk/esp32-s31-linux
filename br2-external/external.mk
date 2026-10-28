@@ -23,3 +23,9 @@ LIBGPIOD2_CONF_OPTS += -Dbindings-glib=disabled -Ddbus=disabled
 
 # Without OpenSSL, iperf3 does not load libcrypto at each start.
 IPERF3_CONF_OPTS += --without-openssl
+
+# pcre2 always installs pcre2grep and pcre2test; only the library is used.
+define PCRE2_REMOVE_PROGRAMS
+	rm -f $(TARGET_DIR)/usr/bin/pcre2grep $(TARGET_DIR)/usr/bin/pcre2test
+endef
+PCRE2_POST_INSTALL_TARGET_HOOKS += PCRE2_REMOVE_PROGRAMS
