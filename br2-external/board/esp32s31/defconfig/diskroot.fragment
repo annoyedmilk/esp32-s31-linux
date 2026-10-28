@@ -16,8 +16,6 @@ BR2_PACKAGE_E2FSPROGS=y
 # when the cluster count of p1 fits in the free memory.
 BR2_PACKAGE_DOSFSTOOLS=y
 BR2_PACKAGE_DOSFSTOOLS_FSCK_FAT=y
-# Dropbear has no SFTP server.  scp of OpenSSH 9 and sftp need one.
-BR2_PACKAGE_GESFTPSERVER=y
 BR2_PACKAGE_BASH=y
 BR2_PACKAGE_COREUTILS=y
 BR2_PACKAGE_VIM=y
