@@ -120,3 +120,5 @@ BR2_PACKAGE_BLUEZ5_UTILS=y
 BR2_PACKAGE_BLUEZ5_UTILS_CLIENT=y
 # Lua, a script language small enough for the flash root of the module.
 BR2_PACKAGE_LUA=y
+# The firewall: nft loads the rules into the nf_tables of the kernel.
+BR2_PACKAGE_NFTABLES=y

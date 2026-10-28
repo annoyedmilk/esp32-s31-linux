@@ -90,7 +90,7 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
 | Wi-Fi station（`wlan0`）：WPA2 和 WPA3 个人版 | 是 | 是 | 是 |
 | Wi-Fi 企业版（PEAP、TTLS、TLS） | 可用，未测试 | 可用，未测试 | 可用，未测试 |
 | Wi-Fi 接入点 | `wpa_supplicant` | `wpa_supplicant`、`hostapd` | `wpa_supplicant`、`hostapd` |
-| 防火墙和 NAT（`nft`，规则在启动时加载） | 否 | 是 | 是 |
+| 防火墙和 NAT（`nft`，规则在启动时加载） | 是 | 是 | 是 |
 | 蓝牙（`hci0`）：BlueZ、`bluetoothctl` | 是 | 是 | 是 |
 | 传统 BlueZ 工具（`hciconfig`、`hcitool`） | 否 | 是 | 是 |
 | Thread（IEEE 802.15.4）：用于 Matter 的 OpenThread 边界路由器，`ot-ctl` | 否 | 是 | 是 |
@@ -118,9 +118,9 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
 
 | 构建 | 软件包 |
 | --- | --- |
-| 所有开发板 | BusyBox、Dropbear、带 CA 证书包的 OpenSSL、`wpa_supplicant`（WPA3、EAP、接入点）及 `wpa_cli` 和 `wpa_passphrase`、`iw`、`curl`、`iperf3`、libgpiod 2 工具、BlueZ（`bluetoothd`、`bluetoothctl`）、Lua |
+| 所有开发板 | BusyBox、Dropbear、带 CA 证书包的 OpenSSL、`wpa_supplicant`（WPA3、EAP、接入点）及 `wpa_cli` 和 `wpa_passphrase`、`iw`、`curl`、`iperf3`、libgpiod 2 工具、BlueZ（`bluetoothd`、`bluetoothctl`）、Lua、带防火墙的 `nft` |
 | `esp32s31` 另有 | MTD 工具（`mtdinfo`、`flash_erase`） |
-| `coreboard1` 和 `korvo1` 另有 | 带防火墙的 `nft`、`hostapd`、传统 BlueZ 工具（`hciconfig`、`hcitool`）、OpenThread（`ot-daemon`、`ot-ctl`）、bash、coreutils、vim、nano、less、file、htop、fastfetch、strace、gdb 和 `gdbserver`、tcpdump、links、MicroPython、tmux、nnn、ncdu、tree、bc、sqlite3、e2fsprogs、dosfstools、SFTP 服务器 |
+| `coreboard1` 和 `korvo1` 另有 | `hostapd`、传统 BlueZ 工具（`hciconfig`、`hcitool`）、OpenThread（`ot-daemon`、`ot-ctl`）、bash、coreutils、vim、nano、less、file、htop、fastfetch、strace、gdb 和 `gdbserver`、tcpdump、links、MicroPython、tmux、nnn、ncdu、tree、bc、sqlite3、e2fsprogs、dosfstools、SFTP 服务器 |
 | `coreboard1` 另有 | `ethtool` |
 | `korvo1` 另有 | `gpm`、`lynx`、`irssi`、`evtest` |
 
@@ -161,9 +161,11 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
   脚本注释中给出每 5 分钟运行一次的 `crontab` 行。
 - **编程。** `lua`，Function-CoreBoard-1 和 Korvo-1 上还有 `micropython`。
   也有 `gdbserver` 和 `strace`。
-- **防火墙**（Function-CoreBoard-1、Korvo-1）。`/etc/nftables.conf` 在启动时
-  加载：开发板响应 ping、DHCP 和 mDNS，接受 SSH 和 Thread Mesh 流量，丢弃并
-  记录所有其他新连接。`nft insert rule inet filter input tcp dport 8080 accept`
+- **防火墙。** `/etc/nftables.conf` 在启动时加载：开发板响应 ping、DHCP 和
+  mDNS，接受 SSH 和（磁盘开发板上的）Thread Mesh 流量，丢弃并
+  记录所有其他新连接。模组从 v0.9.1 之后的版本起也有防火墙：更新后，
+  其他端口上的服务器需要一条规则。
+  `nft insert rule inet filter input tcp dport 8080 accept`
   打开一个端口，直到下次重启；在该文件中加一行可永久保留。在接入点和 `eth0`
   之间做路由器：`sysctl -w net.ipv4.ip_forward=1`，然后
   `nft add table ip nat`、

@@ -22,9 +22,7 @@ CONFIG_CMDLINE="earlycon=sbi console=ttyS0,115200 esp32_shm.radio_service=bt+154
 # CONFIG_EXT4_FS is not set
 # CONFIG_VFAT_FS is not set
 # CONFIG_UEVENT_HELPER is not set
-# No disk for the nft and ot-daemon tools, and the RAM is for the root
-# in the flash.
-# CONFIG_NETFILTER is not set
+# No ot-daemon: it needs C++, and the RAM is for the root in the flash.
 # CONFIG_TUN is not set
 
 # The flash window of the firmware: a read-only squashfs root, and UBIFS on

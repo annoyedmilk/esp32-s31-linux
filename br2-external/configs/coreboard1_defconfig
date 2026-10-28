@@ -122,6 +122,8 @@ BR2_PACKAGE_BLUEZ5_UTILS=y
 BR2_PACKAGE_BLUEZ5_UTILS_CLIENT=y
 # Lua, a script language small enough for the flash root of the module.
 BR2_PACKAGE_LUA=y
+# The firewall: nft loads the rules into the nf_tables of the kernel.
+BR2_PACKAGE_NFTABLES=y
 # The root on a disk, for the boards with one: the microSD card of korvo1
 # and the USB stick of coreboard1.  The disk has room, so these builds have
 # the full set of workstation and debugging tools.
@@ -173,8 +175,6 @@ BR2_PACKAGE_SQLITE=y
 BR2_TARGET_TZ_INFO=y
 # An access point with all features, next to the AP mode of wpa_supplicant.
 BR2_PACKAGE_HOSTAPD=y
-# The firewall: nft loads the rules into the nf_tables of the kernel.
-BR2_PACKAGE_NFTABLES=y
 # The Thread host for the IEEE 802.15.4 radio co-processor of the firmware.
 BR2_PACKAGE_OPENTHREAD=y
 # The BlueZ tools and the deprecated ones (hciconfig, hcitool, hcidump).

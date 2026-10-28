@@ -92,7 +92,7 @@ on your computer. For your own builds, put the key into
 | Wi-Fi station (`wlan0`): WPA2 and WPA3 Personal | yes | yes | yes |
 | Wi-Fi Enterprise (PEAP, TTLS, TLS) | available, not tested | available, not tested | available, not tested |
 | Wi-Fi access point | `wpa_supplicant` | `wpa_supplicant`, `hostapd` | `wpa_supplicant`, `hostapd` |
-| Firewall and NAT (`nft`, rules load at boot) | no | yes | yes |
+| Firewall and NAT (`nft`, rules load at boot) | yes | yes | yes |
 | Bluetooth (`hci0`): BlueZ, `bluetoothctl` | yes | yes | yes |
 | Classic BlueZ tools (`hciconfig`, `hcitool`) | no | yes | yes |
 | Thread (IEEE 802.15.4): OpenThread border router for Matter, `ot-ctl` | no | yes | yes |
@@ -123,9 +123,9 @@ Notes:
 
 | Build | Packages |
 | --- | --- |
-| All boards | BusyBox, Dropbear, OpenSSL with the CA bundle, `wpa_supplicant` (WPA3, EAP, access point) with `wpa_cli` and `wpa_passphrase`, `iw`, `curl`, `iperf3`, the libgpiod 2 tools, BlueZ (`bluetoothd`, `bluetoothctl`), Lua |
+| All boards | BusyBox, Dropbear, OpenSSL with the CA bundle, `wpa_supplicant` (WPA3, EAP, access point) with `wpa_cli` and `wpa_passphrase`, `iw`, `curl`, `iperf3`, the libgpiod 2 tools, BlueZ (`bluetoothd`, `bluetoothctl`), Lua, `nft` with a firewall |
 | `esp32s31` also | The MTD tools (`mtdinfo`, `flash_erase`) |
-| `coreboard1` and `korvo1` also | `nft` with a firewall, `hostapd`, the classic BlueZ tools (`hciconfig`, `hcitool`), OpenThread (`ot-daemon`, `ot-ctl`), bash, coreutils, vim, nano, less, file, htop, fastfetch, strace, gdb and `gdbserver`, tcpdump, links, MicroPython, tmux, nnn, ncdu, tree, bc, sqlite3, e2fsprogs, dosfstools, an SFTP server |
+| `coreboard1` and `korvo1` also | `hostapd`, the classic BlueZ tools (`hciconfig`, `hcitool`), OpenThread (`ot-daemon`, `ot-ctl`), bash, coreutils, vim, nano, less, file, htop, fastfetch, strace, gdb and `gdbserver`, tcpdump, links, MicroPython, tmux, nnn, ncdu, tree, bc, sqlite3, e2fsprogs, dosfstools, an SFTP server |
 | `coreboard1` also | `ethtool` |
 | `korvo1` also | `gpm`, `lynx`, `irssi`, `evtest` |
 
@@ -174,9 +174,11 @@ scripts.
   with HTTPS; its comment shows the `crontab` line for each 5 minutes.
 - **Code.** `lua`, and `micropython` on the Function-CoreBoard-1 and the
   Korvo-1. `gdbserver` and `strace` are there too.
-- **Firewall** (Function-CoreBoard-1, Korvo-1). `/etc/nftables.conf`
-  loads at boot: the board answers ping, DHCP and mDNS and takes SSH and
-  the Thread mesh, and it drops and logs all other new connections. `nft
+- **Firewall.** `/etc/nftables.conf` loads at boot: the board answers
+  ping, DHCP and mDNS and takes SSH and (on the disk boards) the Thread
+  mesh, and it drops and logs all other new connections. The module has
+  the firewall since the release after v0.9.1: a server on another port
+  needs a rule after the update. `nft
   insert rule inet filter input tcp dport 8080 accept` opens a port until the
   next boot; a line in the file keeps it. For a router between an access point and `eth0`:
   `sysctl -w net.ipv4.ip_forward=1`, then `nft add table ip nat`, `nft
