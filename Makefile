@@ -105,7 +105,7 @@ LINUX_SIZE_OFFSET := $(shell printf '0x%x' $$(( $(LINUX_OFFSET) + $(LINUX_SIZE) 
 	kernel-check kernel-clean kernel-vmlinux kernel-menuconfig \
 	kernel-saveconfig \
 	container-image \
-	br-volume br-artifacts rootfs rootfs-menuconfig sdcard sdpart \
+	br-volume br-artifacts rootfs rootfs-clean rootfs-menuconfig sdcard sdpart \
 	sdwrite sdroot flash flash-args monitor openocd clean
 
 help:
@@ -125,6 +125,7 @@ help:
 		'  make bootloader                    ESP-IDF loader application' \
 		'  make opensbi                       patched OpenSBI fw_jump' \
 		'  make rootfs                        Buildroot: kernel, userspace, images' \
+		'  make rootfs-clean                  remove the Buildroot output of BOARD' \
 		'' \
 		'Kernel, which Buildroot builds from a stock release:' \
 		'' \
@@ -322,6 +323,10 @@ br-artifacts:
 		for f in rootfs.ext2 sdcard.img; do \
 			if test -f $(BR_O)/images/$$f; then cp $(BR_O)/images/$$f /work/$(BR_OUT)/; fi; \
 		done'
+
+# The downloads in the volume stay.
+rootfs-clean: br-volume
+	@$(BR_RUN) rm -rf $(BR_O)
 
 rootfs-menuconfig: br-volume
 	@$(BR_RUN) -i -t sh -c 'cd /work/$(BR_DIR) && $(BR_MAKE) $(BR_DEFCONFIG) && $(BR_MAKE) menuconfig'
