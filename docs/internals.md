@@ -423,6 +423,10 @@ the USB transport in shared SRAM. The layout is in
   `wpa_supplicant` sends a deauthentication, and the first try connects.
   Thus the access point probably keeps the protected association of the
   board until its SA Query fails.
+- The access point works with WPA2. WPA3 (SAE) and protected management
+  frames on the access point do not work correctly yet. ESP-Hosted
+  1.0.6.0.23 (`5dfbbc8`) fixes a part: the SoftAP encrypts its robust
+  management frames, and the firmware gets the MFP flag of each station.
 
 ## The flash root without a card
 

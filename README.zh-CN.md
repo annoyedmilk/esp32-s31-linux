@@ -89,7 +89,7 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
 | LCD 控制台、USB 键盘、tmux 桌面、触摸（GT1151） | 否 | 否 | 是 |
 | Wi-Fi station（`wlan0`）：WPA2 和 WPA3 个人版 | 是 | 是 | 是 |
 | Wi-Fi 企业版（PEAP、TTLS、TLS） | 可用，未测试 | 可用，未测试 | 可用，未测试 |
-| Wi-Fi 接入点 | `wpa_supplicant` | `wpa_supplicant`、`hostapd` | `wpa_supplicant`、`hostapd` |
+| Wi-Fi 接入点：WPA2 个人版（WPA3 暂不可用） | `wpa_supplicant` | `wpa_supplicant`、`hostapd` | `wpa_supplicant`、`hostapd` |
 | 防火墙和 NAT（`nft`，规则在启动时加载） | 是 | 是 | 是 |
 | 蓝牙（`hci0`）：BlueZ、`bluetoothctl` | 是 | 是 | 是 |
 | 传统 BlueZ 工具（`hciconfig`、`hcitool`） | 否 | 是 | 是 |
@@ -111,6 +111,8 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
 - Linux 以单处理器模式运行。不使用 FPU（只有 F，没有 D），因此用户空间使用
   软浮点。
 - 使用 WPA3-SAE 时，第一次连接可能失败，`wpa_supplicant` 会自动重试。
+- 接入点请使用 WPA2（`ap.sh`）。接入点上的 WPA3（SAE）和受保护管理帧
+  （PMF）暂时还不能正常工作。station 模式不受影响。
 - `hcitool lescan` 无法使用。请使用 `bluetoothctl` 和 `scan le`。
 - 没有音频和摄像头驱动。
 

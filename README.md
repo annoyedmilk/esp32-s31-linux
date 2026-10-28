@@ -91,7 +91,7 @@ on your computer. For your own builds, put the key into
 | LCD console, USB keyboard, tmux desktop, touch (GT1151) | no | no | yes |
 | Wi-Fi station (`wlan0`): WPA2 and WPA3 Personal | yes | yes | yes |
 | Wi-Fi Enterprise (PEAP, TTLS, TLS) | available, not tested | available, not tested | available, not tested |
-| Wi-Fi access point | `wpa_supplicant` | `wpa_supplicant`, `hostapd` | `wpa_supplicant`, `hostapd` |
+| Wi-Fi access point: WPA2 Personal (WPA3 does not work yet) | `wpa_supplicant` | `wpa_supplicant`, `hostapd` | `wpa_supplicant`, `hostapd` |
 | Firewall and NAT (`nft`, rules load at boot) | yes | yes | yes |
 | Bluetooth (`hci0`): BlueZ, `bluetoothctl` | yes | yes | yes |
 | Classic BlueZ tools (`hciconfig`, `hcitool`) | no | yes | yes |
@@ -116,6 +116,9 @@ Notes:
 - Linux is uniprocessor. The FPU is not used (F without D), so userspace is
   soft-float.
 - With WPA3-SAE, the first connection can fail. `wpa_supplicant` tries again.
+- On the access point, use WPA2 (`ap.sh`). WPA3 (SAE) and protected
+  management frames on the access point do not work correctly yet. The
+  station is not affected.
 - `hcitool lescan` fails. Use `bluetoothctl` and `scan le`.
 - There is no audio or camera driver.
 
