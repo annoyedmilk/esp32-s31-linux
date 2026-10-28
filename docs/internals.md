@@ -461,8 +461,8 @@ Linux sees a standard MTD device.
   lines of each mapped page that it changed. The two harts share the data
   cache, so Linux reads the new data. The driver holds its lock in reads
   too, so that a read does not see half of a program.
-- **The root.** A squashfs on `mtdblock0` (`rootfs`, 7.5 MiB), and UBIFS
-  on `mtd1` (`data`, 2.4375 MiB) as an overlayfs over it
+- **The root.** A squashfs on `mtdblock0` (`rootfs`, 8 MiB), and UBIFS
+  on `mtd1` (`data`, 1.9375 MiB) as an overlayfs over it
   (`/sbin/overlay-init`, as in OpenWrt). UBI attaches an
   erased partition and formats it. The upper layer is UBIFS and not jffs2,
   because jffs2 has no `RENAME_WHITEOUT`: overlayfs then cannot make a

@@ -105,6 +105,8 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
 - Korvo-1 和 Function-CoreBoard-1 没有根磁盘时无法启动，内核会一直等待磁盘。
 - 单独使用模组时，运行 `flash_erase /dev/mtd1 0 0` 再重启，可将根文件系统
   恢复为镜像状态。`make flash` 不写入 `data` 分区，因此更新后 overlay 保留。
+  从 v0.9.1 或更早版本更新时例外：`data` 分区的位置改变，首次启动会格式化它，
+  overlay 中的文件会丢失。
 - `poweroff` 使芯片进入 Deep-sleep 模式，只有复位键能再次启动它。
 - Linux 以单处理器模式运行。不使用 FPU（只有 F，没有 D），因此用户空间使用
   软浮点。

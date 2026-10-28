@@ -108,7 +108,9 @@ Notes:
   disk. The kernel waits for it.
 - On the module alone, `flash_erase /dev/mtd1 0 0` and a reboot put the
   root back to the image. `make flash` does not write the `data` partition,
-  so the overlay stays after an update.
+  so the overlay stays after an update. An update from v0.9.1 or older is
+  the exception: the `data` partition moved, so the first boot formats it,
+  and the files of the overlay are lost.
 - `poweroff` puts the chip into deep sleep. Only the reset button starts it
   again.
 - Linux is uniprocessor. The FPU is not used (F without D), so userspace is
