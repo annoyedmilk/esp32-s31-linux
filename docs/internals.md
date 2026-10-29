@@ -580,3 +580,12 @@ partition by label and uses priority 10 with `reserve_marker_pages=1`.
 NAND provides backing capacity, not memory bandwidth. Linux runs from
 PSRAM; SRAM remains shared with firmware, DMA and trap code. NOR XIP is
 not implemented by this RISC-V port, and SPI NAND is not CPU-addressable.
+
+### Continuous UART recording
+
+`make record SERIAL_PORT=PORT` exclusively owns the CH343 debug port at
+115200 baud without pulsing reset. `make console` uses its PTY proxy.
+Three rolling files retain at most 15,000,000 bytes in `logs/serial/`.
+The recorder reconnects after disconnects; a slow console may drop proxy
+output without dropping recorded bytes. Logs are private and ignored by
+Git because console sessions can contain credentials.

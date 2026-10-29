@@ -8,6 +8,7 @@ endif
 
 BUILD_DIR := build/$(BOARD)
 LOG_DIR := logs
+SERIAL_LOG_DIR ?= $(LOG_DIR)/serial
 
 IDF_PATH ?= $(CURDIR)/external/esp-idf
 IDF_TOOLS_PATH ?= $(HOME)/.espressif
@@ -107,7 +108,7 @@ LINUX_SIZE_OFFSET := $(shell printf '0x%x' $$(( $(LINUX_OFFSET) + $(LINUX_SIZE) 
 	kernel-saveconfig \
 	container-image \
 	br-volume br-artifacts rootfs rootfs-clean rootfs-menuconfig sdcard sdpart \
-	sdwrite sdroot flash flash-args monitor openocd clean
+	sdwrite sdroot flash flash-args monitor record console openocd clean
 
 help:
 	@printf '%s\n' \
@@ -118,6 +119,8 @@ help:
 		'  make build                         build loader, OpenSBI, Linux, rootfs' \
 		'  make flash FLASH_PORT=/dev/cu.X    build and flash the complete image' \
 		'  make monitor SERIAL_PORT=/dev/cu.X open the Linux UART terminal' \
+		'  make record SERIAL_PORT=PORT       record UART without resetting' \
+		'  make console                       connect to the recorder proxy' \
 		'  make openocd                       start JTAG via GPIO33/34 USB breakout' \
 		'  make clean                         remove generated build output' \
 		'' \
@@ -422,6 +425,16 @@ monitor:
 	@"$(PYTHON)" scripts/reset-monitor.py --port "$(SERIAL_PORT)" --baud "$(BAUD)" \
 		$(if $(RESET_PORT),--reset-port "$(RESET_PORT)",) --log-dir "$(LOG_DIR)" \
 		--timeout "$(BOOT_TIMEOUT)" --success-pattern 'ESP32-S31 Linux / Buildroot' --interactive
+
+record:
+	@test -n "$(SERIAL_PORT)" || { echo 'set SERIAL_PORT=/dev/cu.<external-uart>'; exit 1; }
+	@"$(PYTHON)" scripts/serial-record.py --port "$(SERIAL_PORT)" --baud "$(BAUD)" \
+		--log-dir "$(SERIAL_LOG_DIR)"
+
+console:
+	@test -e "$(SERIAL_LOG_DIR)/console" || { echo 'start make record first'; exit 1; }
+	@"$(PYTHON)" scripts/reset-monitor.py --port "$(SERIAL_LOG_DIR)/console" --baud "$(BAUD)" \
+		--no-reset --no-log --success-pattern '' --interactive
 
 openocd:
 	@mkdir -p "$(LOG_DIR)"

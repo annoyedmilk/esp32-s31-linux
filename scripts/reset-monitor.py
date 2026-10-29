@@ -39,6 +39,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--timeout", type=float, default=30.0)
     parser.add_argument("--success-pattern", default="ESP32-S31 Linux / Buildroot")
     parser.add_argument("--no-reset", action="store_true")
+    parser.add_argument(
+        "--no-log", action="store_true",
+        help="do not create a second log when using a recorder console",
+    )
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument(
         "--interactive",
@@ -54,16 +58,21 @@ def parse_args() -> argparse.Namespace:
         "pattern does not wait.  After a reset, use the shell prompt as the "
         "pattern: getty discards input that comes before it",
     )
-    return parser.parse_args()
+    args = parser.parse_args()
+    if args.no_log and not args.no_reset:
+        parser.error("--no-log requires --no-reset")
+    return args
 
 
 def open_port(port: str, baud: int, timeout: float) -> serial.Serial:
     """Open a port with DTR and RTS off, without a reset on the way."""
-    ser = serial.Serial(port, baud, timeout=timeout)
-    # The port opens with DTR and RTS on.  With the auto-program circuit,
-    # DTR off and RTS on pulls EN low: release RTS first.
+    # Set control lines before opening, as the continuous recorder does.
+    # This also works for its PTY console, which has no modem control lines.
+    ser = serial.Serial(port=None, baudrate=baud, timeout=timeout)
     ser.rts = False
     ser.dtr = False
+    ser.port = port
+    ser.open()
     return ser
 
 
@@ -174,8 +183,8 @@ def run_cmd(ser: serial.Serial, log: BinaryIO, cmd: str, deadline: float) -> int
 def run(args: argparse.Namespace, log: BinaryIO, deadline: float) -> int:
     """Return 0 on success, 1 for a failed command, 3 at the deadline."""
     with open_port(args.port, args.baud, 0) as ser:
-        ser.reset_input_buffer()
         if not args.no_reset:
+            ser.reset_input_buffer()
             reset_board(ser, args, log)
         if args.success_pattern or not args.cmd:
             with raw_stdin(args.interactive and sys.stdin.isatty()) as stdin_fd:
@@ -194,8 +203,11 @@ def run(args: argparse.Namespace, log: BinaryIO, deadline: float) -> int:
 
 def main() -> int:
     args = parse_args()
-    os.makedirs(args.log_dir, exist_ok=True)
-    path = os.path.join(args.log_dir, f"{now_name()}-reset-uart.log")
+    if args.no_log:
+        path = os.devnull
+    else:
+        os.makedirs(args.log_dir, exist_ok=True)
+        path = os.path.join(args.log_dir, f"{now_name()}-reset-uart.log")
     deadline = time.monotonic() + args.timeout
 
     print(f"log={path}")
