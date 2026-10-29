@@ -31,7 +31,8 @@ There are four board configurations:
 
 ESP-Mosaico uses a 16 MiB NOR system and a 128 MiB NAND, split into
 96 MiB for writable files and 32 MiB for swap after a 2 MiB zram device.
-Initialize a new NAND explicitly with `nand-storage init ERASE`, then
+The CO5300 framebuffer provides a display console and CST9220 provides
+multitouch input. Initialize a new NAND explicitly with `nand-storage init ERASE`, then
 reboot. This erases both NAND partitions; boot never formats them.
 
 1. Get the files of your board from the newest

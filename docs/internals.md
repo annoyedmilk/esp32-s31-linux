@@ -598,3 +598,15 @@ the debug UART. `scripts/flash-esp-mosaico.py --port USB_PORT @flash_args`
 rejects UART bridges and Linux gadgets before opening them. It writes the
 listed NOR images, verifies them, clears forced-download mode and resets
 on the same connection. NAND upper-layer files are preserved.
+
+## ESP-Mosaico display and touch
+
+GPSPI2 drives the CO5300 panel at 40 MHz: CLK42, D36, Q51, WP35, HD9,
+CS50 and RESET44. GPIO60 enables the shared peripheral rail. Linux owns
+initialization and a 480x480 RGB565 framebuffer. Refresh work sends only
+dirty row pairs; unchanged frames generate no SPI traffic. Panel updates
+are not synchronized to TE, so live camera preview can tear.
+
+CST9220 shares I2C0 (SDA56/SCL3) with the board sensors. It uses standard
+input multitouch slots and polls while open. GPIO6 touch interrupts are
+not implemented. This port targets CoreBoard V1.2 only.

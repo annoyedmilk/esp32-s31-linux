@@ -8,6 +8,32 @@
 	model = "ESP-Mosaico CoreBoard V1.2";
 	compatible = "esp-mosaico,coreboard-v1.2", "esp,esp32s31";
 
+	vdd: regulator-vdd {
+		compatible = "regulator-fixed";
+		regulator-name = "vdd";
+		regulator-always-on;
+	};
+
+	mcu_3v3: regulator-mcu-3v3 {
+		compatible = "regulator-fixed";
+		regulator-name = "mcu-3v3";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		vin-supply = <&vdd>;
+		regulator-always-on;
+	};
+
+	vcc_3v3: regulator-vcc-3v3 {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc-3v3";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		vin-supply = <&mcu_3v3>;
+		gpio = <&pinctrl 60 GPIO_ACTIVE_LOW>;
+		regulator-always-on;
+		startup-delay-us = <100000>;
+	};
+
 	chosen {
 		stdout-path = "serial0:115200n8";
 	};
@@ -30,6 +56,7 @@
 };
 
 &pinctrl {
+
 	spi3_cfg: spi3-cfg {
 		spi3-output-pins {
 			pinmux = <ESP32S31_MATRIX_OUT(20, ESP32S31_SIG_SPI3_CLK)>,
@@ -47,9 +74,29 @@
 			drive-strength = <20>;
 		};
 	};
+
+	spi2_cfg: spi2-cfg {
+		spi2-pins {
+			pinmux = <ESP32S31_MATRIX_OUT(42, ESP32S31_SIG_SPI2_CLK)>,
+				 <ESP32S31_MATRIX_OUT(36, ESP32S31_SIG_SPI2_D)>,
+				 <ESP32S31_MATRIX_OUT(51, ESP32S31_SIG_SPI2_Q)>,
+				 <ESP32S31_MATRIX_OUT(35, ESP32S31_SIG_SPI2_WP)>,
+				 <ESP32S31_MATRIX_OUT(9, ESP32S31_SIG_SPI2_HD)>;
+			bias-disable;
+			drive-strength = <20>;
+		};
+	};
+
+	i2c0_cfg: i2c0-cfg {
+		i2c0-pins {
+			pinmux = <ESP32S31_MATRIX_INOUT(56, ESP32S31_SIG_I2C0_SDA)>,
+				 <ESP32S31_MATRIX_INOUT(3, ESP32S31_SIG_I2C0_SCL)>;
+			bias-pull-up;
+			drive-open-drain;
+		};
+	};
 };
 
-/* Separate from the boot NOR on MSPI. */
 &spi3 {
 	assigned-clocks = <&hp_clkrst ESP32S31_CLK_SPI3>;
 	assigned-clock-rates = <80000000>;
@@ -79,5 +126,38 @@
 				reg = <0x6000000 0x2000000>;
 			};
 		};
+	};
+};
+
+&i2c0 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2c0_cfg>;
+	clock-frequency = <400000>;
+	status = "okay";
+
+	touchscreen@5a {
+		compatible = "hynitron,cst9220";
+		reg = <0x5a>;
+		vdd-supply = <&vcc_3v3>;
+		touchscreen-size-x = <480>;
+		touchscreen-size-y = <480>;
+	};
+};
+
+&spi2 {
+	assigned-clocks = <&hp_clkrst ESP32S31_CLK_SPI2>;
+	assigned-clock-rates = <80000000>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&spi2_cfg>;
+	cs-gpios = <&pinctrl 50 GPIO_ACTIVE_LOW>;
+	status = "okay";
+
+	display@0 {
+		compatible = "esp-mosaico,co5300-480x480";
+		reg = <0>;
+		spi-max-frequency = <40000000>;
+		spi-tx-bus-width = <4>;
+		reset-gpios = <&pinctrl 44 GPIO_ACTIVE_LOW>;
+		vdd-supply = <&vcc_3v3>;
 	};
 };

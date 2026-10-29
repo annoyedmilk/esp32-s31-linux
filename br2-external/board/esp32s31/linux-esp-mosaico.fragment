@@ -2,17 +2,17 @@
 CONFIG_BUILTIN_DTB_NAME="espressif/esp32s31_esp_mosaico"
 # The UART is the only console.  The root is the squashfs partition of the
 # NOR window. All writable files live in the NAND UBIFS upper layer.
-CONFIG_CMDLINE="earlycon=sbi console=ttyS0,115200 esp32_shm.radio_service=bt+154 root=/dev/mtdblock0 rootfstype=squashfs ro rootwait init=/sbin/nand-overlay-init"
+CONFIG_CMDLINE="earlycon=sbi console=tty0 console=ttyS0,115200 esp32_shm.radio_service=bt+154 root=/dev/mtdblock0 rootfstype=squashfs ro rootwait init=/sbin/nand-overlay-init"
 
 # No panel, VTs or input devices.
-# CONFIG_FB is not set
-# CONFIG_VT is not set
-# CONFIG_INPUT is not set
+CONFIG_FB=y
+CONFIG_VT=y
+CONFIG_INPUT=y
 # CONFIG_HID is not set
 
 # No card, USB, LED or I2C device.  zram stays.
 # CONFIG_MMC is not set
-# CONFIG_I2C is not set
+CONFIG_I2C=y
 # CONFIG_USB_SUPPORT is not set
 # CONFIG_PHY_ESP32S31_USB is not set
 # CONFIG_SCSI is not set
@@ -68,3 +68,16 @@ CONFIG_MTD_SWAP=m
 
 CONFIG_POWER_RESET=y
 CONFIG_POWER_RESET_ESP32S31_MODE=y
+
+# The CO5300 uses GPSPI2 and shares I2C0 peripheral power with touch.
+CONFIG_FB_CO5300=y
+# CONFIG_FB_SIMPLE is not set
+CONFIG_VT_CONSOLE=y
+CONFIG_FRAMEBUFFER_CONSOLE=y
+CONFIG_INPUT_EVDEV=y
+CONFIG_INPUT_TOUCHSCREEN=y
+CONFIG_TOUCHSCREEN_HYNITRON_CST9220=y
+# CONFIG_TOUCHSCREEN_GOODIX is not set
+CONFIG_I2C_CHARDEV=y
+CONFIG_REGULATOR=y
+CONFIG_REGULATOR_FIXED_VOLTAGE=y
