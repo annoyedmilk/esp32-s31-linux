@@ -68,11 +68,11 @@ the tmux desktop for a USB keyboard. Later kernel messages go to `tty2`
   IPv4, for controllers that ask only over IPv4.
 - Thread devices reach IPv4 hosts through NAT64 of the border router, and
   their DNS queries go to the resolvers of the board.
-- Korvo-1: a USB Ethernet adapter (CDC ECM or NCM, ASIX AX88772 or
-  AX88179, Realtek RTL8152 or RTL8153) becomes `eth0` with DHCP when it
-  is plugged in. USB sticks with exFAT mount on `/mnt/usb`. `lynx` is no
+- Korvo-1: a USB Ethernet adapter (CDC ECM or NCM, ASIX AX88179,
+  Realtek RTL8152 or RTL8153) becomes `eth0` with DHCP when it is plugged
+  in. USB sticks with exFAT mount on `/mnt/usb`. `lynx` is no
   longer in the image; `links` is the text browser.
-- Korvo-1: MemTotal is 10384 kB (v0.9.1: 10632 kB), mostly for the USB
+- Korvo-1: MemTotal is 10420 kB (v0.9.1: 10632 kB), mostly for the USB
   Ethernet drivers.
 - Korvo-1: kernel warnings and errors no longer write over the tmux
   desktop. After the desktop starts, they go to `tty2` (`Alt-F2`) and to

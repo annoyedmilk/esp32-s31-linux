@@ -175,9 +175,9 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
   （Function-CoreBoard-1）和 `micropython /usr/share/examples/led.py R G B`
   （Korvo-1）完成同样的操作。
 - **网络。** `iperf3` 测量与服务器之间的吞吐量。`curl` 使用 CA 证书包验证证书。
-  在 Korvo-1 上，插入 USB 以太网适配器（CDC ECM 或 NCM、ASIX AX88772 或
-  AX88179、Realtek RTL8152 或 RTL8153）后，它成为 `eth0` 并通过 DHCP 获取
-  地址，其默认路由优先于 Wi-Fi。
+  在 Korvo-1 上，插入 USB 以太网适配器（CDC ECM 或 NCM、ASIX AX88179、
+  Realtek RTL8152 或 RTL8153）后，它成为 `eth0` 并通过 DHCP 获取地址，其默认
+  路由优先于 Wi-Fi。
   `/usr/share/examples/report.sh URL` 通过 HTTPS 发送运行时间和空闲内存；
   脚本注释中给出每 5 分钟运行一次的 `crontab` 行。
 - **编程。** `lua`，Function-CoreBoard-1 和 Korvo-1 上还有 `micropython`。

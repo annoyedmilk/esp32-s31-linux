@@ -191,9 +191,9 @@ scripts.
   `/usr/share/examples/led.sh R G B` (Function-CoreBoard-1) and
   `micropython /usr/share/examples/led.py R G B` (Korvo-1) do this.
 - **Network.** `iperf3` measures the throughput against a server.
-  On the Korvo-1, a USB Ethernet adapter (CDC ECM or NCM, ASIX AX88772 or
-  AX88179, Realtek RTL8152 or RTL8153) becomes `eth0` with DHCP when it is
-  plugged in, and its default route wins over Wi-Fi.
+  On the Korvo-1, a USB Ethernet adapter (CDC ECM or NCM, ASIX AX88179,
+  Realtek RTL8152 or RTL8153) becomes `eth0` with DHCP when it is plugged
+  in, and its default route wins over Wi-Fi.
   `curl` verifies certificates against the CA bundle.
   `/usr/share/examples/report.sh URL` sends the uptime and the free memory
   with HTTPS; its comment shows the `crontab` line for each 5 minutes.
