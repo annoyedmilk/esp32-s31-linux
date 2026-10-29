@@ -52,6 +52,13 @@ reboot. This erases both NAND partitions; boot never formats them.
 On the Korvo-1, the LCD also shows a console. Connect a USB keyboard and
 log in on `tty1`: it starts a `tmux` desktop.
 
+On ESP-Mosaico, keep CH343 connected for debugging and connect native
+Type-C to the computer for flashing. Run `reboot bootloader` on the debug
+console, then `make flash BOARD=esp-mosaico FLASH_PORT=USB_PORT` on the host.
+The helper checks ROM USB identity, flashes and resets on one connection;
+the debug recorder stays open. BOOT plus RESET enters ROM if Linux cannot
+start. Linux USB roles and ROM downloading run at different boot stages.
+
 ### Wi-Fi
 
 ```sh

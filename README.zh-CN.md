@@ -53,6 +53,13 @@ ESP-Mosaico 使用 16 MiB NOR 保存系统，128 MiB NAND 分为 96 MiB 可写�
 Korvo-1 的 LCD 也显示一个控制台。连接 USB 键盘并在 `tty1` 上登录，会启动
 一个 `tmux` 桌面。
 
+ESP-Mosaico 的 CH343 只作调试串口；烧录时将原生 Type-C 接到电脑。
+在调试终端运行 `reboot bootloader`，再在主机运行
+`make flash BOARD=esp-mosaico FLASH_PORT=USB_PORT`。脚本检查 ROM USB
+身份，在同一连接中完成烧录并返回 Linux，串口记录器保持运行。Linux 无法
+启动时可用 BOOT 和 RESET 进入下载模式。Linux USB 与 ROM 下载分属不同
+启动阶段。
+
 ### Wi-Fi
 
 ```sh

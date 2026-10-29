@@ -156,6 +156,8 @@ help:
 		'' \
 		'FLASH_PORT is the esptool target: the native USB Serial/JTAG' \
 		'(/dev/cu.usbmodem*) or the CP2102N UART bridge (/dev/cu.usbserial-*).' \
+		'On ESP-Mosaico FLASH_PORT is native ROM USB; CH343 is debug only.' \
+		'Run reboot bootloader before flashing.' \
 		'SERIAL_PORT is the external UART carrying the Linux console.' \
 		'RESET_PORT is a second port.  Its RTS pulse resets the board when' \
 		'SERIAL_PORT cannot.  BAUD and BOOT_TIMEOUT set the monitor.' \
@@ -414,8 +416,12 @@ FLASH_IMAGES = \
 flash: build
 	@test -n "$(FLASH_PORT)" || { echo 'set FLASH_PORT=/dev/cu.<flash-port>'; exit 1; }
 	$(ESPTOOL_CHECK)
+ifeq ($(BOARD),esp-mosaico)
+	@"$(PYTHON)" scripts/flash-esp-mosaico.py --port "$(FLASH_PORT)" $(FLASH_IMAGES)
+else
 	@$(ESPTOOL) --chip esp32s31 -p "$(FLASH_PORT)" -b 921600 \
 		--before default-reset --after hard-reset write-flash $(FLASH_IMAGES)
+endif
 
 flash-args:
 	@printf '%s %s\n' $(FLASH_IMAGES)

@@ -589,3 +589,12 @@ Three rolling files retain at most 15,000,000 bytes in `logs/serial/`.
 The recorder reconnects after disconnects; a slow console may drop proxy
 output without dropping recorded bytes. Logs are private and ignored by
 Git because console sessions can contain credentials.
+
+### Reboot into the ROM downloader
+
+`reboot bootloader` selects ROM download mode after an orderly shutdown.
+Native Type-C then enumerates the ROM USB CDC downloader; CH343 remains
+the debug UART. `scripts/flash-esp-mosaico.py --port USB_PORT @flash_args`
+rejects UART bridges and Linux gadgets before opening them. It writes the
+listed NOR images, verifies them, clears forced-download mode and resets
+on the same connection. NAND upper-layer files are preserved.
