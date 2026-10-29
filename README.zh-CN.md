@@ -21,13 +21,19 @@ ESP ROM -> ESP-IDF 2nd stage -> loader (hart 0) -> OpenSBI (hart 1) -> Linux (ha
 
 ## 快速开始
 
-共有三种构建。ESP32-S31-WROOM-3-N16R16V 模组是两块开发板上使用的模组。
+共有四种开发板配置：
 
 | 开发板 | 构建 | 根文件系统 | 发布文件 |
 | --- | --- | --- | --- |
 | 单独使用 ESP32-S31-WROOM-3-N16R16V 模组，任何带 UART0 的板子均可 | `esp32s31`（默认） | Flash | `*-esp32s31-flash.zip` |
 | ESP32-S31-Function-CoreBoard-1 | `coreboard1` | U 盘 | `*-coreboard1-flash.zip`、`*-coreboard1-usb.img.xz` |
 | ESP32-S31-Korvo-1 | `korvo1` | microSD 卡 | `*-korvo1-flash.zip`、`*-korvo1-sdcard.img.xz` |
+| ESP-Mosaico CoreBoard V1.2 | `esp-mosaico` | NOR 系统、NAND 可写文件 | `*-esp-mosaico-flash.zip` |
+
+ESP-Mosaico 使用 16 MiB NOR 保存系统，128 MiB NAND 分为 96 MiB 可写文件
+和 32 MiB 交换空间，优先使用 2 MiB zram。新 NAND 必须显式执行
+`nand-storage init ERASE` 后重启；此命令清除两个 NAND 分区，启动过程不会
+自动格式化。Wi-Fi、SSH 等配置均作为 NAND 文件系统中的普通文件保存。
 
 1. 从最新的[发布版本](https://github.com/annoyedmilk/esp32-s31-linux/releases)
    下载对应开发板的文件。
@@ -291,7 +297,7 @@ make monitor BOARD=korvo1 SERIAL_PORT=/dev/cu.usbserial-XXXX
 独立的子模块目录使这些修改不影响系统或 EIM 管理的共享 SDK；编译器二进制
 不会被修改。项目提交中的子模块应继续指向固定的上游版本。
 
-- `BOARD` 选择目标板的构建：`esp32s31`（默认）、`coreboard1` 或 `korvo1`。
+- `BOARD` 选择目标板的构建：`esp32s31`（默认）、`coreboard1`、`korvo1` 或 `esp-mosaico`。
   输出位于 `build/<board>/`。
 - `make build` 在 Mac 上构建加载程序和 OpenSBI，在容器中构建内核、rootfs
   和磁盘镜像。

@@ -1,9 +1,9 @@
 SHELL := /bin/bash
 
-# The board: esp32s31 (the module alone), coreboard1 or korvo1.  See help.
+# The board: esp32s31 (the module alone), coreboard1, korvo1 or esp-mosaico.
 BOARD ?= esp32s31
-ifeq ($(filter $(BOARD),esp32s31 coreboard1 korvo1),)
-$(error BOARD must be esp32s31, coreboard1 or korvo1, not "$(BOARD)")
+ifeq ($(filter $(BOARD),esp32s31 coreboard1 korvo1 esp-mosaico),)
+$(error BOARD must be esp32s31, coreboard1, korvo1 or esp-mosaico, not "$(BOARD)")
 endif
 
 BUILD_DIR := build/$(BOARD)
@@ -41,10 +41,11 @@ OPENSBI_PATCHES := $(sort $(wildcard opensbi/patches/*.patch))
 # The loader config of the board: the common defaults, then the board.
 SDKCONFIG_DEFAULTS := sdkconfig.defaults;sdkconfig.defaults.$(BOARD)
 # The LCD DMA bypasses the cache: an uncached frame buffer when the LCD is on.
-FB_UNCACHED := $(shell grep -q '^CONFIG_ESP_CONSOLE_SECONDARY_NONE=y' \
-	bootloader/sdkconfig.defaults.$(BOARD) && echo 1 || echo 0)
-# The LCD uses the USB Serial/JTAG pins: the USB console only without the LCD.
-USB_CONSOLE := $(if $(filter 1,$(FB_UNCACHED)),0,1)
+FB_UNCACHED := $(if $(filter korvo1,$(BOARD)),$(shell grep -q '^CONFIG_ESP_CONSOLE_SECONDARY_NONE=y' \
+	bootloader/sdkconfig.defaults.$(BOARD) && echo 1 || echo 0),0)
+# Follow the board config when LCD or camera data uses USB Serial/JTAG pads.
+USB_CONSOLE := $(shell grep -q '^CONFIG_ESP_CONSOLE_SECONDARY_NONE=y' \
+	bootloader/sdkconfig.defaults.$(BOARD) && echo 0 || echo 1)
 
 # Buildroot runs in a container.  Its output is in a volume: virtiofs is slow.
 BR_DIR := external/buildroot
@@ -157,9 +158,9 @@ help:
 		'SERIAL_PORT cannot.  BAUD and BOOT_TIMEOUT set the monitor.' \
 		'' \
 		'BOARD selects the board, for each target: esp32s31 (the default),' \
-		'coreboard1 or korvo1.  The output of a board goes to build/BOARD.' \
-		'On esp32s31 the rootfs is in the flash.  On korvo1 it is on the SD' \
-		'card, on coreboard1 on a USB stick.'
+		'coreboard1, korvo1 or esp-mosaico. Output goes to build/BOARD.' \
+		'On esp32s31 and esp-mosaico the rootfs is in flash; on korvo1, SD;' \
+		'on coreboard1, a USB stick.'
 
 check:
 	@test "$$(uname -s)" = Darwin || { echo 'this build is supported on macOS only'; exit 1; }

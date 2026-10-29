@@ -5,9 +5,10 @@ its current form. It is for developers who know the RISC-V Linux kernel and
 want to understand this SoC. All facts are from chip revision v0.0 on the
 ESP32-S31-Korvo-1 board. JTAG measurements gave most of them, because
 Espressif does not publish a technical reference manual for this chip yet.
-The port has three builds: `esp32s31` for the ESP32-S31-WROOM-3-N16R16V
+The port has four builds: `esp32s31` for the ESP32-S31-WROOM-3-N16R16V
 module alone, `coreboard1` for the ESP32-S31-Function-CoreBoard-1, and
-`korvo1` for the Korvo-1. The two boards use that module.
+`korvo1` for the Korvo-1, which both use that module, plus `esp-mosaico`
+for the ESP-Mosaico CoreBoard V1.2.
 
 The ESP-IDF register headers (`components/soc/esp32s31/register/soc/`) are
 the best public reference for addresses and fields.
@@ -557,3 +558,25 @@ and Bluetooth stack the same on all boards.
 | The firewall | `br2-external/board/esp32s31/rootfs-overlay/etc/nftables.conf` |
 | Thread | `br2-external/board/esp32s31/rootfs-overlay-diskroot/usr/sbin/thread-start`, `bootloader/main/radio_coex.c`, `tools/thread-relay/` (the RCP for Home Assistant; `make -C tools/thread-relay test` runs its tests on the host) |
 | Device tree | `linux/arch/riscv/boot/dts/espressif/esp32s31.dtsi` |
+
+## ESP-Mosaico NAND storage
+
+CoreBoard V1.2 boots the loader, OpenSBI, kernel and squashfs system from
+16 MiB NOR. GPSPI3 connects the separate GD5F1GM7UE 128 MiB NAND using
+CLK20, D21, Q22, CS23, HOLD24 and WP25. Its partitions reserve 96 MiB for
+UBIFS and 32 MiB for mtdswap; metadata and bad-block reserves reduce usable
+capacity. Single-byte bad-block markers and reserved ECC marker pages
+keep filesystem and swap metadata separate from the factory marker.
+
+`nand-storage init ERASE [overlay.tar]` explicitly formats both partitions.
+An optional archive imports the entire writable upper layer, including
+xattrs and numeric ownership. Early init mounts initialized NAND over the
+read-only NOR root and otherwise falls back to NOR without formatting.
+Wi-Fi settings, SSH keys and other configuration are ordinary upper-layer
+files. Keep personal overlays and archives out of Git and release images.
+
+Zram is bounded to 2 MiB at priority 100. The NAND swap module resolves its
+partition by label and uses priority 10 with `reserve_marker_pages=1`.
+NAND provides backing capacity, not memory bandwidth. Linux runs from
+PSRAM; SRAM remains shared with firmware, DMA and trap code. NOR XIP is
+not implemented by this RISC-V port, and SPI NAND is not CPU-addressable.

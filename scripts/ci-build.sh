@@ -4,7 +4,7 @@
 # the same on macOS, where Buildroot runs in a container.  Here Buildroot
 # runs directly.
 #
-#   BOARD=esp32s31 scripts/ci-build.sh    (esp32s31, coreboard1 or korvo1)
+#   BOARD=esp32s31 scripts/ci-build.sh    (esp32s31, coreboard1, korvo1 or esp-mosaico)
 #
 # Needs: ESP-IDF at $IDF_PATH (the commit in bootloader/esp-idf.version and
 # the patch commit of scripts/patch-esp-idf.sh), with its tools installed,

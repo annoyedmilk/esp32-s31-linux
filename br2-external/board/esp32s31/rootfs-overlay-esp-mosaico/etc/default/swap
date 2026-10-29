@@ -1,0 +1,2 @@
+# Leave room for NAND swap I/O even when zram pages are incompressible.
+ZRAM_SIZE=2M

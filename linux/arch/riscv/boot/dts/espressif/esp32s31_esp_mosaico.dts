@@ -1,0 +1,83 @@
+// SPDX-License-Identifier: GPL-2.0+
+/* ESP-Mosaico CoreBoard V1.2: 16 MiB NOR, 128 MiB NAND and 16 MiB PSRAM. */
+/dts-v1/;
+#include "esp32s31.dtsi"
+#include <dt-bindings/gpio/gpio.h>
+
+/ {
+	model = "ESP-Mosaico CoreBoard V1.2";
+	compatible = "esp-mosaico,coreboard-v1.2", "esp,esp32s31";
+
+	chosen {
+		stdout-path = "serial0:115200n8";
+	};
+};
+
+&wifi {
+	flash {
+		partitions {
+			compatible = "fixed-partitions";
+			#address-cells = <1>;
+			#size-cells = <1>;
+
+			partition@0 {
+				label = "rootfs";
+				reg = <0x0 0x970000>;
+				read-only;
+			};
+		};
+	};
+};
+
+&pinctrl {
+	spi3_cfg: spi3-cfg {
+		spi3-output-pins {
+			pinmux = <ESP32S31_MATRIX_OUT(20, ESP32S31_SIG_SPI3_CLK)>,
+				 <ESP32S31_MATRIX_OUT(23, ESP32S31_SIG_SPI3_CS0)>;
+			bias-disable;
+			drive-strength = <20>;
+		};
+
+		spi3-data-pins {
+			pinmux = <ESP32S31_MATRIX_INOUT(21, ESP32S31_SIG_SPI3_D)>,
+				 <ESP32S31_MATRIX_INOUT(22, ESP32S31_SIG_SPI3_Q)>,
+				 <ESP32S31_MATRIX_INOUT(25, ESP32S31_SIG_SPI3_WP)>,
+				 <ESP32S31_MATRIX_INOUT(24, ESP32S31_SIG_SPI3_HD)>;
+			bias-pull-up;
+			drive-strength = <20>;
+		};
+	};
+};
+
+/* Separate from the boot NOR on MSPI. */
+&spi3 {
+	assigned-clocks = <&hp_clkrst ESP32S31_CLK_SPI3>;
+	assigned-clock-rates = <80000000>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&spi3_cfg>;
+	status = "okay";
+
+	flash@0 {
+		compatible = "spi-nand";
+		reg = <0>;
+		spi-max-frequency = <40000000>;
+		spi-tx-bus-width = <4>;
+		spi-rx-bus-width = <4>;
+
+		partitions {
+			compatible = "fixed-partitions";
+			#address-cells = <1>;
+			#size-cells = <1>;
+
+			partition@0 {
+				label = "nand-data";
+				reg = <0x0 0x6000000>;
+			};
+
+			partition@6000000 {
+				label = "nand-swap";
+				reg = <0x6000000 0x2000000>;
+			};
+		};
+	};
+};

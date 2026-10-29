@@ -1,0 +1,9 @@
+# ESP-Mosaico CoreBoard V1.2: NOR system and NAND writable storage.
+# Keep the common userspace and optional applications within the 16 MiB NOR.
+BR2_OPTIMIZE_S=y
+BR2_ROOTFS_OVERLAY="$(BR2_EXTERNAL_ESP32S31_PATH)/board/esp32s31/rootfs-overlay $(BR2_EXTERNAL_ESP32S31_PATH)/board/esp32s31/rootfs-overlay-esp-mosaico $(BR2_EXTERNAL_ESP32S31_PATH)/../local-overlay"
+BR2_LINUX_KERNEL_CONFIG_FRAGMENT_FILES="$(BR2_EXTERNAL_ESP32S31_PATH)/board/esp32s31/linux-esp-mosaico.fragment"
+BR2_PACKAGE_MTD_UBIDETACH=y
+BR2_PACKAGE_MTD_UBIFORMAT=y
+BR2_PACKAGE_TAR=y
+BR2_PACKAGE_ATTR=y

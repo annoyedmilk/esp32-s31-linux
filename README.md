@@ -20,14 +20,19 @@ changes of each release.
 
 ## Quick start
 
-There are three builds. The ESP32-S31-WROOM-3-N16R16V module is the module
-of the two boards.
+There are four board configurations:
 
 | Board | Build | Root | Release files |
 | --- | --- | --- | --- |
 | ESP32-S31-WROOM-3-N16R16V module alone, on any board with UART0 | `esp32s31` (the default) | flash | `*-esp32s31-flash.zip` |
 | ESP32-S31-Function-CoreBoard-1 | `coreboard1` | USB stick | `*-coreboard1-flash.zip`, `*-coreboard1-usb.img.xz` |
 | ESP32-S31-Korvo-1 | `korvo1` | microSD card | `*-korvo1-flash.zip`, `*-korvo1-sdcard.img.xz` |
+| ESP-Mosaico CoreBoard V1.2 | `esp-mosaico` | NOR system, NAND writable files | `*-esp-mosaico-flash.zip` |
+
+ESP-Mosaico uses a 16 MiB NOR system and a 128 MiB NAND, split into
+96 MiB for writable files and 32 MiB for swap after a 2 MiB zram device.
+Initialize a new NAND explicitly with `nand-storage init ERASE`, then
+reboot. This erases both NAND partitions; boot never formats them.
 
 1. Get the files of your board from the newest
    [release](https://github.com/annoyedmilk/esp32-s31-linux/releases).
@@ -326,7 +331,7 @@ or EIM-managed SDK; the installed compiler binaries are not modified.
 Keep the submodule pinned to the upstream commit in project commits.
 
 - `BOARD` selects the build for each target: `esp32s31` (the default),
-  `coreboard1` or `korvo1`. The output goes to `build/<board>/`.
+  `coreboard1`, `korvo1` or `esp-mosaico`. The output goes to `build/<board>/`.
 - `make build` builds the loader and OpenSBI on the Mac, and the kernel, the
   rootfs and the disk images in the container.
 - `make monitor` resets the board, waits for the banner, then stays open as

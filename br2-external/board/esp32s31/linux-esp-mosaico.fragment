@@ -1,0 +1,67 @@
+# ESP-Mosaico CoreBoard V1.2: serial console, NOR root and NAND overlay.
+CONFIG_BUILTIN_DTB_NAME="espressif/esp32s31_esp_mosaico"
+# The UART is the only console.  The root is the squashfs partition of the
+# NOR window. All writable files live in the NAND UBIFS upper layer.
+CONFIG_CMDLINE="earlycon=sbi console=ttyS0,115200 esp32_shm.radio_service=bt+154 root=/dev/mtdblock0 rootfstype=squashfs ro rootwait init=/sbin/nand-overlay-init"
+
+# No panel, VTs or input devices.
+# CONFIG_FB is not set
+# CONFIG_VT is not set
+# CONFIG_INPUT is not set
+# CONFIG_HID is not set
+
+# No card, USB, LED or I2C device.  zram stays.
+# CONFIG_MMC is not set
+# CONFIG_I2C is not set
+# CONFIG_USB_SUPPORT is not set
+# CONFIG_PHY_ESP32S31_USB is not set
+# CONFIG_SCSI is not set
+# CONFIG_NEW_LEDS is not set
+# CONFIG_EXT4_FS is not set
+# CONFIG_VFAT_FS is not set
+# CONFIG_EXFAT_FS is not set
+# CONFIG_UEVENT_HELPER is not set
+# Keep the common firewall available without adding it to the kernel image.
+CONFIG_NF_CONNTRACK=m
+CONFIG_NF_TABLES=m
+CONFIG_NFT_CT=m
+CONFIG_NFT_LIMIT=m
+CONFIG_NFT_LOG=m
+CONFIG_NFT_REJECT=m
+CONFIG_NF_LOG_SYSLOG=m
+CONFIG_NF_NAT=m
+CONFIG_NFT_NAT=m
+CONFIG_NFT_MASQ=m
+# No Thread host daemon in the flash image.
+# CONFIG_TUN is not set
+
+# Keep sparse zram size classes from consuming large multi-page chains.
+# Peripheral drivers and capture buffers leave little physical RAM to spare.
+CONFIG_ZSMALLOC_CHAIN_SIZE=4
+
+# The flash window of the firmware: a read-only squashfs root, and UBIFS on
+# the data partition as the writable overlay over it.  jffs2 cannot be the
+# upper layer: it has no RENAME_WHITEOUT, so overlayfs cannot make a
+# directory where a lower one was deleted.
+CONFIG_MTD=y
+CONFIG_MTD_BLOCK=y
+CONFIG_MTD_UBI=y
+# squashfs and UBIFS are in this menu, which linux.config turns off.
+CONFIG_MISC_FILESYSTEMS=y
+CONFIG_SQUASHFS=y
+# The root is squashfs with zstd.
+CONFIG_SQUASHFS_ZSTD=y
+# CONFIG_SQUASHFS_ZLIB is not set
+CONFIG_UBIFS_FS=y
+# Each compressor keeps a workspace for all time.  LZO is the default.
+CONFIG_UBIFS_FS_ADVANCED_COMPR=y
+# CONFIG_UBIFS_FS_ZLIB is not set
+# CONFIG_UBIFS_FS_ZSTD is not set
+CONFIG_OVERLAY_FS=y
+
+# GPSPI3 NAND supplies persistent files and low-priority swap.
+CONFIG_SPI=y
+CONFIG_SPI_ESP32S31=y
+CONFIG_MTD_SPI_NAND=y
+CONFIG_MODULES=y
+CONFIG_MTD_SWAP=m

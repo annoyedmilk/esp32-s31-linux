@@ -1,5 +1,7 @@
 if(CONFIG_S31_LINUX_BOARD_KORVO1)
     set(board_srcs board_korvo1.c display.c)
+elseif(CONFIG_S31_LINUX_BOARD_ESP_MOSAICO)
+    set(board_srcs board_esp_mosaico.c)
 else()
     set(board_srcs board_esp32s31.c)
 endif()
