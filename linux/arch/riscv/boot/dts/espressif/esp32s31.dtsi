@@ -203,6 +203,39 @@
 			interrupt-controller;
 		};
 
+		ahb_dma: dma-controller@20343000 {
+			compatible = "esp,esp32s31-ahb-dma";
+			reg = <0x20343000 0x1000>;
+			interrupt-parent = <&clic>;
+			interrupts = <17 36 IRQ_TYPE_LEVEL_HIGH>,
+				     <18 37 IRQ_TYPE_LEVEL_HIGH>,
+				     <19 38 IRQ_TYPE_LEVEL_HIGH>,
+				     <20 39 IRQ_TYPE_LEVEL_HIGH>,
+				     <21 40 IRQ_TYPE_LEVEL_HIGH>,
+				     <22 41 IRQ_TYPE_LEVEL_HIGH>,
+				     <23 42 IRQ_TYPE_LEVEL_HIGH>,
+				     <24 43 IRQ_TYPE_LEVEL_HIGH>,
+				     <25 44 IRQ_TYPE_LEVEL_HIGH>,
+				     <26 45 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&hp_clkrst ESP32S31_CLK_AHB_DMA>;
+			resets = <&hp_clkrst ESP32S31_RST_AHB_DMA>;
+			#dma-cells = <2>;
+			status = "disabled";
+		};
+
+		i2s0: i2s@20387000 {
+			compatible = "esp,esp32s31-i2s";
+			reg = <0x20387000 0x100>;
+			clocks = <&hp_clkrst ESP32S31_CLK_I2S0_APB>,
+				 <&hp_clkrst ESP32S31_CLK_I2S0_MCLK>;
+			clock-names = "apb", "mclk";
+			resets = <&hp_clkrst ESP32S31_RST_I2S0>;
+			dmas = <&ahb_dma 5 1>, <&ahb_dma 0 1>;
+			dma-names = "tx", "rx";
+			#sound-dai-cells = <0>;
+			status = "disabled";
+		};
+
 		axi_dma: dma-controller@20348000 {
 			compatible = "esp,esp32s31-axi-dma";
 			reg = <0x20348000 0x1000>;

@@ -25,6 +25,7 @@
 #include <linux/platform_device.h>
 #include <linux/regmap.h>
 #include <linux/reset-controller.h>
+#include <linux/rational.h>
 #include <linux/spinlock.h>
 
 #include <dt-bindings/clock/esp32s31-clk.h>
@@ -40,6 +41,18 @@
 #define HP_SPI2_CTRL0			0x6c
 #define HP_SPI3_CTRL0			0x70
 #define HP_AXI_DMA_CTRL0			0x78
+#define HP_AHB_DMA_CTRL0			0x7c
+#define HP_I2S0_CTRL0			0xe4
+#define HP_I2S0_RX_CTRL0			0xe8
+#define HP_I2S0_TX_CTRL0			0xf0
+#define HP_I2S_CLK_EN			BIT(0)
+#define HP_I2S_CLK_SRC			GENMASK(2, 1)
+#define HP_I2S_DIV_N			GENMASK(10, 3)
+#define HP_I2S_MCLK_TX			BIT(11)
+#define HP_I2S_DIV_X			GENMASK(8, 0)
+#define HP_I2S_DIV_Y			GENMASK(17, 9)
+#define HP_I2S_DIV_Z			GENMASK(26, 18)
+#define HP_I2S_DIV_YN1			BIT(27)
 #define HP_LCDCAM_CTRL0			0x14c
 #define HP_LCDCAM_CORE_CTRL0		0x154
 #define HP_CAM_CTRL0			0x158
@@ -346,6 +359,164 @@ static int esp32s31_spi_register(struct esp32s31_clk *ec,
 	return PTR_ERR_OR_ZERO(hws[p->id + 1]);
 }
 
+/* TX and RX share the pad MCLK, with independent identical dividers. */
+struct esp32s31_i2s_clk {
+	struct clk_hw hw;
+	struct esp32s31_clk *controller;
+};
+
+#define to_i2s_clk(_hw) container_of(_hw, struct esp32s31_i2s_clk, hw)
+
+static unsigned long esp32s31_i2s_div(unsigned long rate,
+				      unsigned long parent_rate,
+				     unsigned long *numerator,
+				     unsigned long *denominator)
+{
+	unsigned long div;
+
+	rate = clamp(rate, DIV_ROUND_UP(parent_rate, 255UL), parent_rate / 2);
+	div = parent_rate / rate;
+	rational_best_approximation(parent_rate % rate, rate, 511, 511,
+				    numerator, denominator);
+	if (*numerator == *denominator) {
+		div++;
+		*numerator = 0;
+		*denominator = 1;
+	}
+	return div;
+}
+
+static unsigned long esp32s31_i2s_recalc_rate(struct clk_hw *hw,
+					      unsigned long parent_rate)
+{
+	void __iomem *base = to_i2s_clk(hw)->controller->base;
+	u32 val = readl(base + HP_I2S0_TX_CTRL0);
+	u32 frac = readl(base + HP_I2S0_TX_CTRL0 + 4);
+	u32 div = FIELD_GET(HP_I2S_DIV_N, val);
+	u32 x = FIELD_GET(HP_I2S_DIV_X, frac);
+	u32 y = FIELD_GET(HP_I2S_DIV_Y, frac);
+	u32 z = FIELD_GET(HP_I2S_DIV_Z, frac);
+	u32 den = z * (x + 1) + y;
+	u32 num = frac & HP_I2S_DIV_YN1 ? den - z : z;
+
+	if (!div)
+		return 0;
+	if (!den)
+		return parent_rate / div;
+	return mult_frac(parent_rate, den, div * den + num);
+}
+
+static int esp32s31_i2s_determine_rate(struct clk_hw *hw,
+				       struct clk_rate_request *req)
+{
+	unsigned long num, den, div;
+
+	div = esp32s31_i2s_div(req->rate, req->best_parent_rate, &num, &den);
+	req->rate = mult_frac(req->best_parent_rate, den, div * den + num);
+	return 0;
+}
+
+static int esp32s31_i2s_set_rate(struct clk_hw *hw, unsigned long rate,
+				 unsigned long parent_rate)
+{
+	struct esp32s31_clk *ec = to_i2s_clk(hw)->controller;
+	unsigned long num, den, div;
+	unsigned int offset;
+	u32 x = 0, y = 0, z = 0, yn1 = 0, val;
+
+	div = esp32s31_i2s_div(rate, parent_rate, &num, &den);
+	if (num) {
+		yn1 = num * 2 > den;
+		z = yn1 ? den - num : num;
+		x = den / z - 1;
+		y = den % z;
+	}
+	guard(spinlock_irqsave)(&ec->lock);
+	for (offset = HP_I2S0_RX_CTRL0; offset <= HP_I2S0_TX_CTRL0; offset += 8) {
+		void __iomem *reg = ec->base + offset;
+
+		val = readl(reg) & ~(HP_I2S_DIV_N | HP_I2S_CLK_SRC);
+		if (offset == HP_I2S0_RX_CTRL0)
+			val |= HP_I2S_MCLK_TX;
+		/* ESP-IDF's ordered workaround for the double-division erratum. */
+		writel(val | FIELD_PREP(HP_I2S_DIV_N, 2), reg);
+		val = readl(reg + 4) & ~HP_I2S_DIV_YN1;
+		writel(val, reg + 4);
+		val = (val & ~HP_I2S_DIV_Y) | FIELD_PREP(HP_I2S_DIV_Y, 1);
+		writel(val, reg + 4);
+		val &= ~HP_I2S_DIV_Z;
+		writel(val, reg + 4);
+		val &= ~HP_I2S_DIV_X;
+		writel(val, reg + 4);
+		val |= yn1 ? HP_I2S_DIV_YN1 : 0;
+		writel(val, reg + 4);
+		val |= FIELD_PREP(HP_I2S_DIV_Z, z);
+		writel(val, reg + 4);
+		val = (val & ~HP_I2S_DIV_Y) | FIELD_PREP(HP_I2S_DIV_Y, y);
+		writel(val, reg + 4);
+		val |= FIELD_PREP(HP_I2S_DIV_X, x);
+		writel(val, reg + 4);
+		val = readl(reg) & ~HP_I2S_DIV_N;
+		writel(val | FIELD_PREP(HP_I2S_DIV_N, div), reg);
+	}
+	return 0;
+}
+
+static int esp32s31_i2s_enable(struct clk_hw *hw)
+{
+	struct esp32s31_clk *ec = to_i2s_clk(hw)->controller;
+
+	guard(spinlock_irqsave)(&ec->lock);
+	writel(readl(ec->base + HP_I2S0_RX_CTRL0) | HP_I2S_CLK_EN,
+	       ec->base + HP_I2S0_RX_CTRL0);
+	writel(readl(ec->base + HP_I2S0_TX_CTRL0) | HP_I2S_CLK_EN,
+	       ec->base + HP_I2S0_TX_CTRL0);
+	return 0;
+}
+
+static void esp32s31_i2s_disable(struct clk_hw *hw)
+{
+	struct esp32s31_clk *ec = to_i2s_clk(hw)->controller;
+
+	guard(spinlock_irqsave)(&ec->lock);
+	writel(readl(ec->base + HP_I2S0_RX_CTRL0) & ~HP_I2S_CLK_EN,
+	       ec->base + HP_I2S0_RX_CTRL0);
+	writel(readl(ec->base + HP_I2S0_TX_CTRL0) & ~HP_I2S_CLK_EN,
+	       ec->base + HP_I2S0_TX_CTRL0);
+}
+
+static const struct clk_ops esp32s31_i2s_ops = {
+	.recalc_rate = esp32s31_i2s_recalc_rate,
+	.determine_rate = esp32s31_i2s_determine_rate,
+	.set_rate = esp32s31_i2s_set_rate,
+	.enable = esp32s31_i2s_enable,
+	.disable = esp32s31_i2s_disable,
+};
+
+static int esp32s31_i2s_register(struct esp32s31_clk *ec)
+{
+	static const struct clk_parent_data xtal = { .fw_name = "xtal" };
+	struct clk_init_data init = {
+		.name = "i2s0-mclk",
+		.ops = &esp32s31_i2s_ops,
+		.parent_data = &xtal,
+		.num_parents = 1,
+	};
+	struct esp32s31_i2s_clk *clk;
+	int ret;
+
+	clk = devm_kzalloc(ec->dev, sizeof(*clk), GFP_KERNEL);
+	if (!clk)
+		return -ENOMEM;
+	clk->controller = ec;
+	clk->hw.init = &init;
+	ret = devm_clk_hw_register(ec->dev, &clk->hw);
+	if (ret)
+		return ret;
+	ec->hws->hws[ESP32S31_CLK_I2S0_MCLK] = &clk->hw;
+	return 0;
+}
+
 static int esp32s31_hp_init(struct esp32s31_clk *ec)
 {
 	static const struct clk_parent_data root[] = {
@@ -420,6 +591,19 @@ static int esp32s31_hp_init(struct esp32s31_clk *ec)
 		if (ret)
 			return ret;
 	}
+	hws[ESP32S31_CLK_AHB_DMA] =
+		devm_clk_hw_register_gate_parent_hw(ec->dev, "ahb-dma",
+						    hws[ESP32S31_CLK_SYS], 0,
+						    ec->base + HP_AHB_DMA_CTRL0,
+						    0, 0, &ec->lock);
+	hws[ESP32S31_CLK_I2S0_APB] =
+		devm_clk_hw_register_gate_parent_hw(ec->dev, "i2s0-apb",
+						    hws[ESP32S31_CLK_APB], 0,
+						    ec->base + HP_I2S0_CTRL0,
+						    0, 0, &ec->lock);
+	ret = esp32s31_i2s_register(ec);
+	if (ret)
+		return ret;
 	/* Korvo-1 firmware keeps the RGB display and its DMA running. */
 	hws[ESP32S31_CLK_AXI_DMA] =
 		devm_clk_hw_register_gate_parent_hw(ec->dev, "axi-dma",
@@ -438,12 +622,12 @@ static int esp32s31_hp_init(struct esp32s31_clk *ec)
 						    2, 0, &ec->lock);
 	hws[ESP32S31_CLK_LCDCAM_CORE] =
 		devm_clk_hw_register_gate_parent_data(ec->dev, "lcdcam-core",
-						    &root[0], CLK_IGNORE_UNUSED,
+						      &root[0], CLK_IGNORE_UNUSED,
 					 ec->base + HP_LCDCAM_CORE_CTRL0,
 					 2, 0, &ec->lock);
 	/* External pixel clock, crystal source: no sensor XCLK is generated. */
 	hw = devm_clk_hw_register_mux_parent_data_table(ec->dev, "cam-source",
-						      root, 1, 0,
+							root, 1, 0,
 						      ec->base + HP_CAM_CTRL0,
 						      0, 2, 0, NULL, &ec->lock);
 	if (IS_ERR(hw))
@@ -611,10 +795,12 @@ static const struct esp32s31_reset esp32s31_hp_resets[] = {
 	[ESP32S31_RST_AXI_DMA] = { HP_AXI_DMA_CTRL0, BIT(1) },
 	[ESP32S31_RST_LCDCAM_APB] = { HP_LCDCAM_CTRL0, BIT(1) },
 	[ESP32S31_RST_LCDCAM] = { HP_LCDCAM_CTRL0, BIT(3) },
+	[ESP32S31_RST_AHB_DMA] = { HP_AHB_DMA_CTRL0, HP_PERIPH_RST_EN },
+	[ESP32S31_RST_I2S0] = { HP_I2S0_CTRL0, HP_PERIPH_RST_EN },
 };
 
 static const struct esp32s31_clk_data esp32s31_hp_data = {
-	.nclks = ESP32S31_CLK_CAM + 1,
+	.nclks = ESP32S31_CLK_I2S0_MCLK + 1,
 	.init = esp32s31_hp_init,
 	.resets = esp32s31_hp_resets,
 	.nresets = ARRAY_SIZE(esp32s31_hp_resets),
