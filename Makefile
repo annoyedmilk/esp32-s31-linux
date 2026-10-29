@@ -96,8 +96,8 @@ APP_OFFSET := $(call part_field,factory,4)
 OPENSBI_OFFSET := $(call part_field,opensbi,4)
 LINUX_OFFSET := $(call part_field,linux,4)
 LINUX_SIZE := $(call part_field,linux,5)
-# The size manifest is at the end of the kernel partition.
-LINUX_SIZE_OFFSET := $(shell printf '0x%x' $$(( $(LINUX_OFFSET) + $(LINUX_SIZE) - 12 )))
+# The last sector of the kernel partition, with the size manifest at its end.
+LINUX_SIZE_OFFSET := $(shell printf '0x%x' $$(( $(LINUX_OFFSET) + $(LINUX_SIZE) - 4096 )))
 
 .DEFAULT_GOAL := help
 
@@ -309,8 +309,8 @@ rootfs: br-volume
 	@$(MAKE) --no-print-directory br-artifacts
 
 # Copy the images to flash and to write from the volume to build/BOARD.
-# The manifest has the last flash sector of the linux partition: esptool
-# erases all of that sector before it writes the 12 bytes.
+# linux.size is the last flash sector of the linux partition, with the
+# manifest in its last 12 bytes (mklinuxsize.py).
 br-artifacts:
 	@$(BR_RUN) sh -c 'set -e; \
 		mkdir -p /work/$(BR_OUT) /work/$(BUILD_DIR); \
