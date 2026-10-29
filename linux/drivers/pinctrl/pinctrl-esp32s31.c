@@ -10,15 +10,24 @@
  * GPIO registers are in the block of the matrix, so one driver has both.
  * GPIO13-25 are CNNT pads: the IO MUX functions of the GMAC and the SD host
  * on them also need a select bit in CNNT_IO_MUX_CTRL.
+ *
+ * /dev/esp32s31-gpiomem gives root the registers for pinctrl(1), a debug
+ * tool, as gpiomem does on the Raspberry Pi.  mmap at offset 0 maps the IO
+ * MUX page and at 0x1000 the GPIO page.  The CNNT word shares its page with
+ * other registers, so pread and pwrite of 4 bytes at 0x2000 reach only it.
  */
 
 #include <linux/bitfield.h>
 #include <linux/bitops.h>
+#include <linux/fs.h>
 #include <linux/gpio/driver.h>
 #include <linux/io.h>
+#include <linux/miscdevice.h>
+#include <linux/mm.h>
 #include <linux/mod_devicetable.h>
 #include <linux/platform_device.h>
 #include <linux/spinlock.h>
+#include <linux/uaccess.h>
 
 #include <linux/pinctrl/pinconf-generic.h>
 #include <linux/pinctrl/pinconf.h>
@@ -69,6 +78,9 @@
 #define ESP32S31_NPINS			62
 #define ESP32S31_NSIGS			256
 
+/* The file offset of the CNNT word; the mapped pages are below it. */
+#define ESP32S31_GPIOMEM_CNNT		0x2000
+
 /* FUN_DRV 0 to 3 */
 static const u32 esp32s31_drive_ma[] = { 5, 10, 20, 40 };
 
@@ -89,6 +101,8 @@ struct esp32s31_pinctrl {
 	void __iomem *gpio;
 	void __iomem *cnnt;
 	raw_spinlock_t lock;
+	struct miscdevice gpiomem;
+	phys_addr_t gpiomem_pages[2];	/* IO MUX, GPIO */
 };
 
 static void esp32s31_iomux_rmw(struct esp32s31_pinctrl *pctrl,
@@ -445,6 +459,95 @@ static int esp32s31_pins_init(struct device *dev, struct pinctrl_desc *desc)
 	return 0;
 }
 
+static struct esp32s31_pinctrl *esp32s31_gpiomem_pctrl(struct file *file)
+{
+	return container_of(file->private_data, struct esp32s31_pinctrl, gpiomem);
+}
+
+static int esp32s31_gpiomem_mmap(struct file *file, struct vm_area_struct *vma)
+{
+	struct esp32s31_pinctrl *pctrl = esp32s31_gpiomem_pctrl(file);
+
+	if (vma->vm_pgoff >= ARRAY_SIZE(pctrl->gpiomem_pages) ||
+	    vma->vm_end - vma->vm_start != PAGE_SIZE)
+		return -EINVAL;
+
+	vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
+	return io_remap_pfn_range(vma, vma->vm_start,
+				  PHYS_PFN(pctrl->gpiomem_pages[vma->vm_pgoff]),
+				  PAGE_SIZE, vma->vm_page_prot);
+}
+
+static ssize_t esp32s31_gpiomem_read(struct file *file, char __user *buf,
+				     size_t len, loff_t *ppos)
+{
+	struct esp32s31_pinctrl *pctrl = esp32s31_gpiomem_pctrl(file);
+	u32 val;
+
+	if (*ppos != ESP32S31_GPIOMEM_CNNT || len != sizeof(val))
+		return -EINVAL;
+
+	val = readl(pctrl->cnnt);
+	if (copy_to_user(buf, &val, sizeof(val)))
+		return -EFAULT;
+	return sizeof(val);
+}
+
+static ssize_t esp32s31_gpiomem_write(struct file *file, const char __user *buf,
+				      size_t len, loff_t *ppos)
+{
+	struct esp32s31_pinctrl *pctrl = esp32s31_gpiomem_pctrl(file);
+	u32 val;
+
+	if (*ppos != ESP32S31_GPIOMEM_CNNT || len != sizeof(val))
+		return -EINVAL;
+	if (copy_from_user(&val, buf, sizeof(val)))
+		return -EFAULT;
+
+	guard(raw_spinlock_irqsave)(&pctrl->lock);
+	writel(val, pctrl->cnnt);
+	return sizeof(val);
+}
+
+static const struct file_operations esp32s31_gpiomem_fops = {
+	.owner	= THIS_MODULE,
+	.mmap	= esp32s31_gpiomem_mmap,
+	.read	= esp32s31_gpiomem_read,
+	.write	= esp32s31_gpiomem_write,
+};
+
+static void esp32s31_gpiomem_remove(void *data)
+{
+	misc_deregister(data);
+}
+
+static int esp32s31_gpiomem_init(struct platform_device *pdev,
+				 struct esp32s31_pinctrl *pctrl)
+{
+	static const char *const names[] = { "iomux", "gpio" };
+	unsigned int i;
+	int ret;
+
+	for (i = 0; i < ARRAY_SIZE(names); i++) {
+		struct resource *res;
+
+		res = platform_get_resource_byname(pdev, IORESOURCE_MEM, names[i]);
+		if (!res || !PAGE_ALIGNED(res->start))
+			return -EINVAL;
+		pctrl->gpiomem_pages[i] = res->start;
+	}
+
+	pctrl->gpiomem.minor = MISC_DYNAMIC_MINOR;
+	pctrl->gpiomem.name = "esp32s31-gpiomem";
+	pctrl->gpiomem.fops = &esp32s31_gpiomem_fops;
+	pctrl->gpiomem.mode = 0600;
+	ret = misc_register(&pctrl->gpiomem);
+	if (ret)
+		return ret;
+	return devm_add_action_or_reset(&pdev->dev, esp32s31_gpiomem_remove,
+					&pctrl->gpiomem);
+}
+
 static int esp32s31_pinctrl_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -504,7 +607,15 @@ static int esp32s31_pinctrl_probe(struct platform_device *pdev)
 	chip->direction_output = esp32s31_gpio_direction_output;
 	chip->set_config = esp32s31_gpio_set_config;
 
-	return devm_gpiochip_add_data(dev, chip, pctrl);
+	ret = devm_gpiochip_add_data(dev, chip, pctrl);
+	if (ret || !IS_ENABLED(CONFIG_PINCTRL_ESP32S31_GPIOMEM))
+		return ret;
+
+	/* A debug aid: without it, the pins still work. */
+	ret = esp32s31_gpiomem_init(pdev, pctrl);
+	if (ret)
+		dev_warn(dev, "no gpiomem device: %d\n", ret);
+	return 0;
 }
 
 static const struct of_device_id esp32s31_pinctrl_of_match[] = {

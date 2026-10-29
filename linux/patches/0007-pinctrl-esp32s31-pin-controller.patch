@@ -7,7 +7,7 @@ share a block.
 diff --git a/drivers/pinctrl/Kconfig b/drivers/pinctrl/Kconfig
 --- a/drivers/pinctrl/Kconfig
 +++ b/drivers/pinctrl/Kconfig
-@@ -249,6 +249,19 @@
+@@ -249,6 +249,28 @@
  	  control frameworks. It provides interfaces to setup pin muxing, assign
  	  desired pin functions, configure GPIO attributes for LGM SoC pins.
  	  Pin muxing and pin config settings are retrieved from device tree.
@@ -24,6 +24,15 @@ diff --git a/drivers/pinctrl/Kconfig b/drivers/pinctrl/Kconfig
 +	  sets the IO MUX function, the GPIO matrix signals, the pull and
 +	  the drive strength of the 62 pads, and gives them as GPIOs.
 +	  Without it, no driver can use a pin, and there are no GPIOs.
++
++config PINCTRL_ESP32S31_GPIOMEM
++	bool "Register access for the pinctrl tool"
++	depends on PINCTRL_ESP32S31
++	default y
++	help
++	  /dev/esp32s31-gpiomem lets root map the IO MUX page and the GPIO
++	  page, and read and write the CNNT select word, for the pinctrl
++	  debug tool.  No other register is reachable through it.
  
  config PINCTRL_EYEQ5
  	bool "Mobileye EyeQ5 pinctrl driver"
