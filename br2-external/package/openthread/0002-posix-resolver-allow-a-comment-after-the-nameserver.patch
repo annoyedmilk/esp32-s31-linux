@@ -1,0 +1,44 @@
+From: Marco Müller <hello@annoyedmilk.ch>
+Subject: [PATCH] posix: resolver: allow a comment after the nameserver
+
+The resolver gives inet_pton() the rest of the line after "nameserver ".
+The udhcpc script of BusyBox writes "nameserver 192.168.1.1 # wlan0",
+so inet_pton() fails, no upstream DNS server is found, and the DNS
+queries of the Thread devices get no answer.  Take the first word after
+"nameserver" as the address, as the C library does.
+
+Upstream: not sent
+---
+--- a/src/posix/platform/resolver.cpp
++++ b/src/posix/platform/resolver.cpp
+@@ -53,6 +53,7 @@
+ 
+ #include <algorithm>
+ #include <fstream>
++#include <sstream>
+ #include <string>
+ 
+ #if OPENTHREAD_CONFIG_DNS_UPSTREAM_QUERY_ENABLE
+@@ -119,13 +120,19 @@
+ 
+     while (fp.good() && std::getline(fp, line) && mUpstreamDnsServerCount < kMaxUpstreamServerCount)
+     {
+-        const char *addressString = &line.c_str()[sizeof(kNameserverItem)];
++        std::istringstream words(line);
++        std::string        item;
++        std::string        address;
++        const char        *addressString;
+ 
+-        // Skip the lines that don't start with "nameserver"
+-        if (line.find(kNameserverItem, 0))
++        // Skip the lines that don't start with "nameserver".  The address is the next word: a comment
++        // can follow it, as "# wlan0" in the resolv.conf of the BusyBox udhcpc script.
++        words >> item >> address;
++        if (item != kNameserverItem)
+         {
+             continue;
+         }
++        addressString = address.c_str();
+ 
+         if (inet_pton(AF_INET, addressString, &ip4Address) == 1)
+         {
