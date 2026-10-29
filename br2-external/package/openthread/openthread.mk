@@ -20,6 +20,9 @@ OPENTHREAD_DEPENDENCIES = host-pkgconf
 # finds them; the border agent announces the board as _meshcop._udp.
 # The commissioner role lets Thread devices join with a PSKd (ot-ctl
 # commissioner); Matter devices get the dataset from the Matter controller.
+# NAT64 and DNS upstream queries give Thread devices IPv4 hosts and names
+# through the backbone; ot-daemon translates to 192.168.255.0/24, and
+# nftables.conf masquerades that network.
 # Static libraries: shared ones make a cycle between the FTD and TCP
 # libraries, which CMake rejects.
 OPENTHREAD_CONF_OPTS = \
@@ -45,6 +48,9 @@ OPENTHREAD_CONF_OPTS = \
 	-DOT_SRP_ADV_PROXY=ON \
 	-DOT_BORDER_AGENT=ON \
 	-DOT_COMMISSIONER=ON \
+	-DOT_NAT64_TRANSLATOR=ON \
+	-DOT_NAT64_BORDER_ROUTING=ON \
+	-DOT_DNS_UPSTREAM_QUERY=ON \
 	-DOT_BORDER_AGENT_ID=ON \
 	-DOT_BORDER_AGENT_MESHCOP_SERVICE=ON \
 	-DOT_BORDER_AGENT_SERVICE_NAME="ESP32-S31 Linux" \

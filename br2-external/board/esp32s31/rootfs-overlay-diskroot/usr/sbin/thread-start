@@ -3,7 +3,9 @@
 # thread-start [BACKBONE]: start ot-daemon, the Thread host, on the IEEE
 # 802.15.4 RCP of the firmware.  With a backbone interface (wlan0 or eth0,
 # the default is wlan0 when it is up, else eth0), ot-daemon is a border
-# router and routes IPv6 between wpan0 and the backbone.
+# router and routes IPv6 between wpan0 and the backbone.  NAT64 and the
+# upstream DNS give the Thread devices IPv4 hosts and names (nftables.conf
+# masquerades the NAT64 network).
 # thread-start stop: stop the Thread network and ot-daemon, which turns the
 # 802.15.4 radio off.  Nothing starts at boot: the radio takes Wi-Fi time
 # only while it runs.  The ot-ctl wrapper of post-build.sh runs
@@ -39,6 +41,7 @@ start()
 	bb=$(backbone "$1")
 	if [ -n "$bb" ]; then
 		sysctl -q -w net.ipv6.conf.all.forwarding=1
+		sysctl -q -w net.ipv4.ip_forward=1
 		set -- -B "$bb"
 	else
 		set --
@@ -50,6 +53,8 @@ start()
 	while [ $i -lt 40 ]; do
 		if $CTL state >/dev/null 2>&1; then
 			$CTL srp server enable >/dev/null
+			$CTL nat64 enable >/dev/null
+			$CTL dns server upstream enable >/dev/null
 			echo "thread: ot-daemon on ${bb:-no backbone}"
 			return 0
 		fi
