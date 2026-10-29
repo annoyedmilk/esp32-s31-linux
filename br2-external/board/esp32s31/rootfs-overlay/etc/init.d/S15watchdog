@@ -1,0 +1,25 @@
+#!/bin/sh
+# SPDX-License-Identifier: MIT
+# The soft watchdog of the kernel reboots the board 60 s after the last
+# reset.  The daemon resets it every 10 s, so the board reboots when user
+# space stops, for example in a swap storm.  A stop closes the watchdog with
+# the magic character, so reboot and poweroff do not trigger it.
+
+case "$1" in
+start)
+	[ -c /dev/watchdog ] || exit 0
+	printf 'Starting watchdog: '
+	start-stop-daemon --start --quiet --exec /sbin/watchdog -- \
+		-T 60 -t 10 /dev/watchdog && echo OK || echo FAIL
+	;;
+stop)
+	printf 'Stopping watchdog: '
+	start-stop-daemon --stop --quiet --exec /sbin/watchdog && echo OK || echo FAIL
+	;;
+restart)
+	"$0" stop
+	"$0" start
+	;;
+esac
+
+exit 0
