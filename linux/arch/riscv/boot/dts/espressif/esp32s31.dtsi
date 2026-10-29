@@ -98,6 +98,12 @@
 		clock-frequency = <320000000>;
 	};
 
+	bbpll: bbpll-clock {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <480000000>;
+	};
+
 	/* The PHY driver switches the 12 MHz USB reference clock on and off. */
 	usb_ref_clk: usb-ref-clock {
 		compatible = "fixed-clock";
@@ -132,8 +138,9 @@
 		hp_clkrst: clock-controller@20587000 {
 			compatible = "esp,esp32s31-hp-clkrst";
 			reg = <0x20587000 0x1000>;
-			clocks = <&xtal>, <&cpll>, <&lp_clkrst ESP32S31_LP_CLK_MPLL>;
-			clock-names = "xtal", "cpll", "mpll";
+			clocks = <&xtal>, <&cpll>, <&lp_clkrst ESP32S31_LP_CLK_MPLL>,
+				 <&bbpll>;
+			clock-names = "xtal", "cpll", "mpll", "bbpll";
 			#clock-cells = <1>;
 			#reset-cells = <1>;
 		};
@@ -268,6 +275,30 @@
 			clock-names = "otg";
 			phys = <&usb_phy>;
 			phy-names = "usb2-phy";
+			status = "disabled";
+		};
+
+		spi2: spi@2038f000 {
+			compatible = "esp,esp32s31-spi";
+			reg = <0x2038f000 0x1000>;
+			clocks = <&hp_clkrst ESP32S31_CLK_SPI2_APB>,
+				 <&hp_clkrst ESP32S31_CLK_SPI2>;
+			clock-names = "apb", "core";
+			resets = <&hp_clkrst ESP32S31_RST_SPI2>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		spi3: spi@20390000 {
+			compatible = "esp,esp32s31-spi";
+			reg = <0x20390000 0x1000>;
+			clocks = <&hp_clkrst ESP32S31_CLK_SPI3_APB>,
+				 <&hp_clkrst ESP32S31_CLK_SPI3>;
+			clock-names = "apb", "core";
+			resets = <&hp_clkrst ESP32S31_RST_SPI3>;
+			#address-cells = <1>;
+			#size-cells = <0>;
 			status = "disabled";
 		};
 
