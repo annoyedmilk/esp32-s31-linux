@@ -18,6 +18,8 @@ OPENTHREAD_DEPENDENCIES = host-pkgconf
 # and ot-ctl.  The mDNS responder and the SRP advertising proxy publish the
 # services of the Thread devices on the backbone, where a Matter controller
 # finds them; the border agent announces the board as _meshcop._udp.
+# The commissioner role lets Thread devices join with a PSKd (ot-ctl
+# commissioner); Matter devices get the dataset from the Matter controller.
 # Static libraries: shared ones make a cycle between the FTD and TCP
 # libraries, which CMake rejects.
 OPENTHREAD_CONF_OPTS = \
@@ -42,6 +44,7 @@ OPENTHREAD_CONF_OPTS = \
 	-DOT_MDNS=ON \
 	-DOT_SRP_ADV_PROXY=ON \
 	-DOT_BORDER_AGENT=ON \
+	-DOT_COMMISSIONER=ON \
 	-DOT_BORDER_AGENT_ID=ON \
 	-DOT_BORDER_AGENT_MESHCOP_SERVICE=ON \
 	-DOT_BORDER_AGENT_SERVICE_NAME="ESP32-S31 Linux" \

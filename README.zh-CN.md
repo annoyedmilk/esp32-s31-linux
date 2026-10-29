@@ -152,6 +152,8 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
   - 手机应用（Google Home、Apple Home）只从自己的凭据存储中获取数据集。
     `thread-share` 启动一个临时密钥（ePSKc，Thread 1.4 凭据共享），有效
     2 分钟，并打印该密钥；支持凭据共享的应用可用它获取数据集。
+  - 不使用 Matter 的 Thread 设备用 PSKd 加入：`ot-ctl commissioner start`，
+    然后 `ot-ctl commissioner joiner add * PSKD`。
 
   Wi-Fi 和 802.15.4 共用射频：Thread 无线
   接收时，Wi-Fi 吞吐量（发送/接收）约为 12/17 Mbit/s，而不是 46/37 Mbit/s。`thread-start stop`

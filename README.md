@@ -164,6 +164,8 @@ scripts.
     own credential store. `thread-share` starts an ephemeral key (ePSKc,
     Thread 1.4 credential sharing) for 2 minutes and prints it; an app
     that supports credential sharing gets the dataset with it.
+  - Thread devices without Matter join with a PSKd: `ot-ctl commissioner
+    start`, then `ot-ctl commissioner joiner add * PSKD`.
 
   Wi-Fi and 802.15.4 share the radio: while the Thread
   radio receives, Wi-Fi gives approximately 12/17 Mbit/s TX/RX instead
