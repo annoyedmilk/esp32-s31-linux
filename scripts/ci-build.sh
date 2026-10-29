@@ -15,7 +15,7 @@ set -eu
 
 cd "$(dirname "$0")/.."
 : "${BOARD:=esp32s31}"
-: "${IDF_PATH:=$HOME/esp/esp-idf}"
+: "${IDF_PATH:=$PWD/external/esp-idf}"
 : "${BR_OUTPUT:=$PWD/build/br-output-$BOARD}"
 : "${BR_DL_DIR:=$PWD/build/br-dl}"
 export IDF_PATH BR2_DL_DIR="$BR_DL_DIR"

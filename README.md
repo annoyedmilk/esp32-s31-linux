@@ -298,9 +298,9 @@ your board.
 The host is macOS. The build needs:
 
 - Homebrew and GNU make (`brew install make`).
-- ESP-IDF at `~/esp/esp-idf`, at the commit in `bootloader/esp-idf.version`,
-  with the `riscv32-esp-elf` toolchain, the ESP-Hosted patches and the
-  backports (`make bootloader` gives the command).
+- ESP-IDF in the `external/esp-idf` submodule, pinned by
+  `bootloader/esp-idf.version`, with its compiler and Python environment.
+  Run `scripts/patch-esp-idf.sh` before building the loader.
 - esptool at the version in `bootloader/esptool.version`, in the Python
   environment of ESP-IDF (`make check` gives the command).
 - The Apple `container` CLI. Buildroot does not run on macOS: it runs in the
@@ -311,6 +311,7 @@ On Linux, `scripts/ci-build.sh` builds everything without a container.
 
 ```sh
 git submodule update --init --recursive
+scripts/patch-esp-idf.sh
 make container-image
 make check
 make ports
@@ -318,6 +319,11 @@ make build   BOARD=korvo1
 make flash   BOARD=korvo1 FLASH_PORT=/dev/cu.usbserial-XXXX
 make monitor BOARD=korvo1 SERIAL_PORT=/dev/cu.usbserial-XXXX
 ```
+
+`scripts/patch-esp-idf.sh` modifies ESP-IDF sources and records a local
+patch commit. The dedicated checkout keeps those changes out of a shared
+or EIM-managed SDK; the installed compiler binaries are not modified.
+Keep the submodule pinned to the upstream commit in project commits.
 
 - `BOARD` selects the build for each target: `esp32s31` (the default),
   `coreboard1` or `korvo1`. The output goes to `build/<board>/`.

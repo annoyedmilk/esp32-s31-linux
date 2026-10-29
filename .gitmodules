@@ -11,3 +11,7 @@
 	path = external/esp-hosted-linux
 	url = https://github.com/espressif/esp-hosted-linux.git
 	shallow = true
+[submodule "external/esp-idf"]
+	path = external/esp-idf
+	url = https://github.com/espressif/esp-idf.git
+	shallow = true

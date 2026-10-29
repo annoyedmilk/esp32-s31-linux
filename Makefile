@@ -9,7 +9,7 @@ endif
 BUILD_DIR := build/$(BOARD)
 LOG_DIR := logs
 
-IDF_PATH ?= $(HOME)/esp/esp-idf
+IDF_PATH ?= $(CURDIR)/external/esp-idf
 IDF_TOOLS_PATH ?= $(HOME)/.espressif
 IDF_VERSION := $(shell sed -n 's/^set(IDF_VERSION_M[AI][JN]OR \([0-9]*\))/\1/p' \
 	"$(IDF_PATH)/tools/cmake/version.cmake" 2>/dev/null | paste -sd. -)
@@ -200,7 +200,7 @@ bootloader:
 		echo 'ESP-IDF environment setup failed (run $(IDF_PATH)/install.sh)'; \
 		exit 1; \
 	fi; \
-	cd bootloader && idf.py -B ../$(BUILD_DIR)/bootloader \
+	cd bootloader && "$(PYTHON)" "$(IDF_PATH)/tools/idf.py" -B ../$(BUILD_DIR)/bootloader \
 		-D SDKCONFIG="$(CURDIR)/$(BUILD_DIR)/sdkconfig" \
 		-D SDKCONFIG_DEFAULTS="$(SDKCONFIG_DEFAULTS)" build
 

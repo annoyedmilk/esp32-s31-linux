@@ -265,9 +265,9 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
 主机为 macOS。构建需要：
 
 - Homebrew 和 GNU make（`brew install make`）。
-- ESP-IDF，位于 `~/esp/esp-idf`，检出到 `bootloader/esp-idf.version` 中的
-  提交，并带有 `riscv32-esp-elf` 工具链、ESP-Hosted 补丁和向后移植补丁
-  （`make bootloader` 会给出命令）。
+- ESP-IDF 位于 `external/esp-idf` 子模块，版本由 `bootloader/esp-idf.version`
+  固定，需要安装对应的编译器和 Python 环境。构建前先运行
+  `scripts/patch-esp-idf.sh`。
 - esptool，版本见 `bootloader/esptool.version`，安装在 ESP-IDF 的 Python
   环境中（`make check` 会给出命令）。
 - Apple `container` CLI。Buildroot 无法在 macOS 上运行，它在
@@ -278,6 +278,7 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
 
 ```sh
 git submodule update --init --recursive
+scripts/patch-esp-idf.sh
 make container-image
 make check
 make ports
@@ -285,6 +286,10 @@ make build   BOARD=korvo1
 make flash   BOARD=korvo1 FLASH_PORT=/dev/cu.usbserial-XXXX
 make monitor BOARD=korvo1 SERIAL_PORT=/dev/cu.usbserial-XXXX
 ```
+
+`scripts/patch-esp-idf.sh` 会修改 SDK 源码并生成一个本地补丁提交。
+独立的子模块目录使这些修改不影响系统或 EIM 管理的共享 SDK；编译器二进制
+不会被修改。项目提交中的子模块应继续指向固定的上游版本。
 
 - `BOARD` 选择目标板的构建：`esp32s31`（默认）、`coreboard1` 或 `korvo1`。
   输出位于 `build/<board>/`。

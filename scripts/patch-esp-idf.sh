@@ -10,7 +10,7 @@
 set -eu
 
 cd "$(dirname "$0")/.."
-: "${IDF_PATH:=$HOME/esp/esp-idf}"
+: "${IDF_PATH:=$PWD/external/esp-idf}"
 lib=$PWD/external/esp-hosted-linux/esp/esp_driver/lib
 patches="$lib/rom.patch $lib/idf-openthread-custom-rcp-v6.1.patch $PWD/bootloader/idf-patches/*.patch"
 idf() { git -C "$IDF_PATH" "$@"; }

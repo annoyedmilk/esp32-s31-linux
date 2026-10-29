@@ -17,10 +17,10 @@ DEBIAN_FRONTEND=noninteractive $sudo apt-get install -y --no-install-recommends 
 	libssl-dev libusb-1.0-0
 
 # ESP-IDF at the tested commit, only with the tools for this chip.
-: "${IDF_PATH:=$HOME/esp/esp-idf}"
+: "${IDF_PATH:=$PWD/external/esp-idf}"
 commit=$(cat bootloader/esp-idf.version)
 idf() { git -C "$IDF_PATH" "$@"; }
-if [ ! -d "$IDF_PATH/.git" ]; then
+if [ ! -e "$IDF_PATH/.git" ]; then
 	git clone --filter=blob:none https://github.com/espressif/esp-idf.git "$IDF_PATH"
 fi
 idf cat-file -e "$commit^{commit}" 2>/dev/null ||
