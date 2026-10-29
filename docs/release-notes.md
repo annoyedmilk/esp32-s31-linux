@@ -80,14 +80,13 @@ the tmux desktop for a USB keyboard. Later kernel messages go to `tty2`
   Realtek RTL8152 or RTL8153) becomes `eth0` with DHCP when it is plugged
   in. USB sticks with exFAT mount on `/mnt/usb`. `lynx` is no
   longer in the image; `links` is the text browser.
-- Korvo-1: MemTotal is 10420 kB (v0.9.1: 10632 kB), mostly for the USB
-  Ethernet drivers.
+- Korvo-1: MemTotal is 10716 kB (v0.9.1: 10632 kB), with the USB
+  Ethernet drivers and the USB drivers as modules (below).
 - Korvo-1: the drivers of USB sticks (SCSI, usb-storage), USB Ethernet
   adapters, USB keyboards and mice (HID) and exFAT are kernel modules.
   mdev loads them when a device comes, and `S10usb.sh` at boot for the
   devices that are there. The kernel is 300 KiB smaller: while no such
-  device is connected, that RAM is free. MemTotal is not measured again
-  yet.
+  device is connected, that RAM is free.
 - `pinctrl` on all boards shows the state of each pin from the registers,
   with the command line and the output of the Raspberry Pi tool: the
   function, the pull, the level and the net name of the board (the device

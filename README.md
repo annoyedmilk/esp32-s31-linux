@@ -86,7 +86,7 @@ on your computer. For your own builds, put the key into
 | Root | squashfs in the flash, with a writable UBIFS overlay | ext4 on the USB stick | ext4 on the microSD card |
 | Persistence | All files: the overlay is in the flash | All files on the stick | All files on the card |
 | Swap | zram (6 MiB) | zram, then 64 MiB on p3 of the stick | zram, then 64 MiB on p3 of the card |
-| RAM for Linux (MemTotal) | 11.7 MiB | 11.2 MiB | 10.2 MiB |
+| RAM for Linux (MemTotal) | 11.7 MiB | 11.2 MiB | 10.5 MiB |
 | UART console (`ttyS0`), 9767 baud to 5 Mbaud with `stty` | yes | yes | yes |
 | Copy of the boot log and JTAG on the native USB port | yes | yes | no: the LCD uses the pins |
 | LCD console, USB keyboard, tmux desktop, touch (GT1151) | no | no | yes |
@@ -96,7 +96,7 @@ on your computer. For your own builds, put the key into
 | Firewall and NAT (`nft`, rules load at boot) | yes | yes | yes |
 | Bluetooth (`hci0`): BlueZ, `bluetoothctl` | yes | yes | yes |
 | Classic BlueZ tools (`hciconfig`, `hcitool`) | no | yes | yes |
-| Thread (IEEE 802.15.4): OpenThread border router for Matter, `ot-ctl` | no | yes | yes |
+| Thread (IEEE 802.15.4): OpenThread border router for Matter, `ot-ctl`, or the radio of Home Assistant | no | yes | yes |
 | Ethernet (`eth0`) | no | Gigabit | a USB adapter |
 | USB host (DWC2) | no | the root stick; a second stick by hand | keyboards, mice, storage (FAT, exFAT) mounted at plug-in on `/mnt/usb`, Ethernet adapters |
 | Name on the LAN (`esp32s31.local`, mDNS) | yes | yes | yes |
@@ -132,7 +132,7 @@ Notes:
 | --- | --- |
 | All boards | BusyBox, Dropbear, OpenSSL with the CA bundle, `wpa_supplicant` (WPA3, EAP, access point) with `wpa_cli` and `wpa_passphrase`, `iw`, `curl`, `iperf3`, the libgpiod 2 tools, BlueZ (`bluetoothd`, `bluetoothctl`), Lua, `nft` with a firewall, an SFTP server, `pinctrl` |
 | `esp32s31` also | The MTD tools (`mtdinfo`, `flash_erase`) |
-| `coreboard1` and `korvo1` also | `hostapd`, the classic BlueZ tools (`hciconfig`, `hcitool`), OpenThread (`ot-daemon`, `ot-ctl`), bash, coreutils, vim, nano, less, file, htop, fastfetch, strace, gdb and `gdbserver`, tcpdump, links, MicroPython, tmux, nnn, ncdu, tree, bc, sqlite3, e2fsprogs, dosfstools |
+| `coreboard1` and `korvo1` also | `hostapd`, the classic BlueZ tools (`hciconfig`, `hcitool`), OpenThread (`ot-daemon`, `ot-ctl`), `thread-relay`, bash, coreutils, vim, nano, less, file, htop, fastfetch, strace, gdb and `gdbserver`, tcpdump, links, MicroPython, tmux, nnn, ncdu, tree, bc, sqlite3, e2fsprogs, dosfstools |
 | `coreboard1` also | `ethtool` |
 | `korvo1` also | `gpm`, `irssi`, `evtest` |
 
@@ -181,9 +181,10 @@ scripts.
   radio receives, Wi-Fi gives approximately 12/17 Mbit/s TX/RX instead
   of 46/37.
   `thread-start stop` ends the network and the daemon. In this mode,
-  nothing starts at boot. `/usr/share/examples/thread-hub.sh` is a sensor hub: it starts
-  the network, prints the dataset for the sensors, and logs each UDP
-  datagram on port 4242 with the time and the sender to p1 of the disk.
+  nothing starts at boot. `/usr/share/examples/thread-hub.sh` is a sensor
+  hub: it starts the network, prints the dataset for the sensors, and logs
+  each UDP datagram on port 4242 with the time and the sender to p1 of the
+  disk.
 
   Home Assistant can also be the Thread host, with the radio of the board
   as with a USB radio. `/usr/share/examples/ha-thread.sh HA_ADDRESS` sets

@@ -84,7 +84,7 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
 | 根文件系统 | Flash 中的 squashfs，带可写的 UBIFS overlay | U 盘上的 ext4 | microSD 卡上的 ext4 |
 | 持久化 | 所有文件：overlay 位于 Flash 中 | U 盘上的所有文件 | 卡上的所有文件 |
 | Swap | zram（6 MiB） | 先 zram，再用 U 盘 p3 上的 64 MiB | 先 zram，再用卡 p3 上的 64 MiB |
-| Linux 可用内存（MemTotal） | 11.7 MiB | 11.2 MiB | 10.2 MiB |
+| Linux 可用内存（MemTotal） | 11.7 MiB | 11.2 MiB | 10.5 MiB |
 | UART 控制台（`ttyS0`），可用 `stty` 设为 9767 波特至 5 Mbaud | 是 | 是 | 是 |
 | 原生 USB 口上的启动日志副本和 JTAG | 是 | 是 | 否：LCD 占用这些引脚 |
 | LCD 控制台、USB 键盘、tmux 桌面、触摸（GT1151） | 否 | 否 | 是 |
@@ -94,7 +94,7 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
 | 防火墙和 NAT（`nft`，规则在启动时加载） | 是 | 是 | 是 |
 | 蓝牙（`hci0`）：BlueZ、`bluetoothctl` | 是 | 是 | 是 |
 | 传统 BlueZ 工具（`hciconfig`、`hcitool`） | 否 | 是 | 是 |
-| Thread（IEEE 802.15.4）：用于 Matter 的 OpenThread 边界路由器，`ot-ctl` | 否 | 是 | 是 |
+| Thread（IEEE 802.15.4）：用于 Matter 的 OpenThread 边界路由器，`ot-ctl`，或作为 Home Assistant 的射频 | 否 | 是 | 是 |
 | 以太网（`eth0`） | 否 | 千兆 | USB 网卡 |
 | USB 主机（DWC2） | 否 | 根文件系统所在的 U 盘；第二个 U 盘需手动挂载 | 键盘、鼠标、存储设备（FAT、exFAT，插入时自动挂载到 `/mnt/usb`）、以太网适配器 |
 | 局域网名称（`esp32s31.local`，mDNS） | 是 | 是 | 是 |
@@ -126,7 +126,7 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
 | --- | --- |
 | 所有开发板 | BusyBox、Dropbear、带 CA 证书包的 OpenSSL、`wpa_supplicant`（WPA3、EAP、接入点）及 `wpa_cli` 和 `wpa_passphrase`、`iw`、`curl`、`iperf3`、libgpiod 2 工具、BlueZ（`bluetoothd`、`bluetoothctl`）、Lua、带防火墙的 `nft`、SFTP 服务器、`pinctrl` |
 | `esp32s31` 另有 | MTD 工具（`mtdinfo`、`flash_erase`） |
-| `coreboard1` 和 `korvo1` 另有 | `hostapd`、传统 BlueZ 工具（`hciconfig`、`hcitool`）、OpenThread（`ot-daemon`、`ot-ctl`）、bash、coreutils、vim、nano、less、file、htop、fastfetch、strace、gdb 和 `gdbserver`、tcpdump、links、MicroPython、tmux、nnn、ncdu、tree、bc、sqlite3、e2fsprogs、dosfstools |
+| `coreboard1` 和 `korvo1` 另有 | `hostapd`、传统 BlueZ 工具（`hciconfig`、`hcitool`）、OpenThread（`ot-daemon`、`ot-ctl`）、`thread-relay`、bash、coreutils、vim、nano、less、file、htop、fastfetch、strace、gdb 和 `gdbserver`、tcpdump、links、MicroPython、tmux、nnn、ncdu、tree、bc、sqlite3、e2fsprogs、dosfstools |
 | `coreboard1` 另有 | `ethtool` |
 | `korvo1` 另有 | `gpm`、`irssi`、`evtest` |
 

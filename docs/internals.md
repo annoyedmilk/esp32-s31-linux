@@ -502,7 +502,7 @@ in `br2-external/configs/` differs from its fragments.
 | Base | Kernel, toolchain, BusyBox, Dropbear, OpenSSL, `wpa_supplicant` (WPA3, PEAP/TTLS/TLS, AP mode), curl, iperf3, libgpiod, `pinctrl`, BlueZ (`bluetoothd`, `bluetoothctl`), Lua, `nft` with a firewall, an SFTP server, `mdnsd` | The same | The same |
 | Root | squashfs root in the flash, UBIFS overlay, the MTD tools | ext4 root on the USB stick | ext4 root on the card |
 | Board parts | | Ethernet, USB, the LED | LCD, touch, the card, USB with Ethernet adapters, the LED |
-| Tools | The base only | `hostapd`, the classic BlueZ tools, OpenThread (`ot-daemon`, `ot-ctl`), bash, vim, gdb, strace, tcpdump, links, MicroPython, htop, filesystem tools, tmux, nano, nnn, ncdu, tree, bc, sqlite3, ethtool | `hostapd`, the classic BlueZ tools, OpenThread (`ot-daemon`, `ot-ctl`), bash, vim, gdb, strace, tcpdump, links, MicroPython, htop, filesystem tools, tmux, nano, nnn, ncdu, tree, bc, sqlite3, `evtest`, `gpm`, a tmux desktop on the LCD, irssi |
+| Tools | The base only | `hostapd`, the classic BlueZ tools, OpenThread (`ot-daemon`, `ot-ctl`), `thread-relay`, bash, vim, gdb, strace, tcpdump, links, MicroPython, htop, filesystem tools, tmux, nano, nnn, ncdu, tree, bc, sqlite3, ethtool | `hostapd`, the classic BlueZ tools, OpenThread (`ot-daemon`, `ot-ctl`), `thread-relay`, bash, vim, gdb, strace, tcpdump, links, MicroPython, htop, filesystem tools, tmux, nano, nnn, ncdu, tree, bc, sqlite3, `evtest`, `gpm`, a tmux desktop on the LCD, irssi |
 | Swap | zram only | zram, then p3 of the stick | zram, then p3 of the card |
 
 The Korvo-1 and the Function-CoreBoard-1 have a disk with much space, and

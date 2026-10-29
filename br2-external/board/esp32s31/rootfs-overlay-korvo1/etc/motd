@@ -2,10 +2,12 @@
 Linux on the ESP32-S31-Korvo-1: RV32 at 320 MHz, 16 MiB PSRAM.
 
 Wi-Fi     wpa_passphrase "<ssid>" "<passphrase>" >> /etc/wpa_supplicant.conf
-          /etc/init.d/S40wifi restart
+          /etc/init.d/S40wifi restart (/mnt/sd/wpa_supplicant.conf wins)
           iw dev wlan0 link; /usr/share/examples/wifi-scan.sh
 Bluetooth bluetoothctl, then: scan le, scan bredr, devices
 Thread    thread-start, then ot-ctl state; thread-start stop ends it
+          thread-share: a key for a phone app
+          Home Assistant: /usr/share/examples/ha-thread.sh HA_ADDRESS
 Firewall  nft list ruleset; open a port until the next boot:
           nft insert rule inet filter input tcp dport 8080 accept
 Desktop   tmux on the panel: Ctrl-b c new window, Ctrl-b n next window,
@@ -14,7 +16,8 @@ System    htop, free, df -h, ncdu, dmesg
 Time      UTC; local zone: ln -sf /usr/share/zoneinfo/Europe/Zurich /etc/localtime
 Network   ssh, scp, curl, links, irssi, iperf3, tcpdump
 Files     nnn, tree; /mnt/sd is the FAT partition of the card
-          /mnt/usb is the FAT of a USB stick
+          /mnt/usb is the FAT or exFAT of a USB stick
 Code      micropython, lua, vim, nano, sqlite3, bc, gdbserver, strace
+GPIO      pinctrl, gpioinfo, gpioget, gpioset
 Examples  ls /usr/share/examples
 
