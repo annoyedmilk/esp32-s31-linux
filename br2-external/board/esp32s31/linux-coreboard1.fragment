@@ -16,6 +16,9 @@ CONFIG_CMDLINE="earlycon=sbi console=ttyS0,115200 esp32_shm.radio_service=bt+154
 # CONFIG_I2C is not set
 # The stick is the root, and no script waits for a second one.
 # CONFIG_UEVENT_HELPER is not set
+# The board has Ethernet: no USB Ethernet adapters.
+# CONFIG_USB_USBNET is not set
+# CONFIG_USB_RTL8152 is not set
 
 # Gigabit Ethernet: the GMAC of the SoC with stmmac, and the Motorcomm
 # YT8531 PHY.  stmmac needs the ethtool netlink interface.  No PTP clock, so
