@@ -309,11 +309,13 @@ rootfs: br-volume
 	@$(MAKE) --no-print-directory br-artifacts
 
 # Copy the images to flash and to write from the volume to build/BOARD.
+# The manifest has the last flash sector of the linux partition: esptool
+# erases all of that sector before it writes the 12 bytes.
 br-artifacts:
 	@$(BR_RUN) sh -c 'set -e; \
 		mkdir -p /work/$(BR_OUT) /work/$(BUILD_DIR); \
-		test $$(wc -c < $(BR_O)/images/Image) -le $$(( $(LINUX_SIZE) - 12 )) || \
-			{ echo "Image and its manifest are larger than the $(LINUX_SIZE) partition"; exit 1; }; \
+		test $$(wc -c < $(BR_O)/images/Image) -le $$(( $(LINUX_SIZE) - 4096 )) || \
+			{ echo "Image is larger than the $(LINUX_SIZE) partition without its last sector"; exit 1; }; \
 		cp $(BR_O)/images/Image $(BR_O)/images/linux.size /work/$(BUILD_DIR)/; \
 		if test -f $(BR_O)/images/rootfs.squashfs; then \
 			test $$(wc -c < $(BR_O)/images/rootfs.squashfs) -le $$(( $(ROOT_SIZE) )) || \
