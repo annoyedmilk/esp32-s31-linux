@@ -1,0 +1,82 @@
+From: Marco Müller <hello@annoyedmilk.ch>
+Subject: [PATCH] host: give the received frames to the stack as a batch
+
+The RX work calls netif_rx() for each frame.  From process context,
+netif_rx() enables the bottom halves after each frame, so the NET_RX
+softirq runs once for each frame.  Collect the frames of one pass and
+give them to netif_receive_skb_list() in one BH-disabled section.
+
+Upstream: not sent
+---
+diff --git a/host/main.c b/host/main.c
+--- a/host/main.c
++++ b/host/main.c
+@@ -2017,7 +2017,9 @@
+ 		!test_bit(ESP_TRANSPORT_REMOVING, &adapter->state_flags);
+ }
+ 
+-static void process_rx_packet(struct esp_adapter *adapter, struct sk_buff *skb)
++/* Frames for the network stack go to rx_list; esp_get_packets() delivers them. */
++static void process_rx_packet(struct esp_adapter *adapter, struct sk_buff *skb,
++			      struct list_head *rx_list)
+ {
+ 	struct esp_wifi_device *priv = NULL;
+ 	struct esp_payload_header *payload_header = NULL;
+@@ -2112,7 +2114,7 @@
+ 			}
+ 			skb->dev = priv->ndev;
+ 			skb->protocol = eth_type_trans(skb, priv->ndev);
+-			netif_rx(skb);
++			list_add_tail(&skb->list, rx_list);
+ 		} else if (payload_header->packet_type == PACKET_TYPE_DATA) {
+ 			if (!priv->ndev || !test_bit(ESP_NETWORK_UP, &priv->priv_flags) ||
+ 			    priv->ndev->reg_state != NETREG_REGISTERED) {
+@@ -2123,7 +2125,7 @@
+ 			skb->protocol = eth_type_trans(skb, priv->ndev);
+ 			skb->ip_summed = CHECKSUM_NONE;
+ 			priv->stats.rx_bytes += skb->len;
+-			NETIF_RX_NI(skb);
++			list_add_tail(&skb->list, rx_list);
+ 			priv->stats.rx_packets++;
+ 		} else if (payload_header->packet_type == PACKET_TYPE_COMMAND_RESPONSE) {
+ 			process_cmd_resp(priv->adapter, skb);
+@@ -2298,14 +2300,37 @@
+ 		netif_wake_queue(priv->ndev);
+ }
+ 
++/* The most frames that wait in the list before they go to the stack. */
++#define ESP_RX_BATCH	64
++
++/*
++ * netif_rx() from this work runs the softirq for each frame.  A list in one
++ * BH-disabled section goes through the stack as a batch.
++ */
++static void esp_rx_deliver(struct list_head *rx_list)
++{
++	if (list_empty(rx_list))
++		return;
++	local_bh_disable();
++	netif_receive_skb_list(rx_list);
++	local_bh_enable();
++	INIT_LIST_HEAD(rx_list);
++}
++
+ static int esp_get_packets(struct esp_adapter *adapter)
+ {
+ 	struct sk_buff *skb = NULL;
++	LIST_HEAD(rx_list);
++	unsigned int n = 0;
+ 
+ 	if (!adapter || !adapter->if_ops || !adapter->if_ops->read)
+ 		return -EINVAL;
+-	while ((skb = adapter->if_ops->read(adapter)))
+-		process_rx_packet(adapter, skb);
++	while ((skb = adapter->if_ops->read(adapter))) {
++		process_rx_packet(adapter, skb, &rx_list);
++		if (++n % ESP_RX_BATCH == 0)
++			esp_rx_deliver(&rx_list);
++	}
++	esp_rx_deliver(&rx_list);
+ 	return 0;
+ }
+ 

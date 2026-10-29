@@ -377,8 +377,12 @@ the USB transport in shared SRAM. The layout is in
   the header starts aligned in the headroom
   (`br2-external/package/esp-hosted-linux/0008-*`).
   Before, it copied each TX frame into a new skb: 15% of the CPU time.
-- GRO through `gro_cells` gave no gain: the RX work gives one frame at a
-  time, and each `local_bh_enable()` runs the poll for that frame only.
+- The RX work gives the frames of one pass, up to 64, to
+  `netif_receive_skb_list()` in one BH-disabled section (`0010-*`). Before,
+  `netif_rx()` from the work ran the NET_RX softirq once for each frame.
+  iperf3 TCP RX went from 30 to 37 Mbit/s. A pass has approximately 39
+  frames at full load. GRO through `gro_cells` gave no gain while the
+  frames came one at a time.
 - A restart of the firmware also restarts Linux. Thus when the host driver
   opens or closes the data path, the firmware only sends its boot event
   again. Over USB, close restarts the firmware. Here the firmware keeps its
