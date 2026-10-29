@@ -57,6 +57,16 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def open_port(port: str, baud: int, timeout: float) -> serial.Serial:
+    """Open a port with DTR and RTS off, without a reset on the way."""
+    ser = serial.Serial(port, baud, timeout=timeout)
+    # The port opens with DTR and RTS on.  With the auto-program circuit,
+    # DTR off and RTS on pulls EN low: release RTS first.
+    ser.rts = False
+    ser.dtr = False
+    return ser
+
+
 def pulse_reset(ser: serial.Serial) -> None:
     # RTS drives EN (reset), as esptool does.  DTR drives GPIO0: keep it off.
     ser.dtr = False
@@ -73,7 +83,7 @@ def reset_board(ser: serial.Serial, args: argparse.Namespace, log: BinaryIO) -> 
     if reset_port == args.port:
         pulse_reset(ser)
         return
-    with serial.Serial(reset_port, args.baud, timeout=0.1) as reset_ser:
+    with open_port(reset_port, args.baud, 0.1) as reset_ser:
         pulse_reset(reset_ser)
 
 
@@ -163,7 +173,7 @@ def run_cmd(ser: serial.Serial, log: BinaryIO, cmd: str, deadline: float) -> int
 
 def run(args: argparse.Namespace, log: BinaryIO, deadline: float) -> int:
     """Return 0 on success, 1 for a failed command, 3 at the deadline."""
-    with serial.Serial(args.port, args.baud, timeout=0) as ser:
+    with open_port(args.port, args.baud, 0) as ser:
         ser.reset_input_buffer()
         if not args.no_reset:
             reset_board(ser, args, log)
