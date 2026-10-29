@@ -184,6 +184,11 @@
 			reg-names = "iomux", "gpio", "cnnt";
 			gpio-controller;
 			#gpio-cells = <2>;
+			interrupt-parent = <&clic>;
+			interrupts = <43 61 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-controller;
+			#interrupt-cells = <2>;
+			#address-cells = <0>;
 			gpio-ranges = <&pinctrl 0 0 62>;
 			/* Flash, USB Serial/JTAG (33/34), 41 (no pin), UART0. */
 			gpio-reserved-ranges = <26 9>, <41 1>, <58 2>;

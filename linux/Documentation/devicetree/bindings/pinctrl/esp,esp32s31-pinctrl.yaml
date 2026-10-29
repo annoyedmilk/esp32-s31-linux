@@ -33,6 +33,18 @@ properties:
       - const: gpio
       - const: cnnt
 
+  interrupts:
+    maxItems: 1
+    description: GPIO_INTR0 output routed to the Linux hart.
+
+  interrupt-controller: true
+
+  "#interrupt-cells":
+    const: 2
+
+  "#address-cells":
+    const: 0
+
   gpio-controller: true
 
   "#gpio-cells":
@@ -45,6 +57,10 @@ properties:
     description:
       The pins of the flash, of the firmware on the other hart and of the
       loader, which the operating system must not use as GPIOs.
+
+dependencies:
+  interrupt-controller: [interrupts, "#interrupt-cells", "#address-cells"]
+  interrupts: [interrupt-controller]
 
 patternProperties:
   '-hog(-[0-9]+)?$':
