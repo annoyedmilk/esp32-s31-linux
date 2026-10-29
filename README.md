@@ -86,7 +86,7 @@ on your computer. For your own builds, put the key into
 | Root | squashfs in the flash, with a writable UBIFS overlay | ext4 on the USB stick | ext4 on the microSD card |
 | Persistence | All files: the overlay is in the flash | All files on the stick | All files on the card |
 | Swap | zram (6 MiB) | zram, then 64 MiB on p3 of the stick | zram, then 64 MiB on p3 of the card |
-| RAM for Linux (MemTotal) | 11.9 MiB | 11.2 MiB | 10.4 MiB |
+| RAM for Linux (MemTotal) | 11.7 MiB | 11.2 MiB | 10.2 MiB |
 | UART console (`ttyS0`), 9767 baud to 5 Mbaud with `stty` | yes | yes | yes |
 | Copy of the boot log and JTAG on the native USB port | yes | yes | no: the LCD uses the pins |
 | LCD console, USB keyboard, tmux desktop, touch (GT1151) | no | no | yes |
@@ -98,7 +98,7 @@ on your computer. For your own builds, put the key into
 | Classic BlueZ tools (`hciconfig`, `hcitool`) | no | yes | yes |
 | Thread (IEEE 802.15.4): OpenThread border router for Matter, `ot-ctl` | no | yes | yes |
 | Ethernet (`eth0`) | no | Gigabit | a USB adapter |
-| USB host (DWC2) | no | the root stick; a second stick by hand | keyboards, mice, storage (FAT, exFAT) mounted at plug-in, Ethernet adapters |
+| USB host (DWC2) | no | the root stick; a second stick by hand | keyboards, mice, storage (FAT, exFAT) mounted at plug-in on `/mnt/usb`, Ethernet adapters |
 | Name on the LAN (`esp32s31.local`, mDNS) | yes | yes | yes |
 | Reboot after a kernel panic or a hang (soft watchdog) | yes | yes | yes |
 | microSD | no | no | the root card |
@@ -287,6 +287,11 @@ make monitor BOARD=korvo1 SERIAL_PORT=/dev/cu.usbserial-XXXX
 - `make sdwrite SD_DISK=/dev/diskN` writes the disk image to a card or a
   stick. `make sdpart` lays out a large disk. `make sdroot` writes only the
   root partition, for an update. These targets erase data and ask first.
+- `make rootfs-clean BOARD=...` removes the Buildroot output of a board, for
+  a build from the start.
+- `scripts/reset-monitor.py --port PORT --no-reset --success-pattern ""
+  --cmd COMMAND` runs shell commands on the console and stops at the first
+  command that fails.
 - Files in `local-overlay/` go into the root of all builds. git ignores them.
 - `make help` shows all targets.
 

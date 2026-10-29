@@ -95,6 +95,8 @@ the tmux desktop for a USB keyboard. Later kernel messages go to `tty2`
   access point still do not work correctly. Use WPA2 for the access point.
 - Buildroot 2026.08.1. `pcre2grep` and `pcre2test` are no longer in the
   root.
+- Build: `make rootfs-clean` removes the Buildroot output of a board.
+  `scripts/reset-monitor.py --cmd` runs shell commands on the console.
 
 The loader, the kernel and the root changed. Write the new `flash.bin`.
 On the Korvo-1 and the Function-CoreBoard-1, also write the new disk image

@@ -2,7 +2,7 @@
 
 [English](README.md) | 简体中文
 
-> 本文译自 [README.md](README.md) 的提交 `96f2c15`。两者不同时，以英文版为准。
+> 本文译自 [README.md](README.md)。两者不同时，以英文版为准。
 
 在乐鑫 ESP32-S31 上运行 Linux 7.3 和 OpenSBI 1.9。ESP32-S31 是一款微控制器，
 有两个 320 MHz 的 RV32 hart 和 512 KiB SRAM。Linux 在 hart 1 上运行，使用
@@ -84,7 +84,7 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
 | 根文件系统 | Flash 中的 squashfs，带可写的 UBIFS overlay | U 盘上的 ext4 | microSD 卡上的 ext4 |
 | 持久化 | 所有文件：overlay 位于 Flash 中 | U 盘上的所有文件 | 卡上的所有文件 |
 | Swap | zram（6 MiB） | 先 zram，再用 U 盘 p3 上的 64 MiB | 先 zram，再用卡 p3 上的 64 MiB |
-| Linux 可用内存（MemTotal） | 11.9 MiB | 11.2 MiB | 10.4 MiB |
+| Linux 可用内存（MemTotal） | 11.7 MiB | 11.2 MiB | 10.2 MiB |
 | UART 控制台（`ttyS0`），可用 `stty` 设为 9767 波特至 5 Mbaud | 是 | 是 | 是 |
 | 原生 USB 口上的启动日志副本和 JTAG | 是 | 是 | 否：LCD 占用这些引脚 |
 | LCD 控制台、USB 键盘、tmux 桌面、触摸（GT1151） | 否 | 否 | 是 |
@@ -96,7 +96,7 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
 | 传统 BlueZ 工具（`hciconfig`、`hcitool`） | 否 | 是 | 是 |
 | Thread（IEEE 802.15.4）：用于 Matter 的 OpenThread 边界路由器，`ot-ctl` | 否 | 是 | 是 |
 | 以太网（`eth0`） | 否 | 千兆 | USB 网卡 |
-| USB 主机（DWC2） | 否 | 根文件系统所在的 U 盘；第二个 U 盘需手动挂载 | 键盘、鼠标、存储设备（FAT、exFAT，插入时自动挂载）、以太网适配器 |
+| USB 主机（DWC2） | 否 | 根文件系统所在的 U 盘；第二个 U 盘需手动挂载 | 键盘、鼠标、存储设备（FAT、exFAT，插入时自动挂载到 `/mnt/usb`）、以太网适配器 |
 | 局域网名称（`esp32s31.local`，mDNS） | 是 | 是 | 是 |
 | 内核崩溃或系统挂起后重启（软件看门狗） | 是 | 是 | 是 |
 | microSD | 否 | 否 | 根文件系统所在的卡 |
@@ -263,6 +263,9 @@ make monitor BOARD=korvo1 SERIAL_PORT=/dev/cu.usbserial-XXXX
 - `make sdwrite SD_DISK=/dev/diskN` 将磁盘镜像写入卡或 U 盘。`make sdpart`
   为大容量磁盘分区。`make sdroot` 只写入根分区，用于更新。这些目标会擦除数据，
   执行前会先询问。
+- `make rootfs-clean BOARD=...` 删除一个开发板的 Buildroot 输出，用于从头构建。
+- `scripts/reset-monitor.py --port PORT --no-reset --success-pattern ""
+  --cmd COMMAND` 在控制台上运行 shell 命令，在第一个失败的命令处停止。
 - `local-overlay/` 中的文件会放入所有构建的根目录。git 忽略这些文件。
 - `make help` 显示所有目标。
 
