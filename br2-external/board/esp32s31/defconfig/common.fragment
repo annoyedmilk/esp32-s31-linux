@@ -124,3 +124,7 @@ BR2_PACKAGE_BLUEZ5_UTILS_CLIENT=y
 BR2_PACKAGE_LUA=y
 # The firewall: nft loads the rules into the nf_tables of the kernel.
 BR2_PACKAGE_NFTABLES=y
+# The board name on the LAN: ssh root@esp32s31.local.  mdnsd shares port
+# 5353 with the mDNS responder of ot-daemon.
+BR2_PACKAGE_MDNSD=y
+BR2_PACKAGE_MDNSD_SSH_SERVICE=y
