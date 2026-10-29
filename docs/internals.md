@@ -621,3 +621,17 @@ The firmware package supplies BMI270 initialization data after root mount.
 The back magnets can saturate magnetic measurements; these are raw IIO
 sensors, not a calibrated compass. BQ27220 at 0x55 does not respond to the
 official access sequence and is deliberately absent from the device tree.
+
+## ESP-Mosaico removable camera
+
+Left-slot CameraBoard V1.4 has an SC101IOT sensor with a local 20 MHz
+crystal. DVP uses GPIO16/15/33/4/14/12/18/13 for D0..D7, PCLK17, DE19 and
+VSYNC55. I2C1 uses SDA0/SCL1; GPIO48 is powerdown. GPIO34 is held open-drain
+high to leave the flash LED off. The loader releases USB Serial/JTAG pads
+33/34; these are separate from native Type-C's dedicated high-speed PHY.
+
+The module manager polls its EEPROM and validates descriptor CRCs before
+creating the sensor client. Missing modules do not block boot. Removal
+unregisters the client and fails active V4L2 queues; applications must close
+and reopen capture to recover. The receiver exposes 640x480 UYVY frames,
+nominally 15 fps, using AXI DMA and scatter-gather PSRAM buffers.

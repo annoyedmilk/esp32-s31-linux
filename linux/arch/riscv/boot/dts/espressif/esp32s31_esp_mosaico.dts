@@ -52,6 +52,12 @@
 		vcc-supply = <&vdd>;
 	};
 
+	camera_xclk: camera-clock {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <20000000>;
+	};
+
 	chosen {
 		stdout-path = "serial0:115200n8";
 	};
@@ -74,6 +80,15 @@
 };
 
 &pinctrl {
+	/* GPIO33/34 are camera signals, not USB Serial/JTAG pads. */
+	gpio-reserved-ranges = <26 7>, <41 1>, <58 2>;
+
+	camera-flash-off-hog {
+		gpio-hog;
+		gpios = <34 GPIO_OPEN_DRAIN>;
+		output-high;
+		line-name = "camera-flash-off";
+	};
 
 	spi3_cfg: spi3-cfg {
 		spi3-output-pins {
@@ -111,6 +126,33 @@
 				 <ESP32S31_MATRIX_INOUT(3, ESP32S31_SIG_I2C0_SCL)>;
 			bias-pull-up;
 			drive-open-drain;
+		};
+	};
+
+	i2c1_cfg: i2c1-cfg {
+		i2c1-pins {
+			pinmux = <ESP32S31_MATRIX_INOUT(0, ESP32S31_SIG_I2C1_SDA)>,
+				 <ESP32S31_MATRIX_INOUT(1, ESP32S31_SIG_I2C1_SCL)>;
+			bias-pull-up;
+			drive-open-drain;
+		};
+	};
+
+	camera_cfg: camera-cfg {
+		camera-pins {
+			pinmux = <ESP32S31_MATRIX_IN(16, ESP32S31_SIG_CAM_D0)>,
+				 <ESP32S31_MATRIX_IN(15, ESP32S31_SIG_CAM_D1)>,
+				 <ESP32S31_MATRIX_IN(33, ESP32S31_SIG_CAM_D2)>,
+				 <ESP32S31_MATRIX_IN(4, ESP32S31_SIG_CAM_D3)>,
+				 <ESP32S31_MATRIX_IN(14, ESP32S31_SIG_CAM_D4)>,
+				 <ESP32S31_MATRIX_IN(12, ESP32S31_SIG_CAM_D5)>,
+				 <ESP32S31_MATRIX_IN(18, ESP32S31_SIG_CAM_D6)>,
+				 <ESP32S31_MATRIX_IN(13, ESP32S31_SIG_CAM_D7)>,
+				 <ESP32S31_MATRIX_IN(17, ESP32S31_SIG_CAM_PCLK)>,
+				 <ESP32S31_MATRIX_IN(19, ESP32S31_SIG_CAM_DE)>,
+				 <ESP32S31_MATRIX_IN(55, ESP32S31_SIG_CAM_VSYNC)>;
+			bias-disable;
+			input-enable;
 		};
 	};
 };
@@ -198,5 +240,56 @@
 		spi-tx-bus-width = <4>;
 		reset-gpios = <&pinctrl 44 GPIO_ACTIVE_LOW>;
 		vdd-supply = <&vcc_3v3>;
+	};
+};
+
+&i2c1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2c1_cfg>;
+	clock-frequency = <100000>;
+	status = "okay";
+
+	module@50 {
+		compatible = "esp-mosaico,camera-module";
+		reg = <0x50>;
+		sensor = <&sc101iot>;
+	};
+
+	sc101iot: camera@68 {
+		compatible = "smartsens,sc101iot";
+		reg = <0x68>;
+		clocks = <&camera_xclk>;
+		vdd-supply = <&vcc_3v3>;
+		powerdown-gpios = <&pinctrl 48 GPIO_ACTIVE_HIGH>;
+		/* The module manager creates this client only while present. */
+		status = "disabled";
+
+		port {
+			sc101iot_out: endpoint {
+				remote-endpoint = <&camera_in>;
+				bus-width = <8>;
+				hsync-active = <1>;
+				vsync-active = <0>;
+				pclk-sample = <1>;
+			};
+		};
+	};
+};
+
+&axi_dma { status = "okay"; };
+
+&camera {
+	pinctrl-names = "default";
+	pinctrl-0 = <&camera_cfg>;
+	status = "okay";
+
+	port {
+		camera_in: endpoint {
+			remote-endpoint = <&sc101iot_out>;
+			bus-width = <8>;
+			hsync-active = <1>;
+			vsync-active = <0>;
+			pclk-sample = <1>;
+		};
 	};
 };

@@ -7,7 +7,7 @@ else()
 endif()
 
 idf_component_register(SRCS main.c radio_coex.c ${board_srcs}
-                       REQUIRES freertos esp_partition esp_psram esp_hw_support esp_rom hal esp_hal_wdt esp_lcd esp_hal_lcd esp_hal_dma esp_driver_gpio heap esp_hosted bootloader_support openthread
+                       REQUIRES freertos esp_partition esp_psram esp_hw_support esp_rom hal esp_hal_wdt esp_lcd esp_hal_lcd esp_hal_dma esp_hal_usb esp_driver_gpio heap esp_hosted bootloader_support openthread
                        INCLUDE_DIRS ".")
 
 # radio_coex.c runs the Wi-Fi/802.15.4 coexistence only while the radio
