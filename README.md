@@ -181,8 +181,8 @@ scripts.
 - **Firewall.** `/etc/nftables.conf` loads at boot: the board answers
   ping, DHCP and mDNS and takes SSH and (on the disk boards) the Thread
   mesh, and it drops and logs all other new connections. The module has
-  the firewall since the release after v0.9.1: a server on another port
-  needs a rule after the update. `nft
+  the firewall since v0.9.2: a server on another port needs a rule after
+  the update. `nft
   insert rule inet filter input tcp dport 8080 accept` opens a port until the
   next boot; a line in the file keeps it. For a router between an access point and `eth0`:
   `sysctl -w net.ipv4.ip_forward=1`, then `nft add table ip nat`, `nft
