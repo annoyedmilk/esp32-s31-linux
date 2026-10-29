@@ -2,10 +2,11 @@
 # SPDX-License-Identifier: MIT
 # A USB stick is optional space for data, never the root.
 # Mount the first FAT or exFAT partition of the stick, or the full stick
-# when it has no partition table, on /mnt/usb.  At start, mount a stick
-# that is there, and make mdev the uevent helper: for a stick that comes
-# later, mdev runs this script (mdev.conf).  When the stick goes, release
-# the mount.
+# when it has no partition table, on /mnt/usb.  At start, make mdev the
+# uevent helper, load the modules of the USB devices that are there (their
+# boot events had no helper), and mount a stick that is there: for a stick
+# that comes later, mdev runs this script (mdev.conf).  When the stick
+# goes, release the mount.
 
 MNT=/mnt/usb
 
@@ -29,6 +30,7 @@ mount_usb()
 case "$1" in
 start)
 	echo /sbin/mdev > /proc/sys/kernel/hotplug
+	cat /sys/bus/usb/devices/*/modalias 2>/dev/null | sort -u | xargs -r modprobe -q -a
 	[ -b /dev/sda ] && mount_usb sda
 	;;
 stop)

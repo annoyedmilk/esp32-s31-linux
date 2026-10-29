@@ -6,6 +6,9 @@ CONFIG_BUILTIN_DTB_NAME="espressif/esp32s31"
 # flash window.  overlay-init puts the data partition over it.
 CONFIG_CMDLINE="earlycon=sbi console=ttyS0,115200 esp32_shm.radio_service=bt+154 root=/dev/mtdblock0 rootfstype=squashfs ro rootwait init=/sbin/overlay-init"
 
+# No loadable modules: the m options of linux.config are built in.
+# CONFIG_MODULES is not set
+
 # No panel, VTs or input devices.
 # CONFIG_FB is not set
 # CONFIG_VT is not set
