@@ -130,7 +130,7 @@ Notes:
 | `esp32s31` also | The MTD tools (`mtdinfo`, `flash_erase`) |
 | `coreboard1` and `korvo1` also | `hostapd`, the classic BlueZ tools (`hciconfig`, `hcitool`), OpenThread (`ot-daemon`, `ot-ctl`), bash, coreutils, vim, nano, less, file, htop, fastfetch, strace, gdb and `gdbserver`, tcpdump, links, MicroPython, tmux, nnn, ncdu, tree, bc, sqlite3, e2fsprogs, dosfstools |
 | `coreboard1` also | `ethtool` |
-| `korvo1` also | `gpm`, `lynx`, `irssi`, `evtest` |
+| `korvo1` also | `gpm`, `irssi`, `evtest` |
 
 `/etc/motd` lists the first commands. `/usr/share/examples` has example
 scripts.

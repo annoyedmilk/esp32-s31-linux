@@ -124,7 +124,7 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
 | `esp32s31` 另有 | MTD 工具（`mtdinfo`、`flash_erase`） |
 | `coreboard1` 和 `korvo1` 另有 | `hostapd`、传统 BlueZ 工具（`hciconfig`、`hcitool`）、OpenThread（`ot-daemon`、`ot-ctl`）、bash、coreutils、vim、nano、less、file、htop、fastfetch、strace、gdb 和 `gdbserver`、tcpdump、links、MicroPython、tmux、nnn、ncdu、tree、bc、sqlite3、e2fsprogs、dosfstools |
 | `coreboard1` 另有 | `ethtool` |
-| `korvo1` 另有 | `gpm`、`lynx`、`irssi`、`evtest` |
+| `korvo1` 另有 | `gpm`、`irssi`、`evtest` |
 
 `/etc/motd` 列出入门命令。`/usr/share/examples` 中有示例脚本。
 
