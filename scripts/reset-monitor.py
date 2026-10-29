@@ -5,6 +5,7 @@
 import argparse
 import contextlib
 import os
+import re
 import select
 import sys
 import termios
@@ -38,10 +39,20 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--timeout", type=float, default=30.0)
     parser.add_argument("--success-pattern", default="ESP32-S31 Linux / Buildroot")
     parser.add_argument("--no-reset", action="store_true")
-    parser.add_argument(
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument(
         "--interactive",
         action="store_true",
         help="stay connected as a terminal after the success pattern (Ctrl-] exits)",
+    )
+    mode.add_argument(
+        "--cmd",
+        action="append",
+        default=[],
+        help="after the success pattern, run a shell command on the console and "
+        "stop at a non-zero exit status; repeat for more commands.  An empty "
+        "pattern does not wait.  After a reset, use the shell prompt as the "
+        "pattern: getty discards input that comes before it",
     )
     return parser.parse_args()
 
@@ -133,13 +144,42 @@ def capture(
     return success
 
 
-def run(args: argparse.Namespace, log: BinaryIO, deadline: float) -> bool:
+def run_cmd(ser: serial.Serial, log: BinaryIO, cmd: str, deadline: float) -> int | None:
+    """Run a shell command on the console; return its exit status, or None at the deadline."""
+    marker = f"__done_{time.monotonic_ns()}__"
+    # The echo of the command line has $?" after the marker, not the digits.
+    # Output without a final newline puts the marker in the middle of a line.
+    end = re.compile(marker.encode() + rb" (\d+)\r?\n")
+    ser.write(f'{cmd}; echo "{marker} $?"\n'.encode())
+    seen = b""
+    while time.monotonic() < deadline:
+        ready, _, _ = select.select([ser.fileno()], [], [], 0.1)
+        if ready:
+            seen = (seen + forward_serial(ser, log))[-SEEN_MAX:]
+            if m := end.search(seen):
+                return int(m.group(1))
+    return None
+
+
+def run(args: argparse.Namespace, log: BinaryIO, deadline: float) -> int:
+    """Return 0 on success, 1 for a failed command, 3 at the deadline."""
     with serial.Serial(args.port, args.baud, timeout=0) as ser:
         ser.reset_input_buffer()
         if not args.no_reset:
             reset_board(ser, args, log)
-        with raw_stdin(args.interactive and sys.stdin.isatty()) as stdin_fd:
-            return capture(ser, log, args.success_pattern.encode(), deadline, stdin_fd)
+        if args.success_pattern or not args.cmd:
+            with raw_stdin(args.interactive and sys.stdin.isatty()) as stdin_fd:
+                pattern = args.success_pattern.encode()
+                if not capture(ser, log, pattern, deadline, stdin_fd):
+                    return 3
+        for cmd in args.cmd:
+            status = run_cmd(ser, log, cmd, deadline)
+            if status is None:
+                return 3
+            if status:
+                print(f"\nERR exit {status}: {cmd}")
+                return 1
+    return 0
 
 
 def main() -> int:
@@ -156,7 +196,7 @@ def main() -> int:
         )
         log.flush()
         try:
-            success = run(args, log, deadline)
+            code = run(args, log, deadline)
         except serial.SerialException as exc:
             log.write(f"serial_error={exc}\n".encode())
             print(f"ERR serial {exc}")
@@ -166,11 +206,11 @@ def main() -> int:
             print("interrupted")
             return 130
 
-    if success:
+    if code == 0:
         print("capture=pass")
-        return 0
-    print("ERR timeout")
-    return 3
+    elif code == 3:
+        print("ERR timeout")
+    return code
 
 
 if __name__ == "__main__":
