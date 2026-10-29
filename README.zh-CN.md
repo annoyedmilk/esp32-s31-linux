@@ -186,7 +186,8 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
   上的触摸事件。
 - **桌面**（Korvo-1）。在 LCD 上的 tmux 中：`Ctrl-b c` 打开新窗口，
   `Ctrl-b n` 切换到下一个窗口，`Ctrl-b %` 和 `Ctrl-b "` 分屏，`Ctrl-b d`
-  退出登录。
+  退出登录。内核消息不会覆盖桌面：它们显示在 `tty2`（`Alt-F2`，用 `Alt-F1`
+  返回）和 UART 上。
 - **时间。** 时钟为 UTC。在 Function-CoreBoard-1 和 Korvo-1 上，
   `ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime` 设置本地时区。
 

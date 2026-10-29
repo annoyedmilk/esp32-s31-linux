@@ -38,7 +38,8 @@ alone with UART only.
    `/etc/wpa_supplicant.conf`. The file stays after a reboot.
 
 On the Korvo-1, the LCD shows the Tux logo and the kernel warnings, then
-the tmux desktop for a USB keyboard.
+the tmux desktop for a USB keyboard. Later kernel messages go to `tty2`
+(`Alt-F2`), not over the desktop.
 
 ## New after v0.9.1
 
@@ -54,6 +55,9 @@ the tmux desktop for a USB keyboard.
   insert rule inet filter input tcp dport PORT accept`.
 - All boards have an SFTP server: `scp` of OpenSSH 9 and newer works
   without `-O`, and `sftp` works.
+- Korvo-1: kernel warnings and errors no longer write over the tmux
+  desktop. After the desktop starts, they go to `tty2` (`Alt-F2`) and to
+  the UART.
 - Wi-Fi RX is faster: the host driver gives the received frames to the
   network stack as a batch. iperf3 RX on the Korvo-1 goes from 30 to
   37 Mbit/s.

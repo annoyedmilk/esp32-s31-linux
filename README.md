@@ -202,7 +202,8 @@ scripts.
   the LCD with `evtest`.
 - **Desktop** (Korvo-1). In tmux on the LCD: `Ctrl-b c` opens a window,
   `Ctrl-b n` goes to the next, `Ctrl-b %` and `Ctrl-b "` split, `Ctrl-b d`
-  logs out.
+  logs out. Kernel messages do not write over the desktop: they go to
+  `tty2` (`Alt-F2`, back with `Alt-F1`) and to the UART.
 - **Time.** The clock is UTC. On the Function-CoreBoard-1 and the Korvo-1,
   `ln -sf /usr/share/zoneinfo/Europe/Zurich /etc/localtime` sets a local
   zone.
