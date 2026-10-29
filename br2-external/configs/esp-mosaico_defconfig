@@ -191,3 +191,6 @@ BR2_PACKAGE_ALSA_LIB_CTL_PLUGINS="hw"
 # BR2_PACKAGE_ALSA_LIB_SEQ is not set
 # BR2_PACKAGE_ALSA_LIB_UCM is not set
 # BR2_PACKAGE_ALSA_LIB_TOPOLOGY is not set
+
+# Manually started preview; no boot service takes the display.
+BR2_PACKAGE_CAMERA_PREVIEW=y

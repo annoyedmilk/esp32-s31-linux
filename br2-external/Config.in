@@ -1,4 +1,5 @@
 source "$BR2_EXTERNAL_ESP32S31_PATH/package/bmi270-firmware/Config.in"
+source "$BR2_EXTERNAL_ESP32S31_PATH/package/camera-preview/Config.in"
 source "$BR2_EXTERNAL_ESP32S31_PATH/package/esp-hosted-linux/Config.in"
 source "$BR2_EXTERNAL_ESP32S31_PATH/package/fastfetch/Config.in"
 source "$BR2_EXTERNAL_ESP32S31_PATH/package/sc101iot-firmware/Config.in"
