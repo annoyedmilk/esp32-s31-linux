@@ -21,6 +21,7 @@ CONFIG_CMDLINE="earlycon=sbi console=ttyS0,115200 esp32_shm.radio_service=bt+154
 # CONFIG_NEW_LEDS is not set
 # CONFIG_EXT4_FS is not set
 # CONFIG_VFAT_FS is not set
+# CONFIG_EXFAT_FS is not set
 # CONFIG_UEVENT_HELPER is not set
 # No ot-daemon: it needs C++, and the RAM is for the root in the flash.
 # CONFIG_TUN is not set
