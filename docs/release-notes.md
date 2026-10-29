@@ -87,6 +87,12 @@ the tmux desktop for a USB keyboard. Later kernel messages go to `tty2`
   mdev loads them when a device comes, and `S10usb.sh` at boot for the
   devices that are there. The kernel is 300 KiB smaller: while no such
   device is connected, that RAM is free.
+- Bluetooth LE for Home Assistant on all boards (`ble-ha`):
+  `/usr/share/examples/ha-bluetooth.sh HA_ADDRESS` makes the board a
+  passive Bluetooth proxy (the ESPHome native API on TCP port 6053), and
+  a board whose Wi-Fi has no network offers Improv Wi-Fi setup over
+  Bluetooth LE. While Home Assistant receives the advertisements, Wi-Fi
+  gives approximately 13/21 Mbit/s TX/RX instead of 40/33.
 - `pinctrl` on all boards shows the state of each pin from the registers,
   with the command line and the output of the Raspberry Pi tool: the
   function, the pull, the level and the net name of the board (the device

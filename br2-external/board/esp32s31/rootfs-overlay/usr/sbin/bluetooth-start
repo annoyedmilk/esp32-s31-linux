@@ -5,6 +5,9 @@
 # wrapper (post-build.sh) runs this script, and S40bluetooth runs it at boot
 # when a device is paired.
 
+pidof ble-ha >/dev/null &&
+	{ echo "bluetooth: ble-ha has the adapter (/etc/default/ble-ha)" >&2; exit 1; }
+
 # A second run at the same time loses the start, but then the daemon runs.
 for d in dbus-daemon bluetoothd; do
 	pidof $d >/dev/null && continue

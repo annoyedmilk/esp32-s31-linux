@@ -1,0 +1,71 @@
+#!/bin/sh
+# SPDX-License-Identifier: MIT
+# Start ble-ha, Bluetooth LE for Home Assistant (/etc/default/ble-ha): the
+# Bluetooth proxy when BT_PROXY_ALLOW has hosts, and Improv Wi-Fi setup
+# while Wi-Fi has no network.  ble-ha ends when it has nothing to do.  It
+# owns the adapter while it runs, so bluetoothctl does not work then.
+# The mDNS record lets Home Assistant find the proxy.
+
+DAEMON=/usr/sbin/ble-ha
+MDNS=/etc/mdns.d/esphomelib.service
+BT_PROXY_ALLOW=
+IMPROV=auto
+[ -r /etc/default/ble-ha ] && . /etc/default/ble-ha
+
+# Put the hosts of $1 in the sets of the proxy rule in nftables.conf.
+allow()
+{
+	nft flush set inet filter ble_ha4 &&
+		nft flush set inet filter ble_ha6 || return 1
+	for a in $1; do
+		case $a in
+		*:*) nft add element inet filter ble_ha6 "{ $a }" ;;
+		*) nft add element inet filter ble_ha4 "{ $a }" ;;
+		esac || return 1
+	done
+}
+
+mdns()
+{
+	if [ "$1" = on ]; then
+		printf 'type _esphomelib._tcp\nport 6053\ntxt mac=%s\ntxt friendly_name=%s\ntxt network=wifi\n' \
+			"$(tr -d : </sys/class/net/wlan0/address)" "$(hostname)" >$MDNS
+	else
+		rm -f $MDNS
+	fi
+	pidof mdnsd >/dev/null && kill -HUP $(pidof mdnsd)
+}
+
+start()
+{
+	set --
+	if [ -n "$BT_PROXY_ALLOW" ]; then
+		if allow "$BT_PROXY_ALLOW"; then
+			mdns on
+			set -- -p
+		else
+			allow "" 2>/dev/null
+			echo "ble-ha: cannot open the firewall for $BT_PROXY_ALLOW; no proxy" >&2
+		fi
+	fi
+	[ "$IMPROV" = auto ] && set -- "$@" -i
+	[ $# -gt 0 ] || return 0
+	start-stop-daemon --start --background --quiet --exec $DAEMON -- "$@"
+}
+
+case "$1" in
+start)
+	start
+	;;
+stop)
+	start-stop-daemon --stop --quiet --exec $DAEMON --retry 10
+	allow "" 2>/dev/null
+	[ -e $MDNS ] && mdns off
+	;;
+restart)
+	"$0" stop
+	start
+	;;
+esac
+
+exit 0

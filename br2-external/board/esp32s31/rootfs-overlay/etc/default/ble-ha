@@ -1,0 +1,8 @@
+# S45ble-ha reads this file.
+# BT_PROXY_ALLOW: the Home Assistant hosts (IPv4 or IPv6 addresses,
+# separated by spaces) that can use the Bluetooth proxy on TCP port 6053.
+# Empty: no proxy.  The proxy gives them the Bluetooth LE devices in range.
+# IMPROV=auto: Wi-Fi setup over Bluetooth LE (Improv) while wpa_supplicant
+# has no network, as on a new board.  IMPROV=no: never.
+BT_PROXY_ALLOW=""
+IMPROV=auto

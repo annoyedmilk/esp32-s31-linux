@@ -95,6 +95,7 @@ on your computer. For your own builds, put the key into
 | Wi-Fi access point: WPA2 Personal (WPA3 does not work yet) | `wpa_supplicant` | `wpa_supplicant`, `hostapd` | `wpa_supplicant`, `hostapd` |
 | Firewall and NAT (`nft`, rules load at boot) | yes | yes | yes |
 | Bluetooth (`hci0`): BlueZ, `bluetoothctl` | yes | yes | yes |
+| Bluetooth proxy for Home Assistant (ESPHome API), Wi-Fi setup over Bluetooth LE (Improv) | yes | yes | yes |
 | Classic BlueZ tools (`hciconfig`, `hcitool`) | no | yes | yes |
 | Thread (IEEE 802.15.4): OpenThread border router for Matter, `ot-ctl`, or the radio of Home Assistant | no | yes | yes |
 | Ethernet (`eth0`) | no | Gigabit | a USB adapter |
@@ -130,7 +131,7 @@ Notes:
 
 | Build | Packages |
 | --- | --- |
-| All boards | BusyBox, Dropbear, OpenSSL with the CA bundle, `wpa_supplicant` (WPA3, EAP, access point) with `wpa_cli` and `wpa_passphrase`, `iw`, `curl`, `iperf3`, the libgpiod 2 tools, BlueZ (`bluetoothd`, `bluetoothctl`), Lua, `nft` with a firewall, an SFTP server, `pinctrl` |
+| All boards | BusyBox, Dropbear, OpenSSL with the CA bundle, `wpa_supplicant` (WPA3, EAP, access point) with `wpa_cli` and `wpa_passphrase`, `iw`, `curl`, `iperf3`, the libgpiod 2 tools, BlueZ (`bluetoothd`, `bluetoothctl`), Lua, `nft` with a firewall, an SFTP server, `pinctrl`, `ble-ha` |
 | `esp32s31` also | The MTD tools (`mtdinfo`, `flash_erase`) |
 | `coreboard1` and `korvo1` also | `hostapd`, the classic BlueZ tools (`hciconfig`, `hcitool`), OpenThread (`ot-daemon`, `ot-ctl`), `thread-relay`, bash, coreutils, vim, nano, less, file, htop, fastfetch, strace, gdb and `gdbserver`, tcpdump, links, MicroPython, tmux, nnn, ncdu, tree, bc, sqlite3, e2fsprogs, dosfstools |
 | `coreboard1` also | `ethtool` |
@@ -148,6 +149,27 @@ scripts.
   `bluetoothd` starts at the first `bluetoothctl`.
   `/usr/share/examples/ble-scan.sh 10` lists the LE devices after a scan of
   10 seconds.
+
+  `ble-ha` gives Bluetooth LE to Home Assistant (`/etc/default/ble-ha`).
+  While it runs, it owns the adapter, and `bluetoothctl` does not work.
+  It does not start while `bluetoothd` runs, for example at boot with a
+  paired device.
+  - Bluetooth proxy: `/usr/share/examples/ha-bluetooth.sh HA_ADDRESS`
+    makes the board a passive Bluetooth proxy with the ESPHome native API
+    on TCP port 6053, also after each boot. Home Assistant finds it with
+    mDNS as an ESPHome device, or add the ESPHome integration with the
+    board and port 6053. Home Assistant then sees the Bluetooth LE devices
+    near the board, for example BTHome, Xiaomi or Qingping sensors. The
+    API has no encryption, so the firewall accepts the port only from the
+    hosts in `BT_PROXY_ALLOW`. While Home Assistant receives the
+    advertisements, Wi-Fi gives approximately 13/21 Mbit/s TX/RX instead
+    of 40/33 (the coexistence of Wi-Fi and Bluetooth).
+    `ha-bluetooth.sh off` ends the proxy.
+  - Wi-Fi setup: while `wpa_supplicant` has no network, as on a new board,
+    the board offers Improv Wi-Fi over Bluetooth LE. A phone or Home
+    Assistant gives it a Wi-Fi network. The board keeps the network only
+    when it connects with an address in 30 seconds. During this time, any
+    device in range can do the setup. `IMPROV=no` turns it off.
 - **Thread** (Function-CoreBoard-1, Korvo-1). `thread-start` starts
   `ot-daemon` on the IEEE 802.15.4 radio as a border router on `wlan0` or
   `eth0` (`thread-start eth0` chooses); `ot-ctl` starts it at the first

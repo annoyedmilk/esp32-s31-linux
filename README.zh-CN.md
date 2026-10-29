@@ -93,6 +93,7 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
 | Wi-Fi 接入点：WPA2 个人版（WPA3 暂不可用） | `wpa_supplicant` | `wpa_supplicant`、`hostapd` | `wpa_supplicant`、`hostapd` |
 | 防火墙和 NAT（`nft`，规则在启动时加载） | 是 | 是 | 是 |
 | 蓝牙（`hci0`）：BlueZ、`bluetoothctl` | 是 | 是 | 是 |
+| Home Assistant 蓝牙代理（ESPHome API），通过蓝牙 LE 设置 Wi-Fi（Improv） | 是 | 是 | 是 |
 | 传统 BlueZ 工具（`hciconfig`、`hcitool`） | 否 | 是 | 是 |
 | Thread（IEEE 802.15.4）：用于 Matter 的 OpenThread 边界路由器，`ot-ctl`，或作为 Home Assistant 的射频 | 否 | 是 | 是 |
 | 以太网（`eth0`） | 否 | 千兆 | USB 网卡 |
@@ -124,7 +125,7 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
 
 | 构建 | 软件包 |
 | --- | --- |
-| 所有开发板 | BusyBox、Dropbear、带 CA 证书包的 OpenSSL、`wpa_supplicant`（WPA3、EAP、接入点）及 `wpa_cli` 和 `wpa_passphrase`、`iw`、`curl`、`iperf3`、libgpiod 2 工具、BlueZ（`bluetoothd`、`bluetoothctl`）、Lua、带防火墙的 `nft`、SFTP 服务器、`pinctrl` |
+| 所有开发板 | BusyBox、Dropbear、带 CA 证书包的 OpenSSL、`wpa_supplicant`（WPA3、EAP、接入点）及 `wpa_cli` 和 `wpa_passphrase`、`iw`、`curl`、`iperf3`、libgpiod 2 工具、BlueZ（`bluetoothd`、`bluetoothctl`）、Lua、带防火墙的 `nft`、SFTP 服务器、`pinctrl`、`ble-ha` |
 | `esp32s31` 另有 | MTD 工具（`mtdinfo`、`flash_erase`） |
 | `coreboard1` 和 `korvo1` 另有 | `hostapd`、传统 BlueZ 工具（`hciconfig`、`hcitool`）、OpenThread（`ot-daemon`、`ot-ctl`）、`thread-relay`、bash、coreutils、vim、nano、less、file、htop、fastfetch、strace、gdb 和 `gdbserver`、tcpdump、links、MicroPython、tmux、nnn、ncdu、tree、bc、sqlite3、e2fsprogs、dosfstools |
 | `coreboard1` 另有 | `ethtool` |
@@ -139,6 +140,22 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
 - **蓝牙。** 运行 `bluetoothctl`，然后 `scan le`、`scan bredr`、`devices`。
   `bluetoothd` 在第一次运行 `bluetoothctl` 时启动。
   `/usr/share/examples/ble-scan.sh 10` 扫描 10 秒后列出 LE 设备。
+
+  `ble-ha` 为 Home Assistant 提供蓝牙 LE（`/etc/default/ble-ha`）。它运行时
+  独占适配器，`bluetoothctl` 不能使用。`bluetoothd` 运行时（例如开机时有已配对
+  设备），它不会启动。
+  - 蓝牙代理：`/usr/share/examples/ha-bluetooth.sh HA_ADDRESS` 使开发板成为
+    被动蓝牙代理，通过 TCP 端口 6053 上的 ESPHome 原生 API 工作，之后每次开机
+    也会启动。Home Assistant 通过 mDNS 将其发现为 ESPHome 设备，也可以用开发板
+    地址和端口 6053 添加 ESPHome 集成。之后 Home Assistant 可以看到开发板附近的
+    蓝牙 LE 设备，例如 BTHome、小米或青萍传感器。该 API 没有加密，因此防火墙
+    只接受来自 `BT_PROXY_ALLOW` 中主机的连接。Home Assistant 接收广播期间，
+    Wi-Fi 吞吐量（发送/接收）约为 13/21 Mbit/s，而不是 40/33 Mbit/s（Wi-Fi 与
+    蓝牙的共存）。`ha-bluetooth.sh off` 结束代理。
+  - Wi-Fi 设置：当 `wpa_supplicant` 没有网络时（例如新开发板），开发板通过
+    蓝牙 LE 提供 Improv Wi-Fi。手机或 Home Assistant 可以为其设置 Wi-Fi 网络。
+    只有在 30 秒内连接成功并获得地址时，开发板才会保留该网络。在此期间，
+    范围内的任何设备都可以进行设置。`IMPROV=no` 关闭此功能。
 - **Thread**（Function-CoreBoard-1、Korvo-1）。`thread-start` 在
   IEEE 802.15.4 无线上启动 `ot-daemon`，作为 `wlan0` 或 `eth0` 上的边界
   路由器（用 `thread-start eth0` 选择）；第一次运行 `ot-ctl` 命令时也会启动它。

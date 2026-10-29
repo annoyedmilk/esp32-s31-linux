@@ -5,6 +5,7 @@ Wi-Fi     wpa_passphrase "<ssid>" "<passphrase>" >> /etc/wpa_supplicant.conf
           /etc/init.d/S40wifi restart
           iw dev wlan0 link; /usr/share/examples/wifi-scan.sh
 Bluetooth bluetoothctl, then: scan le, scan bredr, devices
+          Home Assistant: /usr/share/examples/ha-bluetooth.sh HA_ADDRESS
 Firewall  nft list ruleset; open a port until the next boot:
           nft insert rule inet filter input tcp dport 8080 accept
 System    free, df -h, dmesg, mtdinfo

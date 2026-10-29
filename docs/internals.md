@@ -499,7 +499,7 @@ in `br2-external/configs/` differs from its fragments.
 
 | | Module alone | Function-CoreBoard-1 | Korvo-1 |
 | --- | --- | --- | --- |
-| Base | Kernel, toolchain, BusyBox, Dropbear, OpenSSL, `wpa_supplicant` (WPA3, PEAP/TTLS/TLS, AP mode), curl, iperf3, libgpiod, `pinctrl`, BlueZ (`bluetoothd`, `bluetoothctl`), Lua, `nft` with a firewall, an SFTP server, `mdnsd` | The same | The same |
+| Base | Kernel, toolchain, BusyBox, Dropbear, OpenSSL, `wpa_supplicant` (WPA3, PEAP/TTLS/TLS, AP mode), curl, iperf3, libgpiod, `pinctrl`, `ble-ha`, BlueZ (`bluetoothd`, `bluetoothctl`), Lua, `nft` with a firewall, an SFTP server, `mdnsd` | The same | The same |
 | Root | squashfs root in the flash, UBIFS overlay, the MTD tools | ext4 root on the USB stick | ext4 root on the card |
 | Board parts | | Ethernet, USB, the LED | LCD, touch, the card, USB with Ethernet adapters, the LED |
 | Tools | The base only | `hostapd`, the classic BlueZ tools, OpenThread (`ot-daemon`, `ot-ctl`), `thread-relay`, bash, vim, gdb, strace, tcpdump, links, MicroPython, htop, filesystem tools, tmux, nano, nnn, ncdu, tree, bc, sqlite3, ethtool | `hostapd`, the classic BlueZ tools, OpenThread (`ot-daemon`, `ot-ctl`), `thread-relay`, bash, vim, gdb, strace, tcpdump, links, MicroPython, htop, filesystem tools, tmux, nano, nnn, ncdu, tree, bc, sqlite3, `evtest`, `gpm`, a tmux desktop on the LCD, irssi |
@@ -546,6 +546,7 @@ and Bluetooth stack the same on all boards.
 | Interrupt controller | `linux/drivers/irqchip/irq-esp32s31-clic.c` |
 | DMA coherency | `linux/drivers/cache/esp32s31-cache.c`, `linux/patches/0006` |
 | Wi-Fi transport | `shared/esp32s31-hosted-shm.h` |
+| Bluetooth for Home Assistant | `tools/ble-ha/` (the proxy, Improv, an ATT server on the HCI user channel); `make -C tools/ble-ha test` runs its tests on the host |
 | The flash root | `bootloader/components/esp_hosted/shm_flash.c`, `linux/drivers/net/wireless/espressif/esp_hosted/esp_shm_flash.c` |
 | The boards | `bootloader/main/board_*.c`, `br2-external/board/esp32s31/defconfig/*.fragment` (`make defconfigs` makes `br2-external/configs/*_defconfig`) |
 | Pins and GPIO | `linux/drivers/pinctrl/pinctrl-esp32s31.c` (also `/dev/esp32s31-gpiomem`) |

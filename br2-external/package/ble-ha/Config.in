@@ -1,0 +1,6 @@
+config BR2_PACKAGE_BLE_HA
+	bool "ble-ha"
+	help
+	  Bluetooth LE for Home Assistant: a passive Bluetooth proxy with
+	  the ESPHome native API, and Improv Wi-Fi setup over BLE while
+	  Wi-Fi has no network.  /etc/default/ble-ha turns them on.
