@@ -39,6 +39,10 @@
 #define HP_APB_FREQ_CTRL0		0x10
 #define HP_SPI2_CTRL0			0x6c
 #define HP_SPI3_CTRL0			0x70
+#define HP_AXI_DMA_CTRL0			0x78
+#define HP_LCDCAM_CTRL0			0x14c
+#define HP_LCDCAM_CORE_CTRL0		0x154
+#define HP_CAM_CTRL0			0x158
 #define HP_SPI_MST_DIV			GENMASK(22, 15)
 #define HP_RMT_CTRL0			0xbc
 #define HP_SDIO_HOST_CTRL0		0xc0
@@ -416,6 +420,38 @@ static int esp32s31_hp_init(struct esp32s31_clk *ec)
 		if (ret)
 			return ret;
 	}
+	/* Korvo-1 firmware keeps the RGB display and its DMA running. */
+	hws[ESP32S31_CLK_AXI_DMA] =
+		devm_clk_hw_register_gate_parent_hw(ec->dev, "axi-dma",
+						    hws[ESP32S31_CLK_SYS], CLK_IGNORE_UNUSED,
+						    ec->base + HP_AXI_DMA_CTRL0,
+						    0, 0, &ec->lock);
+	hws[ESP32S31_CLK_LCDCAM_APB] =
+		devm_clk_hw_register_gate_parent_hw(ec->dev, "lcdcam-apb",
+						    hws[ESP32S31_CLK_APB], CLK_IGNORE_UNUSED,
+						    ec->base + HP_LCDCAM_CTRL0,
+						    0, 0, &ec->lock);
+	hws[ESP32S31_CLK_LCDCAM_SYS] =
+		devm_clk_hw_register_gate_parent_hw(ec->dev, "lcdcam-sys",
+						    hws[ESP32S31_CLK_SYS], CLK_IGNORE_UNUSED,
+						    ec->base + HP_LCDCAM_CTRL0,
+						    2, 0, &ec->lock);
+	hws[ESP32S31_CLK_LCDCAM_CORE] =
+		devm_clk_hw_register_gate_parent_data(ec->dev, "lcdcam-core",
+						    &root[0], CLK_IGNORE_UNUSED,
+					 ec->base + HP_LCDCAM_CORE_CTRL0,
+					 2, 0, &ec->lock);
+	/* External pixel clock, crystal source: no sensor XCLK is generated. */
+	hw = devm_clk_hw_register_mux_parent_data_table(ec->dev, "cam-source",
+						      root, 1, 0,
+						      ec->base + HP_CAM_CTRL0,
+						      0, 2, 0, NULL, &ec->lock);
+	if (IS_ERR(hw))
+		return PTR_ERR(hw);
+	hws[ESP32S31_CLK_CAM] =
+		devm_clk_hw_register_gate_parent_hw(ec->dev, "cam", hw, 0,
+						    ec->base + HP_CAM_CTRL0,
+						    2, 0, &ec->lock);
 	return 0;
 }
 
@@ -572,10 +608,13 @@ static const struct esp32s31_reset esp32s31_hp_resets[] = {
 	[ESP32S31_RST_RMT] = { HP_RMT_CTRL0, HP_PERIPH_RST_EN },
 	[ESP32S31_RST_SPI2] = { HP_SPI2_CTRL0, BIT(2) },
 	[ESP32S31_RST_SPI3] = { HP_SPI3_CTRL0, BIT(2) },
+	[ESP32S31_RST_AXI_DMA] = { HP_AXI_DMA_CTRL0, BIT(1) },
+	[ESP32S31_RST_LCDCAM_APB] = { HP_LCDCAM_CTRL0, BIT(1) },
+	[ESP32S31_RST_LCDCAM] = { HP_LCDCAM_CTRL0, BIT(3) },
 };
 
 static const struct esp32s31_clk_data esp32s31_hp_data = {
-	.nclks = ESP32S31_CLK_SPI3 + 1,
+	.nclks = ESP32S31_CLK_CAM + 1,
 	.init = esp32s31_hp_init,
 	.resets = esp32s31_hp_resets,
 	.nresets = ARRAY_SIZE(esp32s31_hp_resets),

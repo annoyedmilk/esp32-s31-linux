@@ -203,6 +203,34 @@
 			interrupt-controller;
 		};
 
+		axi_dma: dma-controller@20348000 {
+			compatible = "esp,esp32s31-axi-dma";
+			reg = <0x20348000 0x1000>;
+			interrupt-parent = <&clic>;
+			interrupts = <40 48 IRQ_TYPE_LEVEL_HIGH>,
+				     <41 49 IRQ_TYPE_LEVEL_HIGH>,
+				     <42 50 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&hp_clkrst ESP32S31_CLK_AXI_DMA>;
+			resets = <&hp_clkrst ESP32S31_RST_AXI_DMA>;
+			#dma-cells = <2>;
+			status = "disabled";
+		};
+
+		camera: camera@20396000 {
+			compatible = "esp,esp32s31-camera";
+			reg = <0x20396000 0x100>;
+			clocks = <&hp_clkrst ESP32S31_CLK_LCDCAM_APB>,
+				 <&hp_clkrst ESP32S31_CLK_LCDCAM_SYS>,
+				 <&hp_clkrst ESP32S31_CLK_LCDCAM_CORE>,
+				 <&hp_clkrst ESP32S31_CLK_CAM>;
+			clock-names = "apb", "sys", "core", "cam";
+			resets = <&hp_clkrst ESP32S31_RST_LCDCAM_APB>,
+				 <&hp_clkrst ESP32S31_RST_LCDCAM>;
+			dmas = <&axi_dma 0 0>;
+			dma-names = "rx";
+			status = "disabled";
+		};
+
 		sdmmc0: mmc@20342000 {
 			compatible = "esp,esp32s31-dw-mshc", "snps,dw-mshc";
 			reg = <0x20342000 0x1000>;
