@@ -90,6 +90,11 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
 `authorized_keys`；此时在电脑上运行 `ssh-keygen -R <address>`。自行构建时，
 将密钥放入 `local-overlay/root/.ssh/authorized_keys`。
 
+ESP-Mosaico 提供 CO5300 显示控制台、CST9220 多点触控、CameraBoard V1.4
+的 V4L2 采集，以及 BMI270、两颗 BMM150 的 IIO 接口。AI 按键、振动马达、
+ES8311 音频均使用标准 Linux 接口。原生 Type-C 支持 CDC ACM 和手动选择的
+USB 主机角色，可连接键盘和鼠标。
+
 ## 功能
 
 | 功能 | `esp32s31` | `coreboard1` | `korvo1` |
@@ -132,7 +137,7 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
 - 接入点请使用 WPA2（`ap.sh`）。接入点上的 WPA3（SAE）和受保护管理帧
   （PMF）暂时还不能正常工作。station 模式不受影响。
 - `hcitool lescan` 无法使用。请使用 `bluetoothctl` 和 `scan le`。
-- 没有音频和摄像头驱动。
+- 上表中的三款开发板没有音频和摄像头驱动。
 
 ## 用户空间
 

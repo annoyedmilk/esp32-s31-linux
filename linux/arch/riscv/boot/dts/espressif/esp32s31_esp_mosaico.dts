@@ -374,3 +374,16 @@
 	pinctrl-1 = <&i2s0_cfg &i2s0_rx_cfg>;
 	status = "okay";
 };
+
+&usb_phy { status = "okay"; };
+
+&usb0 {
+	dr_mode = "otg";
+	/* HUSB320 controls VBUS, but its ID and I2C pins are not routed to the SoC. */
+	usb-role-switch;
+	role-switch-default-mode = "peripheral";
+	g-rx-fifo-size = <384>;
+	g-np-tx-fifo-size = <64>;
+	g-tx-fifo-size = <128 128 16 16 16 16 16>;
+	status = "okay";
+};

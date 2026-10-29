@@ -645,3 +645,14 @@ simple amplifier; both amplifier routes terminate at the mono speaker.
 The Speaker pin switch gates GPIO45 through DAPM. Loading modules does
 not start playback, and the amplifier is left off until explicitly used.
 TX and RX share clock pads, so simultaneous capture/playback is rejected.
+
+## ESP-Mosaico native Type-C
+
+The dedicated high-speed UTMI PHY is separate from USB Serial/JTAG pads
+33/34. HUSB320 controls CC and VBUS direction in hardware; its role signal
+is not routed to the SoC. Linux therefore exposes a manual USB role switch
+at `/sys/class/usb_role/20300000.usb-role-switch/role`: write `host` for an
+OTG hub, keyboard or mouse, and `device` for the CDC ACM data channel.
+CDC uses `/dev/ttyGS0` without starting another login console. Choose the
+role to match the cable and keep CH343 for debugging. Entering ROM through
+`reboot bootloader` replaces Linux USB with the independent downloader.

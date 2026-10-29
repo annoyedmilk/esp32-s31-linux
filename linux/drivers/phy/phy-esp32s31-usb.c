@@ -3,7 +3,7 @@
  * ESP32-S31 integrated USB 2.0 UTMI PHY
  *
  * The register sequence is the same as ESP-IDF usb_utmi_hal_init() and
- * usb_phy_otg_set_mode(..., USB_OTG_MODE_HOST).  The PHY and the DWC2 core
+ * usb_phy_otg_set_mode().  The PHY and the DWC2 core
  * use the same clock and reset controls, so this provider sets both.
  */
 
@@ -89,11 +89,27 @@ static int esp32s31_usb_phy_init(struct phy *phy)
 			      ESP32S31_USB_LS_PARALLEL_EN |
 			      ESP32S31_USB_LS_KEEPALIVE_EN, true);
 
-	/* Host mode needs 15 kohm pull-downs on the two data lines. */
+	/* Restore the last role when the controller re-enables the PHY. */
 	esp32s31_usb_set_bits(priv->usb_ctrl,
 			      ESP32S31_USB_DM_PULLDOWN |
-			      ESP32S31_USB_DP_PULLDOWN, true);
+			      ESP32S31_USB_DP_PULLDOWN,
+			      phy_get_mode(phy) == PHY_MODE_USB_HOST);
 
+	return 0;
+}
+
+static int esp32s31_usb_phy_set_mode(struct phy *phy, enum phy_mode mode,
+				     int submode)
+{
+	struct esp32s31_usb_phy *priv = phy_get_drvdata(phy);
+
+	if (mode != PHY_MODE_USB_HOST && mode != PHY_MODE_USB_DEVICE)
+		return -EINVAL;
+
+	/* The gadget core controls its pull-up; only hosts use pull-downs. */
+	esp32s31_usb_set_bits(priv->usb_ctrl,
+			      ESP32S31_USB_DM_PULLDOWN |
+			      ESP32S31_USB_DP_PULLDOWN, mode == PHY_MODE_USB_HOST);
 	return 0;
 }
 
@@ -117,6 +133,7 @@ static int esp32s31_usb_phy_exit(struct phy *phy)
 static const struct phy_ops esp32s31_usb_phy_ops = {
 	.init = esp32s31_usb_phy_init,
 	.exit = esp32s31_usb_phy_exit,
+	.set_mode = esp32s31_usb_phy_set_mode,
 	.owner = THIS_MODULE,
 };
 

@@ -1,20 +1,20 @@
-# ESP-Mosaico CoreBoard V1.2: serial console, NOR root and NAND overlay.
+# ESP-Mosaico CoreBoard V1.2: NOR root, NAND overlay and board peripherals.
 CONFIG_BUILTIN_DTB_NAME="espressif/esp32s31_esp_mosaico"
-# The UART is the only console.  The root is the squashfs partition of the
+# UART and display consoles. The root is the squashfs partition of the
 # NOR window. All writable files live in the NAND UBIFS upper layer.
 CONFIG_CMDLINE="earlycon=sbi console=tty0 console=ttyS0,115200 esp32_shm.radio_service=bt+154 root=/dev/mtdblock0 rootfstype=squashfs ro rootwait init=/sbin/nand-overlay-init"
 
-# No panel, VTs or input devices.
+# Display console and Linux input interfaces.
 CONFIG_FB=y
 CONFIG_VT=y
 CONFIG_INPUT=y
-# CONFIG_HID is not set
+CONFIG_HID=m
 
-# No card, USB, LED or I2C device.  zram stays.
+# Enable shared peripheral buses; no card, disk filesystems or RGB LED.
 # CONFIG_MMC is not set
 CONFIG_I2C=y
-# CONFIG_USB_SUPPORT is not set
-# CONFIG_PHY_ESP32S31_USB is not set
+CONFIG_USB_SUPPORT=y
+CONFIG_PHY_ESP32S31_USB=y
 # CONFIG_SCSI is not set
 # CONFIG_NEW_LEDS is not set
 # CONFIG_EXT4_FS is not set
@@ -39,10 +39,7 @@ CONFIG_NFT_MASQ=m
 # Peripheral drivers and capture buffers leave little physical RAM to spare.
 CONFIG_ZSMALLOC_CHAIN_SIZE=4
 
-# The flash window of the firmware: a read-only squashfs root, and UBIFS on
-# the data partition as the writable overlay over it.  jffs2 cannot be the
-# upper layer: it has no RENAME_WHITEOUT, so overlayfs cannot make a
-# directory where a lower one was deleted.
+# The NOR window supplies squashfs; NAND UBIFS holds the writable overlay.
 CONFIG_MTD=y
 CONFIG_MTD_BLOCK=y
 CONFIG_MTD_UBI=y
@@ -119,3 +116,14 @@ CONFIG_SND_SIMPLE_CARD=m
 # CONFIG_SND_SOC_COMPRESS is not set
 # CONFIG_SND_SOC_TOPOLOGY is not set
 # CONFIG_SND_OSSEMUL is not set
+
+# Dedicated Type-C HS PHY; HUSB320 has no SoC role notification wiring.
+CONFIG_USB=m
+CONFIG_USB_DWC2=m
+CONFIG_USB_DWC2_DUAL_ROLE=y
+CONFIG_USB_GADGET=m
+CONFIG_USB_G_SERIAL=m
+# CONFIG_USB_CONFIGFS is not set
+CONFIG_HID_GENERIC=m
+CONFIG_USB_HID=m
+CONFIG_INPUT_MOUSEDEV=m

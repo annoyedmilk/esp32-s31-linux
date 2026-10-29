@@ -32,8 +32,11 @@ There are four board configurations:
 ESP-Mosaico uses a 16 MiB NOR system and a 128 MiB NAND, split into
 96 MiB for writable files and 32 MiB for swap after a 2 MiB zram device.
 The CO5300 framebuffer provides a display console and CST9220 provides
-multitouch input. Initialize a new NAND explicitly with `nand-storage init ERASE`, then
-reboot. This erases both NAND partitions; boot never formats them.
+multitouch input. CameraBoard V1.4 supports V4L2 capture; BMI270 and two
+BMM150 devices use IIO. The AI key, vibrator and ES8311 audio use standard
+Linux interfaces. Native Type-C provides CDC ACM and manually selected
+host mode for USB keyboards and mice. Initialize a new NAND explicitly
+with `nand-storage init ERASE`, then reboot. This erases both NAND partitions; boot never formats them.
 
 1. Get the files of your board from the newest
    [release](https://github.com/annoyedmilk/esp32-s31-linux/releases).
@@ -138,7 +141,7 @@ Notes:
   management frames on the access point do not work correctly yet. The
   station is not affected.
 - `hcitool lescan` fails. Use `bluetoothctl` and `scan le`.
-- There is no audio or camera driver.
+- The three boards in the feature table have no audio or camera driver.
 
 ## Userspace
 
