@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/power/reset/esp,esp32s31-reboot-mode.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Espressif ESP32-S31 ROM download reboot mode
+
+maintainers:
+  - whatshu <shussm@qq.com>
+
+description: |
+  The LP_SYSTEM control register has a FORCE_DOWNLOAD_BOOT bit which selects
+  ROM download mode at the next system reset. The reset itself is provided
+  by SBI; this device only selects the boot path.
+
+properties:
+  compatible:
+    const: esp,esp32s31-reboot-mode
+  reg:
+    maxItems: 1
+
+required:
+  - compatible
+  - reg
+
+additionalProperties: false

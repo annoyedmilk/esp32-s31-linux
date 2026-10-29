@@ -153,6 +153,11 @@
 			#clock-cells = <1>;
 		};
 
+		reboot-mode@20700008 {
+			compatible = "esp,esp32s31-reboot-mode";
+			reg = <0x20700008 0x4>;
+		};
+
 		efuse: efuse@20715000 {
 			compatible = "esp,esp32s31-efuse";
 			reg = <0x20715000 0x168>;
