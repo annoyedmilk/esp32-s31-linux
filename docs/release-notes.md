@@ -66,8 +66,8 @@ the tmux desktop for a USB keyboard. Later kernel messages go to `tty2`
   be the Thread host, with the radio of the board as a network radio of
   the OpenThread Border Router app (`network_device`, TCP port 6638).
   `/usr/share/examples/ha-thread.sh HA_ADDRESS` turns it on; the firewall
-  accepts the port only from that address. Not tested with Home
-  Assistant yet.
+  accepts the port only from that address. Tested with Home Assistant
+  2026.10 and `otbr-agent` in a container.
 - All boards reboot 10 s after a kernel panic, and 60 s after user space
   stops (a soft watchdog and its daemon, `/etc/init.d/S15watchdog`).
   SysRq works with `/proc/sysrq-trigger`.
@@ -85,8 +85,9 @@ the tmux desktop for a USB keyboard. Later kernel messages go to `tty2`
 - Korvo-1: the drivers of USB sticks (SCSI, usb-storage), USB Ethernet
   adapters, USB keyboards and mice (HID) and exFAT are kernel modules.
   mdev loads them when a device comes, and `S10usb.sh` at boot for the
-  devices that are there. The kernel is 300 KiB smaller: while no such
-  device is connected, that RAM is free.
+  devices that are there. The kernel is 300 KiB smaller: until such a
+  device is connected, that RAM is free. A module stays loaded until the
+  next boot.
 - Bluetooth LE for Home Assistant on all boards (`ble-ha`):
   `/usr/share/examples/ha-bluetooth.sh HA_ADDRESS` makes the board a
   passive Bluetooth proxy (the ESPHome native API on TCP port 6053), and
@@ -113,7 +114,9 @@ the tmux desktop for a USB keyboard. Later kernel messages go to `tty2`
 - Buildroot 2026.08.1. `pcre2grep` and `pcre2test` are no longer in the
   root.
 - Build: `make rootfs-clean` removes the Buildroot output of a board.
-  `scripts/reset-monitor.py --cmd` runs shell commands on the console.
+  `scripts/reset-monitor.py --cmd` runs shell commands on the console,
+  and with `--no-reset` the script no longer resets the board when it
+  opens the port.
 
 The loader, the kernel and the root changed. Write the new `flash.bin`.
 On the Korvo-1 and the Function-CoreBoard-1, also write the new disk image

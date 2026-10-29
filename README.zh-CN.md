@@ -198,7 +198,8 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
   `thread-share` 不能使用；`ha-thread.sh off` 将射频交还给 `ot-daemon`。RCP
   协议对网络延迟敏感：以太网（Function-CoreBoard-1）优于 Wi-Fi，在 Korvo-1 上
   Wi-Fi 与 802.15.4 共用射频。重新加载防火墙会清空主机列表：之后请运行
-  `thread-start stop` 和 `thread-start`。尚未用 Home Assistant 测试。
+  `thread-start stop` 和 `thread-start`。已用 Home Assistant 2026.10 和容器中的
+  `otbr-agent` 测试，尚未用 Home Assistant OS 的应用测试。
 - **GPIO。** `gpiodetect`、`gpioinfo`、`gpioget --numeric -c gpiochip0 PIN`
   和 `gpioset -t0 -c gpiochip0 PIN=1`。`/usr/share/examples/gpio.sh PIN [0|1]`
   读取或设置引脚。内核拒绝使用 Flash、控制台、加载程序和驱动占用的引脚

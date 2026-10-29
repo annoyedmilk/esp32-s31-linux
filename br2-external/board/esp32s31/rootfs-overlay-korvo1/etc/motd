@@ -19,6 +19,6 @@ Network   ssh, scp, curl, links, irssi, iperf3, tcpdump
 Files     nnn, tree; /mnt/sd is the FAT partition of the card
           /mnt/usb is the FAT or exFAT of a USB stick
 Code      micropython, lua, vim, nano, sqlite3, bc, gdbserver, strace
-GPIO      pinctrl, gpioinfo, gpioget, gpioset
+GPIO      pinctrl, gpiodetect, gpioinfo, gpioget, gpioset
 Examples  ls /usr/share/examples
 

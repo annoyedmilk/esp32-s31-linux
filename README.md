@@ -222,8 +222,8 @@ scripts.
   is sensitive to delays on the network: Ethernet (Function-CoreBoard-1)
   is better than Wi-Fi, which shares the radio with 802.15.4 on the
   Korvo-1. A reload of the firewall empties the list of hosts: then run
-  `thread-start stop` and `thread-start`. Not tested with Home Assistant
-  yet.
+  `thread-start stop` and `thread-start`. Tested with Home Assistant 2026.10
+  and `otbr-agent` in a container, not with the app of Home Assistant OS.
 - **GPIO.** `gpiodetect`, `gpioinfo`, `gpioget --numeric -c gpiochip0 PIN`
   and `gpioset -t0 -c gpiochip0 PIN=1`. `/usr/share/examples/gpio.sh PIN
   [0|1]` reads or sets a pin. The kernel refuses the pins of the flash, the
