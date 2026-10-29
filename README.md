@@ -153,9 +153,19 @@ scripts.
   other devices. The border router routes IPv6 between the mesh and the
   backbone, runs the SRP and DNS-SD servers, and publishes the services
   of the Thread devices with mDNS on the backbone, so a Matter controller
-  on the LAN (chip-tool, a phone) commissions Matter devices on Thread
-  and talks to them through the board. The board itself announces
-  `_meshcop._udp`. Wi-Fi and 802.15.4 share the radio: while the Thread
+  on the LAN talks to Matter devices on Thread through the board. The
+  board itself announces `_meshcop._udp`. To commission a Matter device,
+  the controller gives it the dataset over Bluetooth:
+  - chip-tool on a PC takes the dataset directly:
+    `chip-tool pairing code-thread 1 hex:DATASET SETUPCODE`. On Linux,
+    `sysctl -w net.ipv6.conf.IFACE.accept_ra_rt_info_max_plen=64` gives
+    the PC the route to the mesh.
+  - A phone app (Google Home, Apple Home) takes the dataset only from its
+    own credential store. `thread-share` starts an ephemeral key (ePSKc,
+    Thread 1.4 credential sharing) for 2 minutes and prints it; an app
+    that supports credential sharing gets the dataset with it.
+
+  Wi-Fi and 802.15.4 share the radio: while the Thread
   radio receives, Wi-Fi gives approximately 12/17 Mbit/s TX/RX instead
   of 46/37.
   `thread-start stop` ends the network and the daemon. Nothing starts at

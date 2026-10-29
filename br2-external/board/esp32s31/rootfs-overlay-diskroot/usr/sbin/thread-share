@@ -1,0 +1,33 @@
+#!/bin/sh
+# SPDX-License-Identifier: MIT
+# thread-share [MINUTES]: let a commissioner of another ecosystem (a phone
+# app with Thread 1.4 credential sharing) take the dataset of the network.
+# It starts an ephemeral key (ePSKc) on the border agent for MINUTES (1 to
+# 10, default 2) and prints the key; the commissioner discovers the board
+# as _meshcop-e._udp.  thread-share stop ends the key before its time.
+
+CTL=/usr/libexec/openthread/ot-ctl
+
+case "${1:-2}" in
+stop)
+	$CTL ba ephemeralkey stop >/dev/null && echo "thread-share: stopped"
+	exit
+	;;
+[1-9] | 10) min=${1:-2} ;;
+*)
+	echo "usage: thread-share [MINUTES (1 to 10)] | stop" >&2
+	exit 2
+	;;
+esac
+
+pidof ot-daemon >/dev/null || { echo "thread-share: no ot-daemon; run thread-start" >&2; exit 1; }
+# ot-ctl ends its lines with CR LF.
+case "$($CTL state | tr -d '\r' | head -1)" in
+leader | router | child) ;;
+*) echo "thread-share: no Thread network; form one first (README)" >&2; exit 1 ;;
+esac
+
+key=$(tr -dc 0-9 </dev/urandom | head -c 9)
+$CTL ba ephemeralkey start "$key" $((min * 60000)) | grep -q '^Done' ||
+	{ echo "thread-share: the border agent did not take the key" >&2; exit 1; }
+echo "thread-share: key $key for $min min; thread-share stop ends it"

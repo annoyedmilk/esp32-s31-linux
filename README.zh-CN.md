@@ -143,8 +143,17 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
   显示状态，`ot-ctl dataset active -x` 打印供其他设备使用的数据集。边界路由器
   在 Mesh 网络和骨干网络之间路由 IPv6，运行 SRP 和 DNS-SD 服务器，并通过
   mDNS 在骨干网络上发布 Thread 设备的服务，因此局域网中的 Matter 控制器
-  （chip-tool、手机）可以为 Thread 上的 Matter 设备配网，并通过开发板与之通信。
-  开发板自身广播 `_meshcop._udp`。Wi-Fi 和 802.15.4 共用射频：Thread 无线
+  可以通过开发板与 Thread 上的 Matter 设备通信。开发板自身广播
+  `_meshcop._udp`。为 Matter 设备配网时，控制器通过蓝牙把数据集交给设备：
+  - PC 上的 chip-tool 直接使用数据集：
+    `chip-tool pairing code-thread 1 hex:DATASET SETUPCODE`。在 Linux 上，
+    `sysctl -w net.ipv6.conf.IFACE.accept_ra_rt_info_max_plen=64` 让 PC
+    获得到 Mesh 网络的路由。
+  - 手机应用（Google Home、Apple Home）只从自己的凭据存储中获取数据集。
+    `thread-share` 启动一个临时密钥（ePSKc，Thread 1.4 凭据共享），有效
+    2 分钟，并打印该密钥；支持凭据共享的应用可用它获取数据集。
+
+  Wi-Fi 和 802.15.4 共用射频：Thread 无线
   接收时，Wi-Fi 吞吐量（发送/接收）约为 12/17 Mbit/s，而不是 46/37 Mbit/s。`thread-start stop`
   停止网络和守护进程。开机时不会自动启动。`/usr/share/examples/thread-hub.sh`
   是一个传感器集线器：它启动网络，打印供传感器使用的数据集，并将 UDP 4242
