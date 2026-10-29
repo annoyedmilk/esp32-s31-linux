@@ -168,9 +168,12 @@ scripts.
     `sysctl -w net.ipv6.conf.IFACE.accept_ra_rt_info_max_plen=64` gives
     the PC the route to the mesh.
   - A phone app (Google Home, Apple Home) takes the dataset only from its
-    own credential store. `thread-share` starts an ephemeral key (ePSKc,
-    Thread 1.4 credential sharing) for 2 minutes and prints it; an app
-    that supports credential sharing gets the dataset with it.
+    own credential store. `thread-share [MINUTES]` starts an ephemeral key
+    (ePSKc, Thread 1.4 credential sharing) for 1 to 10 minutes (default 2)
+    and prints it; an app that supports credential sharing finds the board
+    as `_meshcop-e._udp` and gets the dataset with it. `thread-share stop`
+    ends the key. The firewall accepts the border agent on UDP port 49191
+    and the ephemeral key on UDP port 49192.
   - Thread devices without Matter join with a PSKd: `ot-ctl commissioner
     start`, then `ot-ctl commissioner joiner add * PSKD`.
 

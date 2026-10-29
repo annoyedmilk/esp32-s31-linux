@@ -401,9 +401,11 @@ the USB transport in shared SRAM. The layout is in
   is the Thread host (`br2-external/package/openthread/`), and `wpan0`
   is its TUN interface. The daemon is a border router with the SRP and
   DNS-SD servers, the mDNS responder of the OpenThread core on the
-  backbone, the SRP advertising proxy and the border agent: no
-  otbr-agent, avahi or D-Bus. It takes 2.1 MB on the disk and 230 KiB
-  of memory while it runs.
+  backbone, the SRP advertising proxy, the border agent (UDP port 49191,
+  from `openthread-project-config.h`), the commissioner, NAT64 and the
+  upstream DNS: no otbr-agent, avahi or D-Bus. The binary is 1.8 MB, and
+  its peak resident memory (VmHWM) was 1.4 MiB as the leader of a
+  network on the Korvo-1.
 - Wi-Fi and 802.15.4 share the RF. The coexistence scheme of ESP-IDF
   leaves Wi-Fi 13 Mbit/s, and without the scheme Wi-Fi stops while the
   802.15.4 radio receives. The loader turns the scheme off, and

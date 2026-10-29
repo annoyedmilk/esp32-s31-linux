@@ -58,8 +58,10 @@ the tmux desktop for a USB keyboard. Later kernel messages go to `tty2`
 - Thread on the Korvo-1 and the Function-CoreBoard-1: `thread-share`
   starts an ephemeral key for Thread 1.4 credential sharing, so a phone
   app that supports it can get the dataset of the network. `ot-ctl
-  commissioner` joins Thread devices with a PSKd. The README now says how
-  chip-tool commissions a Matter device on Thread.
+  commissioner` joins Thread devices with a PSKd. The border agent has the
+  fixed UDP port 49191 and the ephemeral key UDP port 49192, and the
+  firewall accepts both; before, the firewall dropped the commissioners.
+  The README now says how chip-tool commissions a Matter device on Thread.
 - All boards reboot 10 s after a kernel panic, and 60 s after user space
   stops (a soft watchdog and its daemon, `/etc/init.d/S15watchdog`).
   SysRq works with `/proc/sysrq-trigger`.

@@ -56,6 +56,7 @@ OPENTHREAD_CONF_OPTS = \
 	-DOT_BORDER_AGENT_SERVICE_NAME="ESP32-S31 Linux" \
 	-DOT_VENDOR_NAME="ESP32-S31 Linux" \
 	-DOT_VENDOR_MODEL="ESP32-S31" \
-	-DOT_POSIX_SETTINGS_PATH=/var/lib/thread
+	-DOT_POSIX_SETTINGS_PATH=/var/lib/thread \
+	-DOT_PROJECT_CONFIG=$(OPENTHREAD_PKGDIR)/openthread-project-config.h
 
 $(eval $(cmake-package))

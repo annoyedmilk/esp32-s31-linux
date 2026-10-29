@@ -156,8 +156,11 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
     `sysctl -w net.ipv6.conf.IFACE.accept_ra_rt_info_max_plen=64` 让 PC
     获得到 Mesh 网络的路由。
   - 手机应用（Google Home、Apple Home）只从自己的凭据存储中获取数据集。
-    `thread-share` 启动一个临时密钥（ePSKc，Thread 1.4 凭据共享），有效
-    2 分钟，并打印该密钥；支持凭据共享的应用可用它获取数据集。
+    `thread-share [MINUTES]` 启动一个临时密钥（ePSKc，Thread 1.4 凭据共享），
+    有效 1 到 10 分钟（默认 2 分钟），并打印该密钥；支持凭据共享的应用通过
+    `_meshcop-e._udp` 找到开发板，并用该密钥获取数据集。`thread-share stop`
+    结束该密钥。防火墙接受 UDP 端口 49191 上的边界代理和 UDP 端口 49192 上的
+    临时密钥。
   - 不使用 Matter 的 Thread 设备用 PSKd 加入：`ot-ctl commissioner start`，
     然后 `ot-ctl commissioner joiner add * PSKD`。
 
