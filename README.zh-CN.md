@@ -145,7 +145,7 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
   mDNS 在骨干网络上发布 Thread 设备的服务，因此局域网中的 Matter 控制器
   （chip-tool、手机）可以为 Thread 上的 Matter 设备配网，并通过开发板与之通信。
   开发板自身广播 `_meshcop._udp`。Wi-Fi 和 802.15.4 共用射频：Thread 无线
-  接收时，Wi-Fi 吞吐量约为 12 Mbit/s，而不是 42 Mbit/s。`thread-start stop`
+  接收时，Wi-Fi 吞吐量（发送/接收）约为 12/17 Mbit/s，而不是 46/37 Mbit/s。`thread-start stop`
   停止网络和守护进程。开机时不会自动启动。`/usr/share/examples/thread-hub.sh`
   是一个传感器集线器：它启动网络，打印供传感器使用的数据集，并将 UDP 4242
   端口收到的每个数据报连同时间和发送方记录到磁盘 p1 上。

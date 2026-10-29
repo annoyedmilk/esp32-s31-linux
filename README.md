@@ -156,7 +156,8 @@ scripts.
   on the LAN (chip-tool, a phone) commissions Matter devices on Thread
   and talks to them through the board. The board itself announces
   `_meshcop._udp`. Wi-Fi and 802.15.4 share the radio: while the Thread
-  radio receives, Wi-Fi gives approximately 12 Mbit/s instead of 42.
+  radio receives, Wi-Fi gives approximately 12/17 Mbit/s TX/RX instead
+  of 46/37.
   `thread-start stop` ends the network and the daemon. Nothing starts at
   boot. `/usr/share/examples/thread-hub.sh` is a sensor hub: it starts
   the network, prints the dataset for the sensors, and logs each UDP

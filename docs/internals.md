@@ -409,8 +409,8 @@ the USB transport in shared SRAM. The layout is in
   802.15.4 radio receives. The loader turns the scheme off, and
   `bootloader/main/radio_coex.c` turns it on while the radio receives:
   the linker wraps the receive, sleep and disable calls of the OpenThread
-  radio port. iperf3 on the Korvo-1: 42/30 Mbit/s with Thread stopped or
-  `wpan0` down, 12/14 as a Thread leader.
+  radio port. iperf3 TX/RX on the Korvo-1: 46/37 Mbit/s with Thread
+  stopped or `wpan0` down, 12/17 as a Thread leader, also with a BLE scan.
 - The Bluetooth controller reports "BR/EDR Not Supported" in its LMP
   features, although it has BR/EDR. A host patch clears the bit
   (`0006-*`).
