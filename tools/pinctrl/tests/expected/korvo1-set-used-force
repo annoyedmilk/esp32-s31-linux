@@ -1,0 +1,2 @@
+39: op dl pn | lo // SD_CTRL/GPIO39 = output
+rc=0

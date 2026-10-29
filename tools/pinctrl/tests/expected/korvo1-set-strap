@@ -1,0 +1,3 @@
+GPIO60 is a strapping pin: the next reset reads its level
+60: ip    pd | hi // LCD_MOSI/GPIO60 = input
+rc=0

@@ -104,6 +104,7 @@ on your computer. For your own builds, put the key into
 | microSD | no | no | the root card |
 | RGB LED (`/sys/class/leds/rgb:status`) | no | GPIO60 | GPIO37 |
 | GPIO, hardware RNG, HTTPS with `curl`, SSH (Dropbear, key only) | yes | yes | yes |
+| Pin functions, pulls and levels with `pinctrl` (as on the Raspberry Pi), net names on the GPIO lines | yes | yes | yes |
 
 Notes:
 
@@ -129,7 +130,7 @@ Notes:
 
 | Build | Packages |
 | --- | --- |
-| All boards | BusyBox, Dropbear, OpenSSL with the CA bundle, `wpa_supplicant` (WPA3, EAP, access point) with `wpa_cli` and `wpa_passphrase`, `iw`, `curl`, `iperf3`, the libgpiod 2 tools, BlueZ (`bluetoothd`, `bluetoothctl`), Lua, `nft` with a firewall, an SFTP server |
+| All boards | BusyBox, Dropbear, OpenSSL with the CA bundle, `wpa_supplicant` (WPA3, EAP, access point) with `wpa_cli` and `wpa_passphrase`, `iw`, `curl`, `iperf3`, the libgpiod 2 tools, BlueZ (`bluetoothd`, `bluetoothctl`), Lua, `nft` with a firewall, an SFTP server, `pinctrl` |
 | `esp32s31` also | The MTD tools (`mtdinfo`, `flash_erase`) |
 | `coreboard1` and `korvo1` also | `hostapd`, the classic BlueZ tools (`hciconfig`, `hcitool`), OpenThread (`ot-daemon`, `ot-ctl`), bash, coreutils, vim, nano, less, file, htop, fastfetch, strace, gdb and `gdbserver`, tcpdump, links, MicroPython, tmux, nnn, ncdu, tree, bc, sqlite3, e2fsprogs, dosfstools |
 | `coreboard1` also | `ethtool` |
@@ -184,7 +185,13 @@ scripts.
   and `gpioset -t0 -c gpiochip0 PIN=1`. `/usr/share/examples/gpio.sh PIN
   [0|1]` reads or sets a pin. The kernel refuses the pins of the flash, the
   console, the loader and the drivers (`gpio-reserved-ranges` in the device
-  tree).
+  tree). `pinctrl` shows the state of each pin from the registers, as on the
+  Raspberry Pi: the function, the pull, the level and the net name of the
+  board. `pinctrl get 47`, `pinctrl -p get` (the pins of header J2 on the
+  Function-CoreBoard-1, the module pads on the others), `pinctrl funcs 8`,
+  `pinctrl set 47 op dh`. `set` is a debug tool: it writes the registers
+  past the kernel driver, and it refuses the flash pins, the reserved pins
+  and the lines that a driver uses. `pinctrl -h` tells more.
 - **LED** (Function-CoreBoard-1, Korvo-1). The WS2812 is
   `/sys/class/leds/rgb:status`: write `R G B` (0 to 255) to
   `multi_intensity`, then `255` to `brightness`.

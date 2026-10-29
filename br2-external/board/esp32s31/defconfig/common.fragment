@@ -65,6 +65,8 @@ BR2_PACKAGE_WIRELESS_REGDB=y
 # The kernel has only version 2 of the GPIO character device ABI.
 BR2_PACKAGE_LIBGPIOD2=y
 BR2_PACKAGE_LIBGPIOD2_TOOLS=y
+# pinctrl shows and sets the pins from the registers (tools/pinctrl).
+BR2_PACKAGE_ESP32S31_PINCTRL=y
 BR2_PACKAGE_DROPBEAR=y
 # Dropbear has no SFTP server.  scp of OpenSSH 9 and sftp need one.
 BR2_PACKAGE_GESFTPSERVER=y

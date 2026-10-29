@@ -1,0 +1,65 @@
+
+WARNING! pinctrl set writes directly to the IO MUX and GPIO registers
+ignoring whatever else may be using them (such as Linux drivers) -
+it is designed as a debug tool, only use it if you know what you
+are doing and at your own risk! A write can race with the
+read-modify-write of the kernel pin driver.
+
+Running pinctrl with the help argument prints this help.
+pinctrl can get and print the state of a GPIO (or all GPIOs)
+and can be used to set the function, pulls and value of a GPIO.
+pinctrl must be run as root.
+Use:
+  pinctrl [-p] [-v] get [GPIO]
+OR
+  pinctrl [-p] [-v] [-e] [-f] set <GPIO> [options]
+OR
+  pinctrl [-p] [-v] poll <GPIO>
+OR
+  pinctrl [-p] [-v] funcs [GPIO]
+OR
+  pinctrl [-p] [-v] lev [GPIO]
+OR
+  pinctrl dump > regs.txt
+
+GPIO is a comma-separated list of GPIO names, numbers or ranges (without
+spaces), e.g. 4 or 8-19 or PA_CTRL,50-51
+
+Note that omitting [GPIO] from "pinctrl get" prints all GPIOs.
+If the -p option is given, GPIO numbers are replaced by pin numbers on the
+board: header J2 on the Function-CoreBoard-1, the pads of the
+ESP32-S31-WROOM-3 module on the module alone and on the Korvo-1.
+If the -v option is given, the output also has the drive strength and
+open drain. Including the -e option in a "set" causes pinctrl to echo back
+the new pin states.
+pinctrl funcs will dump all the possible GPIO alt functions in CSV format
+or if [GPIO] is specified the alternate funcs just for that specific GPIO.
+pinctrl dump writes the registers and the board to a snapshot, and
+--regs FILE reads the snapshot instead of the hardware.
+
+pinctrl set refuses the flash pins, the pins in gpio-reserved-ranges of the
+device tree, and the lines that a kernel driver uses (-f overrides the
+last). It warns before it changes a strapping pin (36, 37, 60, 61).
+
+Valid [options] for pinctrl set are:
+  ip      set GPIO as input
+  op      set GPIO as output
+  a0-a4   set GPIO to IO MUX function 0 to 4 (a1 is the GPIO matrix)
+  no      set GPIO to no function (NONE)
+  pu      set GPIO in-pad pull up
+  pd      set GPIO in-pad pull down
+  pn      set GPIO pull none (no pull)
+  dh      set GPIO to drive high (1) level (only valid if set to be an output)
+  dl      set GPIO to drive low (0) level (only valid if set to be an output)
+Examples:
+  pinctrl get              Prints state of all GPIOs one per line
+  pinctrl get 10           Prints state of GPIO10
+  pinctrl get 10,11        Prints state of GPIO10 and GPIO11
+  pinctrl set 47 a3        Set GPIO47 to fsel 3 function (CAM_DATA1_IN)
+  pinctrl -e set 47 pu     Enable GPIO47 in-pad pull up, echoing the result
+  pinctrl set 47 op        Set GPIO47 to be an output
+  pinctrl set 47 dl        Set GPIO47 to output low/zero (must already be set as an output)
+  pinctrl set 47 ip pd     Set GPIO47 to input with pull down
+  pinctrl set 47 op pn dh  Set GPIO47 to output with no pull and driving high
+  pinctrl lev 47           Prints the level (1 or 0) of GPIO47
+rc=0

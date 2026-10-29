@@ -1,0 +1,5 @@
+ 7: no    pn | -- // PA_CTRL/GPIO7 = none (20mA)
+20: a4    pu | hi // SDIO_DATA0/GPIO20 = SDHOST (40mA)
+37: mx    pn | lo // WS2812_CTRL/GPIO37 = RMT_SIG_IN0/RMT_SIG_OUT0 (20mA)
+47: ip    pn | lo // CAM_D1/GPIO47 = input (20mA)
+rc=0

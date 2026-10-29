@@ -1,0 +1,2 @@
+ 7: op dh pu | hi // GPIO2 = output
+rc=0

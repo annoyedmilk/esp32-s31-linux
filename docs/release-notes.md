@@ -74,6 +74,14 @@ the tmux desktop for a USB keyboard. Later kernel messages go to `tty2`
   longer in the image; `links` is the text browser.
 - Korvo-1: MemTotal is 10420 kB (v0.9.1: 10632 kB), mostly for the USB
   Ethernet drivers.
+- `pinctrl` on all boards shows the state of each pin from the registers,
+  with the command line and the output of the Raspberry Pi tool: the
+  function, the pull, the level and the net name of the board (the device
+  trees now have `gpio-line-names`). `pinctrl -p` uses header J2 of the
+  Function-CoreBoard-1 and the module pads on the other boards. `pinctrl
+  set` is a debug tool: it refuses the flash pins, the reserved pins and
+  the lines that a driver uses. The kernel has `/dev/esp32s31-gpiomem` for
+  it, which maps only the IO MUX and GPIO registers.
 - Korvo-1: kernel warnings and errors no longer write over the tmux
   desktop. After the desktop starts, they go to `tty2` (`Alt-F2`) and to
   the UART.

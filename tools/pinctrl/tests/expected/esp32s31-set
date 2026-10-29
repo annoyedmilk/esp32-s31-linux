@@ -1,0 +1,2 @@
+57: op dl pn | hi // GPIO57 = output
+rc=0

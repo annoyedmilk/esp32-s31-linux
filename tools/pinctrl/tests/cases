@@ -1,0 +1,48 @@
+# NAME ARGS (run in tests/)
+korvo1-get --regs korvo1.regs get
+korvo1-default --regs korvo1.regs
+korvo1-verbose --regs korvo1.regs -v get 7,20,37,47
+korvo1-names --regs korvo1.regs get PA_CTRL,DB0-DB3,CAM_D7
+korvo1-infer --regs korvo1.regs 46-47
+korvo1-pins --regs korvo1.regs -p get
+korvo1-pins-list --regs korvo1.regs -p get 5-9,68-71
+korvo1-pins-name --regs korvo1.regs -p get U0TXD
+korvo1-funcs --regs korvo1.regs funcs
+korvo1-funcs-pins --regs korvo1.regs -p funcs 6-12
+korvo1-lev --regs korvo1.regs lev 38-42
+korvo1-lev-pins --regs korvo1.regs -p lev 1-9
+korvo1-set-out --regs korvo1.regs -e set 47 op dh
+korvo1-set-in --regs korvo1.regs -e set 46,47 ip pd
+korvo1-set-alt --regs korvo1.regs -e set 47 a3 pu
+korvo1-set-none --regs korvo1.regs -e set 47 no
+korvo1-set-infer --regs korvo1.regs -e 47 op dl
+korvo1-set-flash --regs korvo1.regs set 26 op
+korvo1-set-reserved --regs korvo1.regs set 8 op
+korvo1-set-used --regs korvo1.regs set 39 op
+korvo1-set-used-force --regs korvo1.regs -f -e set 39 op dl
+korvo1-set-strap --regs korvo1.regs -e set 60 pd
+korvo1-set-not-output --regs korvo1.regs set 47 dh
+korvo1-set-gnd --regs korvo1.regs -p set 1 op
+korvo1-dump --regs korvo1.regs dump
+coreboard1-get --regs coreboard1.regs get
+coreboard1-pins --regs coreboard1.regs -p get
+coreboard1-verbose --regs coreboard1.regs -v get 4-8
+coreboard1-funcs --regs coreboard1.regs funcs 13-25
+coreboard1-set-reserved --regs coreboard1.regs set ETH_INTN op
+coreboard1-set-header --regs coreboard1.regs -p -e set 7 op dh
+coreboard1-lev-pins --regs coreboard1.regs -p lev
+esp32s31-get --regs esp32s31.regs get
+esp32s31-pins --regs esp32s31.regs -p get 1-12,60-72
+esp32s31-set --regs esp32s31.regs -e set 57 dl
+err-option --regs korvo1.regs -x get
+err-command --regs korvo1.regs frob
+err-gpio --regs korvo1.regs get 99
+err-name --regs korvo1.regs get NOPE
+err-set-arg --regs korvo1.regs set 47 xx
+err-set-nothing --regs korvo1.regs set 47
+err-set-nogpio --regs korvo1.regs set
+err-too-many --regs korvo1.regs get 47 op
+err-pins-name --regs korvo1.regs -p get SPICS
+err-regs --regs missing.regs get
+help --regs korvo1.regs help
+help-option -h

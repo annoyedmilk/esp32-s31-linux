@@ -1,0 +1,2 @@
+68: a0    pu | hi // GPIO58 = UART0_TXD
+rc=0

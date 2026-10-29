@@ -1,0 +1,7 @@
+ 7: no    pn | -- // PA_CTRL/GPIO7 = none
+ 8: a3    pn | lo // DB0/GPIO8 = LCD_DATA0_OUT
+ 9: a3    pn | lo // DB1/GPIO9 = LCD_DATA1_OUT
+10: a3    pn | lo // DB2/GPIO10 = LCD_DATA2_OUT
+11: a3    pn | lo // DB3/GPIO11 = LCD_DATA3_OUT
+53: ip    pn | lo // CAM_D7/GPIO53 = input
+rc=0

@@ -1,0 +1,2 @@
+GPIO39 not changed: a kernel driver uses it (-f changes it anyway)
+rc=1

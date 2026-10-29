@@ -1,0 +1,7 @@
+config BR2_PACKAGE_ESP32S31_PINCTRL
+	bool "esp32s31-pinctrl"
+	help
+	  pinctrl shows and changes the state of the ESP32-S31 pins from
+	  the registers, with the command line of the Raspberry Pi tool.
+	  It needs /dev/esp32s31-gpiomem of the kernel pin driver
+	  (CONFIG_PINCTRL_ESP32S31_GPIOMEM).

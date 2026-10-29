@@ -1,0 +1,6 @@
+ 4: ip    pu | hi // ETH_INTN/GPIO4 = input (20mA)
+ 5: mx    pn | -- // PHY_MDC/GPIO5 = GMII_MDC (20mA)
+ 6: mx    pn | hi // PHY_MDIO/GPIO6 = GMII_MDO,GMII_MDI (20mA)
+ 7: op dh pn | hi // ETH_PHY_RST/GPIO7 = output (20mA)
+ 8: a2    pn | -- // ETH_TXD0/GPIO8 = GMAC_PHY_TXD0 (20mA)
+rc=0

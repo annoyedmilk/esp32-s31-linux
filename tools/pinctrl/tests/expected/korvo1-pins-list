@@ -1,0 +1,10 @@
+ 5: en
+ 6: no    pn | -- // GPIO2 = none
+ 7: no    pn | -- // GPIO3 = none
+ 8: mx    pu | hi // GPIO0 = I2C0_SDA
+ 9: mx    pu | hi // GPIO1 = I2C0_SCL
+68: a0    pu | hi // GPIO58 = UART0_TXD
+69: a0    pu | hi // GPIO59 = UART0_RXD
+70: ip    pu | hi // GPIO60 = input
+71: ip    pu | hi // GPIO61 = input
+rc=0

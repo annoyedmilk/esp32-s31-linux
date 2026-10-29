@@ -102,6 +102,7 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
 | microSD | 否 | 否 | 根文件系统所在的卡 |
 | RGB LED（`/sys/class/leds/rgb:status`） | 否 | GPIO60 | GPIO37 |
 | GPIO、硬件随机数、`curl` HTTPS、SSH（Dropbear，仅密钥） | 是 | 是 | 是 |
+| 用 `pinctrl` 查看引脚功能、上下拉和电平（与 Raspberry Pi 相同），GPIO 线带网络名称 | 是 | 是 | 是 |
 
 说明：
 
@@ -123,7 +124,7 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
 
 | 构建 | 软件包 |
 | --- | --- |
-| 所有开发板 | BusyBox、Dropbear、带 CA 证书包的 OpenSSL、`wpa_supplicant`（WPA3、EAP、接入点）及 `wpa_cli` 和 `wpa_passphrase`、`iw`、`curl`、`iperf3`、libgpiod 2 工具、BlueZ（`bluetoothd`、`bluetoothctl`）、Lua、带防火墙的 `nft`、SFTP 服务器 |
+| 所有开发板 | BusyBox、Dropbear、带 CA 证书包的 OpenSSL、`wpa_supplicant`（WPA3、EAP、接入点）及 `wpa_cli` 和 `wpa_passphrase`、`iw`、`curl`、`iperf3`、libgpiod 2 工具、BlueZ（`bluetoothd`、`bluetoothctl`）、Lua、带防火墙的 `nft`、SFTP 服务器、`pinctrl` |
 | `esp32s31` 另有 | MTD 工具（`mtdinfo`、`flash_erase`） |
 | `coreboard1` 和 `korvo1` 另有 | `hostapd`、传统 BlueZ 工具（`hciconfig`、`hcitool`）、OpenThread（`ot-daemon`、`ot-ctl`）、bash、coreutils、vim、nano、less、file、htop、fastfetch、strace、gdb 和 `gdbserver`、tcpdump、links、MicroPython、tmux、nnn、ncdu、tree、bc、sqlite3、e2fsprogs、dosfstools |
 | `coreboard1` 另有 | `ethtool` |
@@ -168,7 +169,12 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
 - **GPIO。** `gpiodetect`、`gpioinfo`、`gpioget --numeric -c gpiochip0 PIN`
   和 `gpioset -t0 -c gpiochip0 PIN=1`。`/usr/share/examples/gpio.sh PIN [0|1]`
   读取或设置引脚。内核拒绝使用 Flash、控制台、加载程序和驱动占用的引脚
-  （设备树中的 `gpio-reserved-ranges`）。
+  （设备树中的 `gpio-reserved-ranges`）。`pinctrl` 与 Raspberry Pi 上的工具
+  相同，从寄存器读取每个引脚的状态：功能、上下拉、电平和开发板的网络名称。
+  `pinctrl get 47`、`pinctrl -p get`（Function-CoreBoard-1 上为排针 J2 的引脚，
+  其他开发板上为模组焊盘）、`pinctrl funcs 8`、`pinctrl set 47 op dh`。`set`
+  是调试工具：它绕过内核驱动直接写寄存器，并拒绝 Flash 引脚、保留引脚和
+  驱动正在使用的引脚。更多信息见 `pinctrl -h`。
 - **LED**（Function-CoreBoard-1、Korvo-1）。WS2812 对应
   `/sys/class/leds/rgb:status`：向 `multi_intensity` 写入 `R G B`（0 到 255），
   再向 `brightness` 写入 `255`。`/usr/share/examples/led.sh R G B`

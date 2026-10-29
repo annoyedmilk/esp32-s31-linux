@@ -1,0 +1,100 @@
+ 1: gnd
+ 2: gnd
+ 3: 3v3
+ 4: 3v3
+ 5: en
+ 6: no    pn | -- // GPIO2 = none
+ 7: no    pn | -- // GPIO3 = none
+ 8: mx    pu | hi // GPIO0 = I2C0_SDA
+ 9: mx    pu | hi // GPIO1 = I2C0_SCL
+10: no    pn | -- // GPIO4 = none
+11: no    pn | -- // GPIO5 = none
+12: no    pn | -- // GPIO6 = none
+13: no    pn | -- // GPIO7 = none
+14: a3    pn | lo // GPIO8 = LCD_DATA0_OUT
+15: a3    pn | lo // GPIO9 = LCD_DATA1_OUT
+16: a3    pn | lo // GPIO10 = LCD_DATA2_OUT
+17: a3    pn | lo // GPIO11 = LCD_DATA3_OUT
+18: a3    pn | lo // GPIO12 = LCD_DATA4_OUT
+19: a3    pn | lo // GPIO13 = LCD_DATA5_OUT
+20: a3    pn | lo // GPIO14 = LCD_DATA6_OUT
+21: a3    pn | lo // GPIO15 = LCD_DATA7_OUT
+22: a3    pn | lo // GPIO16 = LCD_DATA8_OUT
+23: a3    pn | lo // GPIO17 = LCD_DATA9_OUT
+24: a3    pn | lo // GPIO18 = LCD_DATA10_OUT
+25: a3    pn | lo // GPIO19 = LCD_DATA11_OUT
+26: gnd
+27: a4    pu | hi // GPIO20 = SDHOST
+28: a4    pu | hi // GPIO21 = SDHOST
+29: a4    pu | hi // GPIO22 = SDHOST
+30: a4    pu | hi // GPIO23 = SDHOST
+31: a4    pn | lo // GPIO24 = SDHOST
+32: a4    pu | hi // GPIO25 = SDHOST
+33: nc
+34: nc
+35: nc
+36: nc
+37: nc
+38: nc
+39: nc
+40: usb_dp
+41: usb_dm
+42: a3    pn | lo // GPIO33 = LCD_DATA12_OUT
+43: a3    pn | lo // GPIO34 = LCD_DATA13_OUT
+44: a3    pn | lo // GPIO35 = LCD_DATA14_OUT
+45: a3    pn | lo // GPIO36 = LCD_DATA15_OUT
+46: mx    pn | lo // GPIO37 = RMT_SIG_IN0/RMT_SIG_OUT0
+47: gnd
+48: gnd
+49: op dl pn | lo // GPIO38 = output
+50: op dl pn | lo // GPIO39 = output
+51: a3    pn | lo // GPIO40 = LCD_PCLK
+52: ip    pn | hi // GPIO42 = input
+53: a3    pn | lo // GPIO43 = LCD_H_ENABLE
+54: a3    pn | lo // GPIO44 = LCD_H_SYNC
+55: a3    pn | hi // GPIO45 = LCD_V_SYNC
+56: ip    pn | lo // GPIO46 = input
+57: ip    pn | lo // GPIO47 = input
+58: no    pn | -- // GPIO48 = none
+59: no    pn | -- // GPIO49 = none
+60: no    pn | -- // GPIO50 = none
+61: no    pn | -- // GPIO51 = none
+62: ip    pn | lo // GPIO52 = input
+63: ip    pn | lo // GPIO53 = input
+64: a0    pn | lo // GPIO54 = MTDO
+65: a0    pn | lo // GPIO55 = MTCK
+66: a0    pn | lo // GPIO56 = MTDI
+67: a0    pn | lo // GPIO57 = MTMS
+68: a0    pu | hi // GPIO58 = UART0_TXD
+69: a0    pu | hi // GPIO59 = UART0_RXD
+70: ip    pu | hi // GPIO60 = input
+71: ip    pu | hi // GPIO61 = input
+72: gnd
+73: gnd
+74: gnd
+75: gnd
+76: gnd
+77: gnd
+78: gnd
+79: gnd
+80: gnd
+81: gnd
+82: gnd
+83: gnd
+84: gnd
+85: gnd
+86: gnd
+87: gnd
+88: gnd
+89: gnd
+90: gnd
+91: nc
+92: gnd
+93: gnd
+94: gnd
+95: epad
+96: gnd
+97: gnd
+98: gnd
+99: gnd
+rc=0

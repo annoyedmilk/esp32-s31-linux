@@ -1,0 +1,41 @@
+ 1: gnd
+ 2: gnd
+ 3: a0    pu | hi // GPIO58 = UART0_TXD
+ 4: a0    pu | hi // GPIO59 = UART0_RXD
+ 5: ip    pu | hi // GPIO61 = input
+ 6: mx    pn | -- // GPIO60 = RMT_SIG_IN0/RMT_SIG_OUT0
+ 7: ip    pu | hi // GPIO2 = input
+ 8: gnd
+ 9: ip    pn | lo // GPIO0 = input
+10: ip    pu | hi // GPIO3 = input
+11: ip    pn | lo // GPIO49 = input
+12: ip    pn | lo // GPIO1 = input
+13: ip    pn | lo // GPIO47 = input
+14: ip    pn | lo // GPIO48 = input
+15: ip    pn | lo // GPIO45 = input
+16: ip    pn | lo // GPIO46 = input
+17: ip    pn | lo // GPIO43 = input
+18: ip    pn | lo // GPIO44 = input
+19: ip    pn | lo // GPIO40 = input
+20: ip    pn | lo // GPIO42 = input
+21: ip    pn | lo // GPIO39 = input
+22: ip    pn | lo // GPIO38 = input
+23: ip    pn | lo // GPIO37 = input
+24: ip    pn | lo // GPIO36 = input
+25: ip    pn | lo // GPIO35 = input
+26: ip    pu | hi // GPIO20 = input
+27: ip    pu | hi // GPIO21 = input
+28: ip    pu | hi // GPIO22 = input
+29: ip    pu | hi // GPIO23 = input
+30: ip    pu | hi // GPIO24 = input
+31: ip    pu | hi // GPIO25 = input
+32: ip    pu | hi // GPIO4 = input
+33: gnd
+34: gnd
+35: 3v3
+36: 3v3
+37: gnd
+38: gnd
+39: 5v
+40: 5v
+rc=0
