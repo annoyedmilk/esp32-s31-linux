@@ -40,6 +40,33 @@ alone with UART only.
 On the Korvo-1, the LCD shows the Tux logo and the kernel warnings, then
 the tmux desktop for a USB keyboard.
 
+## New after v0.9.1
+
+- Module alone: the update formats the overlay one time. The `data`
+  partition moved, so the first boot erases it, and all files of the
+  overlay are lost, for example `/etc/wpa_supplicant.conf` and the SSH
+  host keys. Copy the files that you need before the update.
+- Module alone: the root partition is 512 KiB larger (8 MiB), and the
+  `data` partition is 1.9375 MiB.
+- Module alone: the firewall of the disk boards. The board answers ping,
+  DHCP and mDNS and takes SSH. It drops all other new connections, so a
+  server on another port, such as `iperf3 -s` or `httpd`, needs `nft
+  insert rule inet filter input tcp dport PORT accept`.
+- All boards have an SFTP server: `scp` of OpenSSH 9 and newer works
+  without `-O`, and `sftp` works.
+- Wi-Fi RX is faster: the host driver gives the received frames to the
+  network stack as a batch. iperf3 RX on the Korvo-1 goes from 30 to
+  37 Mbit/s.
+- ESP-Hosted 1.0.6.0.23: the access point encrypts its protected
+  management frames. WPA3 (SAE) and protected management frames on the
+  access point still do not work correctly. Use WPA2 for the access point.
+- Buildroot 2026.08.1. `pcre2grep` and `pcre2test` are no longer in the
+  root.
+
+The loader, the kernel and the root changed. Write the new `flash.bin`.
+On the Korvo-1 and the Function-CoreBoard-1, also write the new disk image
+or run `make sdroot`.
+
 ## New in v0.9.1
 
 - The firewall drops stay off the consoles. In v0.9.0, the Korvo-1 and
