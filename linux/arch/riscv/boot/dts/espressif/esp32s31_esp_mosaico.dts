@@ -58,6 +58,40 @@
 		clock-frequency = <20000000>;
 	};
 
+	amplifier: audio-amplifier {
+		compatible = "simple-audio-amplifier";
+		enable-gpios = <&pinctrl 45 GPIO_ACTIVE_HIGH>;
+		VCC-supply = <&vdd>;
+		sound-name-prefix = "Amp";
+	};
+
+	sound {
+		compatible = "simple-audio-card";
+		simple-audio-card,name = "ESP-Mosaico";
+		simple-audio-card,format = "i2s";
+		simple-audio-card,mclk-fs = <256>;
+		simple-audio-card,bitclock-master = <&sound_cpu>;
+		simple-audio-card,frame-master = <&sound_cpu>;
+		simple-audio-card,aux-devs = <&amplifier>;
+		simple-audio-card,widgets = "Speaker", "Speaker",
+					    "Microphone", "Microphone";
+		/* Both logical channels of the generic amp end at the mono speaker. */
+		simple-audio-card,routing = "Speaker", "Amp OUTL",
+					   "Speaker", "Amp OUTR",
+					   "Amp INL", "OUT",
+					   "Amp INR", "OUT",
+					   "MIC1", "Microphone";
+		simple-audio-card,pin-switches = "Speaker";
+
+		sound_cpu: simple-audio-card,cpu {
+			sound-dai = <&i2s0>;
+		};
+
+		simple-audio-card,codec {
+			sound-dai = <&codec>;
+		};
+	};
+
 	chosen {
 		stdout-path = "serial0:115200n8";
 	};
@@ -155,6 +189,36 @@
 			input-enable;
 		};
 	};
+
+	i2s0_cfg: i2s0-cfg {
+		i2s0-output-pins {
+			pinmux = <ESP32S31_MATRIX_OUT(54, ESP32S31_SIG_I2S0_MCLK)>,
+				 <ESP32S31_MATRIX_OUT(52, ESP32S31_SIG_I2S0_DOUT)>;
+			bias-disable;
+		};
+
+		i2s0-input-pins {
+			pinmux = <ESP32S31_MATRIX_IN(40, ESP32S31_SIG_I2S0_DIN)>;
+			bias-disable;
+			input-enable;
+		};
+	};
+
+	i2s0_tx_cfg: i2s0-tx-cfg {
+		i2s0-tx-clock-pins {
+			pinmux = <ESP32S31_MATRIX_OUT(37, ESP32S31_SIG_I2S0_TX_BCLK)>,
+				 <ESP32S31_MATRIX_OUT(49, ESP32S31_SIG_I2S0_TX_WS)>;
+			bias-disable;
+		};
+	};
+
+	i2s0_rx_cfg: i2s0-rx-cfg {
+		i2s0-rx-clock-pins {
+			pinmux = <ESP32S31_MATRIX_OUT(37, ESP32S31_SIG_I2S0_RX_BCLK)>,
+				 <ESP32S31_MATRIX_OUT(49, ESP32S31_SIG_I2S0_RX_WS)>;
+			bias-disable;
+		};
+	};
 };
 
 &spi3 {
@@ -222,6 +286,14 @@
 		reg = <0x69>;
 		vdd-supply = <&mcu_3v3>;
 		vddio-supply = <&mcu_3v3>;
+	};
+
+	codec: codec@19 {
+		compatible = "everest,es8311";
+		reg = <0x19>;
+		clocks = <&hp_clkrst ESP32S31_CLK_I2S0_MCLK>;
+		clock-names = "mclk";
+		#sound-dai-cells = <0>;
 	};
 };
 
@@ -292,4 +364,13 @@
 			pclk-sample = <1>;
 		};
 	};
+};
+
+&ahb_dma { status = "okay"; };
+
+&i2s0 {
+	pinctrl-names = "default", "capture";
+	pinctrl-0 = <&i2s0_cfg &i2s0_tx_cfg>;
+	pinctrl-1 = <&i2s0_cfg &i2s0_rx_cfg>;
+	status = "okay";
 };

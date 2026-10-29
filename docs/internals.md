@@ -635,3 +635,13 @@ creating the sensor client. Missing modules do not block boot. Removal
 unregisters the client and fails active V4L2 queues; applications must close
 and reopen capture to recover. The receiver exposes 640x480 UYVY frames,
 nominally 15 fps, using AXI DMA and scatter-gather PSRAM buffers.
+
+## ESP-Mosaico audio
+
+ES8311 at I2C0 address 0x19 uses I2S0: MCLK54, BCLK37, WS49, playback52
+and capture40. AHB DMA supplies small coherent SRAM cyclic buffers. The
+simple-card description joins the upstream ES8311 codec and NS4150B
+simple amplifier; both amplifier routes terminate at the mono speaker.
+The Speaker pin switch gates GPIO45 through DAPM. Loading modules does
+not start playback, and the amplifier is left off until explicitly used.
+TX and RX share clock pads, so simultaneous capture/playback is rejected.
