@@ -254,7 +254,7 @@ scripts.
   mesh, the border agent (UDP 49191 and 49192) and, in relay mode, the
   Home Assistant hosts on TCP 6638. It drops and logs all other new
   connections. The module has
-  the firewall since v0.9.2: a server on another port needs a rule after
+  the firewall since v0.10.0: a server on another port needs a rule after
   the update. `nft
   insert rule inet filter input tcp dport 8080 accept` opens a port until the
   next boot; a line in the file keeps it. For a router between an access point and `eth0`:

@@ -41,7 +41,7 @@ On the Korvo-1, the LCD shows the Tux logo and the kernel warnings, then
 the tmux desktop for a USB keyboard. Later kernel messages go to `tty2`
 (`Alt-F2`), not over the desktop.
 
-## New in v0.9.2
+## New in v0.10.0
 
 - Module alone: the update formats the overlay one time. The `data`
   partition moved, so the first boot erases it, and all files of the

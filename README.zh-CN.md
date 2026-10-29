@@ -224,7 +224,7 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
 - **防火墙。** `/etc/nftables.conf` 在启动时加载：开发板响应 ping、DHCP 和
   mDNS，接受 SSH 和（磁盘开发板上的）Thread Mesh 流量、边界代理
   （UDP 49191 和 49192），以及中继模式下来自 Home Assistant 主机的 TCP 6638
-  连接，丢弃并记录所有其他新连接。模组从 v0.9.2 起也有防火墙：更新后，
+  连接，丢弃并记录所有其他新连接。模组从 v0.10.0 起也有防火墙：更新后，
   其他端口上的服务器需要一条规则。
   `nft insert rule inet filter input tcp dport 8080 accept`
   打开一个端口，直到下次重启；在该文件中加一行可永久保留。在接入点和 `eth0`
