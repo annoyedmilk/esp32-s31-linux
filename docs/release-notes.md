@@ -55,6 +55,11 @@ the tmux desktop for a USB keyboard. Later kernel messages go to `tty2`
   insert rule inet filter input tcp dport PORT accept`.
 - All boards have an SFTP server: `scp` of OpenSSH 9 and newer works
   without `-O`, and `sftp` works.
+- Thread on the Korvo-1 and the Function-CoreBoard-1: `thread-share`
+  starts an ephemeral key for Thread 1.4 credential sharing, so a phone
+  app that supports it can get the dataset of the network. `ot-ctl
+  commissioner` joins Thread devices with a PSKd. The README now says how
+  chip-tool commissions a Matter device on Thread.
 - Korvo-1: kernel warnings and errors no longer write over the tmux
   desktop. After the desktop starts, they go to `tty2` (`Alt-F2`) and to
   the UART.
