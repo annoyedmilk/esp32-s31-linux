@@ -3,6 +3,7 @@
 /dts-v1/;
 #include "esp32s31.dtsi"
 #include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/input/input.h>
 
 / {
 	model = "ESP-Mosaico CoreBoard V1.2";
@@ -32,6 +33,23 @@
 		gpio = <&pinctrl 60 GPIO_ACTIVE_LOW>;
 		regulator-always-on;
 		startup-delay-us = <100000>;
+	};
+
+	keys {
+		compatible = "gpio-keys";
+
+		key-ai {
+			label = "AI";
+			linux,code = <KEY_PROG1>;
+			gpios = <&pinctrl 7 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
+			debounce-interval = <50>;
+		};
+	};
+
+	vibrator {
+		compatible = "gpio-vibrator";
+		enable-gpios = <&pinctrl 8 GPIO_ACTIVE_HIGH>;
+		vcc-supply = <&vdd>;
 	};
 
 	chosen {
@@ -141,6 +159,27 @@
 		vdd-supply = <&vcc_3v3>;
 		touchscreen-size-x = <480>;
 		touchscreen-size-y = <480>;
+	};
+
+	magnetometer@11 {
+		compatible = "bosch,bmm150";
+		reg = <0x11>;
+		vdd-supply = <&mcu_3v3>;
+		vddio-supply = <&mcu_3v3>;
+	};
+
+	magnetometer@12 {
+		compatible = "bosch,bmm150";
+		reg = <0x12>;
+		vdd-supply = <&mcu_3v3>;
+		vddio-supply = <&mcu_3v3>;
+	};
+
+	imu@69 {
+		compatible = "bosch,bmi270";
+		reg = <0x69>;
+		vdd-supply = <&mcu_3v3>;
+		vddio-supply = <&mcu_3v3>;
 	};
 };
 

@@ -11,3 +11,5 @@ BR2_PACKAGE_ATTR=y
 # A display console and small input diagnostic tool.
 BR2_ROOTFS_POST_SCRIPT_ARGS="tty1"
 BR2_PACKAGE_EVTEST=y
+
+BR2_PACKAGE_BMI270_FIRMWARE=y

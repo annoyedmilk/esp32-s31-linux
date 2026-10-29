@@ -610,3 +610,14 @@ are not synchronized to TE, so live camera preview can tear.
 CST9220 shares I2C0 (SDA56/SCL3) with the board sensors. It uses standard
 input multitouch slots and polls while open. GPIO6 touch interrupts are
 not implemented. This port targets CoreBoard V1.2 only.
+
+## ESP-Mosaico board inputs and sensors
+
+The AI key is active-low GPIO7 with a pull-up and debounce; gpio-keys
+reports KEY_PROG1. GPIO8 enables the vibration motor through gpio-vibra's
+force-feedback interface. Neither driver starts effects automatically.
+BMI270 at 0x69 and BMM150 devices at 0x11/0x12 use the upstream IIO drivers.
+The firmware package supplies BMI270 initialization data after root mount.
+The back magnets can saturate magnetic measurements; these are raw IIO
+sensors, not a calibrated compass. BQ27220 at 0x55 does not respond to the
+official access sequence and is deliberately absent from the device tree.
