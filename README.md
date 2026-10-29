@@ -71,7 +71,8 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
 ```
 
 Read the address with `ip -4 addr show wlan0` (`eth0` on the
-Function-CoreBoard-1 with a cable), then `ssh root@<address>`. To check the
+Function-CoreBoard-1 with a cable), then `ssh root@<address>`, or use
+`ssh root@esp32s31.local` (mDNS). To check the
 host key, run `dropbearkey -y -f /etc/dropbear/dropbear_ed25519_host_key |
 tail -1` on the console. A new disk image or `make sdroot` gives the board a
 new host key and no `authorized_keys`; then run `ssh-keygen -R <address>`
@@ -96,8 +97,10 @@ on your computer. For your own builds, put the key into
 | Bluetooth (`hci0`): BlueZ, `bluetoothctl` | yes | yes | yes |
 | Classic BlueZ tools (`hciconfig`, `hcitool`) | no | yes | yes |
 | Thread (IEEE 802.15.4): OpenThread border router for Matter, `ot-ctl` | no | yes | yes |
-| Gigabit Ethernet (`eth0`) | no | yes | no |
-| USB host (DWC2) | no | the root stick; a second stick by hand | keyboards, mice, storage, mounted at plug-in |
+| Ethernet (`eth0`) | no | Gigabit | a USB adapter |
+| USB host (DWC2) | no | the root stick; a second stick by hand | keyboards, mice, storage (FAT, exFAT) mounted at plug-in, Ethernet adapters |
+| Name on the LAN (`esp32s31.local`, mDNS) | yes | yes | yes |
+| Reboot after a kernel panic or a hang (soft watchdog) | yes | yes | yes |
 | microSD | no | no | the root card |
 | RGB LED (`/sys/class/leds/rgb:status`) | no | GPIO60 | GPIO37 |
 | GPIO, hardware RNG, HTTPS with `curl`, SSH (Dropbear, key only) | yes | yes | yes |
@@ -154,7 +157,10 @@ scripts.
   backbone, runs the SRP and DNS-SD servers, and publishes the services
   of the Thread devices with mDNS on the backbone, so a Matter controller
   on the LAN talks to Matter devices on Thread through the board. The
-  board itself announces `_meshcop._udp`. To commission a Matter device,
+  board itself announces `_meshcop._udp`. With a backbone, Thread devices
+  also reach IPv4 hosts through NAT64 (192.168.255.0/24, masqueraded), and
+  the border router sends their DNS queries to the resolvers of the board.
+  To commission a Matter device,
   the controller gives it the dataset over Bluetooth:
   - chip-tool on a PC takes the dataset directly:
     `chip-tool pairing code-thread 1 hex:DATASET SETUPCODE`. On Linux,
@@ -185,6 +191,9 @@ scripts.
   `/usr/share/examples/led.sh R G B` (Function-CoreBoard-1) and
   `micropython /usr/share/examples/led.py R G B` (Korvo-1) do this.
 - **Network.** `iperf3` measures the throughput against a server.
+  On the Korvo-1, a USB Ethernet adapter (CDC ECM or NCM, ASIX AX88772 or
+  AX88179, Realtek RTL8152 or RTL8153) becomes `eth0` with DHCP when it is
+  plugged in, and its default route wins over Wi-Fi.
   `curl` verifies certificates against the CA bundle.
   `/usr/share/examples/report.sh URL` sends the uptime and the free memory
   with HTTPS; its comment shows the `crontab` line for each 5 minutes.
@@ -216,6 +225,10 @@ scripts.
   `Ctrl-b n` goes to the next, `Ctrl-b %` and `Ctrl-b "` split, `Ctrl-b d`
   logs out. Kernel messages do not write over the desktop: they go to
   `tty2` (`Alt-F2`, back with `Alt-F1`) and to the UART.
+- **Recovery.** The board reboots 10 s after a kernel panic, and 60 s
+  after user space stops (the soft watchdog; `/etc/init.d/S15watchdog stop`
+  turns it off). SysRq works with `/proc/sysrq-trigger`: `s` syncs, `u`
+  remounts read-only, `b` reboots.
 - **Time.** The clock is UTC. On the Function-CoreBoard-1 and the Korvo-1,
   `ln -sf /usr/share/zoneinfo/Europe/Zurich /etc/localtime` sets a local
   zone.

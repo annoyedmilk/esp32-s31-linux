@@ -70,7 +70,8 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
 ```
 
 用 `ip -4 addr show wlan0` 查看地址（Function-CoreBoard-1 接网线时用
-`eth0`），然后运行 `ssh root@<address>`。要核对主机密钥，在控制台上运行
+`eth0`），然后运行 `ssh root@<address>`，或使用 `ssh root@esp32s31.local`
+（mDNS）。要核对主机密钥，在控制台上运行
 `dropbearkey -y -f /etc/dropbear/dropbear_ed25519_host_key | tail -1`。
 写入新的磁盘镜像或运行 `make sdroot` 后，开发板会生成新的主机密钥，且没有
 `authorized_keys`；此时在电脑上运行 `ssh-keygen -R <address>`。自行构建时，
@@ -94,8 +95,10 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
 | 蓝牙（`hci0`）：BlueZ、`bluetoothctl` | 是 | 是 | 是 |
 | 传统 BlueZ 工具（`hciconfig`、`hcitool`） | 否 | 是 | 是 |
 | Thread（IEEE 802.15.4）：用于 Matter 的 OpenThread 边界路由器，`ot-ctl` | 否 | 是 | 是 |
-| 千兆以太网（`eth0`） | 否 | 是 | 否 |
-| USB 主机（DWC2） | 否 | 根文件系统所在的 U 盘；第二个 U 盘需手动挂载 | 键盘、鼠标、存储设备，插入时自动挂载 |
+| 以太网（`eth0`） | 否 | 千兆 | USB 网卡 |
+| USB 主机（DWC2） | 否 | 根文件系统所在的 U 盘；第二个 U 盘需手动挂载 | 键盘、鼠标、存储设备（FAT、exFAT，插入时自动挂载）、以太网适配器 |
+| 局域网名称（`esp32s31.local`，mDNS） | 是 | 是 | 是 |
+| 内核崩溃或系统挂起后重启（软件看门狗） | 是 | 是 | 是 |
 | microSD | 否 | 否 | 根文件系统所在的卡 |
 | RGB LED（`/sys/class/leds/rgb:status`） | 否 | GPIO60 | GPIO37 |
 | GPIO、硬件随机数、`curl` HTTPS、SSH（Dropbear，仅密钥） | 是 | 是 | 是 |
@@ -144,7 +147,9 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
   在 Mesh 网络和骨干网络之间路由 IPv6，运行 SRP 和 DNS-SD 服务器，并通过
   mDNS 在骨干网络上发布 Thread 设备的服务，因此局域网中的 Matter 控制器
   可以通过开发板与 Thread 上的 Matter 设备通信。开发板自身广播
-  `_meshcop._udp`。为 Matter 设备配网时，控制器通过蓝牙把数据集交给设备：
+  `_meshcop._udp`。有骨干网络时，Thread 设备还可通过 NAT64
+  （192.168.255.0/24，经地址伪装）访问 IPv4 主机，边界路由器把它们的 DNS
+  查询转发给开发板的解析器。为 Matter 设备配网时，控制器通过蓝牙把数据集交给设备：
   - PC 上的 chip-tool 直接使用数据集：
     `chip-tool pairing code-thread 1 hex:DATASET SETUPCODE`。在 Linux 上，
     `sysctl -w net.ipv6.conf.IFACE.accept_ra_rt_info_max_plen=64` 让 PC
@@ -170,6 +175,9 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
   （Function-CoreBoard-1）和 `micropython /usr/share/examples/led.py R G B`
   （Korvo-1）完成同样的操作。
 - **网络。** `iperf3` 测量与服务器之间的吞吐量。`curl` 使用 CA 证书包验证证书。
+  在 Korvo-1 上，插入 USB 以太网适配器（CDC ECM 或 NCM、ASIX AX88772 或
+  AX88179、Realtek RTL8152 或 RTL8153）后，它成为 `eth0` 并通过 DHCP 获取
+  地址，其默认路由优先于 Wi-Fi。
   `/usr/share/examples/report.sh URL` 通过 HTTPS 发送运行时间和空闲内存；
   脚本注释中给出每 5 分钟运行一次的 `crontab` 行。
 - **编程。** `lua`，Function-CoreBoard-1 和 Korvo-1 上还有 `micropython`。
@@ -199,6 +207,9 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
   `Ctrl-b n` 切换到下一个窗口，`Ctrl-b %` 和 `Ctrl-b "` 分屏，`Ctrl-b d`
   退出登录。内核消息不会覆盖桌面：它们显示在 `tty2`（`Alt-F2`，用 `Alt-F1`
   返回）和 UART 上。
+- **恢复。** 内核崩溃 10 秒后，或用户空间停止 60 秒后（软件看门狗；
+  `/etc/init.d/S15watchdog stop` 将其关闭），开发板自动重启。SysRq 可通过
+  `/proc/sysrq-trigger` 使用：`s` 同步，`u` 以只读方式重新挂载，`b` 重启。
 - **时间。** 时钟为 UTC。在 Function-CoreBoard-1 和 Korvo-1 上，
   `ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime` 设置本地时区。
 
