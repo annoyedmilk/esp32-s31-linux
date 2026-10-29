@@ -49,6 +49,8 @@ BR2_TARGET_TZ_INFO=y
 BR2_PACKAGE_HOSTAPD=y
 # The Thread host for the IEEE 802.15.4 radio co-processor of the firmware.
 BR2_PACKAGE_OPENTHREAD=y
+# The RCP for the OpenThread Border Router app of Home Assistant.
+BR2_PACKAGE_THREAD_RELAY=y
 # The BlueZ tools and the deprecated ones (hciconfig, hcitool, hcidump).
 BR2_PACKAGE_BLUEZ5_UTILS_TOOLS=y
 BR2_PACKAGE_BLUEZ5_UTILS_DEPRECATED=y

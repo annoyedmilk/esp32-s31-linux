@@ -554,5 +554,5 @@ and Bluetooth stack the same on all boards.
 | The console | `linux/drivers/tty/serial/esp32_uart.c` |
 | Kernel memory | `br2-external/board/esp32s31/linux.config`, `linux/patches/0021`, `0022` |
 | The firewall | `br2-external/board/esp32s31/rootfs-overlay/etc/nftables.conf` |
-| Thread | `br2-external/board/esp32s31/rootfs-overlay-diskroot/usr/sbin/thread-start`, `bootloader/main/radio_coex.c` |
+| Thread | `br2-external/board/esp32s31/rootfs-overlay-diskroot/usr/sbin/thread-start`, `bootloader/main/radio_coex.c`, `tools/thread-relay/` (the RCP for Home Assistant; `make -C tools/thread-relay test` runs its tests on the host) |
 | Device tree | `linux/arch/riscv/boot/dts/espressif/esp32s31.dtsi` |

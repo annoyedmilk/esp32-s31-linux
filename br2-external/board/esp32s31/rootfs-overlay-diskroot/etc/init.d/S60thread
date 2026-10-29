@@ -1,0 +1,14 @@
+#!/bin/sh
+# SPDX-License-Identifier: MIT
+# In the relay mode of /etc/default/thread, start thread-relay at boot:
+# Home Assistant expects its radio all the time.  ot-daemon starts at the
+# first ot-ctl, not here.
+
+THREAD_MODE=daemon
+[ -r /etc/default/thread ] && . /etc/default/thread
+[ "$THREAD_MODE" = relay ] || exit 0
+
+case "$1" in
+start) /usr/sbin/thread-start ;;
+stop) /usr/sbin/thread-start stop ;;
+esac

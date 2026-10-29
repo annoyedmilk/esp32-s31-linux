@@ -1,0 +1,9 @@
+# thread-start reads this file.
+# THREAD_MODE=daemon: ot-daemon on the board is the Thread host (ot-ctl,
+# thread-share).  It starts at the first ot-ctl.
+# THREAD_MODE=relay: Home Assistant is the Thread host.  thread-relay
+# gives it the radio on TCP port 6638, from boot on.  The port gives full
+# control of the radio: only the hosts in RELAY_ALLOW (IPv4 or IPv6
+# addresses, separated by spaces) can connect.
+THREAD_MODE=daemon
+RELAY_ALLOW=""

@@ -1,0 +1,8 @@
+config BR2_PACKAGE_THREAD_RELAY
+	bool "thread-relay"
+	help
+	  thread-relay gives the Spinel stream of the IEEE 802.15.4 RCP
+	  (/dev/esp_rcp0) to one TCP client: otbr-agent of the OpenThread
+	  Border Router app of Home Assistant, with network_device.
+	  thread-start runs it in place of ot-daemon when
+	  /etc/default/thread says THREAD_MODE=relay.

@@ -6,17 +6,45 @@
 # router and routes IPv6 between wpan0 and the backbone.  NAT64 and the
 # upstream DNS give the Thread devices IPv4 hosts and names (nftables.conf
 # masquerades the NAT64 network).
-# thread-start stop: stop the Thread network and ot-daemon, which turns the
-# 802.15.4 radio off.  Nothing starts at boot: the radio takes Wi-Fi time
-# only while it runs.  The ot-ctl wrapper of post-build.sh runs
-# "thread-start" first.
+# With THREAD_MODE=relay in /etc/default/thread, start thread-relay instead:
+# Home Assistant is the Thread host, through TCP port 6638, which the
+# firewall opens only for the hosts in RELAY_ALLOW.  S60thread starts the
+# relay at boot.
+# thread-start stop: stop the Thread network and the host or the relay,
+# which turns the 802.15.4 radio off.  ot-daemon does not start at boot:
+# the radio takes Wi-Fi time only while it runs.  The ot-ctl wrapper of
+# post-build.sh runs "thread-start" first.
 
 CTL=/usr/libexec/openthread/ot-ctl
 DAEMON=/usr/sbin/ot-daemon
+RELAY=/usr/sbin/thread-relay
+RCP=/dev/esp_rcp0
 DATA=/var/lib/thread
+THREAD_MODE=daemon
+RELAY_ALLOW=
+[ -r /etc/default/thread ] && . /etc/default/thread
+
+# Put the hosts of $1 in the sets of the relay rule in nftables.conf.
+relay_allow()
+{
+	nft flush set inet filter thread_relay4 &&
+		nft flush set inet filter thread_relay6 || return 1
+	for a in $1; do
+		case $a in
+		*:*) nft add element inet filter thread_relay6 "{ $a }" ;;
+		*) nft add element inet filter thread_relay4 "{ $a }" ;;
+		esac || return 1
+	done
+}
 
 stop()
 {
+	if pidof thread-relay >/dev/null; then
+		start-stop-daemon --stop --quiet --exec $RELAY --retry 10
+		echo "thread: relay stopped"
+	fi
+	# Also when the relay ended by itself.
+	relay_allow "" 2>/dev/null
 	pidof ot-daemon >/dev/null || return 0
 	$CTL thread stop >/dev/null 2>&1
 	$CTL ifconfig down >/dev/null 2>&1
@@ -33,10 +61,32 @@ backbone()
 	done
 }
 
-start()
+start_relay()
 {
-	[ -c /dev/esp_rcp0 ] || { echo "thread: no RCP at /dev/esp_rcp0" >&2; return 1; }
+	if pidof thread-relay >/dev/null; then
+		echo "thread: thread-relay has the radio for Home Assistant" \
+			"(THREAD_MODE=relay): ot-ctl and thread-share do not work" >&2
+		return 1
+	fi
+	pidof ot-daemon >/dev/null &&
+		{ echo "thread: ot-daemon has the radio; thread-start stop first" >&2; return 1; }
+	[ -n "$RELAY_ALLOW" ] ||
+		{ echo "thread: relay mode needs RELAY_ALLOW in /etc/default/thread" >&2; return 1; }
+	if ! relay_allow "$RELAY_ALLOW"; then
+		relay_allow "" 2>/dev/null
+		echo "thread: cannot open the firewall for $RELAY_ALLOW" >&2
+		return 1
+	fi
+	start-stop-daemon --start --background --exec $RELAY -- $RCP ||
+		{ relay_allow "" 2>/dev/null; return 1; }
+	echo "thread: thread-relay on TCP port 6638 for $RELAY_ALLOW"
+}
+
+start_daemon()
+{
 	pidof ot-daemon >/dev/null && return 0
+	pidof thread-relay >/dev/null &&
+		{ echo "thread: thread-relay has the radio; thread-start stop first" >&2; return 1; }
 	mkdir -p $DATA
 	bb=$(backbone "$1")
 	if [ -n "$bb" ]; then
@@ -47,7 +97,7 @@ start()
 		set --
 	fi
 	start-stop-daemon --start --background --exec $DAEMON -- \
-		-v "$@" 'spinel+hdlc+uart:///dev/esp_rcp0' || return 1
+		-v "$@" "spinel+hdlc+uart://$RCP" || return 1
 	# Wait for the daemon socket, so that the first command finds it.
 	i=0
 	while [ $i -lt 40 ]; do
@@ -63,6 +113,16 @@ start()
 	done
 	echo "thread: ot-daemon did not start" >&2
 	return 1
+}
+
+start()
+{
+	[ -c $RCP ] || { echo "thread: no RCP at $RCP" >&2; return 1; }
+	case $THREAD_MODE in
+	daemon) start_daemon "$1" ;;
+	relay) start_relay ;;
+	*) echo "thread: THREAD_MODE in /etc/default/thread is not daemon or relay" >&2; return 1 ;;
+	esac
 }
 
 case "${1:-start}" in

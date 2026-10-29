@@ -180,10 +180,27 @@ scripts.
   Wi-Fi and 802.15.4 share the radio: while the Thread
   radio receives, Wi-Fi gives approximately 12/17 Mbit/s TX/RX instead
   of 46/37.
-  `thread-start stop` ends the network and the daemon. Nothing starts at
-  boot. `/usr/share/examples/thread-hub.sh` is a sensor hub: it starts
+  `thread-start stop` ends the network and the daemon. In this mode,
+  nothing starts at boot. `/usr/share/examples/thread-hub.sh` is a sensor hub: it starts
   the network, prints the dataset for the sensors, and logs each UDP
   datagram on port 4242 with the time and the sender to p1 of the disk.
+
+  Home Assistant can also be the Thread host, with the radio of the board
+  as with a USB radio. `/usr/share/examples/ha-thread.sh HA_ADDRESS` sets
+  `THREAD_MODE=relay` and `RELAY_ALLOW` in `/etc/default/thread` and
+  starts `thread-relay`, also at each boot: it gives the radio to Home
+  Assistant on TCP port 6638. In the OpenThread Border Router app, set a
+  dummy device and `network_device` to `BOARD_ADDRESS:6638`. The Thread
+  and Matter integrations then work as with a USB radio, and the
+  Companion app can give the credentials to a phone. The port gives full
+  control of the radio, so the firewall accepts it only from
+  `RELAY_ALLOW`. In this mode `ot-ctl` and `thread-share` do not work;
+  `ha-thread.sh off` gives the radio back to `ot-daemon`. The RCP protocol
+  is sensitive to delays on the network: Ethernet (Function-CoreBoard-1)
+  is better than Wi-Fi, which shares the radio with 802.15.4 on the
+  Korvo-1. A reload of the firewall empties the list of hosts: then run
+  `thread-start stop` and `thread-start`. Not tested with Home Assistant
+  yet.
 - **GPIO.** `gpiodetect`, `gpioinfo`, `gpioget --numeric -c gpiochip0 PIN`
   and `gpioset -t0 -c gpiochip0 PIN=1`. `/usr/share/examples/gpio.sh PIN
   [0|1]` reads or sets a pin. The kernel refuses the pins of the flash, the
@@ -211,7 +228,9 @@ scripts.
   Korvo-1. `gdbserver` and `strace` are there too.
 - **Firewall.** `/etc/nftables.conf` loads at boot: the board answers
   ping, DHCP and mDNS and takes SSH and (on the disk boards) the Thread
-  mesh, and it drops and logs all other new connections. The module has
+  mesh, the border agent (UDP 49191 and 49192) and, in relay mode, the
+  Home Assistant hosts on TCP 6638. It drops and logs all other new
+  connections. The module has
   the firewall since v0.9.2: a server on another port needs a rule after
   the update. `nft
   insert rule inet filter input tcp dport 8080 accept` opens a port until the

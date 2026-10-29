@@ -62,6 +62,12 @@ the tmux desktop for a USB keyboard. Later kernel messages go to `tty2`
   fixed UDP port 49191 and the ephemeral key UDP port 49192, and the
   firewall accepts both; before, the firewall dropped the commissioners.
   The README now says how chip-tool commissions a Matter device on Thread.
+- Thread on the Korvo-1 and the Function-CoreBoard-1: Home Assistant can
+  be the Thread host, with the radio of the board as a network radio of
+  the OpenThread Border Router app (`network_device`, TCP port 6638).
+  `/usr/share/examples/ha-thread.sh HA_ADDRESS` turns it on; the firewall
+  accepts the port only from that address. Not tested with Home
+  Assistant yet.
 - All boards reboot 10 s after a kernel panic, and 60 s after user space
   stops (a soft watchdog and its daemon, `/etc/init.d/S15watchdog`).
   SysRq works with `/proc/sysrq-trigger`.

@@ -166,9 +166,22 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
 
   Wi-Fi 和 802.15.4 共用射频：Thread 无线
   接收时，Wi-Fi 吞吐量（发送/接收）约为 12/17 Mbit/s，而不是 46/37 Mbit/s。`thread-start stop`
-  停止网络和守护进程。开机时不会自动启动。`/usr/share/examples/thread-hub.sh`
+  停止网络和守护进程。在此模式下，开机时不会自动启动。`/usr/share/examples/thread-hub.sh`
   是一个传感器集线器：它启动网络，打印供传感器使用的数据集，并将 UDP 4242
   端口收到的每个数据报连同时间和发送方记录到磁盘 p1 上。
+
+  Home Assistant 也可以作为 Thread 主机，像使用 USB 无线模块一样使用开发板的
+  射频。`/usr/share/examples/ha-thread.sh HA_ADDRESS` 在 `/etc/default/thread`
+  中设置 `THREAD_MODE=relay` 和 `RELAY_ALLOW`，并启动 `thread-relay`（之后每次
+  开机也会启动）：它通过 TCP 端口 6638 将射频交给 Home Assistant。在
+  OpenThread Border Router 应用中，设置一个占位设备，并将 `network_device`
+  设为 `BOARD_ADDRESS:6638`。之后 Thread 和 Matter 集成的工作方式与使用 USB
+  无线模块时相同，Companion 应用可以将凭据交给手机。该端口可以完全控制射频，
+  因此防火墙只接受来自 `RELAY_ALLOW` 的连接。在此模式下 `ot-ctl` 和
+  `thread-share` 不能使用；`ha-thread.sh off` 将射频交还给 `ot-daemon`。RCP
+  协议对网络延迟敏感：以太网（Function-CoreBoard-1）优于 Wi-Fi，在 Korvo-1 上
+  Wi-Fi 与 802.15.4 共用射频。重新加载防火墙会清空主机列表：之后请运行
+  `thread-start stop` 和 `thread-start`。尚未用 Home Assistant 测试。
 - **GPIO。** `gpiodetect`、`gpioinfo`、`gpioget --numeric -c gpiochip0 PIN`
   和 `gpioset -t0 -c gpiochip0 PIN=1`。`/usr/share/examples/gpio.sh PIN [0|1]`
   读取或设置引脚。内核拒绝使用 Flash、控制台、加载程序和驱动占用的引脚
@@ -192,8 +205,9 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
 - **编程。** `lua`，Function-CoreBoard-1 和 Korvo-1 上还有 `micropython`。
   也有 `gdbserver` 和 `strace`。
 - **防火墙。** `/etc/nftables.conf` 在启动时加载：开发板响应 ping、DHCP 和
-  mDNS，接受 SSH 和（磁盘开发板上的）Thread Mesh 流量，丢弃并
-  记录所有其他新连接。模组从 v0.9.2 起也有防火墙：更新后，
+  mDNS，接受 SSH 和（磁盘开发板上的）Thread Mesh 流量、边界代理
+  （UDP 49191 和 49192），以及中继模式下来自 Home Assistant 主机的 TCP 6638
+  连接，丢弃并记录所有其他新连接。模组从 v0.9.2 起也有防火墙：更新后，
   其他端口上的服务器需要一条规则。
   `nft insert rule inet filter input tcp dport 8080 accept`
   打开一个端口，直到下次重启；在该文件中加一行可永久保留。在接入点和 `eth0`

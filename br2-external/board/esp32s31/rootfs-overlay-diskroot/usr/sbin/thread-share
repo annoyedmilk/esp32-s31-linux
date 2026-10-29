@@ -21,6 +21,8 @@ stop)
 	;;
 esac
 
+pidof thread-relay >/dev/null &&
+	{ echo "thread-share: Home Assistant has the radio; ha-thread.sh off ends that" >&2; exit 1; }
 pidof ot-daemon >/dev/null || { echo "thread-share: no ot-daemon; run thread-start" >&2; exit 1; }
 # ot-ctl ends its lines with CR LF.
 case "$($CTL state | tr -d '\r' | head -1)" in
