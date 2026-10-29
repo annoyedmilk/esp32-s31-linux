@@ -26,6 +26,20 @@
 &pinctrl {
 	/* The SoC list, ETH_INTN of the PHY (GPIO4, on J2), the LED (GPIO60). */
 	gpio-reserved-ranges = <4 1>, <26 9>, <41 1>, <58 2>, <60 1>;
+	/* The nets of the board; the flash pins of the module. */
+	gpio-line-names =
+		/*  0 */ "X32K_N", "X32K_P", "", "", "ETH_INTN", "PHY_MDC",
+		/*  6 */ "PHY_MDIO", "ETH_PHY_RST", "ETH_TXD0", "ETH_TXD1",
+		/* 10 */ "ETH_TXD2", "ETH_TXD3", "ETH_TXCTL", "ETH_TXCLK",
+		/* 14 */ "ETH_RX_CLK", "ETH_RCTL", "ETH_RXD3", "ETH_RXD2",
+		/* 18 */ "ETH_RXD1", "ETH_RXD0", "SD_D0", "SD_D1", "SD_D2",
+		/* 23 */ "SD_D3", "SD_CLK", "SD_CMD", "SPICS", "SPIQ",
+		/* 28 */ "SPIWP", "", "SPIHD", "SPICLK", "SPID", "USB1P1_DN",
+		/* 34 */ "USB1P1_DP", "", "", "", "", "", "", "", "", "", "",
+		/* 45 */ "", "", "", "", "", "ESP_I2C_SCL", "ESP_I2C_SDA",
+		/* 52 */ "I2S_MCLK", "I2S_SCLK", "I2S_ASDOUT", "I2S_LRCK",
+		/* 56 */ "I2S_DSDIN", "PA_CTRL", "U0TXD", "U0RXD", "RGB_CTRL",
+		/* 61 */ "BOOT";
 
 	/* The RGMII pins of the IO MUX, function 2 */
 	rgmii_cfg: rgmii-cfg {

@@ -66,6 +66,21 @@
 /* The LCD (loader), the card and LED (drivers), the flash, GPIO41, UART0. */
 &pinctrl {
 	gpio-reserved-ranges = <8 31>, <40 2>, <43 3>, <58 2>;
+	/* The nets of the Korvo-1 user guide; the flash pins of the module. */
+	gpio-line-names =
+		/*  0 */ "I2C_SDA", "I2C_SCL", "I2S_MCLK", "I2S_SCLK",
+		/*  4 */ "I2S_LRCLK", "I2S_SDOUT", "I2S_DSIN", "PA_CTRL",
+		/*  8 */ "DB0", "DB1", "DB2", "DB3", "DB4", "DB5", "DB6",
+		/* 15 */ "DB7", "DB8", "DB9", "DB10", "DB11", "SDIO_DATA0",
+		/* 21 */ "SDIO_DATA1", "SDIO_DATA2", "SDIO_DATA3", "SDIO_CLK",
+		/* 25 */ "SDIO_CMD", "SPICS", "SPIQ", "SPIWP", "", "SPIHD",
+		/* 31 */ "SPICLK", "SPID", "DB12", "DB13", "DB14", "DB15",
+		/* 37 */ "WS2812_CTRL", "LCD_CS", "SD_CTRL", "LCD_PCLK", "",
+		/* 42 */ "ADC_BUTTON", "LCD_H_EN", "LCD_H_SYNC", "LCD_V_SYNC",
+		/* 46 */ "CAM_D0", "CAM_D1", "CAM_D2", "CAM_D3", "CAM_D4",
+		/* 51 */ "CAM_D5", "CAM_D6", "CAM_D7", "CAM_PCLK", "CAM_XCLK",
+		/* 56 */ "CAM_V_SYNC", "CAM_H_SYNC", "U0TXD", "U0RXD",
+		/* 60 */ "LCD_MOSI", "LCD_SCK";
 
 	/* GPIO39 low switches the power of the microSD slot on. */
 	sd-power-hog {

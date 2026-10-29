@@ -16,6 +16,17 @@
 	};
 };
 
+/* The module has no board nets: only the flash pins and UART0 have names. */
+&pinctrl {
+	gpio-line-names =
+		/*  0 */ "", "", "", "", "", "", "", "", "", "", "", "", "",
+		/* 13 */ "", "", "", "", "", "", "", "", "", "", "", "", "",
+		/* 26 */ "SPICS", "SPIQ", "SPIWP", "", "SPIHD", "SPICLK",
+		/* 32 */ "SPID", "", "", "", "", "", "", "", "", "", "", "",
+		/* 44 */ "", "", "", "", "", "", "", "", "", "", "", "", "",
+		/* 57 */ "", "U0TXD", "U0RXD", "", "";
+};
+
 /* The "rootfs" and "data" partitions of partitions-esp32s31.csv. */
 &wifi {
 	flash {
