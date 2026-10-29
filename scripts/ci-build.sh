@@ -34,6 +34,24 @@ make opensbi BOARD="$BOARD"
 # The same steps as "make rootfs", without the container.
 br="make -C external/buildroot O=$BR_OUTPUT BR2_EXTERNAL=$PWD/br2-external"
 $br "${BOARD}_defconfig"
+
+# Like KERNEL_SYNC in the Makefile, invalidate extracted sources when moving
+# between board revisions or stacks. Kconfig alone cannot add new patches.
+inputs=$({
+	find linux -type f ! -name '._*' | sort | xargs sha256sum
+	sha256sum br2-external/board/esp32s31/linux* \
+		"br2-external/configs/${BOARD}_defconfig" shared/*.h \
+		br2-external/external.mk br2-external/linux/*.mk \
+		br2-external/package/esp-hosted-linux/* \
+		external/esp-hosted-linux/host/*.c \
+		external/esp-hosted-linux/host/include/*.h
+} | sha256sum | cut -d' ' -f1)
+stamp="$BR_OUTPUT/.esp32s31-kernel-inputs"
+if [ "$(cat "$stamp" 2>/dev/null || :)" != "$inputs" ]; then
+	echo "Kernel inputs changed; extracting the kernel again"
+	$br linux-dirclean linux-headers-dirclean esp-hosted-linux-dirclean
+fi
+printf '%s\n' "$inputs" > "$stamp"
 $br
 
 out=build/$BOARD
