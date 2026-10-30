@@ -59,10 +59,9 @@ jobs:
 
       - name: Package
         run: |
-          python=$(ls -d ~/.espressif/python_env/*/bin/python | tail -1)
           version=${GITHUB_REF_NAME}
           [ "$GITHUB_REF_TYPE" = tag ] || version=$(git describe --always --dirty)
-          ESPTOOL="$python -m esptool" scripts/package-release.sh "$version" ${{ matrix.board }}
+          scripts/package-release.sh "$version" ${{ matrix.board }}
           rm build/release/SHA256SUMS
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

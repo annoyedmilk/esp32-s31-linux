@@ -288,6 +288,8 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
   `container system start`。
 
 在 Linux 上，`scripts/ci-build.sh` 无需容器即可构建全部内容。
+环境准备脚本使用 Ubuntu 的包管理器；其他 Linux 发行版需要先安装对应的
+主机依赖。Buildroot 要求源码和输出目录的路径不包含空白字符。
 
 ```sh
 git submodule update --init --recursive
@@ -303,6 +305,13 @@ make monitor BOARD=korvo1 SERIAL_PORT=/dev/cu.usbserial-XXXX
 `scripts/patch-esp-idf.sh` 会修改 SDK 源码并生成一个本地补丁提交。
 独立的子模块目录使这些修改不影响系统或 EIM 管理的共享 SDK；编译器二进制
 不会被修改。项目提交中的子模块应继续指向固定的上游版本。
+
+主机工具支持 `IDF_PATH` 和 `IDF_TOOLS_PATH`。Python 解释器按以下顺序选择：
+显式指定的 `PYTHON` 路径、已激活环境的 `IDF_PYTHON_ENV_PATH`、与当前
+ESP-IDF 版本匹配的已安装环境。优先使用 `PATH` 中的 RISC-V 编译器，
+也可通过 `CROSS_COMPILE` 指定工具链前缀。串口工具需要显式传入 `--port`，
+请根据当前电脑选择设备，不要直接照搬其他电脑的串口名称。
+持续串口记录器和交互终端需要 POSIX 主机环境。
 
 - `BOARD` 选择目标板的构建：`esp32s31`（默认）、`coreboard1`、`korvo1` 或 `esp-mosaico`。
   输出位于 `build/<board>/`。

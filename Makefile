@@ -12,19 +12,19 @@ SERIAL_LOG_DIR ?= $(LOG_DIR)/serial
 
 IDF_PATH ?= $(CURDIR)/external/esp-idf
 IDF_TOOLS_PATH ?= $(HOME)/.espressif
-IDF_VERSION := $(shell sed -n 's/^set(IDF_VERSION_M[AI][JN]OR \([0-9]*\))/\1/p' \
-	"$(IDF_PATH)/tools/cmake/version.cmake" 2>/dev/null | paste -sd. -)
-PYTHON ?= $(lastword $(foreach p,$(sort $(wildcard $(IDF_TOOLS_PATH)/python_env/idf$(IDF_VERSION)_*/bin/python)),$(if $(realpath $(p)),$(p))))
-ESPTOOL := $(PYTHON) -m esptool
+PYTHON ?= $(shell IDF_PATH="$(IDF_PATH)" IDF_TOOLS_PATH="$(IDF_TOOLS_PATH)" \
+	scripts/idf-python.sh 2>/dev/null)
+ESPTOOL := "$(PYTHON)" -m esptool
 # The tested esptool, with its flasher stub.  Move it with the ESP-IDF pin.
 ESPTOOL_VERSION := $(shell cat bootloader/esptool.version)
 ESPTOOL_CHECK = @v=$$($(ESPTOOL) version 2>/dev/null | tail -1); \
 	test "$$v" = "$(ESPTOOL_VERSION)" || { \
 	echo "esptool is $$v, but bootloader/esptool.version wants $(ESPTOOL_VERSION):"; \
 	echo '  $(PYTHON) -m pip install esptool==$(ESPTOOL_VERSION)'; exit 1; }
-# A host Python upgrade breaks the old virtualenv: PYTHON is the newest one.
-IDF_PYTHON_ENV := $(patsubst %/bin/python,%,$(PYTHON))
-ESP_RISCV_BIN := $(lastword $(sort $(wildcard $(IDF_TOOLS_PATH)/tools/riscv32-esp-elf/*/riscv32-esp-elf/bin)))
+# Honor an activated SDK before looking in the default tools installation.
+IDF_PYTHON_ENV := $(shell "$(PYTHON)" -c 'import sys; print(sys.prefix)' 2>/dev/null)
+ESP_RISCV_BIN := $(or $(shell p=$$(command -v riscv32-esp-elf-gcc 2>/dev/null); \
+	test -z "$$p" || dirname "$$p"),$(lastword $(sort $(wildcard $(IDF_TOOLS_PATH)/tools/riscv32-esp-elf/*/riscv32-esp-elf/bin))))
 CROSS_COMPILE ?= $(ESP_RISCV_BIN)/riscv32-esp-elf-
 
 # macOS has GNU make as gmake.  On Linux, make is GNU make.

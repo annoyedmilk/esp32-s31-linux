@@ -18,6 +18,7 @@ DEBIAN_FRONTEND=noninteractive $sudo apt-get install -y --no-install-recommends 
 
 # ESP-IDF at the tested commit, only with the tools for this chip.
 : "${IDF_PATH:=$PWD/external/esp-idf}"
+export IDF_PATH
 commit=$(cat bootloader/esp-idf.version)
 idf() { git -C "$IDF_PATH" "$@"; }
 if [ ! -e "$IDF_PATH/.git" ]; then
@@ -30,5 +31,5 @@ idf submodule update --init --recursive --filter=blob:none
 IDF_PATH=$IDF_PATH scripts/patch-esp-idf.sh
 "$IDF_PATH/install.sh" esp32s31
 # The tested esptool, in the Python environment of ESP-IDF.
-python=$(ls -d "$HOME"/.espressif/python_env/*/bin/python | tail -1)
+python=$(scripts/idf-python.sh)
 "$python" -m pip install "esptool==$(cat bootloader/esptool.version)"

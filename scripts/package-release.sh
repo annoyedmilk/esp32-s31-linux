@@ -21,9 +21,15 @@ name=esp32s31-linux-$version-$board
 out=build/release
 stage=$out/$name-flash
 card=build/$board/buildroot/sdcard.img
-esptool=${ESPTOOL:-python3 -m esptool}
+if [ -n "${ESPTOOL:-}" ]; then
+	# Compatibility with the existing command-and-arguments override.
+	esptool() { $ESPTOOL "$@"; }
+else
+	python=$(scripts/idf-python.sh)
+	esptool() { "$python" -m esptool "$@"; }
+fi
 esptool_version=$(cat bootloader/esptool.version)
-have=$($esptool version 2>/dev/null | tail -1)
+have=$(esptool version 2>/dev/null | tail -1)
 if [ "$have" != "$esptool_version" ]; then
 	echo "esptool is $have, but bootloader/esptool.version wants $esptool_version" >&2
 	exit 1
@@ -45,7 +51,7 @@ done
 echo "$flash_args" | sed 's/^ //' > "$stage/flash_args"
 
 # One image for offset 0, for the simplest flash command.
-(cd "$stage" && $esptool --chip esp32s31 merge-bin -o flash.bin $(cat flash_args))
+(cd "$stage" && esptool --chip esp32s31 merge-bin -o flash.bin $(cat flash_args))
 
 disk=sdcard
 case $board in

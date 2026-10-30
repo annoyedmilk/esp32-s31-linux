@@ -12,7 +12,6 @@ set -eu
 cd "$(dirname "$0")/.."
 : "${IDF_PATH:=$PWD/external/esp-idf}"
 lib=$PWD/external/esp-hosted-linux/esp/esp_driver/lib
-patches="$lib/rom.patch $lib/idf-openthread-custom-rcp-v6.1.patch $PWD/bootloader/idf-patches/*.patch"
 idf() { git -C "$IDF_PATH" "$@"; }
 
 if [ "$(idf rev-parse HEAD~1 2>/dev/null)" = "$(cat bootloader/esp-idf.version)" ] &&
@@ -21,7 +20,8 @@ if [ "$(idf rev-parse HEAD~1 2>/dev/null)" = "$(cat bootloader/esp-idf.version)"
 fi
 
 files=
-for patch in $patches; do
+for patch in "$lib/rom.patch" "$lib/idf-openthread-custom-rcp-v6.1.patch" \
+	"$PWD"/bootloader/idf-patches/*.patch; do
 	files="$files $(idf apply --recount --numstat "$patch" | cut -f3)"
 	idf apply --recount --reverse --check "$patch" 2>/dev/null ||
 		idf apply --recount "$patch"

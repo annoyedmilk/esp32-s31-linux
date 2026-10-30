@@ -320,6 +320,9 @@ The host is macOS. The build needs:
   first.
 
 On Linux, `scripts/ci-build.sh` builds everything without a container.
+The setup script installs host packages on Ubuntu; on other Linux
+distributions, install the equivalent packages before running the build.
+Buildroot requires the source and output paths to contain no whitespace.
 
 ```sh
 git submodule update --init --recursive
@@ -336,6 +339,14 @@ make monitor BOARD=korvo1 SERIAL_PORT=/dev/cu.usbserial-XXXX
 patch commit. The dedicated checkout keeps those changes out of a shared
 or EIM-managed SDK; the installed compiler binaries are not modified.
 Keep the submodule pinned to the upstream commit in project commits.
+
+Host tools honor `IDF_PATH` and `IDF_TOOLS_PATH`. Python selection uses
+`PYTHON` (an interpreter path), then an activated `IDF_PYTHON_ENV_PATH`,
+then an installed environment matching this checkout's ESP-IDF version.
+An activated RISC-V compiler on `PATH` is preferred; `CROSS_COMPILE`
+overrides its prefix. Serial tools take `--port` explicitly: select the
+port on each computer instead of copying another machine's device name.
+The continuous UART recorder and interactive console require a POSIX host.
 
 - `BOARD` selects the build for each target: `esp32s31` (the default),
   `coreboard1`, `korvo1` or `esp-mosaico`. The output goes to `build/<board>/`.
