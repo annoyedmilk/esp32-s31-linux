@@ -21,6 +21,11 @@ Press Ctrl-C to stop and restore the display console. Only one preview
 should use the display at a time; an advisory framebuffer lock prevents
 another instance of this program from taking it.
 
+A launcher can pass an inherited framebuffer with `-e FD`. The caller owns
+the console and keeps its framebuffer lock; the child shares that open file
+description. This mode updates only rows 60–419, leaving room for a header
+and navigation controls, and does not change or restore the console mode.
+
 The program shows `WAITING FOR CAMERA` while the module is absent. After
 unplugging or a capture timeout it releases the old queue, then reopens
 the device every 750 ms until the module returns. Frame processing stays

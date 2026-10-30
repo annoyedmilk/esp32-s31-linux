@@ -4,6 +4,7 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <linux/fb.h>
 #include <linux/kd.h>
 #include <linux/videodev2.h>
@@ -322,9 +323,11 @@ static int display_waiting(int fd, uint16_t *pixels)
 
 static void usage(FILE *stream, const char *program)
 {
-	fprintf(stream, "Usage: %s [-c CAMERA] [-f FRAMEBUFFER]\n"
+	fprintf(stream, "Usage: %s [-c CAMERA] [-f FRAMEBUFFER | -e FD]\n"
 		"Preview SC101IOT VGA video; reconnect after unplug/replug.\n"
-		"Defaults: /dev/video0 and /dev/fb0. Stop with Ctrl-C.\n", program);
+		"Defaults: /dev/video0 and /dev/fb0. Stop with Ctrl-C.\n"
+		"-e FD: embed in a caller-owned framebuffer and display console.\n",
+		program);
 }
 
 int main(int argc, char **argv)
@@ -339,12 +342,13 @@ int main(int argc, char **argv)
 	unsigned int report_frames = 0, consecutive_errors = 0;
 	double started = 0, report_time = 0, conversion_time = 0, display_time = 0;
 	int framebuffer = -1, console = -1, saved_mode = KD_TEXT;
+	int inherited_framebuffer = -1;
 	int result = 1, console_changed = 0, previous_error = 0;
 	const char *camera_path = "/dev/video0";
 	const char *framebuffer_path = "/dev/fb0";
 	int option;
 
-	while ((option = getopt(argc, argv, "hc:f:")) != -1) {
+	while ((option = getopt(argc, argv, "hc:f:e:")) != -1) {
 		switch (option) {
 		case 'c':
 			camera_path = optarg;
@@ -352,6 +356,19 @@ int main(int argc, char **argv)
 		case 'f':
 			framebuffer_path = optarg;
 			break;
+		case 'e': {
+			char *end;
+			long fd;
+
+			errno = 0;
+			fd = strtol(optarg, &end, 10);
+			if (errno || !*optarg || *end || fd < 0 || fd > INT_MAX) {
+				fprintf(stderr, "Invalid inherited framebuffer descriptor\n");
+				return 1;
+			}
+			inherited_framebuffer = fd;
+			break;
+		}
 		case 'h':
 			usage(stdout, argv[0]);
 			return 0;
@@ -372,7 +389,9 @@ int main(int argc, char **argv)
 		perror("install signal handlers");
 		goto cleanup;
 	}
-	framebuffer = open(framebuffer_path, O_RDWR | O_CLOEXEC);
+	framebuffer = inherited_framebuffer < 0 ?
+		open(framebuffer_path, O_RDWR | O_CLOEXEC) :
+		fcntl(inherited_framebuffer, F_DUPFD_CLOEXEC, 3);
 	if (framebuffer < 0 || ioctl(framebuffer, FBIOGET_FSCREENINFO, &fixed) ||
 	    ioctl(framebuffer, FBIOGET_VSCREENINFO, &variable)) {
 		perror("open/query framebuffer");
@@ -396,17 +415,19 @@ int main(int argc, char **argv)
 		perror("allocate RGB conversion buffer");
 		goto cleanup;
 	}
-	console = open("/dev/tty0", O_RDWR | O_CLOEXEC);
-	if (console < 0 || ioctl(console, KDGETMODE, &saved_mode) ||
-	    ioctl(console, KDSETMODE, KD_GRAPHICS)) {
-		perror("take display console");
-		goto cleanup;
-	}
-	console_changed = 1;
-	for (unsigned int y = 0; y < DISPLAY_HEIGHT; y++) {
-		if (write_pixels(framebuffer, black, sizeof(black),
-				 y * fixed.line_length))
-			goto display_failure;
+	if (inherited_framebuffer < 0) {
+		console = open("/dev/tty0", O_RDWR | O_CLOEXEC);
+		if (console < 0 || ioctl(console, KDGETMODE, &saved_mode) ||
+		    ioctl(console, KDSETMODE, KD_GRAPHICS)) {
+			perror("take display console");
+			goto cleanup;
+		}
+		console_changed = 1;
+		for (unsigned int y = 0; y < DISPLAY_HEIGHT; y++) {
+			if (write_pixels(framebuffer, black, sizeof(black),
+					 y * fixed.line_length))
+				goto display_failure;
+		}
 	}
 	if (display_waiting(framebuffer, pixels))
 		goto display_failure;
