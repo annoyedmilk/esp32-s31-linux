@@ -1,0 +1,11 @@
+config BR2_PACKAGE_MOSAICO_TEST
+	bool "mosaico-test"
+	depends on BR2_USE_MMU # fork()
+	depends on BR2_TOOLCHAIN_HAS_THREADS
+	select BR2_PACKAGE_ALSA_LIB
+	select BR2_PACKAGE_CAMERA_PREVIEW
+	help
+	  Manually launched LVGL peripheral test interface for ESP-Mosaico
+	  CoreBoard V1.2. Requires the pinned external/lvgl submodule.
+	  Uses the framebuffer, touchscreen and Linux peripheral interfaces.
+	  No boot service or automatic audio playback is installed.
