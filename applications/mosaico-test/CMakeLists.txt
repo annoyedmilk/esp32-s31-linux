@@ -17,11 +17,27 @@ target_compile_definitions(lvgl PUBLIC
 target_compile_options(lvgl PRIVATE -ffunction-sections -fdata-sections)
 
 find_package(ALSA REQUIRED)
-add_executable(mosaico-test main.c platform.c tests.c ui.c instruments.c sensors.c audio.c)
-target_compile_features(mosaico-test PRIVATE c_std_11)
-target_compile_definitions(mosaico-test PRIVATE _GNU_SOURCE)
-target_compile_options(mosaico-test PRIVATE -Wall -Wextra -Werror
-    -ffunction-sections -fdata-sections)
-target_link_options(mosaico-test PRIVATE -Wl,--gc-sections)
-target_link_libraries(mosaico-test PRIVATE lvgl ALSA::ALSA m)
+set(MOSAICO_TEST_SOURCES platform.c tests.c ui.c instruments.c sensors.c audio.c)
+
+function(configure_mosaico_target target)
+    target_compile_features(${target} PRIVATE c_std_11)
+    target_compile_definitions(${target} PRIVATE _GNU_SOURCE)
+    target_compile_options(${target} PRIVATE -Wall -Wextra -Werror
+        -ffunction-sections -fdata-sections)
+    target_link_options(${target} PRIVATE -Wl,--gc-sections)
+    target_link_libraries(${target} PRIVATE lvgl ALSA::ALSA m)
+endfunction()
+
+add_executable(mosaico-test main.c ${MOSAICO_TEST_SOURCES})
+configure_mosaico_target(mosaico-test)
 install(TARGETS mosaico-test RUNTIME DESTINATION bin)
+
+option(MOSAICO_TEST_BUILD_EXAMPLES "Build the host-only example renderer" OFF)
+if(MOSAICO_TEST_BUILD_EXAMPLES)
+    if(CMAKE_CROSSCOMPILING)
+        message(FATAL_ERROR "Example rendering requires a native host build")
+    endif()
+    add_executable(mosaico-test-examples examples/render.c ${MOSAICO_TEST_SOURCES})
+    target_include_directories(mosaico-test-examples PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
+    configure_mosaico_target(mosaico-test-examples)
+endif()

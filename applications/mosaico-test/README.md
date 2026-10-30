@@ -67,3 +67,6 @@ For host layout inspection, build with a native C compiler and ALSA
 development files, then run `mosaico-test --snapshot home.ppm` or
 `mosaico-test --page audio --snapshot audio.ppm`. Snapshot mode opens no
 peripheral devices and runs no hardware tests. Use `--help` for page names.
+
+[Rendered interface examples](examples/README.md) include the home screen
+and sensor illustrations, with a separate host-only regeneration tool.
