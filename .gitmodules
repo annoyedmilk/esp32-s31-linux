@@ -15,3 +15,7 @@
 	path = external/esp-idf
 	url = https://github.com/espressif/esp-idf.git
 	shallow = true
+[submodule "external/lvgl"]
+	path = external/lvgl
+	url = https://github.com/lvgl/lvgl.git
+	shallow = true
