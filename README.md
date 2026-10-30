@@ -20,14 +20,23 @@ changes of each release.
 
 ## Quick start
 
-There are three builds. The ESP32-S31-WROOM-3-N16R16V module is the module
-of the two boards.
+There are four board configurations:
 
 | Board | Build | Root | Release files |
 | --- | --- | --- | --- |
 | ESP32-S31-WROOM-3-N16R16V module alone, on any board with UART0 | `esp32s31` (the default) | flash | `*-esp32s31-flash.zip` |
 | ESP32-S31-Function-CoreBoard-1 | `coreboard1` | USB stick | `*-coreboard1-flash.zip`, `*-coreboard1-usb.img.xz` |
 | ESP32-S31-Korvo-1 | `korvo1` | microSD card | `*-korvo1-flash.zip`, `*-korvo1-sdcard.img.xz` |
+| ESP-Mosaico CoreBoard V1.2 | `esp-mosaico` | NOR system, NAND writable files | `*-esp-mosaico-flash.zip` |
+
+ESP-Mosaico uses a 16 MiB NOR system and a 128 MiB NAND, split into
+96 MiB for writable files and 32 MiB for swap after a 2 MiB zram device.
+The CO5300 framebuffer provides a display console and CST9220 provides
+multitouch input. CameraBoard V1.4 supports V4L2 capture; BMI270 and two
+BMM150 devices use IIO. The AI key, vibrator and ES8311 audio use standard
+Linux interfaces. Native Type-C provides CDC ACM and manually selected
+host mode for USB keyboards and mice. Initialize a new NAND explicitly
+with `nand-storage init ERASE`, then reboot. This erases both NAND partitions; boot never formats them.
 
 1. Get the files of your board from the newest
    [release](https://github.com/annoyedmilk/esp32-s31-linux/releases).
@@ -46,6 +55,13 @@ of the two boards.
 
 On the Korvo-1, the LCD also shows a console. Connect a USB keyboard and
 log in on `tty1`: it starts a `tmux` desktop.
+
+On ESP-Mosaico, keep CH343 connected for debugging and connect native
+Type-C to the computer for flashing. Run `reboot bootloader` on the debug
+console, then `make flash BOARD=esp-mosaico FLASH_PORT=USB_PORT` on the host.
+The helper checks ROM USB identity, flashes and resets on one connection;
+the debug recorder stays open. BOOT plus RESET enters ROM if Linux cannot
+start. Linux USB roles and ROM downloading run at different boot stages.
 
 ### Wi-Fi
 
@@ -125,7 +141,7 @@ Notes:
   management frames on the access point do not work correctly yet. The
   station is not affected.
 - `hcitool lescan` fails. Use `bluetoothctl` and `scan le`.
-- There is no audio or camera driver.
+- The three boards in the feature table have no audio or camera driver.
 
 ## Userspace
 
@@ -136,6 +152,7 @@ Notes:
 | `coreboard1` and `korvo1` also | `hostapd`, the classic BlueZ tools (`hciconfig`, `hcitool`), OpenThread (`ot-daemon`, `ot-ctl`), `thread-relay`, bash, coreutils, vim, nano, less, file, htop, fastfetch, strace, gdb and `gdbserver`, tcpdump, links, MicroPython, tmux, nnn, ncdu, tree, bc, sqlite3, e2fsprogs, dosfstools |
 | `coreboard1` also | `ethtool` |
 | `korvo1` also | `gpm`, `irssi`, `evtest` |
+| `esp-mosaico` application build also | Manually started [`camera-preview`](applications/camera-preview/README.md) and [`mosaico-test`](applications/mosaico-test/README.md), an LVGL peripheral test interface; neither starts at boot |
 
 `/etc/motd` lists the first commands. `/usr/share/examples` has example
 scripts.
@@ -298,9 +315,9 @@ your board.
 The host is macOS. The build needs:
 
 - Homebrew and GNU make (`brew install make`).
-- ESP-IDF at `~/esp/esp-idf`, at the commit in `bootloader/esp-idf.version`,
-  with the `riscv32-esp-elf` toolchain, the ESP-Hosted patches and the
-  backports (`make bootloader` gives the command).
+- ESP-IDF in the `external/esp-idf` submodule, pinned by
+  `bootloader/esp-idf.version`, with its compiler and Python environment.
+  Run `scripts/patch-esp-idf.sh` before building the loader.
 - esptool at the version in `bootloader/esptool.version`, in the Python
   environment of ESP-IDF (`make check` gives the command).
 - The Apple `container` CLI. Buildroot does not run on macOS: it runs in the
@@ -308,9 +325,13 @@ The host is macOS. The build needs:
   first.
 
 On Linux, `scripts/ci-build.sh` builds everything without a container.
+The setup script installs host packages on Ubuntu; on other Linux
+distributions, install the equivalent packages before running the build.
+Buildroot requires the source and output paths to contain no whitespace.
 
 ```sh
 git submodule update --init --recursive
+scripts/patch-esp-idf.sh
 make container-image
 make check
 make ports
@@ -319,8 +340,21 @@ make flash   BOARD=korvo1 FLASH_PORT=/dev/cu.usbserial-XXXX
 make monitor BOARD=korvo1 SERIAL_PORT=/dev/cu.usbserial-XXXX
 ```
 
+`scripts/patch-esp-idf.sh` modifies ESP-IDF sources and records a local
+patch commit. The dedicated checkout keeps those changes out of a shared
+or EIM-managed SDK; the installed compiler binaries are not modified.
+Keep the submodule pinned to the upstream commit in project commits.
+
+Host tools honor `IDF_PATH` and `IDF_TOOLS_PATH`. Python selection uses
+`PYTHON` (an interpreter path), then an activated `IDF_PYTHON_ENV_PATH`,
+then an installed environment matching this checkout's ESP-IDF version.
+An activated RISC-V compiler on `PATH` is preferred; `CROSS_COMPILE`
+overrides its prefix. Serial tools take `--port` explicitly: select the
+port on each computer instead of copying another machine's device name.
+The continuous UART recorder and interactive console require a POSIX host.
+
 - `BOARD` selects the build for each target: `esp32s31` (the default),
-  `coreboard1` or `korvo1`. The output goes to `build/<board>/`.
+  `coreboard1`, `korvo1` or `esp-mosaico`. The output goes to `build/<board>/`.
 - `make build` builds the loader and OpenSBI on the Mac, and the kernel, the
   rootfs and the disk images in the container.
 - `make monitor` resets the board, waits for the banner, then stays open as

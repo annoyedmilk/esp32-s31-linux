@@ -1,0 +1,33 @@
+#!/bin/sh
+# SPDX-License-Identifier: MIT
+# Boot from NOR squashfs with a NAND UBIFS upper layer. Only nand-storage
+# initializes NAND; an absent or damaged filesystem is never erased here.
+
+. /usr/libexec/nand-storage.sh
+
+fail()
+{
+	umount /mnt 2>/dev/null
+	[ -z "${mtd:-}" ] || ubidetach -p "/dev/$mtd" 2>/dev/null
+	umount /sys 2>/dev/null
+	echo "nand-overlay-init: $*; starting the read-only NOR root" > /dev/console
+	exec /sbin/init
+}
+
+mount -t sysfs sysfs /sys || fail "cannot mount sysfs"
+mtd=$(nand_mtd nand-data 100663296) || fail "no 96 MiB NAND data partition"
+ubi=$(nand_ubi "$mtd") || {
+	ubiattach -p "/dev/$mtd" > /dev/null 2>&1 || fail "run nand-storage init ERASE"
+	ubi=$(nand_ubi "$mtd") || fail "cannot find the attached NAND"
+}
+mount -t ubifs "$ubi:data" /mnt || fail "cannot mount NAND data"
+[ -f /mnt/.storage-ready ] || fail "NAND setup is incomplete"
+[ -d /mnt/upper ] && [ -d /mnt/work ] || fail "missing overlay directories"
+umount /sys
+mount -t overlay overlay -o lowerdir=/,upperdir=/mnt/upper,workdir=/mnt/work \
+	/media || fail "cannot mount the overlay"
+mkdir -p /media/rom /media/overlay
+cd /media && pivot_root . rom || fail "pivot_root failed"
+mount -o move /rom/dev /dev
+mount -o move /rom/mnt /overlay
+exec chroot . /sbin/init

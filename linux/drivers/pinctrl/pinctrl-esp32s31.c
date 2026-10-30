@@ -22,6 +22,8 @@
 #include <linux/fs.h>
 #include <linux/gpio/driver.h>
 #include <linux/io.h>
+#include <linux/irq.h>
+#include <linux/irqchip/chained_irq.h>
 #include <linux/miscdevice.h>
 #include <linux/mm.h>
 #include <linux/mod_devicetable.h>
@@ -51,11 +53,17 @@
 #define ESP32S31_GPIO_ENABLE1_W1TC	0x48
 #define ESP32S31_GPIO_IN		0x64
 #define ESP32S31_GPIO_IN1		0x68
+#define ESP32S31_GPIO_STATUS_W1TC	0x7c
+#define ESP32S31_GPIO_STATUS1_W1TC	0x88
+#define ESP32S31_GPIO_INT0		0xa4
+#define ESP32S31_GPIO_INT0_HIGH		0xb4
 #define ESP32S31_GPIO_PIN(n)		(0xf4 + (n) * 4)
 #define ESP32S31_GPIO_FUNC_IN_SEL(s)	(0x2f4 + (s) * 4)
 #define ESP32S31_GPIO_FUNC_OUT_SEL(n)	(0xaf4 + (n) * 4)
 
 #define ESP32S31_PIN_PAD_DRIVER		BIT(2)
+#define ESP32S31_PIN_INT_TYPE		GENMASK(9, 7)
+#define ESP32S31_PIN_INT0_EN		BIT(13)
 #define ESP32S31_IN_SEL_MATRIX		BIT(9)
 /* The reset value: the signal comes from the IO MUX. */
 #define ESP32S31_IN_SEL_IOMUX		0x80
@@ -438,6 +446,151 @@ static int esp32s31_gpio_set_config(struct gpio_chip *chip, unsigned int offset,
 	return esp32s31_config_one(pctrl, offset, config);
 }
 
+/* GPIO_INTR0 is routed to the Linux hart by the interrupt matrix. */
+static void esp32s31_gpio_irq_update(struct gpio_chip *chip, unsigned int pin,
+				     u32 clear, u32 set)
+{
+	struct esp32s31_pinctrl *pctrl = gpiochip_get_data(chip);
+	void __iomem *reg = pctrl->gpio + ESP32S31_GPIO_PIN(pin);
+
+	guard(raw_spinlock_irqsave)(&pctrl->lock);
+	writel((readl(reg) & ~clear) | set, reg);
+}
+
+static void esp32s31_gpio_irq_ack(struct irq_data *d)
+{
+	struct gpio_chip *chip = irq_data_get_irq_chip_data(d);
+	struct esp32s31_pinctrl *pctrl = gpiochip_get_data(chip);
+	unsigned int pin = irqd_to_hwirq(d);
+
+	writel(BIT(pin % 32), pctrl->gpio +
+	       esp32s31_bank(pin, ESP32S31_GPIO_STATUS_W1TC,
+			     ESP32S31_GPIO_STATUS1_W1TC));
+}
+
+static void esp32s31_gpio_irq_mask(struct irq_data *d)
+{
+	struct gpio_chip *chip = irq_data_get_irq_chip_data(d);
+
+	esp32s31_gpio_irq_update(chip, irqd_to_hwirq(d), ESP32S31_PIN_INT0_EN, 0);
+	gpiochip_disable_irq(chip, irqd_to_hwirq(d));
+}
+
+static void esp32s31_gpio_irq_unmask(struct irq_data *d)
+{
+	struct gpio_chip *chip = irq_data_get_irq_chip_data(d);
+
+	gpiochip_enable_irq(chip, irqd_to_hwirq(d));
+	esp32s31_gpio_irq_update(chip, irqd_to_hwirq(d), 0, ESP32S31_PIN_INT0_EN);
+}
+
+static int esp32s31_gpio_irq_set_type(struct irq_data *d, unsigned int type)
+{
+	struct gpio_chip *chip = irq_data_get_irq_chip_data(d);
+	irq_flow_handler_t handler;
+	u32 trigger;
+
+	switch (type & IRQ_TYPE_SENSE_MASK) {
+	case IRQ_TYPE_EDGE_RISING:
+		trigger = 1;
+		handler = handle_edge_irq;
+		break;
+	case IRQ_TYPE_EDGE_FALLING:
+		trigger = 2;
+		handler = handle_edge_irq;
+		break;
+	case IRQ_TYPE_EDGE_BOTH:
+		trigger = 3;
+		handler = handle_edge_irq;
+		break;
+	case IRQ_TYPE_LEVEL_LOW:
+		trigger = 4;
+		handler = handle_level_irq;
+		break;
+	case IRQ_TYPE_LEVEL_HIGH:
+		trigger = 5;
+		handler = handle_level_irq;
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	esp32s31_gpio_irq_update(chip, irqd_to_hwirq(d), ESP32S31_PIN_INT_TYPE,
+				 FIELD_PREP(ESP32S31_PIN_INT_TYPE, trigger));
+	irq_set_handler_locked(d, handler);
+	return 0;
+}
+
+static const struct irq_chip esp32s31_gpio_irq_chip = {
+	.name = "esp32s31-gpio",
+	.irq_ack = esp32s31_gpio_irq_ack,
+	.irq_mask = esp32s31_gpio_irq_mask,
+	.irq_unmask = esp32s31_gpio_irq_unmask,
+	.irq_set_type = esp32s31_gpio_irq_set_type,
+	.flags = IRQCHIP_IMMUTABLE,
+	GPIOCHIP_IRQ_RESOURCE_HELPERS,
+};
+
+static void esp32s31_gpio_irq_handler(struct irq_desc *desc)
+{
+	struct gpio_chip *chip = irq_desc_get_handler_data(desc);
+	struct esp32s31_pinctrl *pctrl = gpiochip_get_data(chip);
+	struct irq_chip *parent = irq_desc_get_chip(desc);
+	unsigned long pending;
+	unsigned int bank, bit;
+
+	chained_irq_enter(parent, desc);
+	for (bank = 0; bank < 2; bank++) {
+		pending = readl(pctrl->gpio +
+				(bank ? ESP32S31_GPIO_INT0_HIGH : ESP32S31_GPIO_INT0));
+		for_each_set_bit(bit, &pending, min(32U, chip->ngpio - bank * 32))
+			generic_handle_domain_irq(chip->irq.domain, bank * 32 + bit);
+	}
+	chained_irq_exit(parent, desc);
+}
+
+static int esp32s31_gpio_irq_init_hw(struct gpio_chip *chip)
+{
+	struct esp32s31_pinctrl *pctrl = gpiochip_get_data(chip);
+	unsigned int pin;
+
+	/* Leave reserved pads and the other interrupt outputs to the firmware. */
+	for (pin = 0; pin < chip->ngpio; pin++) {
+		if (!gpiochip_line_is_valid(chip, pin))
+			continue;
+		esp32s31_gpio_irq_update(chip, pin, ESP32S31_PIN_INT0_EN, 0);
+		writel(BIT(pin % 32), pctrl->gpio +
+		       esp32s31_bank(pin, ESP32S31_GPIO_STATUS_W1TC,
+				     ESP32S31_GPIO_STATUS1_W1TC));
+	}
+	return 0;
+}
+
+static int esp32s31_gpio_irq_init(struct platform_device *pdev,
+				  struct gpio_chip *chip)
+{
+	struct gpio_irq_chip *irq = &chip->irq;
+	int parent;
+
+	parent = platform_get_irq_optional(pdev, 0);
+	if (parent == -ENXIO)
+		return 0;
+	if (parent < 0)
+		return parent;
+
+	irq->parents = devm_kmalloc(&pdev->dev, sizeof(*irq->parents), GFP_KERNEL);
+	if (!irq->parents)
+		return -ENOMEM;
+	irq->parents[0] = parent;
+	irq->num_parents = 1;
+	gpio_irq_chip_set_chip(irq, &esp32s31_gpio_irq_chip);
+	irq->parent_handler = esp32s31_gpio_irq_handler;
+	irq->handler = handle_bad_irq;
+	irq->default_type = IRQ_TYPE_NONE;
+	irq->init_hw = esp32s31_gpio_irq_init_hw;
+	return 0;
+}
+
 static int esp32s31_pins_init(struct device *dev, struct pinctrl_desc *desc)
 {
 	struct pinctrl_pin_desc *pins;
@@ -606,6 +759,10 @@ static int esp32s31_pinctrl_probe(struct platform_device *pdev)
 	chip->direction_input = esp32s31_gpio_direction_input;
 	chip->direction_output = esp32s31_gpio_direction_output;
 	chip->set_config = esp32s31_gpio_set_config;
+
+	ret = esp32s31_gpio_irq_init(pdev, chip);
+	if (ret)
+		return dev_err_probe(dev, ret, "failed to initialize GPIO IRQs\n");
 
 	ret = devm_gpiochip_add_data(dev, chip, pctrl);
 	if (ret || !IS_ENABLED(CONFIG_PINCTRL_ESP32S31_GPIOMEM))

@@ -2,7 +2,8 @@
 /*
  * A window of the flash for Linux, through the flash mailbox of the shared
  * block (esp32s31-hosted-shm.h).  Linux makes an MTD device of it.  The
- * window is the "rootfs" and "data" partitions, which must be adjacent.
+ * window is the "rootfs" partition and, when present, the adjacent "data"
+ * partition. Boards with a NAND overlay need only the read-only root.
  *
  * Linux reads the window through the flash cache, where this file maps it.
  * It programs and erases through the mailbox.  With flash auto-suspend, the
@@ -179,16 +180,18 @@ void shm_flash_init(void (*done)(void))
 
 	const void *map = NULL;
 	spi_flash_mmap_handle_t handle;
+	uint32_t size = root ? root->size : 0;
 
 	disable_bus_timeouts();
 	s_base = 0;
 	s_size = 0;
-	if (root && data && data->address == root->address + root->size &&
-	    spi_flash_mmap(root->address, root->size + data->size,
-			   SPI_FLASH_MMAP_DATA, &map, &handle) == ESP_OK &&
+	if (root && data && data->address == root->address + root->size)
+		size += data->size;
+	if (root && spi_flash_mmap(root->address, size,
+				   SPI_FLASH_MMAP_DATA, &map, &handle) == ESP_OK &&
 	    flash_task_start(done)) {
 		s_base = root->address;
-		s_size = root->size + data->size;
+		s_size = size;
 	}
 	*flash_word(ESP_SHM_FLASH_MAP_OFF) = (uint32_t)map;
 	*flash_word(ESP_SHM_FLASH_SIZE_OFF) = s_size;

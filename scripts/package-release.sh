@@ -21,9 +21,15 @@ name=esp32s31-linux-$version-$board
 out=build/release
 stage=$out/$name-flash
 card=build/$board/buildroot/sdcard.img
-esptool=${ESPTOOL:-python3 -m esptool}
+if [ -n "${ESPTOOL:-}" ]; then
+	# Compatibility with the existing command-and-arguments override.
+	esptool() { $ESPTOOL "$@"; }
+else
+	python=$(scripts/idf-python.sh)
+	esptool() { "$python" -m esptool "$@"; }
+fi
 esptool_version=$(cat bootloader/esptool.version)
-have=$($esptool version 2>/dev/null | tail -1)
+have=$(esptool version 2>/dev/null | tail -1)
 if [ "$have" != "$esptool_version" ]; then
 	echo "esptool is $have, but bootloader/esptool.version wants $esptool_version" >&2
 	exit 1
@@ -45,7 +51,7 @@ done
 echo "$flash_args" | sed 's/^ //' > "$stage/flash_args"
 
 # One image for offset 0, for the simplest flash command.
-(cd "$stage" && $esptool --chip esp32s31 merge-bin -o flash.bin $(cat flash_args))
+(cd "$stage" && esptool --chip esp32s31 merge-bin -o flash.bin $(cat flash_args))
 
 disk=sdcard
 case $board in
@@ -73,8 +79,50 @@ v0.9.1 or older: the data partition moved, and the first boot formats it.
 A data partition without UBI
 (a new board, or a board from v0.4.0) is erased and formatted at the first
 boot.  To go back to the image, run flash_erase /dev/mtd1 0 0 and reboot." ;;
+esp-mosaico)
+	cp scripts/flash-esp-mosaico.py scripts/reset-from-bootloader.py "$stage/"
+	title="the ESP-Mosaico CoreBoard V1.2"
+	usage="The read-only system is in the 16 MiB NOR flash.  The 128 MiB NAND
+provides a 96 MiB writable filesystem partition and a 32 MiB swap partition.
+Files on initialized NAND stay after a reboot and after a new flash.bin.
+
+On a new board, initialize NAND from the serial console, then reboot:
+
+  nand-storage init ERASE
+  reboot
+
+This command ERASES both NAND partitions.  Boot never formats NAND: if it
+is missing or not initialized, the system starts with a read-only root.
+
+Keep CH343 connected for debugging at 115200 baud; it is not the flashing
+port. Connect native Type-C to the computer with a data cable. From the
+debug console, reboot bootloader enters ROM downloading after an orderly
+shutdown. Select the newly enumerated ROM USB port, then flash:
+
+  python3 flash-esp-mosaico.py --port USB_PORT @flash_args
+
+If Linux cannot start, hold BOOT, press and release RESET, then release
+BOOT to enter the ROM downloader.
+
+Run the helper in the Python environment containing the tested esptool.
+It checks the ROM USB identity, flashes and returns to Linux. Keep UART
+recording open throughout. ROM downloading and Linux OTG use the native
+USB controller at different boot stages; Linux CDC ACM is not the ROM
+downloader, and the USB device name can change after a reset." ;;
 esac
 
+if [ "$board" = esp-mosaico ]; then
+cat > "$stage/FLASH.txt" <<TXT
+ESP32-S31 Linux $version for $title
+
+Install the tested esptool:  pip install "esptool==$esptool_version"
+
+$usage
+
+Console: CH343 debug UART, 115200 8N1, logged in as root. SSH takes root
+only with a key: add it to /root/.ssh/authorized_keys from the console.
+TXT
+else
 cat > "$stage/FLASH.txt" <<TXT
 ESP32-S31 Linux $version for $title
 
@@ -89,6 +137,7 @@ $usage
 Console: the same UART port, 115200 8N1, logged in as root. SSH takes root
 only with a key: add it to /root/.ssh/authorized_keys from the console.
 TXT
+fi
 
 (cd "$out" && zip -qr "$name-flash.zip" "$name-flash")
 rm -rf "$stage"

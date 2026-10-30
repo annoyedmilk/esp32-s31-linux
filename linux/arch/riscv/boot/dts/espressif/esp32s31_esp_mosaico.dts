@@ -1,0 +1,389 @@
+// SPDX-License-Identifier: GPL-2.0+
+/* ESP-Mosaico CoreBoard V1.2: 16 MiB NOR, 128 MiB NAND and 16 MiB PSRAM. */
+/dts-v1/;
+#include "esp32s31.dtsi"
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/input/input.h>
+
+/ {
+	model = "ESP-Mosaico CoreBoard V1.2";
+	compatible = "esp-mosaico,coreboard-v1.2", "esp,esp32s31";
+
+	vdd: regulator-vdd {
+		compatible = "regulator-fixed";
+		regulator-name = "vdd";
+		regulator-always-on;
+	};
+
+	mcu_3v3: regulator-mcu-3v3 {
+		compatible = "regulator-fixed";
+		regulator-name = "mcu-3v3";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		vin-supply = <&vdd>;
+		regulator-always-on;
+	};
+
+	vcc_3v3: regulator-vcc-3v3 {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc-3v3";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		vin-supply = <&mcu_3v3>;
+		gpio = <&pinctrl 60 GPIO_ACTIVE_LOW>;
+		regulator-always-on;
+		startup-delay-us = <100000>;
+	};
+
+	keys {
+		compatible = "gpio-keys";
+
+		key-ai {
+			label = "AI";
+			linux,code = <KEY_PROG1>;
+			gpios = <&pinctrl 7 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
+			debounce-interval = <50>;
+		};
+	};
+
+	vibrator {
+		compatible = "gpio-vibrator";
+		enable-gpios = <&pinctrl 8 GPIO_ACTIVE_HIGH>;
+		vcc-supply = <&vdd>;
+	};
+
+	camera_xclk: camera-clock {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <20000000>;
+	};
+
+	amplifier: audio-amplifier {
+		compatible = "simple-audio-amplifier";
+		enable-gpios = <&pinctrl 45 GPIO_ACTIVE_HIGH>;
+		VCC-supply = <&vdd>;
+		sound-name-prefix = "Amp";
+	};
+
+	sound {
+		compatible = "simple-audio-card";
+		simple-audio-card,name = "ESP-Mosaico";
+		simple-audio-card,format = "i2s";
+		simple-audio-card,mclk-fs = <256>;
+		simple-audio-card,bitclock-master = <&sound_cpu>;
+		simple-audio-card,frame-master = <&sound_cpu>;
+		simple-audio-card,aux-devs = <&amplifier>;
+		simple-audio-card,widgets = "Speaker", "Speaker",
+					    "Microphone", "Microphone";
+		/* Both logical channels of the generic amp end at the mono speaker. */
+		simple-audio-card,routing = "Speaker", "Amp OUTL",
+					   "Speaker", "Amp OUTR",
+					   "Amp INL", "OUT",
+					   "Amp INR", "OUT",
+					   "MIC1", "Microphone";
+		simple-audio-card,pin-switches = "Speaker";
+
+		sound_cpu: simple-audio-card,cpu {
+			sound-dai = <&i2s0>;
+		};
+
+		simple-audio-card,codec {
+			sound-dai = <&codec>;
+		};
+	};
+
+	chosen {
+		stdout-path = "serial0:115200n8";
+	};
+};
+
+&wifi {
+	flash {
+		partitions {
+			compatible = "fixed-partitions";
+			#address-cells = <1>;
+			#size-cells = <1>;
+
+			partition@0 {
+				label = "rootfs";
+				reg = <0x0 0x970000>;
+				read-only;
+			};
+		};
+	};
+};
+
+&pinctrl {
+	/* GPIO33/34 are camera signals, not USB Serial/JTAG pads. */
+	gpio-reserved-ranges = <26 7>, <41 1>, <58 2>;
+
+	camera-flash-off-hog {
+		gpio-hog;
+		gpios = <34 GPIO_OPEN_DRAIN>;
+		output-high;
+		line-name = "camera-flash-off";
+	};
+
+	spi3_cfg: spi3-cfg {
+		spi3-output-pins {
+			pinmux = <ESP32S31_MATRIX_OUT(20, ESP32S31_SIG_SPI3_CLK)>,
+				 <ESP32S31_MATRIX_OUT(23, ESP32S31_SIG_SPI3_CS0)>;
+			bias-disable;
+			drive-strength = <20>;
+		};
+
+		spi3-data-pins {
+			pinmux = <ESP32S31_MATRIX_INOUT(21, ESP32S31_SIG_SPI3_D)>,
+				 <ESP32S31_MATRIX_INOUT(22, ESP32S31_SIG_SPI3_Q)>,
+				 <ESP32S31_MATRIX_INOUT(25, ESP32S31_SIG_SPI3_WP)>,
+				 <ESP32S31_MATRIX_INOUT(24, ESP32S31_SIG_SPI3_HD)>;
+			bias-pull-up;
+			drive-strength = <20>;
+		};
+	};
+
+	spi2_cfg: spi2-cfg {
+		spi2-pins {
+			pinmux = <ESP32S31_MATRIX_OUT(42, ESP32S31_SIG_SPI2_CLK)>,
+				 <ESP32S31_MATRIX_OUT(36, ESP32S31_SIG_SPI2_D)>,
+				 <ESP32S31_MATRIX_OUT(51, ESP32S31_SIG_SPI2_Q)>,
+				 <ESP32S31_MATRIX_OUT(35, ESP32S31_SIG_SPI2_WP)>,
+				 <ESP32S31_MATRIX_OUT(9, ESP32S31_SIG_SPI2_HD)>;
+			bias-disable;
+			drive-strength = <20>;
+		};
+	};
+
+	i2c0_cfg: i2c0-cfg {
+		i2c0-pins {
+			pinmux = <ESP32S31_MATRIX_INOUT(56, ESP32S31_SIG_I2C0_SDA)>,
+				 <ESP32S31_MATRIX_INOUT(3, ESP32S31_SIG_I2C0_SCL)>;
+			bias-pull-up;
+			drive-open-drain;
+		};
+	};
+
+	i2c1_cfg: i2c1-cfg {
+		i2c1-pins {
+			pinmux = <ESP32S31_MATRIX_INOUT(0, ESP32S31_SIG_I2C1_SDA)>,
+				 <ESP32S31_MATRIX_INOUT(1, ESP32S31_SIG_I2C1_SCL)>;
+			bias-pull-up;
+			drive-open-drain;
+		};
+	};
+
+	camera_cfg: camera-cfg {
+		camera-pins {
+			pinmux = <ESP32S31_MATRIX_IN(16, ESP32S31_SIG_CAM_D0)>,
+				 <ESP32S31_MATRIX_IN(15, ESP32S31_SIG_CAM_D1)>,
+				 <ESP32S31_MATRIX_IN(33, ESP32S31_SIG_CAM_D2)>,
+				 <ESP32S31_MATRIX_IN(4, ESP32S31_SIG_CAM_D3)>,
+				 <ESP32S31_MATRIX_IN(14, ESP32S31_SIG_CAM_D4)>,
+				 <ESP32S31_MATRIX_IN(12, ESP32S31_SIG_CAM_D5)>,
+				 <ESP32S31_MATRIX_IN(18, ESP32S31_SIG_CAM_D6)>,
+				 <ESP32S31_MATRIX_IN(13, ESP32S31_SIG_CAM_D7)>,
+				 <ESP32S31_MATRIX_IN(17, ESP32S31_SIG_CAM_PCLK)>,
+				 <ESP32S31_MATRIX_IN(19, ESP32S31_SIG_CAM_DE)>,
+				 <ESP32S31_MATRIX_IN(55, ESP32S31_SIG_CAM_VSYNC)>;
+			bias-disable;
+			input-enable;
+		};
+	};
+
+	i2s0_cfg: i2s0-cfg {
+		i2s0-output-pins {
+			pinmux = <ESP32S31_MATRIX_OUT(54, ESP32S31_SIG_I2S0_MCLK)>,
+				 <ESP32S31_MATRIX_OUT(52, ESP32S31_SIG_I2S0_DOUT)>;
+			bias-disable;
+		};
+
+		i2s0-input-pins {
+			pinmux = <ESP32S31_MATRIX_IN(40, ESP32S31_SIG_I2S0_DIN)>;
+			bias-disable;
+			input-enable;
+		};
+	};
+
+	i2s0_tx_cfg: i2s0-tx-cfg {
+		i2s0-tx-clock-pins {
+			pinmux = <ESP32S31_MATRIX_OUT(37, ESP32S31_SIG_I2S0_TX_BCLK)>,
+				 <ESP32S31_MATRIX_OUT(49, ESP32S31_SIG_I2S0_TX_WS)>;
+			bias-disable;
+		};
+	};
+
+	i2s0_rx_cfg: i2s0-rx-cfg {
+		i2s0-rx-clock-pins {
+			pinmux = <ESP32S31_MATRIX_OUT(37, ESP32S31_SIG_I2S0_RX_BCLK)>,
+				 <ESP32S31_MATRIX_OUT(49, ESP32S31_SIG_I2S0_RX_WS)>;
+			bias-disable;
+		};
+	};
+};
+
+&spi3 {
+	assigned-clocks = <&hp_clkrst ESP32S31_CLK_SPI3>;
+	assigned-clock-rates = <80000000>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&spi3_cfg>;
+	status = "okay";
+
+	flash@0 {
+		compatible = "spi-nand";
+		reg = <0>;
+		spi-max-frequency = <40000000>;
+		spi-tx-bus-width = <4>;
+		spi-rx-bus-width = <4>;
+
+		partitions {
+			compatible = "fixed-partitions";
+			#address-cells = <1>;
+			#size-cells = <1>;
+
+			partition@0 {
+				label = "nand-data";
+				reg = <0x0 0x6000000>;
+			};
+
+			partition@6000000 {
+				label = "nand-swap";
+				reg = <0x6000000 0x2000000>;
+			};
+		};
+	};
+};
+
+&i2c0 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2c0_cfg>;
+	clock-frequency = <400000>;
+	status = "okay";
+
+	touchscreen@5a {
+		compatible = "hynitron,cst9220";
+		reg = <0x5a>;
+		vdd-supply = <&vcc_3v3>;
+		touchscreen-size-x = <480>;
+		touchscreen-size-y = <480>;
+	};
+
+	magnetometer@11 {
+		compatible = "bosch,bmm150";
+		reg = <0x11>;
+		vdd-supply = <&mcu_3v3>;
+		vddio-supply = <&mcu_3v3>;
+	};
+
+	magnetometer@12 {
+		compatible = "bosch,bmm150";
+		reg = <0x12>;
+		vdd-supply = <&mcu_3v3>;
+		vddio-supply = <&mcu_3v3>;
+	};
+
+	imu@69 {
+		compatible = "bosch,bmi270";
+		reg = <0x69>;
+		vdd-supply = <&mcu_3v3>;
+		vddio-supply = <&mcu_3v3>;
+	};
+
+	codec: codec@19 {
+		compatible = "everest,es8311";
+		reg = <0x19>;
+		clocks = <&hp_clkrst ESP32S31_CLK_I2S0_MCLK>;
+		clock-names = "mclk";
+		#sound-dai-cells = <0>;
+	};
+};
+
+&spi2 {
+	assigned-clocks = <&hp_clkrst ESP32S31_CLK_SPI2>;
+	assigned-clock-rates = <80000000>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&spi2_cfg>;
+	cs-gpios = <&pinctrl 50 GPIO_ACTIVE_LOW>;
+	status = "okay";
+
+	display@0 {
+		compatible = "esp-mosaico,co5300-480x480";
+		reg = <0>;
+		spi-max-frequency = <40000000>;
+		spi-tx-bus-width = <4>;
+		reset-gpios = <&pinctrl 44 GPIO_ACTIVE_LOW>;
+		vdd-supply = <&vcc_3v3>;
+	};
+};
+
+&i2c1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2c1_cfg>;
+	clock-frequency = <100000>;
+	status = "okay";
+
+	module@50 {
+		compatible = "esp-mosaico,camera-module";
+		reg = <0x50>;
+		sensor = <&sc101iot>;
+	};
+
+	sc101iot: camera@68 {
+		compatible = "smartsens,sc101iot";
+		reg = <0x68>;
+		clocks = <&camera_xclk>;
+		vdd-supply = <&vcc_3v3>;
+		powerdown-gpios = <&pinctrl 48 GPIO_ACTIVE_HIGH>;
+		/* The module manager creates this client only while present. */
+		status = "disabled";
+
+		port {
+			sc101iot_out: endpoint {
+				remote-endpoint = <&camera_in>;
+				bus-width = <8>;
+				hsync-active = <1>;
+				vsync-active = <0>;
+				pclk-sample = <1>;
+			};
+		};
+	};
+};
+
+&axi_dma { status = "okay"; };
+
+&camera {
+	pinctrl-names = "default";
+	pinctrl-0 = <&camera_cfg>;
+	status = "okay";
+
+	port {
+		camera_in: endpoint {
+			remote-endpoint = <&sc101iot_out>;
+			bus-width = <8>;
+			hsync-active = <1>;
+			vsync-active = <0>;
+			pclk-sample = <1>;
+		};
+	};
+};
+
+&ahb_dma { status = "okay"; };
+
+&i2s0 {
+	pinctrl-names = "default", "capture";
+	pinctrl-0 = <&i2s0_cfg &i2s0_tx_cfg>;
+	pinctrl-1 = <&i2s0_cfg &i2s0_rx_cfg>;
+	status = "okay";
+};
+
+&usb_phy { status = "okay"; };
+
+&usb0 {
+	dr_mode = "otg";
+	/* HUSB320 controls VBUS, but its ID and I2C pins are not routed to the SoC. */
+	usb-role-switch;
+	role-switch-default-mode = "peripheral";
+	g-rx-fifo-size = <384>;
+	g-np-tx-fifo-size = <64>;
+	g-tx-fifo-size = <128 128 16 16 16 16 16>;
+	status = "okay";
+};

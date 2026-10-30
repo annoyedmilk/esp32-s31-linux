@@ -98,6 +98,12 @@
 		clock-frequency = <320000000>;
 	};
 
+	bbpll: bbpll-clock {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <480000000>;
+	};
+
 	/* The PHY driver switches the 12 MHz USB reference clock on and off. */
 	usb_ref_clk: usb-ref-clock {
 		compatible = "fixed-clock";
@@ -132,8 +138,9 @@
 		hp_clkrst: clock-controller@20587000 {
 			compatible = "esp,esp32s31-hp-clkrst";
 			reg = <0x20587000 0x1000>;
-			clocks = <&xtal>, <&cpll>, <&lp_clkrst ESP32S31_LP_CLK_MPLL>;
-			clock-names = "xtal", "cpll", "mpll";
+			clocks = <&xtal>, <&cpll>, <&lp_clkrst ESP32S31_LP_CLK_MPLL>,
+				 <&bbpll>;
+			clock-names = "xtal", "cpll", "mpll", "bbpll";
 			#clock-cells = <1>;
 			#reset-cells = <1>;
 		};
@@ -144,6 +151,11 @@
 			clocks = <&xtal>;
 			clock-names = "xtal";
 			#clock-cells = <1>;
+		};
+
+		reboot-mode@20700008 {
+			compatible = "esp,esp32s31-reboot-mode";
+			reg = <0x20700008 0x4>;
 		};
 
 		efuse: efuse@20715000 {
@@ -172,6 +184,11 @@
 			reg-names = "iomux", "gpio", "cnnt";
 			gpio-controller;
 			#gpio-cells = <2>;
+			interrupt-parent = <&clic>;
+			interrupts = <43 61 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-controller;
+			#interrupt-cells = <2>;
+			#address-cells = <0>;
 			gpio-ranges = <&pinctrl 0 0 62>;
 			/* Flash, USB Serial/JTAG (33/34), 41 (no pin), UART0. */
 			gpio-reserved-ranges = <26 9>, <41 1>, <58 2>;
@@ -184,6 +201,67 @@
 			reg = <0x10a00000 0x20000>, <0x20585000 0x1000>;
 			reg-names = "clic", "intmatrix";
 			interrupt-controller;
+		};
+
+		ahb_dma: dma-controller@20343000 {
+			compatible = "esp,esp32s31-ahb-dma";
+			reg = <0x20343000 0x1000>;
+			interrupt-parent = <&clic>;
+			interrupts = <17 36 IRQ_TYPE_LEVEL_HIGH>,
+				     <18 37 IRQ_TYPE_LEVEL_HIGH>,
+				     <19 38 IRQ_TYPE_LEVEL_HIGH>,
+				     <20 39 IRQ_TYPE_LEVEL_HIGH>,
+				     <21 40 IRQ_TYPE_LEVEL_HIGH>,
+				     <22 41 IRQ_TYPE_LEVEL_HIGH>,
+				     <23 42 IRQ_TYPE_LEVEL_HIGH>,
+				     <24 43 IRQ_TYPE_LEVEL_HIGH>,
+				     <25 44 IRQ_TYPE_LEVEL_HIGH>,
+				     <26 45 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&hp_clkrst ESP32S31_CLK_AHB_DMA>;
+			resets = <&hp_clkrst ESP32S31_RST_AHB_DMA>;
+			#dma-cells = <2>;
+			status = "disabled";
+		};
+
+		i2s0: i2s@20387000 {
+			compatible = "esp,esp32s31-i2s";
+			reg = <0x20387000 0x100>;
+			clocks = <&hp_clkrst ESP32S31_CLK_I2S0_APB>,
+				 <&hp_clkrst ESP32S31_CLK_I2S0_MCLK>;
+			clock-names = "apb", "mclk";
+			resets = <&hp_clkrst ESP32S31_RST_I2S0>;
+			dmas = <&ahb_dma 5 1>, <&ahb_dma 0 1>;
+			dma-names = "tx", "rx";
+			#sound-dai-cells = <0>;
+			status = "disabled";
+		};
+
+		axi_dma: dma-controller@20348000 {
+			compatible = "esp,esp32s31-axi-dma";
+			reg = <0x20348000 0x1000>;
+			interrupt-parent = <&clic>;
+			interrupts = <40 48 IRQ_TYPE_LEVEL_HIGH>,
+				     <41 49 IRQ_TYPE_LEVEL_HIGH>,
+				     <42 50 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&hp_clkrst ESP32S31_CLK_AXI_DMA>;
+			resets = <&hp_clkrst ESP32S31_RST_AXI_DMA>;
+			#dma-cells = <2>;
+			status = "disabled";
+		};
+
+		camera: camera@20396000 {
+			compatible = "esp,esp32s31-camera";
+			reg = <0x20396000 0x100>;
+			clocks = <&hp_clkrst ESP32S31_CLK_LCDCAM_APB>,
+				 <&hp_clkrst ESP32S31_CLK_LCDCAM_SYS>,
+				 <&hp_clkrst ESP32S31_CLK_LCDCAM_CORE>,
+				 <&hp_clkrst ESP32S31_CLK_CAM>;
+			clock-names = "apb", "sys", "core", "cam";
+			resets = <&hp_clkrst ESP32S31_RST_LCDCAM_APB>,
+				 <&hp_clkrst ESP32S31_RST_LCDCAM>;
+			dmas = <&axi_dma 0 0>;
+			dma-names = "rx";
+			status = "disabled";
 		};
 
 		sdmmc0: mmc@20342000 {
@@ -268,6 +346,30 @@
 			clock-names = "otg";
 			phys = <&usb_phy>;
 			phy-names = "usb2-phy";
+			status = "disabled";
+		};
+
+		spi2: spi@2038f000 {
+			compatible = "esp,esp32s31-spi";
+			reg = <0x2038f000 0x1000>;
+			clocks = <&hp_clkrst ESP32S31_CLK_SPI2_APB>,
+				 <&hp_clkrst ESP32S31_CLK_SPI2>;
+			clock-names = "apb", "core";
+			resets = <&hp_clkrst ESP32S31_RST_SPI2>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		spi3: spi@20390000 {
+			compatible = "esp,esp32s31-spi";
+			reg = <0x20390000 0x1000>;
+			clocks = <&hp_clkrst ESP32S31_CLK_SPI3_APB>,
+				 <&hp_clkrst ESP32S31_CLK_SPI3>;
+			clock-names = "apb", "core";
+			resets = <&hp_clkrst ESP32S31_RST_SPI3>;
+			#address-cells = <1>;
+			#size-cells = <0>;
 			status = "disabled";
 		};
 

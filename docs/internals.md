@@ -5,9 +5,10 @@ its current form. It is for developers who know the RISC-V Linux kernel and
 want to understand this SoC. All facts are from chip revision v0.0 on the
 ESP32-S31-Korvo-1 board. JTAG measurements gave most of them, because
 Espressif does not publish a technical reference manual for this chip yet.
-The port has three builds: `esp32s31` for the ESP32-S31-WROOM-3-N16R16V
+The port has four builds: `esp32s31` for the ESP32-S31-WROOM-3-N16R16V
 module alone, `coreboard1` for the ESP32-S31-Function-CoreBoard-1, and
-`korvo1` for the Korvo-1. The two boards use that module.
+`korvo1` for the Korvo-1, which both use that module, plus `esp-mosaico`
+for the ESP-Mosaico CoreBoard V1.2.
 
 The ESP-IDF register headers (`components/soc/esp32s31/register/soc/`) are
 the best public reference for addresses and fields.
@@ -557,3 +558,101 @@ and Bluetooth stack the same on all boards.
 | The firewall | `br2-external/board/esp32s31/rootfs-overlay/etc/nftables.conf` |
 | Thread | `br2-external/board/esp32s31/rootfs-overlay-diskroot/usr/sbin/thread-start`, `bootloader/main/radio_coex.c`, `tools/thread-relay/` (the RCP for Home Assistant; `make -C tools/thread-relay test` runs its tests on the host) |
 | Device tree | `linux/arch/riscv/boot/dts/espressif/esp32s31.dtsi` |
+
+## ESP-Mosaico NAND storage
+
+CoreBoard V1.2 boots the loader, OpenSBI, kernel and squashfs system from
+16 MiB NOR. GPSPI3 connects the separate GD5F1GM7UE 128 MiB NAND using
+CLK20, D21, Q22, CS23, HOLD24 and WP25. Its partitions reserve 96 MiB for
+UBIFS and 32 MiB for mtdswap; metadata and bad-block reserves reduce usable
+capacity. Single-byte bad-block markers and reserved ECC marker pages
+keep filesystem and swap metadata separate from the factory marker.
+
+`nand-storage init ERASE [overlay.tar]` explicitly formats both partitions.
+An optional archive imports the entire writable upper layer, including
+xattrs and numeric ownership. Early init mounts initialized NAND over the
+read-only NOR root and otherwise falls back to NOR without formatting.
+Wi-Fi settings, SSH keys and other configuration are ordinary upper-layer
+files. Keep personal overlays and archives out of Git and release images.
+
+Zram is bounded to 2 MiB at priority 100. The NAND swap module resolves its
+partition by label and uses priority 10 with `reserve_marker_pages=1`.
+NAND provides backing capacity, not memory bandwidth. Linux runs from
+PSRAM; SRAM remains shared with firmware, DMA and trap code. NOR XIP is
+not implemented by this RISC-V port, and SPI NAND is not CPU-addressable.
+
+### Continuous UART recording
+
+`make record SERIAL_PORT=PORT` exclusively owns the CH343 debug port at
+115200 baud without pulsing reset. `make console` uses its PTY proxy.
+Three rolling files retain at most 15,000,000 bytes in `logs/serial/`.
+The recorder reconnects after disconnects; a slow console may drop proxy
+output without dropping recorded bytes. Logs are private and ignored by
+Git because console sessions can contain credentials.
+
+### Reboot into the ROM downloader
+
+`reboot bootloader` selects ROM download mode after an orderly shutdown.
+Native Type-C then enumerates the ROM USB CDC downloader; CH343 remains
+the debug UART. `scripts/flash-esp-mosaico.py --port USB_PORT @flash_args`
+rejects UART bridges and Linux gadgets before opening them. It writes the
+listed NOR images, verifies them, clears forced-download mode and resets
+on the same connection. NAND upper-layer files are preserved.
+
+## ESP-Mosaico display and touch
+
+GPSPI2 drives the CO5300 panel at 40 MHz: CLK42, D36, Q51, WP35, HD9,
+CS50 and RESET44. GPIO60 enables the shared peripheral rail. Linux owns
+initialization and a 480x480 RGB565 framebuffer. Refresh work sends only
+dirty row pairs; unchanged frames generate no SPI traffic. Panel updates
+are not synchronized to TE, so live camera preview can tear.
+
+CST9220 shares I2C0 (SDA56/SCL3) with the board sensors. It uses standard
+input multitouch slots and polls while open. GPIO6 touch interrupts are
+not implemented. This port targets CoreBoard V1.2 only.
+
+## ESP-Mosaico board inputs and sensors
+
+The AI key is active-low GPIO7 with a pull-up and debounce; gpio-keys
+reports KEY_PROG1. GPIO8 enables the vibration motor through gpio-vibra's
+force-feedback interface. Neither driver starts effects automatically.
+BMI270 at 0x69 and BMM150 devices at 0x11/0x12 use the upstream IIO drivers.
+The firmware package supplies BMI270 initialization data after root mount.
+The back magnets can saturate magnetic measurements; these are raw IIO
+sensors, not a calibrated compass. BQ27220 at 0x55 does not respond to the
+official access sequence and is deliberately absent from the device tree.
+
+## ESP-Mosaico removable camera
+
+Left-slot CameraBoard V1.4 has an SC101IOT sensor with a local 20 MHz
+crystal. DVP uses GPIO16/15/33/4/14/12/18/13 for D0..D7, PCLK17, DE19 and
+VSYNC55. I2C1 uses SDA0/SCL1; GPIO48 is powerdown. GPIO34 is held open-drain
+high to leave the flash LED off. The loader releases USB Serial/JTAG pads
+33/34; these are separate from native Type-C's dedicated high-speed PHY.
+
+The module manager polls its EEPROM and validates descriptor CRCs before
+creating the sensor client. Missing modules do not block boot. Removal
+unregisters the client and fails active V4L2 queues; applications must close
+and reopen capture to recover. The receiver exposes 640x480 UYVY frames,
+nominally 15 fps, using AXI DMA and scatter-gather PSRAM buffers.
+
+## ESP-Mosaico audio
+
+ES8311 at I2C0 address 0x19 uses I2S0: MCLK54, BCLK37, WS49, playback52
+and capture40. AHB DMA supplies small coherent SRAM cyclic buffers. The
+simple-card description joins the upstream ES8311 codec and NS4150B
+simple amplifier; both amplifier routes terminate at the mono speaker.
+The Speaker pin switch gates GPIO45 through DAPM. Loading modules does
+not start playback, and the amplifier is left off until explicitly used.
+TX and RX share clock pads, so simultaneous capture/playback is rejected.
+
+## ESP-Mosaico native Type-C
+
+The dedicated high-speed UTMI PHY is separate from USB Serial/JTAG pads
+33/34. HUSB320 controls CC and VBUS direction in hardware; its role signal
+is not routed to the SoC. Linux therefore exposes a manual USB role switch
+at `/sys/class/usb_role/20300000.usb-role-switch/role`: write `host` for an
+OTG hub, keyboard or mouse, and `device` for the CDC ACM data channel.
+CDC uses `/dev/ttyGS0` without starting another login console. Choose the
+role to match the cable and keep CH343 for debugging. Entering ROM through
+`reboot bootloader` replaces Linux USB with the independent downloader.

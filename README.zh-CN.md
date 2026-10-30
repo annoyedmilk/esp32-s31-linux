@@ -21,13 +21,19 @@ ESP ROM -> ESP-IDF 2nd stage -> loader (hart 0) -> OpenSBI (hart 1) -> Linux (ha
 
 ## 快速开始
 
-共有三种构建。ESP32-S31-WROOM-3-N16R16V 模组是两块开发板上使用的模组。
+共有四种开发板配置：
 
 | 开发板 | 构建 | 根文件系统 | 发布文件 |
 | --- | --- | --- | --- |
 | 单独使用 ESP32-S31-WROOM-3-N16R16V 模组，任何带 UART0 的板子均可 | `esp32s31`（默认） | Flash | `*-esp32s31-flash.zip` |
 | ESP32-S31-Function-CoreBoard-1 | `coreboard1` | U 盘 | `*-coreboard1-flash.zip`、`*-coreboard1-usb.img.xz` |
 | ESP32-S31-Korvo-1 | `korvo1` | microSD 卡 | `*-korvo1-flash.zip`、`*-korvo1-sdcard.img.xz` |
+| ESP-Mosaico CoreBoard V1.2 | `esp-mosaico` | NOR 系统、NAND 可写文件 | `*-esp-mosaico-flash.zip` |
+
+ESP-Mosaico 使用 16 MiB NOR 保存系统，128 MiB NAND 分为 96 MiB 可写文件
+和 32 MiB 交换空间，优先使用 2 MiB zram。新 NAND 必须显式执行
+`nand-storage init ERASE` 后重启；此命令清除两个 NAND 分区，启动过程不会
+自动格式化。Wi-Fi、SSH 等配置均作为 NAND 文件系统中的普通文件保存。
 
 1. 从最新的[发布版本](https://github.com/annoyedmilk/esp32-s31-linux/releases)
    下载对应开发板的文件。
@@ -46,6 +52,13 @@ ESP ROM -> ESP-IDF 2nd stage -> loader (hart 0) -> OpenSBI (hart 1) -> Linux (ha
 
 Korvo-1 的 LCD 也显示一个控制台。连接 USB 键盘并在 `tty1` 上登录，会启动
 一个 `tmux` 桌面。
+
+ESP-Mosaico 的 CH343 只作调试串口；烧录时将原生 Type-C 接到电脑。
+在调试终端运行 `reboot bootloader`，再在主机运行
+`make flash BOARD=esp-mosaico FLASH_PORT=USB_PORT`。脚本检查 ROM USB
+身份，在同一连接中完成烧录并返回 Linux，串口记录器保持运行。Linux 无法
+启动时可用 BOOT 和 RESET 进入下载模式。Linux USB 与 ROM 下载分属不同
+启动阶段。
 
 ### Wi-Fi
 
@@ -76,6 +89,11 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
 写入新的磁盘镜像或运行 `make sdroot` 后，开发板会生成新的主机密钥，且没有
 `authorized_keys`；此时在电脑上运行 `ssh-keygen -R <address>`。自行构建时，
 将密钥放入 `local-overlay/root/.ssh/authorized_keys`。
+
+ESP-Mosaico 提供 CO5300 显示控制台、CST9220 多点触控、CameraBoard V1.4
+的 V4L2 采集，以及 BMI270、两颗 BMM150 的 IIO 接口。AI 按键、振动马达、
+ES8311 音频均使用标准 Linux 接口。原生 Type-C 支持 CDC ACM 和手动选择的
+USB 主机角色，可连接键盘和鼠标。
 
 ## 功能
 
@@ -119,7 +137,7 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
 - 接入点请使用 WPA2（`ap.sh`）。接入点上的 WPA3（SAE）和受保护管理帧
   （PMF）暂时还不能正常工作。station 模式不受影响。
 - `hcitool lescan` 无法使用。请使用 `bluetoothctl` 和 `scan le`。
-- 没有音频和摄像头驱动。
+- 上表中的三款开发板没有音频和摄像头驱动。
 
 ## 用户空间
 
@@ -265,9 +283,9 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
 主机为 macOS。构建需要：
 
 - Homebrew 和 GNU make（`brew install make`）。
-- ESP-IDF，位于 `~/esp/esp-idf`，检出到 `bootloader/esp-idf.version` 中的
-  提交，并带有 `riscv32-esp-elf` 工具链、ESP-Hosted 补丁和向后移植补丁
-  （`make bootloader` 会给出命令）。
+- ESP-IDF 位于 `external/esp-idf` 子模块，版本由 `bootloader/esp-idf.version`
+  固定，需要安装对应的编译器和 Python 环境。构建前先运行
+  `scripts/patch-esp-idf.sh`。
 - esptool，版本见 `bootloader/esptool.version`，安装在 ESP-IDF 的 Python
   环境中（`make check` 会给出命令）。
 - Apple `container` CLI。Buildroot 无法在 macOS 上运行，它在
@@ -275,9 +293,12 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
   `container system start`。
 
 在 Linux 上，`scripts/ci-build.sh` 无需容器即可构建全部内容。
+环境准备脚本使用 Ubuntu 的包管理器；其他 Linux 发行版需要先安装对应的
+主机依赖。Buildroot 要求源码和输出目录的路径不包含空白字符。
 
 ```sh
 git submodule update --init --recursive
+scripts/patch-esp-idf.sh
 make container-image
 make check
 make ports
@@ -286,7 +307,18 @@ make flash   BOARD=korvo1 FLASH_PORT=/dev/cu.usbserial-XXXX
 make monitor BOARD=korvo1 SERIAL_PORT=/dev/cu.usbserial-XXXX
 ```
 
-- `BOARD` 选择目标板的构建：`esp32s31`（默认）、`coreboard1` 或 `korvo1`。
+`scripts/patch-esp-idf.sh` 会修改 SDK 源码并生成一个本地补丁提交。
+独立的子模块目录使这些修改不影响系统或 EIM 管理的共享 SDK；编译器二进制
+不会被修改。项目提交中的子模块应继续指向固定的上游版本。
+
+主机工具支持 `IDF_PATH` 和 `IDF_TOOLS_PATH`。Python 解释器按以下顺序选择：
+显式指定的 `PYTHON` 路径、已激活环境的 `IDF_PYTHON_ENV_PATH`、与当前
+ESP-IDF 版本匹配的已安装环境。优先使用 `PATH` 中的 RISC-V 编译器，
+也可通过 `CROSS_COMPILE` 指定工具链前缀。串口工具需要显式传入 `--port`，
+请根据当前电脑选择设备，不要直接照搬其他电脑的串口名称。
+持续串口记录器和交互终端需要 POSIX 主机环境。
+
+- `BOARD` 选择目标板的构建：`esp32s31`（默认）、`coreboard1`、`korvo1` 或 `esp-mosaico`。
   输出位于 `build/<board>/`。
 - `make build` 在 Mac 上构建加载程序和 OpenSBI，在容器中构建内核、rootfs
   和磁盘镜像。
