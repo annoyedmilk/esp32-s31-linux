@@ -156,6 +156,7 @@ static int find_chip(char *chip, size_t len)
 int live_board(struct board *b)
 {
 	char chip[64], node[128];
+	int ret;
 
 	read_file("/proc/device-tree/compatible", b->compatible, sizeof(b->compatible));
 	read_file("/proc/device-tree/model", b->model, sizeof(b->model));
@@ -166,8 +167,9 @@ int live_board(struct board *b)
 	snprintf(node, sizeof(node), "/sys/bus/gpio/devices/%s/of_node", chip);
 	read_names(b, node);
 	read_reserved(b, node);
-	if (read_used(b, chip))
-		return -errno;
+	ret = read_used(b, chip);
+	if (ret)
+		return ret;
 	b->have_lines = 1;
 	return 0;
 }
