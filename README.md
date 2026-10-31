@@ -94,6 +94,7 @@ on your computer. For your own builds, put the key into
 | Wi-Fi Enterprise (PEAP, TTLS, TLS) | available, not tested | available, not tested | available, not tested |
 | Wi-Fi access point: WPA2 Personal (WPA3 does not work yet), DHCP for the clients | `wpa_supplicant`, `udhcpd` | `wpa_supplicant`, `hostapd`, `udhcpd` | `wpa_supplicant`, `hostapd`, `udhcpd` |
 | Firewall and NAT (`nft`, rules load at boot) | yes | yes | yes |
+| WireGuard VPN (`wg`, client or server) | yes | yes, also `wg-quick` | yes (a module), also `wg-quick` |
 | Bluetooth (`hci0`): BlueZ, `bluetoothctl` | yes | yes | yes |
 | Bluetooth proxy for Home Assistant (ESPHome API), Wi-Fi setup over Bluetooth LE (Improv) | yes | yes | yes |
 | Classic BlueZ tools (`hciconfig`, `hcitool`) | no | yes | yes |
@@ -133,7 +134,7 @@ Notes:
 
 | Build | Packages |
 | --- | --- |
-| All boards | BusyBox, Dropbear, OpenSSL with the CA bundle, `wpa_supplicant` (WPA3, EAP, access point) with `wpa_cli` and `wpa_passphrase`, `iw`, `curl`, `iperf3`, the libgpiod 2 tools, BlueZ (`bluetoothd`, `bluetoothctl`), Lua, `nft` with a firewall, an SFTP server, `pinctrl`, `ble-ha` |
+| All boards | BusyBox, Dropbear, OpenSSL with the CA bundle, `wpa_supplicant` (WPA3, EAP, access point) with `wpa_cli` and `wpa_passphrase`, `iw`, `curl`, `iperf3`, the libgpiod 2 tools, BlueZ (`bluetoothd`, `bluetoothctl`), Lua, `nft` with a firewall, an SFTP server, `pinctrl`, `ble-ha`, `wg` |
 | `esp32s31` also | The MTD tools (`mtdinfo`, `flash_erase`) |
 | `coreboard1` and `korvo1` also | `hostapd`, the classic BlueZ tools (`hciconfig`, `hcitool`), OpenThread (`ot-daemon`, `ot-ctl`), `thread-relay`, bash, coreutils, vim, nano, less, file, htop, fastfetch, strace, gdb and `gdbserver`, tcpdump, links, MicroPython, tmux, nnn, ncdu, tree, bc, sqlite3, e2fsprogs, dosfstools |
 | `coreboard1` also | `ethtool` |
@@ -282,6 +283,24 @@ scripts.
   `curl` verifies certificates against the CA bundle.
   `/usr/share/examples/report.sh URL` sends the uptime and the free memory
   with HTTPS; its comment shows the `crontab` line for each 5 minutes.
+- **WireGuard.** The board can be a peer of a WireGuard server, or a
+  small server. `/usr/share/examples/wg-setup.sh [PORT]` makes a key pair
+  on the board, writes `/etc/wireguard/wg0.conf` (mode 600) with a peer
+  template, and prints the public key of the board for the other side.
+  Put the public key, the `Endpoint` and the `AllowedIPs` of the peer into
+  `wg0.conf` (the format of `wg setconf`: no `Address`, `DNS` or `MTU`),
+  and set `WG=yes`, `WG_ADDRESS`, `WG_ROUTES` and `WG_MTU` in
+  `/etc/default/wireguard`. `/etc/init.d/S42wireguard restart` makes
+  `wg0`, also at each boot. At boot, it waits for a default route and
+  for the NTP time: a peer drops a handshake with a time older than the
+  last one from the board, and `wg setconf` resolves the `Endpoint` name
+  once. With a `ListenPort` in `wg0.conf`, the firewall takes that UDP
+  port while `wg0` is up. `wg0` gets the same firewall rules as the other
+  interfaces (SSH, ping). `wg show` shows the handshake. Measured on the
+  Korvo-1 on Wi-Fi with a Mac as the peer: 8.8 Mbit/s TX and 15.6 Mbit/s
+  RX through the tunnel, against 42.8 and 36.3 Mbit/s without it; the
+  CPU is busy all the time. After a reboot, the tunnel worked again 32 s
+  after the start.
 - **Code.** `lua`, and `micropython` on the Function-CoreBoard-1 and the
   Korvo-1. `gdbserver` and `strace` are there too.
 - **Firewall.** `/etc/nftables.conf` loads at boot: the board answers

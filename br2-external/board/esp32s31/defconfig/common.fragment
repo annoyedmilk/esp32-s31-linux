@@ -132,3 +132,5 @@ BR2_PACKAGE_NFTABLES=y
 # 5353 with the mDNS responder of ot-daemon.
 BR2_PACKAGE_MDNSD=y
 BR2_PACKAGE_MDNSD_SSH_SERVICE=y
+# wg for WireGuard; S42wireguard needs no wg-quick, which is a bash script.
+BR2_PACKAGE_WIREGUARD_TOOLS=y

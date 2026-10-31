@@ -1,0 +1,66 @@
+#!/bin/sh
+# SPDX-License-Identifier: MIT
+# The WireGuard interface wg0, from /etc/default/wireguard and
+# /etc/wireguard/wg0.conf, without wg-quick.  Start waits in the background
+# for a default route and for the clock: wg setconf resolves the Endpoint
+# names once, and a peer drops a handshake with a time older than the last
+# one it saw from this board.
+
+IFACE=wg0
+CONF=/etc/wireguard/$IFACE.conf
+WG=no
+WG_ADDRESS=
+WG_ROUTES=
+WG_MTU=1420
+[ -r /etc/default/wireguard ] && . /etc/default/wireguard
+NTP=yes
+[ -r /etc/default/ntp ] && . /etc/default/ntp
+
+# Up to 10 min for the route and the clock (S01clock.sh save marks it).
+wait_network()
+{
+	for i in $(seq 1 600); do
+		if ip route show default | grep -q . &&
+		   { [ "$NTP" = no ] || [ -e /var/run/clock-set ]; }; then
+			return 0
+		fi
+		sleep 1
+	done
+	logger -t wireguard "no route or no clock after 10 min, starting anyway"
+}
+
+up()
+{
+	port=$(sed -n 's/^[[:space:]]*ListenPort[[:space:]]*=[[:space:]]*\([0-9]*\).*/\1/p' $CONF)
+	ip link add $IFACE type wireguard &&
+		wg setconf $IFACE $CONF &&
+		ip address add "$WG_ADDRESS" dev $IFACE &&
+		ip link set $IFACE mtu "$WG_MTU" up || {
+		logger -t wireguard "$IFACE did not start"
+		ip link del $IFACE 2>/dev/null
+		return 1
+	}
+	for r in $WG_ROUTES; do
+		ip route add "$r" dev $IFACE
+	done
+	[ -n "$port" ] && nft add element inet filter wg_port "{ $port }"
+	logger -t wireguard "$IFACE up${port:+, UDP port $port open}"
+}
+
+case "$1" in
+start)
+	[ "$WG" = yes ] || exit 0
+	[ -r $CONF ] || { echo "wireguard: no $CONF"; exit 1; }
+	(wait_network; up) </dev/null >/dev/null 2>&1 &
+	;;
+stop)
+	ip link del $IFACE 2>/dev/null
+	nft flush set inet filter wg_port 2>/dev/null
+	;;
+restart)
+	"$0" stop
+	[ "$WG" = yes ] && wait_network && up
+	;;
+esac
+
+exit 0

@@ -134,6 +134,8 @@ BR2_PACKAGE_NFTABLES=y
 # 5353 with the mDNS responder of ot-daemon.
 BR2_PACKAGE_MDNSD=y
 BR2_PACKAGE_MDNSD_SSH_SERVICE=y
+# wg for WireGuard; S42wireguard needs no wg-quick, which is a bash script.
+BR2_PACKAGE_WIREGUARD_TOOLS=y
 # The root on a disk, for the boards with one: the microSD card of korvo1
 # and the USB stick of coreboard1.  The disk has room, so these builds have
 # the full set of workstation and debugging tools.

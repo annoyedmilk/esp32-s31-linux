@@ -92,6 +92,7 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
 | Wi-Fi 企业版（PEAP、TTLS、TLS） | 可用，未测试 | 可用，未测试 | 可用，未测试 |
 | Wi-Fi 接入点：WPA2 个人版（WPA3 暂不可用），为客户端提供 DHCP | `wpa_supplicant`、`udhcpd` | `wpa_supplicant`、`hostapd`、`udhcpd` | `wpa_supplicant`、`hostapd`、`udhcpd` |
 | 防火墙和 NAT（`nft`，规则在启动时加载） | 是 | 是 | 是 |
+| WireGuard VPN（`wg`，客户端或服务器） | 是 | 是，另有 `wg-quick` | 是（模块），另有 `wg-quick` |
 | 蓝牙（`hci0`）：BlueZ、`bluetoothctl` | 是 | 是 | 是 |
 | Home Assistant 蓝牙代理（ESPHome API），通过蓝牙 LE 设置 Wi-Fi（Improv） | 是 | 是 | 是 |
 | 传统 BlueZ 工具（`hciconfig`、`hcitool`） | 否 | 是 | 是 |
@@ -127,7 +128,7 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
 
 | 构建 | 软件包 |
 | --- | --- |
-| 所有开发板 | BusyBox、Dropbear、带 CA 证书包的 OpenSSL、`wpa_supplicant`（WPA3、EAP、接入点）及 `wpa_cli` 和 `wpa_passphrase`、`iw`、`curl`、`iperf3`、libgpiod 2 工具、BlueZ（`bluetoothd`、`bluetoothctl`）、Lua、带防火墙的 `nft`、SFTP 服务器、`pinctrl`、`ble-ha` |
+| 所有开发板 | BusyBox、Dropbear、带 CA 证书包的 OpenSSL、`wpa_supplicant`（WPA3、EAP、接入点）及 `wpa_cli` 和 `wpa_passphrase`、`iw`、`curl`、`iperf3`、libgpiod 2 工具、BlueZ（`bluetoothd`、`bluetoothctl`）、Lua、带防火墙的 `nft`、SFTP 服务器、`pinctrl`、`ble-ha`、`wg` |
 | `esp32s31` 另有 | MTD 工具（`mtdinfo`、`flash_erase`） |
 | `coreboard1` 和 `korvo1` 另有 | `hostapd`、传统 BlueZ 工具（`hciconfig`、`hcitool`）、OpenThread（`ot-daemon`、`ot-ctl`）、`thread-relay`、bash、coreutils、vim、nano、less、file、htop、fastfetch、strace、gdb 和 `gdbserver`、tcpdump、links、MicroPython、tmux、nnn、ncdu、tree、bc、sqlite3、e2fsprogs、dosfstools |
 | `coreboard1` 另有 | `ethtool` |
@@ -250,6 +251,19 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
   路由优先于 Wi-Fi。
   `/usr/share/examples/report.sh URL` 通过 HTTPS 发送运行时间和空闲内存；
   脚本注释中给出每 5 分钟运行一次的 `crontab` 行。
+- **WireGuard。** 开发板可以作为 WireGuard 服务器的对端，也可以作为小型服务器。
+  `/usr/share/examples/wg-setup.sh [PORT]` 在开发板上生成密钥对，写入
+  `/etc/wireguard/wg0.conf`（权限 600）和一个对端模板，并打印开发板的公钥供
+  对方使用。把对端的公钥、`Endpoint` 和 `AllowedIPs` 写入 `wg0.conf`（`wg
+  setconf` 的格式：没有 `Address`、`DNS` 或 `MTU`），并在
+  `/etc/default/wireguard` 中设置 `WG=yes`、`WG_ADDRESS`、`WG_ROUTES` 和
+  `WG_MTU`。`/etc/init.d/S42wireguard restart` 创建 `wg0`，每次启动时也会创建。
+  启动时，它等待默认路由和 NTP 时间：对端会丢弃时间早于该开发板上次握手时间的
+  握手，而 `wg setconf` 只解析一次 `Endpoint` 名称。`wg0.conf` 中有
+  `ListenPort` 时，防火墙在 `wg0` 运行期间接受该 UDP 端口。`wg0` 与其他接口
+  使用相同的防火墙规则（SSH、ping）。`wg show` 显示握手。在 Korvo-1 上经 Wi-Fi
+  以 Mac 为对端测得：隧道内 TX 8.8 Mbit/s、RX 15.6 Mbit/s，不经隧道为 42.8 和
+  36.3 Mbit/s；CPU 一直满载。重启后，隧道在启动 32 秒后恢复。
 - **编程。** `lua`，Function-CoreBoard-1 和 Korvo-1 上还有 `micropython`。
   也有 `gdbserver` 和 `strace`。
 - **防火墙。** `/etc/nftables.conf` 在启动时加载：开发板响应 ping 和

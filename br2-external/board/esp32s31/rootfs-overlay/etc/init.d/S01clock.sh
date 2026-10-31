@@ -20,6 +20,8 @@ stop|save)
 	# comes before the data is on the disk keeps the old file.
 	[ "$(date -u +%Y)" -ge 2020 ] && date -u +"$FORMAT" >"$STAMP.new" &&
 		mv "$STAMP.new" "$STAMP"
+	# NTP has set the clock: S42wireguard waits for this.
+	[ "$1" = save ] && : >/var/run/clock-set
 	;;
 esac
 

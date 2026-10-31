@@ -134,6 +134,8 @@ BR2_PACKAGE_NFTABLES=y
 # 5353 with the mDNS responder of ot-daemon.
 BR2_PACKAGE_MDNSD=y
 BR2_PACKAGE_MDNSD_SSH_SERVICE=y
+# wg for WireGuard; S42wireguard needs no wg-quick, which is a bash script.
+BR2_PACKAGE_WIREGUARD_TOOLS=y
 # The root in the flash, for the module alone (esp32s31), which has no
 # disk.  The root is a squashfs, with a UBIFS overlay that keeps all
 # changes (overlay-init).  The flash is small, so these builds are lean.

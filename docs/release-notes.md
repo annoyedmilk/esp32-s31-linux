@@ -79,6 +79,11 @@ the tmux desktop for a USB keyboard. Later kernel messages go to `tty2`
   `i2ctransfer` of BusyBox were already on all boards. The device trees
   of the Function-CoreBoard-1 (header J2) and of the module alone have a
   disabled example bus for external devices.
+- WireGuard on all boards: `wg`, `/usr/share/examples/wg-setup.sh` for
+  the keys, and `/etc/init.d/S42wireguard` for `wg0` without `wg-quick`
+  (`WG=no` by default). Through the tunnel, the Korvo-1 gave 8.8 Mbit/s
+  TX and 15.6 Mbit/s RX on Wi-Fi. Firewall: with a `ListenPort`, UDP on
+  that port is open while `wg0` is up, through the new set `wg_port`.
 
 ## New in v0.10.0
 
