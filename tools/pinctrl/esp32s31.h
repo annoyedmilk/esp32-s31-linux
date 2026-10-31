@@ -32,11 +32,18 @@
 #define GPIO_W1TC	8
 #define GPIO_IN		0x64
 #define GPIO_IN1	0x68
+#define GPIO_STATUS	0x74
+#define GPIO_STATUS1	0x80
 #define GPIO_PIN(n)	(0xf4 + 4 * (n))
 #define GPIO_IN_SEL(s)	(0x2f4 + 4 * (s))
 #define GPIO_OUT_SEL(n)	(0xaf4 + 4 * (n))
 
 #define PIN_PAD_DRIVER	(1u << 2)
+#define PIN_INT_TYPE_SHIFT 7
+#define PIN_INT_TYPE_MASK (7u << PIN_INT_TYPE_SHIFT)
+/* Bits 13 to 16 enable interrupt lines 0 to 3; the kernel uses 2 and 3. */
+#define PIN_INT_ENA_SHIFT 13
+#define PIN_INT_ENA_MASK (0xfu << PIN_INT_ENA_SHIFT)
 #define IN_SEL_PIN	0xffu
 #define IN_SEL_MATRIX	(1u << 9)
 #define OUT_SEL_SIG	0x1ffu
@@ -73,6 +80,9 @@ struct pin_state {
 	int level;		/* 1, 0, or -1 with the input off */
 	unsigned int drive_ma;
 	int open_drain;
+	unsigned int int_type;	/* 0 none, then rising, falling, both, low, high */
+	unsigned int int_lines;	/* bit n: interrupt line n is enabled */
+	int int_pending;	/* the STATUS bit */
 	char func[128];
 };
 
@@ -87,6 +97,7 @@ void short_name(const char *raw, char *buf, unsigned int len);
 
 void pin_get(struct regs *r, unsigned int pin, struct pin_state *st);
 int pin_level(struct regs *r, unsigned int pin);
+const char *int_type_name(unsigned int type);
 void pin_set_mode(struct regs *r, unsigned int pin, enum mode mode);
 void pin_set_pull(struct regs *r, unsigned int pin, enum pull pull);
 void pin_set_out(struct regs *r, unsigned int pin, int high);

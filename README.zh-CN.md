@@ -104,6 +104,7 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
 | RGB LED（`/sys/class/leds/rgb:status`） | 否 | GPIO60 | GPIO37 |
 | GPIO、硬件随机数、`curl` HTTPS、SSH（Dropbear，仅密钥） | 是 | 是 | 是 |
 | 用 `pinctrl` 查看引脚功能、上下拉和电平（与 Raspberry Pi 相同），GPIO 线带网络名称 | 是 | 是 | 是 |
+| GPIO 中断：`gpiomon` 和 libgpiod 的边沿事件，消抖 | 是 | 是 | 是 |
 
 说明：
 
@@ -213,6 +214,19 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
   其他开发板上为模组焊盘）、`pinctrl funcs 8`、`pinctrl set 47 op dh`。`set`
   是调试工具：它绕过内核驱动直接写寄存器，并拒绝 Flash 引脚、保留引脚和
   驱动正在使用的引脚。更多信息见 `pinctrl -h`。
+
+  每个 GPIO 都有中断，支持边沿（上升、下降、双边沿）和电平（高、低），因此
+  `gpiomon` 和 libgpiod 的边沿事件可用。`/usr/share/examples/gpio-watch.sh
+  PIN [rising|falling|both]` 打印每个边沿及其时间。
+  `/usr/share/examples/button.sh PIN COMMAND` 在每次按下接在该引脚和 GND
+  之间的按键时运行一条命令。`gpiomon -p 20ms` 在 20 ms 内忽略触点抖动：
+  内核用软件实现，因为芯片的毛刺滤波器对按键来说太短（最多 64 个 IO MUX
+  时钟）。`pinctrl get` 显示引脚的中断，例如 `[irq falling, lines 3]`，
+  `set` 拒绝已启用中断的引脚。在单个引脚上回环测试时，`gpiomon` 在半周期
+  50 µs 和 1 ms 时收到全部 2000 个边沿，在 20 µs 和 100 µs 时部分测试丢失
+  少量边沿。没有开发板有可用于 `gpio-keys` 的空闲用户按键：
+  Function-CoreBoard-1 的按键是 BOOT 启动配置引脚（GPIO61），Korvo-1 的按键
+  接在 ADC 上。
 - **LED**（Function-CoreBoard-1、Korvo-1）。WS2812 对应
   `/sys/class/leds/rgb:status`：向 `multi_intensity` 写入 `R G B`（0 到 255），
   再向 `brightness` 写入 `255`。`/usr/share/examples/led.sh R G B`

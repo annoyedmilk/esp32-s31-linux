@@ -188,6 +188,31 @@ Driver: `drivers/irqchip/irq-esp32s31-clic.c`. Interrupt specifiers have
 three cells: `<CLIC ID, matrix source, type>`. The driver writes the
 Interrupt Matrix route itself.
 
+### GPIO interrupts
+
+The GPIO block has four interrupt lines (matrix sources 61 to 64,
+`GPIO_INTR0` to `GPIO_INTR3`). Each line covers all 62 pins. `GPIO_PINn`
+has the type of the pin (bits 9:7: rising, falling, both, low, high) and
+an enable bit for each line (bits 13 to 16). Each line has a status
+register for GPIO0-31 (`GPIO_INT_n`, `0xa4` + 4n) and one for GPIO32-61
+(`0xb4` + 4n): the `STATUS` bits of the pins that enable that line. A
+write to `STATUS_W1TC` clears a pin.
+
+Linux uses line 2 for GPIO0-31 (CLIC 39) and line 3 for GPIO32-61 (CLIC
+40), so a bank without users gives no interrupts, and lines 0 and 1 stay
+for hart 0. ESP-IDF uses only line 0 today. The enable bits come from a
+test on the Korvo-1: bit 13 + n sets `GPIO_INT_n`, bit 17 sets nothing.
+`gpio_struct.h` of ESP-IDF agrees; `GPIO_LL_INTR2_ENA` (`BIT(3)`) and
+`GPIO_LL_INTR3_ENA` (`BIT(4)`) in `gpio_ll.h` are wrong for this chip.
+
+The driver (`pinctrl-esp32s31.c`) puts an irqchip on the gpio_chip, with
+one chained handler for each bank. Edges use `handle_edge_irq`, levels
+`handle_level_irq`: a held level fires again only after the handler
+returns, at the rate of the consumer. The chip has glitch filters (8
+channels in `GPIO_EXT`), but their window is at most 64 clocks of the IO
+MUX (1.6 µs at 40 MHz), too short for a contact, so debounce is the
+software debounce of gpiolib.
+
 ### Timer and IPI
 
 The machine timer is CLINT-like at `0x10000000` (`mtime` at `+0xBFF8`,
@@ -581,7 +606,7 @@ and Bluetooth stack the same on all boards.
 | Bluetooth for Home Assistant | `tools/ble-ha/` (the proxy, Improv, an ATT server on the HCI user channel); `make -C tools/ble-ha test` runs its tests on the host |
 | The flash root | `bootloader/components/esp_hosted/shm_flash.c`, `linux/drivers/net/wireless/espressif/esp_hosted/esp_shm_flash.c` |
 | The boards | `bootloader/main/board_*.c`, `br2-external/board/esp32s31/defconfig/*.fragment` (`make defconfigs` makes `br2-external/configs/*_defconfig`) |
-| Pins and GPIO | `linux/drivers/pinctrl/pinctrl-esp32s31.c` (also `/dev/esp32s31-gpiomem`) |
+| Pins and GPIO | `linux/drivers/pinctrl/pinctrl-esp32s31.c` (also `/dev/esp32s31-gpiomem` and the GPIO interrupts) |
 | The pinctrl tool | `tools/pinctrl/esp32s31.c` (the registers of a pin), `tools/pinctrl/pinctrl.c` (the command line); `make -C tools/pinctrl test` runs its tests on the host |
 | Clocks and resets | `linux/drivers/clk/clk-esp32s31.c` |
 | The console | `linux/drivers/tty/serial/esp32_uart.c` |

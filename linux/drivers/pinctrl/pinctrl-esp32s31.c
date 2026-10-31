@@ -11,6 +11,12 @@
  * GPIO13-25 are CNNT pads: the IO MUX functions of the GMAC and the SD host
  * on them also need a select bit in CNNT_IO_MUX_CTRL.
  *
+ * The GPIO block has four interrupt lines; GPIO_PINn selects the type and
+ * the lines of a pin.  Linux uses line 2 for pins 0-31 and line 3 for pins
+ * 32-61, each on its own CLIC input, and leaves lines 0 and 1 to hart 0.
+ * The INT_ENA bits are 13 to 16 for lines 0 to 3, as in gpio_struct.h of
+ * ESP-IDF and measured; GPIO_LL_INTR2/3_ENA of gpio_ll.h are wrong.
+ *
  * /dev/esp32s31-gpiomem gives root the registers for pinctrl(1), a debug
  * tool, as gpiomem does on the Raspberry Pi.  mmap at offset 0 maps the IO
  * MUX page and at 0x1000 the GPIO page.  The CNNT word shares its page with
@@ -21,7 +27,10 @@
 #include <linux/bitops.h>
 #include <linux/fs.h>
 #include <linux/gpio/driver.h>
+#include <linux/interrupt.h>
 #include <linux/io.h>
+#include <linux/irq.h>
+#include <linux/irqchip/chained_irq.h>
 #include <linux/miscdevice.h>
 #include <linux/mm.h>
 #include <linux/mod_devicetable.h>
@@ -51,11 +60,17 @@
 #define ESP32S31_GPIO_ENABLE1_W1TC	0x48
 #define ESP32S31_GPIO_IN		0x64
 #define ESP32S31_GPIO_IN1		0x68
+#define ESP32S31_GPIO_STATUS_W1TC	0x7c
+#define ESP32S31_GPIO_STATUS1_W1TC	0x88
+/* The status of a line: GPIO_INT_<line> for bank 0, GPIO_INT_<line>1 for 1. */
+#define ESP32S31_GPIO_INT(line, bank)	(0xa4 + (bank) * 0x10 + (line) * 4)
 #define ESP32S31_GPIO_PIN(n)		(0xf4 + (n) * 4)
 #define ESP32S31_GPIO_FUNC_IN_SEL(s)	(0x2f4 + (s) * 4)
 #define ESP32S31_GPIO_FUNC_OUT_SEL(n)	(0xaf4 + (n) * 4)
 
 #define ESP32S31_PIN_PAD_DRIVER		BIT(2)
+#define ESP32S31_PIN_INT_TYPE		GENMASK(9, 7)
+#define ESP32S31_PIN_INT_ENA(line)	BIT(13 + (line))
 #define ESP32S31_IN_SEL_MATRIX		BIT(9)
 /* The reset value: the signal comes from the IO MUX. */
 #define ESP32S31_IN_SEL_IOMUX		0x80
@@ -76,10 +91,23 @@
 #define ESP32S31_MUX_FUNC		GENMASK(13, 11)
 
 #define ESP32S31_NPINS			62
+#define ESP32S31_NBANKS			2
+/* The interrupt line of bank 0; bank 1 uses the next one. */
+#define ESP32S31_IRQ_LINE0		2
 #define ESP32S31_NSIGS			256
 
 /* The file offset of the CNNT word; the mapped pages are below it. */
 #define ESP32S31_GPIOMEM_CNNT		0x2000
+
+/* GPIO_PINn INT_TYPE */
+enum {
+	ESP32S31_INT_NONE,
+	ESP32S31_INT_RISING,
+	ESP32S31_INT_FALLING,
+	ESP32S31_INT_BOTH,
+	ESP32S31_INT_LOW,
+	ESP32S31_INT_HIGH,
+};
 
 /* FUN_DRV 0 to 3 */
 static const u32 esp32s31_drive_ma[] = { 5, 10, 20, 40 };
@@ -93,6 +121,13 @@ static const struct {
 	{ 20, 25, 4, BIT(0) },	/* SD host */
 };
 
+struct esp32s31_pinctrl;
+
+struct esp32s31_gpio_bank {
+	struct esp32s31_pinctrl *pctrl;
+	unsigned int bank;
+};
+
 struct esp32s31_pinctrl {
 	struct pinctrl_desc desc;
 	struct pinctrl_dev *pctl;
@@ -103,12 +138,24 @@ struct esp32s31_pinctrl {
 	raw_spinlock_t lock;
 	struct miscdevice gpiomem;
 	phys_addr_t gpiomem_pages[2];	/* IO MUX, GPIO */
+	struct esp32s31_gpio_bank banks[ESP32S31_NBANKS];
+	void *bank_data[ESP32S31_NBANKS];
+	unsigned int parents[ESP32S31_NBANKS];
 };
 
 static void esp32s31_iomux_rmw(struct esp32s31_pinctrl *pctrl,
 			       unsigned int pin, u32 clr, u32 set)
 {
 	void __iomem *reg = pctrl->iomux + pin * 4;
+
+	guard(raw_spinlock_irqsave)(&pctrl->lock);
+	writel((readl(reg) & ~clr) | set, reg);
+}
+
+static void esp32s31_pin_rmw(struct esp32s31_pinctrl *pctrl, unsigned int pin,
+			     u32 clr, u32 set)
+{
+	void __iomem *reg = pctrl->gpio + ESP32S31_GPIO_PIN(pin);
 
 	guard(raw_spinlock_irqsave)(&pctrl->lock);
 	writel((readl(reg) & ~clr) | set, reg);
@@ -262,7 +309,6 @@ static int esp32s31_config_one(struct esp32s31_pinctrl *pctrl, unsigned int pin,
 			       unsigned long config)
 {
 	u32 arg = pinconf_to_config_argument(config);
-	void __iomem *pad = pctrl->gpio + ESP32S31_GPIO_PIN(pin);
 	u32 pull = ESP32S31_IOMUX_FUN_WPU | ESP32S31_IOMUX_FUN_WPD;
 	int drv;
 
@@ -287,14 +333,11 @@ static int esp32s31_config_one(struct esp32s31_pinctrl *pctrl, unsigned int pin,
 		esp32s31_iomux_rmw(pctrl, pin, ESP32S31_IOMUX_FUN_DRV, drv);
 		break;
 	case PIN_CONFIG_DRIVE_OPEN_DRAIN:
-	case PIN_CONFIG_DRIVE_PUSH_PULL: {
-		bool od = pinconf_to_config_param(config) == PIN_CONFIG_DRIVE_OPEN_DRAIN;
-
-		guard(raw_spinlock_irqsave)(&pctrl->lock);
-		writel((readl(pad) & ~ESP32S31_PIN_PAD_DRIVER) |
-		       (od ? ESP32S31_PIN_PAD_DRIVER : 0), pad);
+		esp32s31_pin_rmw(pctrl, pin, 0, ESP32S31_PIN_PAD_DRIVER);
 		break;
-	}
+	case PIN_CONFIG_DRIVE_PUSH_PULL:
+		esp32s31_pin_rmw(pctrl, pin, ESP32S31_PIN_PAD_DRIVER, 0);
+		break;
 	default:
 		return -ENOTSUPP;
 	}
@@ -436,6 +479,134 @@ static int esp32s31_gpio_set_config(struct gpio_chip *chip, unsigned int offset,
 	struct esp32s31_pinctrl *pctrl = gpiochip_get_data(chip);
 
 	return esp32s31_config_one(pctrl, offset, config);
+}
+
+static struct esp32s31_pinctrl *esp32s31_irq_pctrl(struct irq_data *d)
+{
+	return gpiochip_get_data(irq_data_get_irq_chip_data(d));
+}
+
+/* The INT_ENA bit of the line of the bank of a pin */
+static u32 esp32s31_irq_ena(irq_hw_number_t hwirq)
+{
+	return ESP32S31_PIN_INT_ENA(ESP32S31_IRQ_LINE0 + hwirq / 32);
+}
+
+static void esp32s31_irq_ack(struct irq_data *d)
+{
+	struct esp32s31_pinctrl *pctrl = esp32s31_irq_pctrl(d);
+	irq_hw_number_t hwirq = irqd_to_hwirq(d);
+
+	writel(BIT(hwirq % 32), pctrl->gpio +
+	       esp32s31_bank(hwirq, ESP32S31_GPIO_STATUS_W1TC,
+			     ESP32S31_GPIO_STATUS1_W1TC));
+}
+
+static void esp32s31_irq_mask(struct irq_data *d)
+{
+	struct esp32s31_pinctrl *pctrl = esp32s31_irq_pctrl(d);
+	irq_hw_number_t hwirq = irqd_to_hwirq(d);
+
+	esp32s31_pin_rmw(pctrl, hwirq, esp32s31_irq_ena(hwirq), 0);
+	gpiochip_disable_irq(&pctrl->chip, hwirq);
+}
+
+static void esp32s31_irq_unmask(struct irq_data *d)
+{
+	struct esp32s31_pinctrl *pctrl = esp32s31_irq_pctrl(d);
+	irq_hw_number_t hwirq = irqd_to_hwirq(d);
+
+	gpiochip_enable_irq(&pctrl->chip, hwirq);
+	esp32s31_pin_rmw(pctrl, hwirq, 0, esp32s31_irq_ena(hwirq));
+}
+
+static int esp32s31_irq_set_type(struct irq_data *d, unsigned int type)
+{
+	static const u8 int_type[] = {
+		[IRQ_TYPE_EDGE_RISING]	= ESP32S31_INT_RISING,
+		[IRQ_TYPE_EDGE_FALLING]	= ESP32S31_INT_FALLING,
+		[IRQ_TYPE_EDGE_BOTH]	= ESP32S31_INT_BOTH,
+		[IRQ_TYPE_LEVEL_HIGH]	= ESP32S31_INT_HIGH,
+		[IRQ_TYPE_LEVEL_LOW]	= ESP32S31_INT_LOW,
+	};
+	struct esp32s31_pinctrl *pctrl = esp32s31_irq_pctrl(d);
+
+	type &= IRQ_TYPE_SENSE_MASK;
+	if (type >= ARRAY_SIZE(int_type) || !int_type[type])
+		return -EINVAL;
+
+	esp32s31_pin_rmw(pctrl, irqd_to_hwirq(d), ESP32S31_PIN_INT_TYPE,
+			 FIELD_PREP(ESP32S31_PIN_INT_TYPE, int_type[type]));
+	/* An edge of the old type must not come as an event of the new one. */
+	esp32s31_irq_ack(d);
+	irq_set_handler_locked(d, type & IRQ_TYPE_LEVEL_MASK ?
+			       handle_level_irq : handle_edge_irq);
+	return 0;
+}
+
+static const struct irq_chip esp32s31_irq_chip = {
+	.name		= "esp32s31-gpio",
+	.irq_ack	= esp32s31_irq_ack,
+	.irq_mask	= esp32s31_irq_mask,
+	.irq_unmask	= esp32s31_irq_unmask,
+	.irq_set_type	= esp32s31_irq_set_type,
+	.flags		= IRQCHIP_IMMUTABLE | IRQCHIP_SKIP_SET_WAKE,
+	GPIOCHIP_IRQ_RESOURCE_HELPERS,
+};
+
+/* The parent interrupt of a bank: its line, for the enabled pins only. */
+static void esp32s31_gpio_irq_handler(struct irq_desc *desc)
+{
+	struct esp32s31_gpio_bank *bank = irq_desc_get_handler_data(desc);
+	struct esp32s31_pinctrl *pctrl = bank->pctrl;
+	struct irq_chip *parent = irq_desc_get_chip(desc);
+	unsigned long pending;
+	unsigned int bit;
+
+	chained_irq_enter(parent, desc);
+	pending = readl(pctrl->gpio + ESP32S31_GPIO_INT(ESP32S31_IRQ_LINE0 +
+							 bank->bank, bank->bank));
+	for_each_set_bit(bit, &pending, 32)
+		generic_handle_domain_irq(pctrl->chip.irq.domain,
+					  bank->bank * 32 + bit);
+	chained_irq_exit(parent, desc);
+}
+
+/* Without the parent interrupts in the device tree, the GPIOs have none. */
+static int esp32s31_irq_init(struct platform_device *pdev,
+			     struct esp32s31_pinctrl *pctrl)
+{
+	struct gpio_irq_chip *girq = &pctrl->chip.irq;
+	u32 ours = ESP32S31_PIN_INT_ENA(ESP32S31_IRQ_LINE0) |
+		   ESP32S31_PIN_INT_ENA(ESP32S31_IRQ_LINE0 + 1);
+	unsigned int i;
+	int irq;
+
+	if (platform_irq_count(pdev) < ESP32S31_NBANKS)
+		return 0;
+
+	for (i = 0; i < ESP32S31_NBANKS; i++) {
+		irq = platform_get_irq(pdev, i);
+		if (irq < 0)
+			return irq;
+		pctrl->parents[i] = irq;
+		pctrl->banks[i].pctrl = pctrl;
+		pctrl->banks[i].bank = i;
+		pctrl->bank_data[i] = &pctrl->banks[i];
+	}
+
+	for (i = 0; i < ESP32S31_NPINS; i++)
+		esp32s31_pin_rmw(pctrl, i, ours, 0);
+
+	gpio_irq_chip_set_chip(girq, &esp32s31_irq_chip);
+	girq->parent_handler = esp32s31_gpio_irq_handler;
+	girq->num_parents = ESP32S31_NBANKS;
+	girq->parents = pctrl->parents;
+	girq->per_parent_data = true;
+	girq->parent_handler_data_array = pctrl->bank_data;
+	girq->default_type = IRQ_TYPE_NONE;
+	girq->handler = handle_bad_irq;
+	return 0;
 }
 
 static int esp32s31_pins_init(struct device *dev, struct pinctrl_desc *desc)
@@ -606,6 +777,10 @@ static int esp32s31_pinctrl_probe(struct platform_device *pdev)
 	chip->direction_input = esp32s31_gpio_direction_input;
 	chip->direction_output = esp32s31_gpio_direction_output;
 	chip->set_config = esp32s31_gpio_set_config;
+
+	ret = esp32s31_irq_init(pdev, pctrl);
+	if (ret)
+		return ret;
 
 	ret = devm_gpiochip_add_data(dev, chip, pctrl);
 	if (ret || !IS_ENABLED(CONFIG_PINCTRL_ESP32S31_GPIOMEM))

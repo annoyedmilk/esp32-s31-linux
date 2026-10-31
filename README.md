@@ -106,6 +106,7 @@ on your computer. For your own builds, put the key into
 | RGB LED (`/sys/class/leds/rgb:status`) | no | GPIO60 | GPIO37 |
 | GPIO, hardware RNG, HTTPS with `curl`, SSH (Dropbear, key only) | yes | yes | yes |
 | Pin functions, pulls and levels with `pinctrl` (as on the Raspberry Pi), net names on the GPIO lines | yes | yes | yes |
+| GPIO interrupts: edge events for `gpiomon` and libgpiod, debounce | yes | yes | yes |
 
 Notes:
 
@@ -240,6 +241,21 @@ scripts.
   `pinctrl set 47 op dh`. `set` is a debug tool: it writes the registers
   past the kernel driver, and it refuses the flash pins, the reserved pins
   and the lines that a driver uses. `pinctrl -h` tells more.
+
+  Each GPIO has an interrupt for edges (rising, falling, both) and levels
+  (high, low), so `gpiomon` and the edge events of libgpiod work.
+  `/usr/share/examples/gpio-watch.sh PIN [rising|falling|both]` prints
+  each edge with the time. `/usr/share/examples/button.sh PIN COMMAND`
+  runs a command at each press of a button between the pin and GND.
+  `gpiomon -p 20ms` ignores the bounces of a contact for 20 ms: the kernel
+  does this in software, because the glitch filters of the chip are too
+  short for a button (at most 64 clocks of the IO MUX). `pinctrl get`
+  shows the interrupt of a pin, for example `[irq falling, lines 3]`, and
+  `set` refuses a pin with an enabled interrupt. With a loopback on one
+  pin, `gpiomon` got all 2000 edges at a half period of 50 µs and 1 ms,
+  and lost a few in some runs at 20 µs and 100 µs. No board has a free
+  user button for `gpio-keys`: the button of the Function-CoreBoard-1 is
+  the BOOT strapping pin (GPIO61), and the Korvo-1 buttons are on an ADC.
 - **LED** (Function-CoreBoard-1, Korvo-1). The WS2812 is
   `/sys/class/leds/rgb:status`: write `R G B` (0 to 255) to
   `multi_intensity`, then `255` to `brightness`.

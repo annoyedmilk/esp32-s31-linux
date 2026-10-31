@@ -63,6 +63,13 @@ the tmux desktop for a USB keyboard. Later kernel messages go to `tty2`
   also routes them to `eth0` with NAT. The firewall now takes DHCP
   requests (UDP 67) only on the access point while `ap.sh` runs; before,
   it took them on all interfaces, but no server listened.
+- GPIO interrupts: `gpiomon`, the edge events of libgpiod and interrupts
+  for drivers work on all pins, for rising, falling and both edges and
+  for high and low levels. `gpiomon -p 20ms` debounces a button.
+  `/usr/share/examples/gpio-watch.sh` prints the edges of a pin, and
+  `/usr/share/examples/button.sh` runs a command at each press.
+  `pinctrl get` shows the interrupt of a pin, and `pinctrl set` refuses a
+  pin with an enabled interrupt.
 
 ## New in v0.10.0
 

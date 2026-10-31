@@ -15,7 +15,9 @@ description:
   drive strength and the input buffer. The GPIO matrix connects a peripheral
   signal or the GPIO registers to the pad. The GPIO registers are in the
   block of the matrix, so one node is the pin controller and the GPIO
-  controller. GPIO29 and GPIO41 have no package pin.
+  controller. GPIO29 and GPIO41 have no package pin. The block has four
+  interrupt lines; the operating system uses one for each bank of 32
+  pins, and the firmware on the other hart can use the other two.
 
 properties:
   compatible:
@@ -40,6 +42,16 @@ properties:
 
   gpio-ranges:
     maxItems: 1
+
+  interrupts:
+    items:
+      - description: the interrupt line of GPIO0 to GPIO31
+      - description: the interrupt line of GPIO32 to GPIO61
+
+  interrupt-controller: true
+
+  "#interrupt-cells":
+    const: 2
 
   gpio-reserved-ranges:
     description:
@@ -108,6 +120,7 @@ additionalProperties: false
 
 examples:
   - |
+    #include <dt-bindings/interrupt-controller/irq.h>
     #include <dt-bindings/pinctrl/esp32s31-pinctrl.h>
 
     pinctrl: pinctrl@20582000 {
@@ -119,6 +132,10 @@ examples:
         #gpio-cells = <2>;
         gpio-ranges = <&pinctrl 0 0 62>;
         gpio-reserved-ranges = <26 9>, <41 1>, <58 2>;
+        interrupts = <39 63 IRQ_TYPE_LEVEL_HIGH>,
+                     <40 64 IRQ_TYPE_LEVEL_HIGH>;
+        interrupt-controller;
+        #interrupt-cells = <2>;
 
         i2c0_cfg: i2c0-cfg {
             i2c0-pins {
