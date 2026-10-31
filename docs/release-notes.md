@@ -41,6 +41,15 @@ On the Korvo-1, the LCD shows the Tux logo and the kernel warnings, then
 the tmux desktop for a USB keyboard. Later kernel messages go to `tty2`
 (`Alt-F2`), not over the desktop.
 
+## New in v0.11.0
+
+- Memory: the kernel has no restartable sequences, no `cachestat`, no
+  block module autoload and no CRDA helper. Nothing on the boards uses
+  them. `/tmp` (2 MiB), `/run` (512 KiB) and `/dev/shm` (1 MiB) have a
+  size limit, so a large file cannot take all of the RAM. On the module
+  alone, the squashfs keeps one decompressed fragment, not three.
+  `docs/internals.md` tells where each part of the PSRAM goes.
+
 ## New in v0.10.0
 
 - Module alone: the update formats the overlay one time. The `data`

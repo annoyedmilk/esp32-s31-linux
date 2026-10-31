@@ -74,6 +74,38 @@ ROM -> ESP-IDF 2nd stage -> loader (hart 0) -> OpenSBI (hart 1, M) -> Linux (har
 The loader (`main.c`, `display.c`) and OpenSBI (`platform.c`) keep their
 own copies of these numbers. The device trees must agree with them.
 
+### Where the PSRAM goes
+
+Measured on the Korvo-1 at v0.10.0, idle, with Wi-Fi connected
+(`/proc/iomem`, `/proc/meminfo` and the boot log; the kernel has no
+debugfs, so there is no `memblock/reserved`):
+
+| Part | KiB | Owner and use |
+| --- | --- | --- |
+| Kernel image after boot | 4219 | code 3401, rodata 542, data 184, bss 87; the 188 KiB of init code are freed |
+| Early kernel allocations | 229 | `struct page` for each page, the device tree, per-CPU data, the first page; the rest of 16 MiB |
+| Heap of the firmware on hart 0 | 256 | no-map; the loader reports 254 KiB of it free at idle |
+| Guard page below OpenSBI | 4 | no-map, the APM trap (see Protection) |
+| OpenSBI | 192 | no-map: 128 KiB code (120.6 KiB used), 64 KiB data (52 KiB used, of it a heap of 36 KiB with 10 KiB used) |
+| Frame buffer (Korvo-1 only) | 768 | no-map, uncached; 800 × 480 × 2 = 750 KiB used |
+| MemTotal | 10716 | Linux |
+
+The other boards have the frame buffer area as RAM, and their kernel
+image has a different size: the README gives their MemTotal. No board has
+CMA. The coherent DMA pool, the trap code and the ESP-Hosted rings are in
+the internal SRAM, not in the PSRAM.
+
+Of the MemTotal, after `echo 3 > /proc/sys/vm/drop_caches` at idle: 2364
+KiB free, 2316 KiB page cache, 2020 KiB slab, 1124 KiB process memory, 408
+KiB kernel stacks, 332 KiB page tables. zram took 2813 KiB of RAM for 3187
+KiB of swapped pages that compress to 1116 KiB: zsmalloc keeps a
+partly-filled page set for each of its size classes, and with few objects
+most of these sets are almost empty. Compaction did not change it. zram
+stays with lz4: the zstd backend adds 229 KiB to the Image of the Korvo-1,
+which is RAM that Linux never gets back.
+
+The libc is musl, so a switch to musl gives nothing.
+
 ### Internal SRAM
 
 The HP SRAM is 512 KiB (`0x2F000000`-`0x2F080000`). Measured on the

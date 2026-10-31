@@ -41,6 +41,8 @@ CONFIG_MISC_FILESYSTEMS=y
 CONFIG_SQUASHFS=y
 # The root is squashfs with zstd.
 CONFIG_SQUASHFS_ZSTD=y
+# Each entry of the fragment cache is a 32 KiB block: 1 entry, not 3.
+CONFIG_SQUASHFS_FRAGMENT_CACHE_SIZE=1
 # CONFIG_SQUASHFS_ZLIB is not set
 CONFIG_UBIFS_FS=y
 # Each compressor keeps a workspace for all time.  LZO is the default.
