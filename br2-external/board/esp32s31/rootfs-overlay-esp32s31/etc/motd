@@ -9,6 +9,8 @@ Bluetooth bluetoothctl, then: scan le, scan bredr, devices
 Firewall  nft list ruleset; open a port until the next boot:
           nft insert rule inet filter input tcp dport 8080 accept
 System    free, df -h, dmesg, mtdinfo
+Time      NTP at each DHCP lease (/etc/default/ntp); local zone: TZ in
+          /etc/default/tz, for example TZ="CET-1CEST,M3.5.0,M10.5.0/3"
 Network   ssh, scp, curl, iperf3
 GPIO      pinctrl, gpiodetect, gpioinfo, gpioget, gpioset
 Examples  ls /usr/share/examples

@@ -1,0 +1,4 @@
+# /etc/profile.d/tz.sh exports TZ for login shells.  Empty: UTC.  A POSIX
+# TZ string needs no zoneinfo, for example TZ="CET-1CEST,M3.5.0,M10.5.0/3"
+# for Central Europe.  The daemons that start at boot keep UTC.
+TZ=""

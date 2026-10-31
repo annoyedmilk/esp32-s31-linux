@@ -49,6 +49,15 @@ the tmux desktop for a USB keyboard. Later kernel messages go to `tty2`
   size limit, so a large file cannot take all of the RAM. On the module
   alone, the squashfs keeps one decompressed fragment, not three.
   `docs/internals.md` tells where each part of the PSRAM goes.
+- Time: the clock is set again when the first NTP try fails. Before, a
+  board whose first try after the lease got no reply (10 s) kept the
+  saved time until the next new lease. Now `ntpd` tries again up to 1 h,
+  also at each lease renewal, and uses the NTP servers of the DHCP server
+  first. `/etc/default/ntp` has the servers and `NTP=no`. A reset just
+  after a sync no longer leaves an empty `/etc/timestamp`, which gave a
+  clock in 1970 and TLS errors until the network came up. A POSIX time
+  zone in `/etc/default/tz` works without zoneinfo, also on the module
+  alone.
 
 ## New in v0.10.0
 

@@ -251,8 +251,14 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
 - **恢复。** 内核崩溃 10 秒后，或用户空间停止 60 秒后（软件看门狗；
   `/etc/init.d/S15watchdog stop` 将其关闭），开发板自动重启。SysRq 可通过
   `/proc/sysrq-trigger` 使用：`s` 同步，`u` 以只读方式重新挂载，`b` 重启。
-- **时间。** 时钟为 UTC。在 Function-CoreBoard-1 和 Korvo-1 上，
-  `ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime` 设置本地时区。
+- **时间。** 开发板没有 RTC。启动时设置上次保存的时间，使 TLS 在联网前
+  可用。每次 DHCP 获得或续租地址时，`ntpd` 从 DHCP 服务器提供的 NTP 服务器
+  和 `/etc/default/ntp` 中的 `NTP_SERVERS`（`pool.ntp.org`）设置时钟。没有
+  回复时，在 10 秒、30 秒、1 分钟之后重试，最长间隔 1 小时。`NTP=no` 关闭
+  它。开发板不是 NTP 服务器。时钟为 UTC。shell 的本地时区：在所有开发板
+  上，`/etc/default/tz` 中的 POSIX 字符串，例如
+  `TZ="CST-8"`；在 Function-CoreBoard-1 和 Korvo-1 上也可以用
+  `ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime`，守护进程也使用它。
 
 ## 已测试的硬件
 

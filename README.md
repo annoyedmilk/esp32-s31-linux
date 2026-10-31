@@ -281,9 +281,17 @@ scripts.
   after user space stops (the soft watchdog; `/etc/init.d/S15watchdog stop`
   turns it off). SysRq works with `/proc/sysrq-trigger`: `s` syncs, `u`
   remounts read-only, `b` reboots.
-- **Time.** The clock is UTC. On the Function-CoreBoard-1 and the Korvo-1,
-  `ln -sf /usr/share/zoneinfo/Europe/Zurich /etc/localtime` sets a local
-  zone.
+- **Time.** The board has no RTC. At boot, it sets the last saved time,
+  so that TLS works before the network. At each DHCP lease and renewal,
+  `ntpd` sets the clock from the NTP servers of the DHCP server and from
+  `NTP_SERVERS` in `/etc/default/ntp` (`pool.ntp.org`). Without a reply,
+  it tries again after 10 s, 30 s, 1 min, and up to 1 h. `NTP=no` turns
+  it off. The board is not an NTP server. The clock is UTC. A local zone
+  for the shell: a POSIX string in `/etc/default/tz`, for example
+  `TZ="CET-1CEST,M3.5.0,M10.5.0/3"`, on all boards; on the
+  Function-CoreBoard-1 and the Korvo-1 also `ln -sf
+  /usr/share/zoneinfo/Europe/Zurich /etc/localtime`, which the daemons
+  use too.
 
 ## Tested hardware
 
