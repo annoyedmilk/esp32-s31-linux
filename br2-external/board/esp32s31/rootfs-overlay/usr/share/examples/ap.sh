@@ -20,7 +20,7 @@ usage()
 	exit 1
 }
 
-[ $# -eq 2 ] || [ $# -eq 4 -a "$3" = --nat ] || usage
+[ $# -eq 2 ] || { [ $# -eq 4 ] && [ "$3" = --nat ]; } || usage
 uplink=$4
 [ -z "$uplink" ] || [ -d /sys/class/net/$uplink ] ||
 	{ echo "$0: no interface $uplink" >&2; exit 1; }

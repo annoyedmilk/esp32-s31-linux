@@ -78,7 +78,7 @@ BR2_PACKAGE_LIBCURL_CURL=y
 # HTTP, HTTPS and FTP only: no DICT, Gopher, IMAP, POP3, RTSP, SMB, SMTP,
 # Telnet or TFTP.
 # BR2_PACKAGE_LIBCURL_EXTRA_PROTOCOLS_FEATURES is not set
-# This release installs a small set of necessary terminfo files.
+# Only the terminfo entries that ncurses installs by default.
 BR2_PACKAGE_NCURSES_ADDITIONAL_TERMINFO=""
 BR2_PACKAGE_OPENSSL=y
 # OpenSSL for WPA2/WPA3 Personal and Enterprise (eduroam) and HTTPS.

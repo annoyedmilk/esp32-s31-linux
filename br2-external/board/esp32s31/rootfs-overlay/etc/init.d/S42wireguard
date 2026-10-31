@@ -19,7 +19,7 @@ NTP=yes
 # Up to 10 min for the route and the clock (S01clock.sh save marks it).
 wait_network()
 {
-	for i in $(seq 1 600); do
+	for _ in $(seq 1 600); do
 		if ip route show default | grep -q . &&
 		   { [ "$NTP" = no ] || [ -e /var/run/clock-set ]; }; then
 			return 0

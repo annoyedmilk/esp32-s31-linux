@@ -23,4 +23,3 @@ Code      micropython, lua, vim, nano, sqlite3, bc, gdbserver, strace
 GPIO      pinctrl, gpioinfo, gpioget, gpioset, gpiomon (edges)
           /usr/share/examples/gpio-watch.sh PIN, button.sh PIN COMMAND
 Examples  ls /usr/share/examples
-
