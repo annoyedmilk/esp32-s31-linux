@@ -1,4 +1,4 @@
-Linux 7.3 on the ESP32-S31, ready to flash: for the ESP32-S31-Korvo-1, the
+Linux 7.3.1 on the ESP32-S31, ready to flash: for the ESP32-S31-Korvo-1, the
 ESP32-S31-Function-CoreBoard-1, and the ESP32-S31-WROOM-3-N16R16V module
 alone with UART only.
 
@@ -43,6 +43,7 @@ the tmux desktop for a USB keyboard. Later kernel messages go to `tty2`
 
 ## New in v0.11.0
 
+- Linux 7.3.1, the newest stable release. All patches apply as before.
 - Memory: the kernel has no restartable sequences, no `cachestat`, no
   block module autoload and no CRDA helper. Nothing on the boards uses
   them. `/tmp` (2 MiB), `/run` (512 KiB) and `/dev/shm` (1 MiB) have a
