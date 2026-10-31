@@ -331,7 +331,7 @@ size_t gatt_handle(struct gatt *g, const uint8_t *req, size_t len,
 	switch (req[0]) {
 	case 0x02:	/* Exchange MTU */
 		if (len < 3)
-			break;
+			return error_rsp(rsp, req[0], 0, ERR_INVALID_LEN);
 		g->mtu = get16(req + 1) < g->mtu_max ? get16(req + 1) : g->mtu_max;
 		if (g->mtu < 23)
 			g->mtu = 23;
