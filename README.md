@@ -147,7 +147,10 @@ scripts.
 
 - **Wi-Fi.** `iw dev wlan0 link` shows the connection, and
   `/usr/share/examples/wifi-scan.sh` lists the networks in range with
-  their signal and channel. `/usr/share/examples/ap.sh SSID PASSPHRASE`
+  their signal and channel. On the disk boards,
+  `/usr/share/examples/wifi-monitor.sh [COUNT]` shows the 802.11 frames
+  of the channel with tcpdump (monitor mode); the station stays
+  connected. `/usr/share/examples/ap.sh SSID PASSPHRASE`
   starts a WPA2 access point at 192.168.4.1. `udhcpd` gives the clients
   192.168.4.100 to 192.168.4.200 and no default route, so they reach
   only the board; `dumpleases -f /var/run/udhcpd.wlan0.leases` lists
@@ -288,8 +291,8 @@ scripts.
 - **LED** (Function-CoreBoard-1, Korvo-1). The WS2812 is
   `/sys/class/leds/rgb:status`: write `R G B` (0 to 255) to
   `multi_intensity`, then `255` to `brightness`.
-  `/usr/share/examples/led.sh R G B` (Function-CoreBoard-1) and
-  `micropython /usr/share/examples/led.py R G B` (Korvo-1) do this.
+  `/usr/share/examples/led.sh R G B` does this, and on the Korvo-1 also
+  `micropython /usr/share/examples/led.py R G B`.
   The LED can also show a state: in `/etc/default/led`, `LED_TRIGGER`
   `heartbeat` (blinks with the load), `timer`, `default-on`, `netdev`
   (on with the link of `LED_NETDEV`, blinks with its traffic) or `panic`

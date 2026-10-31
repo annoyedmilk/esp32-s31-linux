@@ -139,6 +139,8 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
 
 - **Wi-Fi。** `iw dev wlan0 link` 显示连接状态，
   `/usr/share/examples/wifi-scan.sh` 列出范围内的网络及其信号强度和信道。
+  在磁盘开发板上，`/usr/share/examples/wifi-monitor.sh [COUNT]` 用 tcpdump 显示
+  该信道的 802.11 帧（监听模式）；station 保持连接。
   `/usr/share/examples/ap.sh SSID PASSPHRASE` 在 192.168.4.1 启动 WPA2
   接入点。`udhcpd` 为客户端分配 192.168.4.100 到 192.168.4.200，不提供
   默认路由，因此客户端只能访问开发板；`dumpleases -f
@@ -253,10 +255,10 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
   overlay，因此每次修改都需要新内核。
 - **LED**（Function-CoreBoard-1、Korvo-1）。WS2812 对应
   `/sys/class/leds/rgb:status`：向 `multi_intensity` 写入 `R G B`（0 到 255），
-  再向 `brightness` 写入 `255`。`/usr/share/examples/led.sh R G B`
-  （Function-CoreBoard-1）和 `micropython /usr/share/examples/led.py R G B`
-  （Korvo-1）完成同样的操作。LED 也可以显示状态：在 `/etc/default/led` 中设置
-  `LED_TRIGGER` 为 `heartbeat`（随负载闪烁）、`timer`、`default-on`、`netdev`
+  再向 `brightness` 写入 `255`。`/usr/share/examples/led.sh R G B` 完成
+  同样的操作，Korvo-1 上还可以用 `micropython /usr/share/examples/led.py R G B`。
+  LED 也可以显示状态：在 `/etc/default/led` 中设置 `LED_TRIGGER` 为
+  `heartbeat`（随负载闪烁）、`timer`、`default-on`、`netdev`
   （`LED_NETDEV` 有链路时亮，有流量时闪烁）或 `panic`（内核崩溃后到重启前显示
   红色），并设置 `LED_COLOR`。`S16led` 在启动时设置它们；默认值 `none` 使 LED
   保持原样。

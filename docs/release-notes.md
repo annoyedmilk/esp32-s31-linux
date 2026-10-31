@@ -109,7 +109,10 @@ the tmux desktop for a USB keyboard. Later kernel messages go to `tty2`
 - Wi-Fi monitor mode works on the disk boards, with no change:
   `iw phy phy0 interface add mon0 type monitor`, `ip link set mon0 up`
   and `tcpdump -i mon0` show the 802.11 frames of the channel of the
-  station. `docs/internals.md` tells the limits.
+  station; `/usr/share/examples/wifi-monitor.sh` does this and removes
+  `mon0` at the end. `docs/internals.md` tells the limits.
+- `/usr/share/examples/led.sh` is on the Korvo-1 too, not only on the
+  Function-CoreBoard-1.
 - Korvo-1: the motd shows only in the first window of the tmux desktop,
   not in the boot log on the UART or at an SSH login.
 - MemTotal: 10.4 MiB on the Korvo-1 (measured); about 11.6 MiB on the
