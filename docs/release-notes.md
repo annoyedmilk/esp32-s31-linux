@@ -121,8 +121,17 @@ the tmux desktop for a USB keyboard. Later kernel messages go to `tty2`
   behavior for large GATT handles and empty API messages; `pinctrl`
   returns the right error when it cannot read the used lines; the
   release check matches `.empty` literally.
-- Known issue: on some boots of the Korvo-1 the touch driver logs one
-  timeout when it reads its configuration. The touchscreen works.
+- Fixes: the I2C bus timeouts are 2.5 ms and more, not 26 µs. A read of
+  more than 32 bytes waits for an interrupt at each 32 bytes, and at boot
+  the touch controller of the Korvo-1 sometimes logged a timeout when it
+  read its configuration (2 of 3 boots before, 0 of 8 now).
+- Fixes: `wpa_cli` ended when `wpa_supplicant` did not answer for 10 s,
+  for example while the firmware restarts, and then no new connection got
+  a DHCP lease. `S40wifi` now starts it again within 5 s.
+- Fixes: after an Improv identify, `ble-ha` gives the LED back to the
+  trigger of `/etc/default/led`; `make bootloader` prints the command for
+  the ESP-IDF patches again; `thread-relay` logs one message for each
+  time its device is away.
 
 ## New in v0.10.0
 
