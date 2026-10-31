@@ -210,9 +210,10 @@ int main(int argc, char **argv)
 		dev = open_device(argv[optind]);
 		if (dev < 0) {
 			/* One message for each time the device is away. */
-			if (errno != err)
-				syslog(LOG_ERR, "%s: %s", argv[optind], strerror(errno));
-			err = errno;
+			if (errno != err) {
+				err = errno;
+				syslog(LOG_ERR, "%s: %s", argv[optind], strerror(err));
+			}
 			sleep(1);
 			continue;
 		}
