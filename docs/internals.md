@@ -521,6 +521,35 @@ the USB transport in shared SRAM. The layout is in
   1.0.6.0.23 (`5dfbbc8`) fixes a part: the SoftAP encrypts its robust
   management frames, and the firmware gets the MFP flag of each station.
 
+### Monitor mode
+
+The ESP-Hosted host driver registers the monitor type when the firmware
+reports `ESP_WLAN_MONITOR_SUPPORT` (`esp_cfg80211.c`), and the firmware
+does so on this chip. `iw phy phy0 interface add mon0 type monitor` makes
+a second netdev with radiotap headers; `iw dev wlan0 set type monitor`
+fails. The firmware turns on the promiscuous mode of ESP-IDF with a
+fixed filter (management, control and data frames) and sends each frame
+with its metadata as an ESP-Hosted packet of the monitor type; the host
+builds the radiotap header (flags with FCS, channel, signal) and gives
+each frame to `netif_rx()`. There is no frame injection.
+
+- Measured on the Korvo-1 with the station connected: `tcpdump -i mon0`
+  showed beacons, data, ACK, RTS and CTS frames of the channel of the
+  station; 188 frames reached the filter in 15 s, and the kernel dropped
+  36. The station stayed connected.
+- While the station or the access point uses the radio, the monitor
+  channel is the channel of that link, and the firmware refuses scans
+  on other channels while `mon0` is up.
+- The S31 metadata (`esp_wifi_rxctrl_t`, the HE layout) has no MCS or
+  bandwidth field, so the radiotap header has no rate.
+- A frame goes through the 32 KiB ring to Linux like a data frame (about
+  20 frames of 1.6 KiB fit), and on hart 0 through the same queue of 100
+  slots as the station data, from the internal heap. The frame rate of a
+  busy channel, the drops of the firmware and the ring fill are not
+  measured.
+- The coexistence table of ESP-IDF marks the sniffer with Bluetooth LE as
+  unstable and with a Thread router as not supported.
+
 ## USB device mode
 
 The S31 has two USB controllers, each with its own PHY. The USB

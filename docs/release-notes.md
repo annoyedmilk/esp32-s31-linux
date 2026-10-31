@@ -101,6 +101,10 @@ the tmux desktop for a USB keyboard. Later kernel messages go to `tty2`
   Function-CoreBoard-1 and the Korvo-1 is a host port with a VBUS switch,
   with the root stick or the USB devices on it. `docs/internals.md` has
   the details.
+- Wi-Fi monitor mode works on the disk boards, with no change:
+  `iw phy phy0 interface add mon0 type monitor`, `ip link set mon0 up`
+  and `tcpdump -i mon0` show the 802.11 frames of the channel of the
+  station. `docs/internals.md` tells the limits.
 
 ## New in v0.10.0
 
