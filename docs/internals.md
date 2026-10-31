@@ -521,6 +521,30 @@ the USB transport in shared SRAM. The layout is in
   1.0.6.0.23 (`5dfbbc8`) fixes a part: the SoftAP encrypts its robust
   management frames, and the firmware gets the MFP flag of each station.
 
+## USB device mode
+
+The S31 has two USB controllers, each with its own PHY. The USB
+Serial/JTAG controller has a full-speed PHY on GPIO33/34. The DWC2 OTG
+controller has a high-speed UTMI PHY on dedicated pads and no full-speed
+PHY (`soc_caps.h`: no FSLS PHY, one UTMI PHY; `usb_dwc_periph.c`). No PHY
+is shared. The DWC2 supports host and device mode (`GHWCFG2.OTGMODE` = 2,
+dedicated TX FIFOs, 7 IN endpoints), and ESP-IDF lists its TinyUSB device
+examples, NCM included, for the S31. The firmware on hart 0 uses no USB
+block, only the USB Serial/JTAG as its second console.
+
+The Linux host driver uses the DWC2 on the UTMI PHY. The PHY driver sets
+the host pull-downs and has no VBUS override. On the
+Function-CoreBoard-1 and the Korvo-1, the only DWC2 connector is a Type-A
+host port with a TPS2051C switch that drives VBUS: the root stick of the
+Function-CoreBoard-1 and the USB devices of the Korvo-1 use it. A gadget
+on it would lose the root disk or the USB devices, and the port cannot
+take VBUS from a host. The module alone has the DWC2 pads, but no
+connector is known. The boot log copy and JTAG are on the other
+controller, so a gadget would not cost them. Thus no board gets a gadget.
+For device mode, the FIFO RAM of 896 words would need the RX, EP0 and
+IN FIFO sizes of the gadget (patch 0004 sets only the host sizes), and
+buffer DMA through the sync engine, as the host uses.
+
 ## The flash root without a card
 
 The ESP32-S31-WROOM-3-N16R16V alone has no card. Linux has no driver for the

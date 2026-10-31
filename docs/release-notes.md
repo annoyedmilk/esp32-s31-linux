@@ -97,6 +97,10 @@ the tmux desktop for a USB keyboard. Later kernel messages go to `tty2`
   stay in 32 KiB of PSRAM over a software reset, and `S11pstore` copies
   them to `crash/` on p1 of the disk, or `/root/crash` on the module
   alone. This takes 32 KiB of MemTotal.
+- USB device mode: checked, not added. The only DWC2 port of the
+  Function-CoreBoard-1 and the Korvo-1 is a host port with a VBUS switch,
+  with the root stick or the USB devices on it. `docs/internals.md` has
+  the details.
 
 ## New in v0.10.0
 
