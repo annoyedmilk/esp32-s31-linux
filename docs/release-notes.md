@@ -49,6 +49,9 @@ the tmux desktop for a USB keyboard. Later kernel messages go to `tty2`
   size limit, so a large file cannot take all of the RAM. On the module
   alone, the squashfs keeps one decompressed fragment, not three.
   `docs/internals.md` tells where each part of the PSRAM goes.
+- Memory: zram uses zspages of at most 4 pages, not 8. On an idle
+  Korvo-1, zram took 1.2 MiB less RAM for the same swap, and MemAvailable
+  went from 2.3 to 3.2 MiB.
 - Time: the clock is set again when the first NTP try fails. Before, a
   board whose first try after the lease got no reply (10 s) kept the
   saved time until the next new lease. Now `ntpd` tries again up to 1 h,

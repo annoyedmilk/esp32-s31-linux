@@ -100,7 +100,11 @@ KiB free, 2316 KiB page cache, 2020 KiB slab, 1124 KiB process memory, 408
 KiB kernel stacks, 332 KiB page tables. zram took 2813 KiB of RAM for 3187
 KiB of swapped pages that compress to 1116 KiB: zsmalloc keeps a
 partly-filled page set for each of its size classes, and with few objects
-most of these sets are almost empty. Compaction did not change it. zram
+most of these sets are almost empty. Compaction did not change it. With
+zspages of at most 4 pages (`CONFIG_ZSMALLOC_CHAIN_SIZE`, 8 by default),
+zram used 1552 KiB for 2830 KiB, and MemAvailable at idle was 3288 KiB,
+not 2344 KiB; under a load of 2 MB of file data, 2642 KiB for 5538 KiB,
+not 3838 KiB for 5890 KiB (one run each). zram
 stays with lz4: the zstd backend adds 229 KiB to the Image of the Korvo-1,
 which is RAM that Linux never gets back.
 
