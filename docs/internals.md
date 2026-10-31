@@ -639,10 +639,10 @@ in `br2-external/configs/` differs from its fragments.
 
 | | Module alone | Function-CoreBoard-1 | Korvo-1 |
 | --- | --- | --- | --- |
-| Base | Kernel, toolchain, BusyBox, Dropbear, OpenSSL, `wpa_supplicant` (WPA3, PEAP/TTLS/TLS, AP mode), curl, iperf3, libgpiod, `pinctrl`, `ble-ha`, BlueZ (`bluetoothd`, `bluetoothctl`), Lua, `nft` with a firewall, an SFTP server, `mdnsd` | The same | The same |
+| Base | Kernel, toolchain, BusyBox, Dropbear, OpenSSL, `wpa_supplicant` (WPA3, PEAP/TTLS/TLS, AP mode), curl, iperf3, libgpiod, `pinctrl`, `ble-ha`, BlueZ (`bluetoothd`, `bluetoothctl`), Lua, `nft` with a firewall, an SFTP server, `mdnsd`, `wg` (WireGuard), udhcpd, pstore for crash logs | The same | The same |
 | Root | squashfs root in the flash, UBIFS overlay, the MTD tools | ext4 root on the USB stick | ext4 root on the card |
-| Board parts | | Ethernet, USB, the LED | LCD, touch, the card, USB with Ethernet adapters, the LED |
-| Tools | The base only | `hostapd`, the classic BlueZ tools, OpenThread (`ot-daemon`, `ot-ctl`), `thread-relay`, bash, vim, gdb, strace, tcpdump, links, MicroPython, htop, filesystem tools, tmux, nano, nnn, ncdu, tree, bc, sqlite3, ethtool | `hostapd`, the classic BlueZ tools, OpenThread (`ot-daemon`, `ot-ctl`), `thread-relay`, bash, vim, gdb, strace, tcpdump, links, MicroPython, htop, filesystem tools, tmux, nano, nnn, ncdu, tree, bc, sqlite3, `evtest`, `gpm`, a tmux desktop on the LCD, irssi |
+| Board parts | | Ethernet, USB, the LED, I2C on ESP_I2C | LCD, touch, I2C, the card, USB with Ethernet adapters, the LED |
+| Tools | The base only | `hostapd`, the MQTT clients, the classic BlueZ tools, OpenThread (`ot-daemon`, `ot-ctl`), `thread-relay`, bash, vim, gdb, strace, tcpdump, links, MicroPython, htop, filesystem tools, tmux, nano, nnn, ncdu, tree, bc, sqlite3, ethtool | `hostapd`, the MQTT clients, the classic BlueZ tools, OpenThread (`ot-daemon`, `ot-ctl`), `thread-relay`, bash, vim, gdb, strace, tcpdump, links, MicroPython, htop, filesystem tools, tmux, nano, nnn, ncdu, tree, bc, sqlite3, `evtest`, `gpm`, a tmux desktop on the LCD, irssi |
 | Swap | zram only | zram, then p3 of the stick | zram, then p3 of the card |
 
 The Korvo-1 and the Function-CoreBoard-1 have a disk with much space, and
@@ -695,5 +695,8 @@ and Bluetooth stack the same on all boards.
 | The console | `linux/drivers/tty/serial/esp32_uart.c` |
 | Kernel memory | `br2-external/board/esp32s31/linux.config`, `linux/patches/0021`, `0022` |
 | The firewall | `br2-external/board/esp32s31/rootfs-overlay/etc/nftables.conf` |
+| The time | `br2-external/board/esp32s31/rootfs-overlay/usr/share/udhcpc/default.script.d/ntp`, `etc/init.d/S01clock.sh` |
+| WireGuard | `br2-external/board/esp32s31/rootfs-overlay/etc/init.d/S42wireguard`, `/etc/default/wireguard` |
+| Crash logs | the `ramoops` node of `esp32s31.dtsi`, `rootfs-overlay/etc/init.d/S11pstore`; see "The crash log" |
 | Thread | `br2-external/board/esp32s31/rootfs-overlay-diskroot/usr/sbin/thread-start`, `bootloader/main/radio_coex.c`, `tools/thread-relay/` (the RCP for Home Assistant; `make -C tools/thread-relay test` runs its tests on the host) |
 | Device tree | `linux/arch/riscv/boot/dts/espressif/esp32s31.dtsi` |

@@ -86,7 +86,7 @@ on your computer. For your own builds, put the key into
 | Root | squashfs in the flash, with a writable UBIFS overlay | ext4 on the USB stick | ext4 on the microSD card |
 | Persistence | All files: the overlay is in the flash | All files on the stick | All files on the card |
 | Swap | zram (6 MiB) | zram, then 64 MiB on p3 of the stick | zram, then 64 MiB on p3 of the card |
-| RAM for Linux (MemTotal) | 11.7 MiB | 11.2 MiB | 10.4 MiB |
+| RAM for Linux (MemTotal) | about 11.6 MiB | about 11.1 MiB | 10.4 MiB |
 | UART console (`ttyS0`), 9767 baud to 5 Mbaud with `stty` | yes | yes | yes |
 | Copy of the boot log and JTAG on the native USB port | yes | yes | no: the LCD uses the pins |
 | LCD console, USB keyboard, tmux desktop, touch (GT1151) | no | no | yes |
@@ -141,7 +141,8 @@ Notes:
 | `coreboard1` also | `ethtool` |
 | `korvo1` also | `gpm`, `irssi`, `evtest` |
 
-`/etc/motd` lists the first commands. `/usr/share/examples` has example
+`/etc/motd` lists the first commands; on the Korvo-1, the first window of
+the tmux desktop shows it. `/usr/share/examples` has example
 scripts.
 
 - **Wi-Fi.** `iw dev wlan0 link` shows the connection, and
@@ -321,20 +322,21 @@ scripts.
   after the start.
 - **Code.** `lua`, and `micropython` on the Function-CoreBoard-1 and the
   Korvo-1. `gdbserver` and `strace` are there too.
-- **Firewall.** `/etc/nftables.conf` loads at boot: the board answers
-  ping and mDNS, takes the DHCP replies of its own client, DHCP requests
-  only on the access point of `ap.sh` while it runs, and SSH and (on the disk boards) the Thread
-  mesh, the border agent (UDP 49191 and 49192) and, in relay mode, the
-  Home Assistant hosts on TCP 6638. It drops and logs all other new
-  connections. The module has
-  the firewall since v0.10.0: a server on another port needs a rule after
-  the update. `nft
-  insert rule inet filter input tcp dport 8080 accept` opens a port until the
-  next boot; a line in the file keeps it. `ap.sh SSID PASSPHRASE --nat
-  eth0` makes a router between the access point and `eth0`: it turns on
-  forwarding, adds a masquerade rule in the table `ip ap-nat`, and lets
-  the access point forward to `eth0` (the set `ap_route`).
-  `/etc/init.d/S40wifi stop` removes these again.
+- **Firewall.** `/etc/nftables.conf` loads at boot. The board answers
+  ping and mDNS and takes SSH, the DHCP replies of its own client, and
+  on the disk boards the Thread mesh and the border agent (UDP 49191 and
+  49192). Some ports are open only while a feature runs: DHCP requests
+  (UDP 67) on the access point of `ap.sh`, the `ListenPort` of WireGuard
+  while `wg0` is up, the Bluetooth proxy (TCP 6053) for the hosts in
+  `BT_PROXY_ALLOW`, and in relay mode the Home Assistant hosts on TCP
+  6638. The firewall drops and logs all other new connections. The
+  module has the firewall since v0.10.0: a server on another port needs
+  a rule after the update. `nft insert rule inet filter input tcp dport
+  8080 accept` opens a port until the next boot; a line in the file keeps
+  it. `ap.sh SSID PASSPHRASE --nat eth0` makes a router between the
+  access point and `eth0`: it turns on forwarding, adds a masquerade rule
+  in the table `ip ap-nat`, and lets the access point forward to `eth0`
+  (the set `ap_route`). `/etc/init.d/S40wifi stop` removes these again.
 - **Web page.** `nft insert rule inet filter input tcp dport 8080 accept`,
   then `httpd -p 8080 -h /usr/share/examples/www` serves a page that sets
   the pins and the LED. It has no password: open the port only on a

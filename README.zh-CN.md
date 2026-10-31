@@ -84,7 +84,7 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
 | 根文件系统 | Flash 中的 squashfs，带可写的 UBIFS overlay | U 盘上的 ext4 | microSD 卡上的 ext4 |
 | 持久化 | 所有文件：overlay 位于 Flash 中 | U 盘上的所有文件 | 卡上的所有文件 |
 | Swap | zram（6 MiB） | 先 zram，再用 U 盘 p3 上的 64 MiB | 先 zram，再用卡 p3 上的 64 MiB |
-| Linux 可用内存（MemTotal） | 11.7 MiB | 11.2 MiB | 10.4 MiB |
+| Linux 可用内存（MemTotal） | 约 11.6 MiB | 约 11.1 MiB | 10.4 MiB |
 | UART 控制台（`ttyS0`），可用 `stty` 设为 9767 波特至 5 Mbaud | 是 | 是 | 是 |
 | 原生 USB 口上的启动日志副本和 JTAG | 是 | 是 | 否：LCD 占用这些引脚 |
 | LCD 控制台、USB 键盘、tmux 桌面、触摸（GT1151） | 否 | 否 | 是 |
@@ -135,7 +135,7 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
 | `coreboard1` 另有 | `ethtool` |
 | `korvo1` 另有 | `gpm`、`irssi`、`evtest` |
 
-`/etc/motd` 列出入门命令。`/usr/share/examples` 中有示例脚本。
+`/etc/motd` 列出入门命令；在 Korvo-1 上，tmux 桌面的第一个窗口显示它。`/usr/share/examples` 中有示例脚本。
 
 - **Wi-Fi。** `iw dev wlan0 link` 显示连接状态，
   `/usr/share/examples/wifi-scan.sh` 列出范围内的网络及其信号强度和信道。
@@ -281,17 +281,18 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
   36.3 Mbit/s；CPU 一直满载。重启后，隧道在启动 32 秒后恢复。
 - **编程。** `lua`，Function-CoreBoard-1 和 Korvo-1 上还有 `micropython`。
   也有 `gdbserver` 和 `strace`。
-- **防火墙。** `/etc/nftables.conf` 在启动时加载：开发板响应 ping 和
-  mDNS，接受自身 DHCP 客户端的回复、仅在 `ap.sh` 的接入点运行时接受该接入点
-  上的 DHCP 请求，接受 SSH 和（磁盘开发板上的）Thread Mesh 流量、边界代理
-  （UDP 49191 和 49192），以及中继模式下来自 Home Assistant 主机的 TCP 6638
-  连接，丢弃并记录所有其他新连接。模组从 v0.10.0 起也有防火墙：更新后，
-  其他端口上的服务器需要一条规则。
-  `nft insert rule inet filter input tcp dport 8080 accept`
-  打开一个端口，直到下次重启；在该文件中加一行可永久保留。`ap.sh SSID
-  PASSPHRASE --nat eth0` 在接入点和 `eth0` 之间做路由器：它打开转发，在表
-  `ip ap-nat` 中加一条 masquerade 规则，并允许接入点转发到 `eth0`（集合
-  `ap_route`）。`/etc/init.d/S40wifi stop` 再删除它们。
+- **防火墙。** `/etc/nftables.conf` 在启动时加载。开发板响应 ping 和 mDNS，
+  接受 SSH、自身 DHCP 客户端的回复，以及磁盘开发板上的 Thread Mesh 流量和
+  边界代理（UDP 49191 和 49192）。有些端口只在某项功能运行时打开：`ap.sh`
+  接入点上的 DHCP 请求（UDP 67）、`wg0` 运行时 WireGuard 的 `ListenPort`、
+  `BT_PROXY_ALLOW` 中主机的蓝牙代理（TCP 6053），以及中继模式下 Home
+  Assistant 主机的 TCP 6638。防火墙丢弃并记录所有其他新连接。模组从
+  v0.10.0 起也有防火墙：更新后，其他端口上的服务器需要一条规则。
+  `nft insert rule inet filter input tcp dport 8080 accept` 打开一个端口，
+  直到下次重启；在该文件中加一行可永久保留。`ap.sh SSID PASSPHRASE --nat
+  eth0` 在接入点和 `eth0` 之间做路由器：它打开转发，在表 `ip ap-nat` 中加
+  一条 masquerade 规则，并允许接入点转发到 `eth0`（集合 `ap_route`）。
+  `/etc/init.d/S40wifi stop` 再删除它们。
 - **网页。** `nft insert rule inet filter input tcp dport 8080 accept`，然后
   `httpd -p 8080 -h /usr/share/examples/www` 提供一个可设置引脚和 LED 的网页。
   网页没有密码：只在可信的网络中打开该端口。

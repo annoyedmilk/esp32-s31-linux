@@ -43,6 +43,11 @@ the tmux desktop for a USB keyboard. Later kernel messages go to `tty2`
 
 ## New in v0.11.0
 
+- Module alone: the overlay keeps the files that you changed, also over
+  an update. If you changed `/etc/nftables.conf` or `/etc/fstab`, merge
+  the new file of the image, which is at `/rom/etc/`: `ap.sh` and
+  `S42wireguard` need the new sets `ap_dhcp`, `ap_route` and `wg_port`,
+  and the crash log needs the `pstore` line of `fstab`.
 - Linux 7.3.1, the newest stable release. All patches apply as before.
 - Memory: the kernel has no restartable sequences, no `cachestat`, no
   block module autoload and no CRDA helper. Nothing on the boards uses
@@ -105,6 +110,19 @@ the tmux desktop for a USB keyboard. Later kernel messages go to `tty2`
   `iw phy phy0 interface add mon0 type monitor`, `ip link set mon0 up`
   and `tcpdump -i mon0` show the 802.11 frames of the channel of the
   station. `docs/internals.md` tells the limits.
+- Korvo-1: the motd shows only in the first window of the tmux desktop,
+  not in the boot log on the UART or at an SSH login.
+- MemTotal: 10.4 MiB on the Korvo-1 (measured); about 11.6 MiB on the
+  module alone and 11.1 MiB on the Function-CoreBoard-1 (computed from
+  the larger kernel and the crash log, not measured).
+- Fixes: the WS2812 LED changes without sleeping, so the panic trigger
+  works; the UART checks its interrupt at probe; the Wi-Fi transport
+  clears its running flag under its lock; `ble-ha` has no undefined
+  behavior for large GATT handles and empty API messages; `pinctrl`
+  returns the right error when it cannot read the used lines; the
+  release check matches `.empty` literally.
+- Known issue: on some boots of the Korvo-1 the touch driver logs one
+  timeout when it reads its configuration. The touchscreen works.
 
 ## New in v0.10.0
 
