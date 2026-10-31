@@ -11,6 +11,10 @@
  * One RMT word holds two pulses: duration and level for each.  A WS2812 bit
  * is one high pulse and one low pulse, so one word sends one bit.  24 words
  * send one LED in GRB order, and a word with duration 0 ends the sequence.
+ *
+ * A set does not sleep, so that the panic trigger can set the LED from the
+ * panic notifier: the 24 bits take 30 us, and the LED latches a frame after
+ * 300 us low, so a set waits only for what is left of that gap.
  */
 
 #include <linux/bitfield.h>
@@ -19,12 +23,13 @@
 #include <linux/delay.h>
 #include <linux/io.h>
 #include <linux/iopoll.h>
+#include <linux/ktime.h>
 #include <linux/led-class-multicolor.h>
 #include <linux/module.h>
-#include <linux/mutex.h>
 #include <linux/of.h>
 #include <linux/platform_device.h>
 #include <linux/reset.h>
+#include <linux/spinlock.h>
 
 #define RMT_CH0_CONF0			0x20
 #define RMT_CONF0_TX_START		BIT(0)
@@ -63,7 +68,8 @@ struct esp32s31_ws2812 {
 	struct led_classdev_mc mc;
 	struct mc_subled subled[3];
 	void __iomem *base;
-	struct mutex lock;
+	spinlock_t lock;
+	ktime_t sent;		/* the end of the last frame */
 };
 
 static void esp32s31_ws2812_conf0(struct esp32s31_ws2812 *priv, u32 set)
@@ -74,8 +80,12 @@ static void esp32s31_ws2812_conf0(struct esp32s31_ws2812 *priv, u32 set)
 
 static int esp32s31_ws2812_send(struct esp32s31_ws2812 *priv, u32 grb)
 {
+	s64 gap = ktime_us_delta(ktime_get(), priv->sent);
 	u32 conf0, raw;
 	int i, ret;
+
+	if (gap >= 0 && gap < WS2812_RESET_US)
+		udelay(WS2812_RESET_US - gap);
 
 	for (i = 0; i < 24; i++) {
 		bool one = grb & BIT(23 - i);
@@ -98,22 +108,22 @@ static int esp32s31_ws2812_send(struct esp32s31_ws2812 *priv, u32 grb)
 	esp32s31_ws2812_conf0(priv, RMT_CONF0_TX_START);
 
 	/* 24 bits take 30 us. */
-	ret = readl_poll_timeout(priv->base + RMT_INT_RAW, raw,
-				 raw & RMT_INT_CH0_TX_END, 5, 1000);
+	ret = readl_poll_timeout_atomic(priv->base + RMT_INT_RAW, raw,
+					raw & RMT_INT_CH0_TX_END, 1, 1000);
 	writel(RMT_INT_CH0_TX_END, priv->base + RMT_INT_CLR);
-	usleep_range(WS2812_RESET_US, WS2812_RESET_US + 50);
+	priv->sent = ktime_get();
 
 	return ret;
 }
 
-static int esp32s31_ws2812_set(struct led_classdev *cdev,
-			       enum led_brightness brightness)
+static void esp32s31_ws2812_set(struct led_classdev *cdev,
+				enum led_brightness brightness)
 {
 	struct led_classdev_mc *mc = lcdev_to_mccdev(cdev);
 	struct esp32s31_ws2812 *priv =
 		container_of(mc, struct esp32s31_ws2812, mc);
+	unsigned long flags;
 	u32 grb;
-	int ret;
 
 	led_mc_calc_color_components(mc, brightness);
 
@@ -122,11 +132,10 @@ static int esp32s31_ws2812_set(struct led_classdev *cdev,
 	      (mc->subled_info[0].brightness << 8) |
 	      mc->subled_info[2].brightness;
 
-	mutex_lock(&priv->lock);
-	ret = esp32s31_ws2812_send(priv, grb);
-	mutex_unlock(&priv->lock);
-
-	return ret;
+	spin_lock_irqsave(&priv->lock, flags);
+	if (esp32s31_ws2812_send(priv, grb))
+		dev_warn_ratelimited(cdev->dev, "no TX end from the RMT\n");
+	spin_unlock_irqrestore(&priv->lock, flags);
 }
 
 static int esp32s31_ws2812_probe(struct platform_device *pdev)
@@ -156,9 +165,7 @@ static int esp32s31_ws2812_probe(struct platform_device *pdev)
 	if (IS_ERR(mem_lp))
 		return PTR_ERR(mem_lp);
 
-	ret = devm_mutex_init(dev, &priv->lock);
-	if (ret)
-		return ret;
+	spin_lock_init(&priv->lock);
 
 	clk = devm_clk_get_enabled(dev, "sys");
 	if (IS_ERR(clk))
@@ -205,7 +212,7 @@ static int esp32s31_ws2812_probe(struct platform_device *pdev)
 	priv->mc.subled_info = priv->subled;
 	priv->mc.num_colors = ARRAY_SIZE(colors);
 	priv->mc.led_cdev.max_brightness = LED_FULL;
-	priv->mc.led_cdev.brightness_set_blocking = esp32s31_ws2812_set;
+	priv->mc.led_cdev.brightness_set = esp32s31_ws2812_set;
 
 	init_data.fwnode = of_fwnode_handle(child);
 	ret = devm_led_classdev_multicolor_register_ext(dev, &priv->mc,
