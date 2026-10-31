@@ -12,7 +12,6 @@ platform-cppflags-y = -DFW_NO_MSTATUSH -DCLIC_NO_SIE \
 	-DESP32S31_FB_UNCACHED=$(ESP32S31_FB_UNCACHED)
 platform-cflags-y = $(platform-cppflags-y)
 platform-asflags-y = $(platform-cppflags-y)
-platform-ldflags-y =
 
 PLATFORM_RISCV_XLEN = 32
 PLATFORM_RISCV_ABI = ilp32
