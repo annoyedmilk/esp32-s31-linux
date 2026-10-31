@@ -14,7 +14,6 @@
 #include <linux/bits.h>
 #include <linux/clk.h>
 #include <linux/console.h>
-#include <linux/delay.h>
 #include <linux/io.h>
 #include <linux/iopoll.h>
 #include <linux/irq.h>

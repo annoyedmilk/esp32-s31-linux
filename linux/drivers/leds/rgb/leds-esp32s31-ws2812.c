@@ -107,7 +107,6 @@ static int esp32s31_ws2812_send(struct esp32s31_ws2812 *priv, u32 grb)
 	esp32s31_ws2812_conf0(priv, RMT_CONF0_CONF_UPDATE);
 	esp32s31_ws2812_conf0(priv, RMT_CONF0_TX_START);
 
-	/* 24 bits take 30 us. */
 	ret = readl_poll_timeout_atomic(priv->base + RMT_INT_RAW, raw,
 					raw & RMT_INT_CH0_TX_END, 1, 1000);
 	writel(RMT_INT_CH0_TX_END, priv->base + RMT_INT_CLR);

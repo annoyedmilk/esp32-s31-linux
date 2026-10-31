@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0+
 /*
- * Espressif ESP32-S31 minimal device tree.
+ * Espressif ESP32-S31 SoC device tree.
  * Author: Marco Müller <hello@annoyedmilk.ch>
  */
 

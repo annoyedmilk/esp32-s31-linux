@@ -183,7 +183,7 @@ diff --git a/arch/riscv/mm/init.c b/arch/riscv/mm/init.c
  
  	/*
  	 * Reserve physical address space that would be mapped to virtual
-@@ -1034,6 +1048,38 @@
+@@ -1034,6 +1048,37 @@
  	return 0;
  }
  early_param("nokaslr", print_nokaslr);
@@ -206,7 +206,6 @@ diff --git a/arch/riscv/mm/init.c b/arch/riscv/mm/init.c
 +					   PAGE_KERNEL_EXEC);
 +	create_pgd_mapping(early_pg_dir, TRAP_SRAM_VA, (uintptr_t)trap_sram_pte,
 +			   PGDIR_SIZE, PAGE_TABLE);
-+
 +}
 +
 +static void __init trap_sram_setup_vm_final(void)
