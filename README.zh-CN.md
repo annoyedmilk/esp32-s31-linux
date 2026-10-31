@@ -312,10 +312,9 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
 - **恢复。** 内核崩溃 10 秒后，或用户空间停止 60 秒后（软件看门狗；
   `/etc/init.d/S15watchdog stop` 将其关闭），开发板自动重启。SysRq 可通过
   `/proc/sysrq-trigger` 使用：`s` 同步，`u` 以只读方式重新挂载，`b` 重启。
-  内核崩溃时的日志和重启前那次启动的控制台输出保存在 32 KiB 的 PSRAM 中
-  （pstore）：下次启动后，它们位于磁盘 p1 的 `crash/` 中（单独模组上为
-  `/root/crash`）。软件复位（崩溃、软件看门狗、`reboot`）会保留它们；复位键和
-  断电会清除它们。
+  内核崩溃或软件看门狗重启后，下次启动会把崩溃时的内核日志和上次启动的控制台
+  输出放入磁盘 p1 的 `crash/` 中（单独模组上为 `/root/crash`）。它们在重启时
+  保存在 32 KiB 的 PSRAM 中（pstore）；复位键和断电会清除它们。
 - **时间。** 开发板没有 RTC。启动时设置上次保存的时间，使 TLS 在联网前
   可用。每次 DHCP 获得或续租地址时，`ntpd` 从 DHCP 服务器提供的 NTP 服务器
   和 `/etc/default/ntp` 中的 `NTP_SERVERS`（`pool.ntp.org`）设置时钟。没有

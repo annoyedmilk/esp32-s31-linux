@@ -127,8 +127,10 @@ line would be lost. Thus ramoops writes through the uncached alias: the
 device tree reserves `0x50E78000` (32 KiB, no-map) and gives ramoops
 `0xC0E78000`, with a console record of 16 KiB and one panic record of
 16 KiB: with 8 KiB, the header and the 8 KiB log did not fit, and the
-last line was cut. `S11pstore` copies the records to
-`crash/` on p1 of the disk, or `/root/crash/` on the module alone, and
+last line was cut. Each software reboot keeps the console record, so
+`S11pstore` copies the records to `crash/` on p1 of the disk, or
+`/root/crash/` on the module alone, only when there is a panic record or
+the console record ends with the reboot of the soft watchdog; then it
 removes them. After the boot, the consoles take only warnings
 (`S99banner.sh`), so after a hang of user space the console record has
 the warnings and `softdog: Initiating system reboot`, not the full log.

@@ -358,11 +358,11 @@ scripts.
 - **Recovery.** The board reboots 10 s after a kernel panic, and 60 s
   after user space stops (the soft watchdog; `/etc/init.d/S15watchdog stop`
   turns it off). SysRq works with `/proc/sysrq-trigger`: `s` syncs, `u`
-  remounts read-only, `b` reboots. The kernel log of a panic and the
-  console of the boot before a reboot stay in 32 KiB of PSRAM (pstore):
-  after the next boot they are in `crash/` on p1 of the disk (`/root/crash`
-  on the module alone). A software reset keeps them (a panic, the soft
-  watchdog, `reboot`); the reset button and a power cycle clear them.
+  remounts read-only, `b` reboots. After a kernel panic or a reboot of
+  the soft watchdog, the next boot puts the kernel log of the panic and
+  the console of the boot before into `crash/` on p1 of the disk
+  (`/root/crash` on the module alone). They stay over the reboot in 32
+  KiB of PSRAM (pstore); the reset button and a power cycle clear them.
 - **Time.** The board has no RTC. At boot, it sets the last saved time,
   so that TLS works before the network. At each DHCP lease and renewal,
   `ntpd` sets the clock from the NTP servers of the DHCP server and from
