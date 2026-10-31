@@ -111,11 +111,12 @@ static size_t attr_type(uint16_t h, uint8_t *uuid)
 /* The value of an attribute, or -ERR_* when it cannot be read. */
 static int attr_value(const struct gatt *g, uint16_t h, uint8_t *v)
 {
-	const struct attr *a = &db[h];
+	const struct attr *a;
 	int i;
 
 	if (h < 1 || h > LAST_HANDLE)
 		return -ERR_INVALID_HANDLE;
+	a = &db[h];
 	switch (a->kind) {
 	case SVC:
 		memcpy(v, a->uuid, a->uuid_len);

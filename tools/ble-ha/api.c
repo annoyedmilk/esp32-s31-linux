@@ -68,7 +68,8 @@ size_t api_frame(uint8_t *buf, uint32_t type, const uint8_t *msg, size_t len)
 	buf[0] = 0x00;
 	n += pb_varint(buf + n, len);
 	n += pb_varint(buf + n, type);
-	memmove(buf + n, msg, len);
+	if (len)
+		memmove(buf + n, msg, len);
 	return n + len;
 }
 
