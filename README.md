@@ -107,6 +107,7 @@ on your computer. For your own builds, put the key into
 | GPIO, hardware RNG, HTTPS with `curl`, SSH (Dropbear, key only) | yes | yes | yes |
 | Pin functions, pulls and levels with `pinctrl` (as on the Raspberry Pi), net names on the GPIO lines | yes | yes | yes |
 | GPIO interrupts: edge events for `gpiomon` and libgpiod, debounce | yes | yes | yes |
+| I2C for user space (`/dev/i2c-N`, `i2cdetect`, `i2cget`, `i2cset`) | no; a disabled example bus in `esp32s31.dts` | `i2c-0` on ESP_I2C (GPIO50/51); a disabled example on J2 pins 13 and 14 | `i2c-0`: the touch controller and the codec |
 
 Notes:
 
@@ -256,6 +257,19 @@ scripts.
   and lost a few in some runs at 20 µs and 100 µs. No board has a free
   user button for `gpio-keys`: the button of the Function-CoreBoard-1 is
   the BOOT strapping pin (GPIO61), and the Korvo-1 buttons are on an ADC.
+- **I2C.** `/dev/i2c-0` gives the I2C bus to user space: `i2cdetect -l`
+  lists the buses, `i2cdetect -y 0` scans bus 0, `i2cget -y 0 0x48 0x00`
+  reads a register (BusyBox has these tools). On the Korvo-1, the scan
+  shows `UU` at 0x14, the GT1151 that the touch driver owns, and 0x10, the
+  ES8389 codec. A scan writes to each address, and some devices do not
+  like it: scan only a bus that you know. Do not write to the devices of
+  the board. On the Function-CoreBoard-1, bus 0 is ESP_I2C on the board;
+  for a device on header J2, set `status = "okay"` for `&i2c1` in
+  `esp32s31_coreboard1.dts` (SDA on pin 13, SCL on pin 14) and add
+  4.7 kOhm pull-ups to 3V3. The module alone has an example bus on GPIO47
+  and GPIO48 in `esp32s31.dts`; it also needs `CONFIG_I2C` in
+  `linux-esp32s31.fragment`. The boot chain does not apply device tree
+  overlays, so each change needs a new kernel.
 - **LED** (Function-CoreBoard-1, Korvo-1). The WS2812 is
   `/sys/class/leds/rgb:status`: write `R G B` (0 to 255) to
   `multi_intensity`, then `255` to `brightness`.

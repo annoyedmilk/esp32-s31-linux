@@ -73,6 +73,11 @@ the tmux desktop for a USB keyboard. Later kernel messages go to `tty2`
   `/usr/share/examples/button.sh` runs a command at each press.
   `pinctrl get` shows the interrupt of a pin, and `pinctrl set` refuses a
   pin with an enabled interrupt.
+- I2C: the Function-CoreBoard-1 has `/dev/i2c-0` on its ESP_I2C bus, as
+  the Korvo-1 has on its touch bus. `i2cdetect`, `i2cget`, `i2cset` and
+  `i2ctransfer` of BusyBox were already on all boards. The device trees
+  of the Function-CoreBoard-1 (header J2) and of the module alone have a
+  disabled example bus for external devices.
 
 ## New in v0.10.0
 

@@ -27,6 +27,29 @@
 		/* 57 */ "", "U0TXD", "U0RXD", "", "";
 };
 
+/*
+ * An I2C bus on two free pads, GPIO47 (SDA) and GPIO48 (SCL): /dev/i2c-0
+ * when "okay", with CONFIG_I2C in linux-esp32s31.fragment.  The pull-ups of
+ * the pads are weak: add 4.7 kOhm to 3V3.
+ */
+&pinctrl {
+	i2c0_cfg: i2c0-cfg {
+		i2c0-pins {
+			pinmux = <ESP32S31_MATRIX_INOUT(47, ESP32S31_SIG_I2C0_SDA)>,
+				 <ESP32S31_MATRIX_INOUT(48, ESP32S31_SIG_I2C0_SCL)>;
+			bias-pull-up;
+			drive-open-drain;
+		};
+	};
+};
+
+&i2c0 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2c0_cfg>;
+	clock-frequency = <100000>;
+	status = "disabled";
+};
+
 /* The "rootfs" and "data" partitions of partitions-esp32s31.csv. */
 &wifi {
 	flash {

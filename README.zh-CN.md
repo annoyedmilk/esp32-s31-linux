@@ -105,6 +105,7 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
 | GPIO、硬件随机数、`curl` HTTPS、SSH（Dropbear，仅密钥） | 是 | 是 | 是 |
 | 用 `pinctrl` 查看引脚功能、上下拉和电平（与 Raspberry Pi 相同），GPIO 线带网络名称 | 是 | 是 | 是 |
 | GPIO 中断：`gpiomon` 和 libgpiod 的边沿事件，消抖 | 是 | 是 | 是 |
+| 用户空间 I2C（`/dev/i2c-N`、`i2cdetect`、`i2cget`、`i2cset`） | 否；`esp32s31.dts` 中有一个禁用的示例总线 | ESP_I2C（GPIO50/51）上的 `i2c-0`；J2 第 13、14 脚上有禁用的示例 | `i2c-0`：触摸控制器和音频编解码器 |
 
 说明：
 
@@ -227,6 +228,17 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
   少量边沿。没有开发板有可用于 `gpio-keys` 的空闲用户按键：
   Function-CoreBoard-1 的按键是 BOOT 启动配置引脚（GPIO61），Korvo-1 的按键
   接在 ADC 上。
+- **I2C。** `/dev/i2c-0` 把 I2C 总线交给用户空间：`i2cdetect -l` 列出总线，
+  `i2cdetect -y 0` 扫描总线 0，`i2cget -y 0 0x48 0x00` 读取一个寄存器
+  （BusyBox 提供这些工具）。在 Korvo-1 上，扫描在 0x14 显示 `UU`（触摸驱动
+  占用的 GT1151），在 0x10 显示 ES8389 编解码器。扫描会向每个地址写入，
+  某些器件不接受：只扫描你了解的总线。不要向开发板自带的器件写入。在
+  Function-CoreBoard-1 上，总线 0 是板上的 ESP_I2C；要接排针 J2 上的器件，
+  在 `esp32s31_coreboard1.dts` 中把 `&i2c1` 设为 `status = "okay"`（SDA 在
+  第 13 脚，SCL 在第 14 脚），并加 4.7 kΩ 上拉电阻到 3V3。单独模组在
+  `esp32s31.dts` 中有一个 GPIO47 和 GPIO48 上的示例总线；它还需要在
+  `linux-esp32s31.fragment` 中打开 `CONFIG_I2C`。启动链不应用设备树
+  overlay，因此每次修改都需要新内核。
 - **LED**（Function-CoreBoard-1、Korvo-1）。WS2812 对应
   `/sys/class/leds/rgb:status`：向 `multi_intensity` 写入 `R G B`（0 到 255），
   再向 `brightness` 写入 `255`。`/usr/share/examples/led.sh R G B`

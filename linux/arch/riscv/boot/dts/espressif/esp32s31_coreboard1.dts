@@ -70,6 +70,26 @@
 		};
 	};
 
+	/* ESP_I2C of the board */
+	i2c0_cfg: i2c0-cfg {
+		i2c0-pins {
+			pinmux = <ESP32S31_MATRIX_INOUT(51, ESP32S31_SIG_I2C0_SDA)>,
+				 <ESP32S31_MATRIX_INOUT(50, ESP32S31_SIG_I2C0_SCL)>;
+			bias-pull-up;
+			drive-open-drain;
+		};
+	};
+
+	/* J2 pin 13 (GPIO47) is SDA, J2 pin 14 (GPIO48) is SCL. */
+	i2c1_cfg: i2c1-cfg {
+		i2c1-pins {
+			pinmux = <ESP32S31_MATRIX_INOUT(47, ESP32S31_SIG_I2C1_SDA)>,
+				 <ESP32S31_MATRIX_INOUT(48, ESP32S31_SIG_I2C1_SCL)>;
+			bias-pull-up;
+			drive-open-drain;
+		};
+	};
+
 	mdio_cfg: mdio-cfg {
 		mdio-pins {
 			pinmux = <ESP32S31_MATRIX_OUT(5, ESP32S31_SIG_GMII_MDC)>,
@@ -109,6 +129,25 @@
 	dr_mode = "host";
 	disable-over-current;
 	status = "okay";
+};
+
+/* ESP_I2C on GPIO50 (SCL) and GPIO51 (SDA): /dev/i2c-0. */
+&i2c0 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2c0_cfg>;
+	clock-frequency = <100000>;
+	status = "okay";
+};
+
+/*
+ * A second bus on header J2, for external devices: /dev/i2c-1 when
+ * "okay".  The pull-ups of the pads are weak: add 4.7 kOhm to 3V3.
+ */
+&i2c1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2c1_cfg>;
+	clock-frequency = <100000>;
+	status = "disabled";
 };
 
 /* WS2812 RGB LED on GPIO60. */

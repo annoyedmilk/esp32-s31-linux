@@ -9,14 +9,14 @@ CONFIG_CMDLINE="earlycon=sbi console=ttyS0,115200 esp32_shm.radio_service=bt+154
 # No loadable modules: the m options of linux.config are built in.
 # CONFIG_MODULES is not set
 
-# No panel, VTs, input devices, card or I2C device.  The one USB port has
-# the root stick, and no console takes input from a USB keyboard.
+# No panel, VTs, input devices or card.  The one USB port has the root
+# stick, and no console takes input from a USB keyboard.  I2C stays for
+# /dev/i2c-0 on ESP_I2C.
 # CONFIG_FB is not set
 # CONFIG_VT is not set
 # CONFIG_INPUT is not set
 # CONFIG_HID is not set
 # CONFIG_MMC is not set
-# CONFIG_I2C is not set
 # The stick is the root, and no script waits for a second one.
 # CONFIG_UEVENT_HELPER is not set
 # The board has Ethernet: no USB Ethernet adapters.
