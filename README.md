@@ -136,7 +136,7 @@ Notes:
 | --- | --- |
 | All boards | BusyBox, Dropbear, OpenSSL with the CA bundle, `wpa_supplicant` (WPA3, EAP, access point) with `wpa_cli` and `wpa_passphrase`, `iw`, `curl`, `iperf3`, the libgpiod 2 tools, BlueZ (`bluetoothd`, `bluetoothctl`), Lua, `nft` with a firewall, an SFTP server, `pinctrl`, `ble-ha`, `wg` |
 | `esp32s31` also | The MTD tools (`mtdinfo`, `flash_erase`) |
-| `coreboard1` and `korvo1` also | `hostapd`, the classic BlueZ tools (`hciconfig`, `hcitool`), OpenThread (`ot-daemon`, `ot-ctl`), `thread-relay`, bash, coreutils, vim, nano, less, file, htop, fastfetch, strace, gdb and `gdbserver`, tcpdump, links, MicroPython, tmux, nnn, ncdu, tree, bc, sqlite3, e2fsprogs, dosfstools |
+| `coreboard1` and `korvo1` also | `mosquitto_pub`, `mosquitto_sub`, `hostapd`, the classic BlueZ tools (`hciconfig`, `hcitool`), OpenThread (`ot-daemon`, `ot-ctl`), `thread-relay`, bash, coreutils, vim, nano, less, file, htop, fastfetch, strace, gdb and `gdbserver`, tcpdump, links, MicroPython, tmux, nnn, ncdu, tree, bc, sqlite3, e2fsprogs, dosfstools |
 | `coreboard1` also | `ethtool` |
 | `korvo1` also | `gpm`, `irssi`, `evtest` |
 
@@ -232,6 +232,18 @@ scripts.
   Korvo-1. A reload of the firewall empties the list of hosts: then run
   `thread-start stop` and `thread-start`. Tested with Home Assistant 2026.10
   and `otbr-agent` in a container, not with the app of Home Assistant OS.
+- **MQTT** (Function-CoreBoard-1, Korvo-1). `mosquitto_pub` and
+  `mosquitto_sub`, with TLS, send and receive MQTT messages; the broker
+  runs on the LAN. `/etc/default/mqtt` (mode 600) has the broker, the
+  user, the password, the client ID and the CA file for TLS (port 8883;
+  TLS needs the right time). `/usr/share/examples/mqtt-report.sh` sends
+  the uptime, the free memory and the Wi-Fi signal, with retained
+  discovery messages, so that Home Assistant shows them as sensors
+  without YAML; its comment has the `crontab` line.
+  `/usr/share/examples/mqtt-led.sh` sets the LED from `R G B` messages on
+  `esp32s31/MQTT_ID/led` and refuses other messages. Tested against
+  Mosquitto 2 on a Mac, with and without TLS; not tested with Home
+  Assistant. The module alone has no MQTT: its flash has no room.
 - **GPIO.** `gpiodetect`, `gpioinfo`, `gpioget --numeric -c gpiochip0 PIN`
   and `gpioset -t0 -c gpiochip0 PIN=1`. `/usr/share/examples/gpio.sh PIN
   [0|1]` reads or sets a pin. The kernel refuses the pins of the flash, the

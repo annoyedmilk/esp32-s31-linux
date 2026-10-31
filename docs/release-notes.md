@@ -84,6 +84,12 @@ the tmux desktop for a USB keyboard. Later kernel messages go to `tty2`
   (`WG=no` by default). Through the tunnel, the Korvo-1 gave 8.8 Mbit/s
   TX and 15.6 Mbit/s RX on Wi-Fi. Firewall: with a `ListenPort`, UDP on
   that port is open while `wg0` is up, through the new set `wg_port`.
+- MQTT on the Function-CoreBoard-1 and the Korvo-1: `mosquitto_pub` and
+  `mosquitto_sub` with TLS, no broker. `/etc/default/mqtt` (mode 600) has
+  the broker. `/usr/share/examples/mqtt-report.sh` sends the uptime, the
+  free memory and the Wi-Fi signal with Home Assistant discovery, and
+  `/usr/share/examples/mqtt-led.sh` sets the LED from MQTT. The module
+  alone has no room for them in its flash.
 
 ## New in v0.10.0
 

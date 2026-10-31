@@ -130,7 +130,7 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
 | --- | --- |
 | 所有开发板 | BusyBox、Dropbear、带 CA 证书包的 OpenSSL、`wpa_supplicant`（WPA3、EAP、接入点）及 `wpa_cli` 和 `wpa_passphrase`、`iw`、`curl`、`iperf3`、libgpiod 2 工具、BlueZ（`bluetoothd`、`bluetoothctl`）、Lua、带防火墙的 `nft`、SFTP 服务器、`pinctrl`、`ble-ha`、`wg` |
 | `esp32s31` 另有 | MTD 工具（`mtdinfo`、`flash_erase`） |
-| `coreboard1` 和 `korvo1` 另有 | `hostapd`、传统 BlueZ 工具（`hciconfig`、`hcitool`）、OpenThread（`ot-daemon`、`ot-ctl`）、`thread-relay`、bash、coreutils、vim、nano、less、file、htop、fastfetch、strace、gdb 和 `gdbserver`、tcpdump、links、MicroPython、tmux、nnn、ncdu、tree、bc、sqlite3、e2fsprogs、dosfstools |
+| `coreboard1` 和 `korvo1` 另有 | `mosquitto_pub`、`mosquitto_sub`、`hostapd`、传统 BlueZ 工具（`hciconfig`、`hcitool`）、OpenThread（`ot-daemon`、`ot-ctl`）、`thread-relay`、bash、coreutils、vim、nano、less、file、htop、fastfetch、strace、gdb 和 `gdbserver`、tcpdump、links、MicroPython、tmux、nnn、ncdu、tree、bc、sqlite3、e2fsprogs、dosfstools |
 | `coreboard1` 另有 | `ethtool` |
 | `korvo1` 另有 | `gpm`、`irssi`、`evtest` |
 
@@ -207,6 +207,16 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
   Wi-Fi 与 802.15.4 共用射频。重新加载防火墙会清空主机列表：之后请运行
   `thread-start stop` 和 `thread-start`。已用 Home Assistant 2026.10 和容器中的
   `otbr-agent` 测试，尚未用 Home Assistant OS 的应用测试。
+- **MQTT**（Function-CoreBoard-1、Korvo-1）。`mosquitto_pub` 和
+  `mosquitto_sub` 收发 MQTT 消息，支持 TLS；代理服务器运行在局域网中。
+  `/etc/default/mqtt`（权限 600）包含代理服务器、用户名、密码、客户端 ID 和
+  TLS 的 CA 文件（端口 8883；TLS 需要正确的时间）。
+  `/usr/share/examples/mqtt-report.sh` 发送运行时间、空闲内存和 Wi-Fi 信号，
+  并附带保留的发现消息，使 Home Assistant 无需 YAML 即可把它们显示为传感器；
+  脚本注释中给出 `crontab` 行。`/usr/share/examples/mqtt-led.sh` 根据
+  `esp32s31/MQTT_ID/led` 上的 `R G B` 消息设置 LED，并拒绝其他消息。已在 Mac 上
+  用 Mosquitto 2 测试（有 TLS 和无 TLS）；尚未用 Home Assistant 测试。单独模组
+  没有 MQTT：其 Flash 没有空间。
 - **GPIO。** `gpiodetect`、`gpioinfo`、`gpioget --numeric -c gpiochip0 PIN`
   和 `gpioset -t0 -c gpiochip0 PIN=1`。`/usr/share/examples/gpio.sh PIN [0|1]`
   读取或设置引脚。内核拒绝使用 Flash、控制台、加载程序和驱动占用的引脚
