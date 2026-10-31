@@ -1,7 +1,8 @@
 #!/bin/sh
 # SPDX-License-Identifier: MIT
 # make monitor waits for this line.  If you change the text, also change
-# --success-pattern in the Makefile.  login and SSH print /etc/motd.
+# --success-pattern in the Makefile.  login and SSH print /etc/motd, on the
+# Korvo-1 only the first window of its tmux desktop (/root/.hushlogin).
 # The consoles show the full kernel log of the boot.  After it, they show
 # only warnings and errors, so that kernel messages do not write over the
 # shell and tmux.  dmesg keeps all messages.
