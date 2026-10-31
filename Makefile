@@ -190,10 +190,10 @@ bootloader:
 	done
 	@mkdir -p "$(BUILD_DIR)"
 	@for p in $(IDF_PATCHES); do \
-		git -C "$(IDF_PATH)" apply --recount --reverse --check "$$p" 2>/dev/null || exit 1; \
-	done || { \
-		echo 'apply the ESP-Hosted patches and the backports to ESP-IDF first:'; \
-		echo '  IDF_PATH=$(IDF_PATH) scripts/patch-esp-idf.sh'; exit 1; }
+		git -C "$(IDF_PATH)" apply --recount --reverse --check "$$p" 2>/dev/null || { \
+			echo 'apply the ESP-Hosted patches and the backports to ESP-IDF first:'; \
+			echo '  IDF_PATH=$(IDF_PATH) scripts/patch-esp-idf.sh'; exit 1; }; \
+	done
 	@export IDF_PYTHON_ENV_PATH="$(IDF_PYTHON_ENV)"; \
 	if ! source "$(IDF_PATH)/export.sh" >"$(BUILD_DIR)/idf-export.log" 2>&1; then \
 		cat "$(BUILD_DIR)/idf-export.log"; \
