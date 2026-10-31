@@ -34,6 +34,8 @@
 #define API_PORT	6053
 #define MAX_CLIENTS	4
 #define LED		"/sys/class/leds/rgb:status"
+/* Sets the LED of /etc/default/led again, also a netdev trigger with its device. */
+#define LED_INIT	"/etc/init.d/S16led"
 #define JOIN_SECONDS	30
 
 struct client {
@@ -271,8 +273,12 @@ static void write_file(const char *path, const char *v)
 static void identify(int on)
 {
 	write_file(LED "/trigger", on ? "timer" : "none");
-	if (!on)
+	if (!on) {
 		write_file(LED "/brightness", "0");
+		if (access(LED_INIT, X_OK) == 0 &&
+		    system(LED_INIT " start >/dev/null 2>&1") != 0)
+			syslog(LOG_WARNING, "%s failed", LED_INIT);
+	}
 	s.identify_end = on ? now() + 5 : 0;
 }
 
