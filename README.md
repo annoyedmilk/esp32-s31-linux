@@ -92,7 +92,7 @@ on your computer. For your own builds, put the key into
 | LCD console, USB keyboard, tmux desktop, touch (GT1151) | no | no | yes |
 | Wi-Fi station (`wlan0`): WPA2 and WPA3 Personal | yes | yes | yes |
 | Wi-Fi Enterprise (PEAP, TTLS, TLS) | available, not tested | available, not tested | available, not tested |
-| Wi-Fi access point: WPA2 Personal (WPA3 does not work yet) | `wpa_supplicant` | `wpa_supplicant`, `hostapd` | `wpa_supplicant`, `hostapd` |
+| Wi-Fi access point: WPA2 Personal (WPA3 does not work yet), DHCP for the clients | `wpa_supplicant`, `udhcpd` | `wpa_supplicant`, `hostapd`, `udhcpd` | `wpa_supplicant`, `hostapd`, `udhcpd` |
 | Firewall and NAT (`nft`, rules load at boot) | yes | yes | yes |
 | Bluetooth (`hci0`): BlueZ, `bluetoothctl` | yes | yes | yes |
 | Bluetooth proxy for Home Assistant (ESPHome API), Wi-Fi setup over Bluetooth LE (Improv) | yes | yes | yes |
@@ -143,7 +143,12 @@ scripts.
 - **Wi-Fi.** `iw dev wlan0 link` shows the connection, and
   `/usr/share/examples/wifi-scan.sh` lists the networks in range with
   their signal and channel. `/usr/share/examples/ap.sh SSID PASSPHRASE`
-  starts a WPA2 access point at 192.168.4.1 without DHCP.
+  starts a WPA2 access point at 192.168.4.1. `udhcpd` gives the clients
+  192.168.4.100 to 192.168.4.200 and no default route, so they reach
+  only the board; `dumpleases -f /var/run/udhcpd.wlan0.leases` lists
+  them. With `--nat eth0` (or another interface that is not `wlan0`), the
+  board routes the clients to that interface with NAT and gives them its
+  own DNS servers. udhcpd runs only while `wlan0` is an access point.
   `/etc/init.d/S40wifi restart` goes back to the station.
 - **Bluetooth.** `bluetoothctl`, then `scan le`, `scan bredr`, `devices`.
   `bluetoothd` starts at the first `bluetoothctl`.
@@ -250,18 +255,19 @@ scripts.
 - **Code.** `lua`, and `micropython` on the Function-CoreBoard-1 and the
   Korvo-1. `gdbserver` and `strace` are there too.
 - **Firewall.** `/etc/nftables.conf` loads at boot: the board answers
-  ping, DHCP and mDNS and takes SSH and (on the disk boards) the Thread
+  ping and mDNS, takes the DHCP replies of its own client, DHCP requests
+  only on the access point of `ap.sh` while it runs, and SSH and (on the disk boards) the Thread
   mesh, the border agent (UDP 49191 and 49192) and, in relay mode, the
   Home Assistant hosts on TCP 6638. It drops and logs all other new
   connections. The module has
   the firewall since v0.10.0: a server on another port needs a rule after
   the update. `nft
   insert rule inet filter input tcp dport 8080 accept` opens a port until the
-  next boot; a line in the file keeps it. For a router between an access point and `eth0`:
-  `sysctl -w net.ipv4.ip_forward=1`, then `nft add table ip nat`, `nft
-  'add chain ip nat postrouting { type nat hook postrouting priority
-  srcnat; }'` and `nft add rule ip nat postrouting oifname eth0
-  masquerade`, and a forward rule for the access point interface.
+  next boot; a line in the file keeps it. `ap.sh SSID PASSPHRASE --nat
+  eth0` makes a router between the access point and `eth0`: it turns on
+  forwarding, adds a masquerade rule in the table `ip ap-nat`, and lets
+  the access point forward to `eth0` (the set `ap_route`).
+  `/etc/init.d/S40wifi stop` removes these again.
 - **Web page.** `nft insert rule inet filter input tcp dport 8080 accept`,
   then `httpd -p 8080 -h /usr/share/examples/www` serves a page that sets
   the pins and the LED. It has no password: open the port only on a

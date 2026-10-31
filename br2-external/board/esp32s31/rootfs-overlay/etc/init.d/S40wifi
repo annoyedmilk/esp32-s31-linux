@@ -32,11 +32,15 @@ start)
 	start_wifi &
 	;;
 stop)
-	for p in wpa_cli wpa_supplicant udhcpc; do
+	# udhcpd and the firewall entries are from ap.sh.
+	for p in wpa_cli wpa_supplicant udhcpc udhcpd; do
 		f=/var/run/$p.$IFACE.pid
 		[ -r $f ] && kill "$(cat $f)" 2>/dev/null
 		rm -f $f
 	done
+	nft flush set inet filter ap_dhcp 2>/dev/null
+	nft flush set inet filter ap_route 2>/dev/null
+	nft delete table ip ap-nat 2>/dev/null
 	ip addr flush dev $IFACE 2>/dev/null
 	;;
 restart)

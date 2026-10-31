@@ -90,7 +90,7 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
 | LCD 控制台、USB 键盘、tmux 桌面、触摸（GT1151） | 否 | 否 | 是 |
 | Wi-Fi station（`wlan0`）：WPA2 和 WPA3 个人版 | 是 | 是 | 是 |
 | Wi-Fi 企业版（PEAP、TTLS、TLS） | 可用，未测试 | 可用，未测试 | 可用，未测试 |
-| Wi-Fi 接入点：WPA2 个人版（WPA3 暂不可用） | `wpa_supplicant` | `wpa_supplicant`、`hostapd` | `wpa_supplicant`、`hostapd` |
+| Wi-Fi 接入点：WPA2 个人版（WPA3 暂不可用），为客户端提供 DHCP | `wpa_supplicant`、`udhcpd` | `wpa_supplicant`、`hostapd`、`udhcpd` | `wpa_supplicant`、`hostapd`、`udhcpd` |
 | 防火墙和 NAT（`nft`，规则在启动时加载） | 是 | 是 | 是 |
 | 蓝牙（`hci0`）：BlueZ、`bluetoothctl` | 是 | 是 | 是 |
 | Home Assistant 蓝牙代理（ESPHome API），通过蓝牙 LE 设置 Wi-Fi（Improv） | 是 | 是 | 是 |
@@ -136,7 +136,11 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
 - **Wi-Fi。** `iw dev wlan0 link` 显示连接状态，
   `/usr/share/examples/wifi-scan.sh` 列出范围内的网络及其信号强度和信道。
   `/usr/share/examples/ap.sh SSID PASSPHRASE` 在 192.168.4.1 启动 WPA2
-  接入点，不提供 DHCP。`/etc/init.d/S40wifi restart` 切回 station 模式。
+  接入点。`udhcpd` 为客户端分配 192.168.4.100 到 192.168.4.200，不提供
+  默认路由，因此客户端只能访问开发板；`dumpleases -f
+  /var/run/udhcpd.wlan0.leases` 列出租约。加 `--nat eth0`（或其他不是
+  `wlan0` 的接口）时，开发板通过 NAT 把客户端路由到该接口，并提供自己的
+  DNS 服务器。udhcpd 只在 `wlan0` 是接入点时运行。`/etc/init.d/S40wifi restart` 切回 station 模式。
 - **蓝牙。** 运行 `bluetoothctl`，然后 `scan le`、`scan bredr`、`devices`。
   `bluetoothd` 在第一次运行 `bluetoothctl` 时启动。
   `/usr/share/examples/ble-scan.sh 10` 扫描 10 秒后列出 LE 设备。
@@ -222,18 +226,17 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
   脚本注释中给出每 5 分钟运行一次的 `crontab` 行。
 - **编程。** `lua`，Function-CoreBoard-1 和 Korvo-1 上还有 `micropython`。
   也有 `gdbserver` 和 `strace`。
-- **防火墙。** `/etc/nftables.conf` 在启动时加载：开发板响应 ping、DHCP 和
-  mDNS，接受 SSH 和（磁盘开发板上的）Thread Mesh 流量、边界代理
+- **防火墙。** `/etc/nftables.conf` 在启动时加载：开发板响应 ping 和
+  mDNS，接受自身 DHCP 客户端的回复、仅在 `ap.sh` 的接入点运行时接受该接入点
+  上的 DHCP 请求，接受 SSH 和（磁盘开发板上的）Thread Mesh 流量、边界代理
   （UDP 49191 和 49192），以及中继模式下来自 Home Assistant 主机的 TCP 6638
   连接，丢弃并记录所有其他新连接。模组从 v0.10.0 起也有防火墙：更新后，
   其他端口上的服务器需要一条规则。
   `nft insert rule inet filter input tcp dport 8080 accept`
-  打开一个端口，直到下次重启；在该文件中加一行可永久保留。在接入点和 `eth0`
-  之间做路由器：`sysctl -w net.ipv4.ip_forward=1`，然后
-  `nft add table ip nat`、
-  `nft 'add chain ip nat postrouting { type nat hook postrouting priority srcnat; }'`
-  和 `nft add rule ip nat postrouting oifname eth0 masquerade`，并为接入点
-  接口添加一条 forward 规则。
+  打开一个端口，直到下次重启；在该文件中加一行可永久保留。`ap.sh SSID
+  PASSPHRASE --nat eth0` 在接入点和 `eth0` 之间做路由器：它打开转发，在表
+  `ip ap-nat` 中加一条 masquerade 规则，并允许接入点转发到 `eth0`（集合
+  `ap_route`）。`/etc/init.d/S40wifi stop` 再删除它们。
 - **网页。** `nft insert rule inet filter input tcp dport 8080 accept`，然后
   `httpd -p 8080 -h /usr/share/examples/www` 提供一个可设置引脚和 LED 的网页。
   网页没有密码：只在可信的网络中打开该端口。

@@ -58,6 +58,11 @@ the tmux desktop for a USB keyboard. Later kernel messages go to `tty2`
   clock in 1970 and TLS errors until the network came up. A POSIX time
   zone in `/etc/default/tz` works without zoneinfo, also on the module
   alone.
+- Access point: `ap.sh` starts the DHCP server `udhcpd` for the clients
+  (192.168.4.100 to 192.168.4.200). `ap.sh SSID PASSPHRASE --nat eth0`
+  also routes them to `eth0` with NAT. The firewall now takes DHCP
+  requests (UDP 67) only on the access point while `ap.sh` runs; before,
+  it took them on all interfaces, but no server listened.
 
 ## New in v0.10.0
 
