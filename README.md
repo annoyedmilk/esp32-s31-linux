@@ -103,8 +103,9 @@ on your computer. For your own builds, put the key into
 | USB host (DWC2) | no | the root stick; a second stick by hand | keyboards, mice, storage (FAT, exFAT) mounted at plug-in on `/mnt/usb`, Ethernet adapters |
 | Name on the LAN (`esp32s31.local`, mDNS) | yes | yes | yes |
 | Reboot after a kernel panic or a hang (soft watchdog) | yes | yes | yes |
+| Crash log of the last boot after a panic or a hang (pstore) | yes | yes | yes |
 | microSD | no | no | the root card |
-| RGB LED (`/sys/class/leds/rgb:status`) | no | GPIO60 | GPIO37 |
+| RGB LED (`/sys/class/leds/rgb:status`), triggers in `/etc/default/led` | no | GPIO60 | GPIO37 |
 | GPIO, hardware RNG, HTTPS with `curl`, SSH (Dropbear, key only) | yes | yes | yes |
 | Pin functions, pulls and levels with `pinctrl` (as on the Raspberry Pi), net names on the GPIO lines | yes | yes | yes |
 | GPIO interrupts: edge events for `gpiomon` and libgpiod, debounce | yes | yes | yes |
@@ -288,6 +289,11 @@ scripts.
   `multi_intensity`, then `255` to `brightness`.
   `/usr/share/examples/led.sh R G B` (Function-CoreBoard-1) and
   `micropython /usr/share/examples/led.py R G B` (Korvo-1) do this.
+  The LED can also show a state: in `/etc/default/led`, `LED_TRIGGER`
+  `heartbeat` (blinks with the load), `timer`, `default-on`, `netdev`
+  (on with the link of `LED_NETDEV`, blinks with its traffic) or `panic`
+  (red from a kernel panic to the reboot), and `LED_COLOR`. `S16led` sets
+  them at boot; the default `none` leaves the LED as before.
 - **Network.** `iperf3` measures the throughput against a server.
   On the Korvo-1, a USB Ethernet adapter (CDC ECM or NCM, ASIX AX88179,
   Realtek RTL8152 or RTL8153) becomes `eth0` with DHCP when it is plugged
@@ -347,7 +353,11 @@ scripts.
 - **Recovery.** The board reboots 10 s after a kernel panic, and 60 s
   after user space stops (the soft watchdog; `/etc/init.d/S15watchdog stop`
   turns it off). SysRq works with `/proc/sysrq-trigger`: `s` syncs, `u`
-  remounts read-only, `b` reboots.
+  remounts read-only, `b` reboots. The kernel log of a panic and the
+  console of the boot before a reboot stay in 32 KiB of PSRAM (pstore):
+  after the next boot they are in `crash/` on p1 of the disk (`/root/crash`
+  on the module alone). A software reset keeps them (a panic, the soft
+  watchdog, `reboot`); the reset button and a power cycle clear them.
 - **Time.** The board has no RTC. At boot, it sets the last saved time,
   so that TLS works before the network. At each DHCP lease and renewal,
   `ntpd` sets the clock from the NTP servers of the DHCP server and from

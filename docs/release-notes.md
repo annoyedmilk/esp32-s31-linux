@@ -90,6 +90,13 @@ the tmux desktop for a USB keyboard. Later kernel messages go to `tty2`
   free memory and the Wi-Fi signal with Home Assistant discovery, and
   `/usr/share/examples/mqtt-led.sh` sets the LED from MQTT. The module
   alone has no room for them in its flash.
+- Status LED (Function-CoreBoard-1, Korvo-1): `/etc/default/led` sets a
+  trigger at boot, for example `netdev` for the Wi-Fi link or `panic` for
+  red at a kernel panic. The default is `none`, as before.
+- Crash logs: the kernel log of a panic and the console of the last boot
+  stay in 32 KiB of PSRAM over a software reset, and `S11pstore` copies
+  them to `crash/` on p1 of the disk, or `/root/crash` on the module
+  alone. This takes 32 KiB of MemTotal.
 
 ## New in v0.10.0
 

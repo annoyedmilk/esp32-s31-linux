@@ -1,0 +1,22 @@
+#!/bin/sh
+# SPDX-License-Identifier: MIT
+# Keep the crash log of the last boot.  The kernel writes its log at a panic
+# and its console into a PSRAM area (pstore), which a software reset keeps:
+# the panic reboot, the soft watchdog and reboot.  The reset button and a
+# power cycle clear it.  Copy the records to p1 of the disk, or to /root on
+# the module alone, and remove them.  With no records, do nothing.
+
+PSTORE=/sys/fs/pstore
+. /etc/default/disk
+
+case "$1" in
+start)
+	set -- $PSTORE/*
+	[ -e "$1" ] || exit 0
+	dir=${DISK_MNT:-/root}/crash/$(date +%Y%m%d-%H%M%S)
+	mkdir -p "$dir" && cp "$@" "$dir/" && rm -f "$@" && sync &&
+		echo "pstore: the log of the last boot is in $dir"
+	;;
+esac
+
+exit 0

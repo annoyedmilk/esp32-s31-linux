@@ -101,8 +101,9 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
 | USB 主机（DWC2） | 否 | 根文件系统所在的 U 盘；第二个 U 盘需手动挂载 | 键盘、鼠标、存储设备（FAT、exFAT，插入时自动挂载到 `/mnt/usb`）、以太网适配器 |
 | 局域网名称（`esp32s31.local`，mDNS） | 是 | 是 | 是 |
 | 内核崩溃或系统挂起后重启（软件看门狗） | 是 | 是 | 是 |
+| 崩溃或挂起后保留上次启动的崩溃日志（pstore） | 是 | 是 | 是 |
 | microSD | 否 | 否 | 根文件系统所在的卡 |
-| RGB LED（`/sys/class/leds/rgb:status`） | 否 | GPIO60 | GPIO37 |
+| RGB LED（`/sys/class/leds/rgb:status`），触发器见 `/etc/default/led` | 否 | GPIO60 | GPIO37 |
 | GPIO、硬件随机数、`curl` HTTPS、SSH（Dropbear，仅密钥） | 是 | 是 | 是 |
 | 用 `pinctrl` 查看引脚功能、上下拉和电平（与 Raspberry Pi 相同），GPIO 线带网络名称 | 是 | 是 | 是 |
 | GPIO 中断：`gpiomon` 和 libgpiod 的边沿事件，消抖 | 是 | 是 | 是 |
@@ -254,7 +255,11 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
   `/sys/class/leds/rgb:status`：向 `multi_intensity` 写入 `R G B`（0 到 255），
   再向 `brightness` 写入 `255`。`/usr/share/examples/led.sh R G B`
   （Function-CoreBoard-1）和 `micropython /usr/share/examples/led.py R G B`
-  （Korvo-1）完成同样的操作。
+  （Korvo-1）完成同样的操作。LED 也可以显示状态：在 `/etc/default/led` 中设置
+  `LED_TRIGGER` 为 `heartbeat`（随负载闪烁）、`timer`、`default-on`、`netdev`
+  （`LED_NETDEV` 有链路时亮，有流量时闪烁）或 `panic`（内核崩溃后到重启前显示
+  红色），并设置 `LED_COLOR`。`S16led` 在启动时设置它们；默认值 `none` 使 LED
+  保持原样。
 - **网络。** `iperf3` 测量与服务器之间的吞吐量。`curl` 使用 CA 证书包验证证书。
   在 Korvo-1 上，插入 USB 以太网适配器（CDC ECM 或 NCM、ASIX AX88179、
   Realtek RTL8152 或 RTL8153）后，它成为 `eth0` 并通过 DHCP 获取地址，其默认
@@ -304,6 +309,10 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
 - **恢复。** 内核崩溃 10 秒后，或用户空间停止 60 秒后（软件看门狗；
   `/etc/init.d/S15watchdog stop` 将其关闭），开发板自动重启。SysRq 可通过
   `/proc/sysrq-trigger` 使用：`s` 同步，`u` 以只读方式重新挂载，`b` 重启。
+  内核崩溃时的日志和重启前那次启动的控制台输出保存在 32 KiB 的 PSRAM 中
+  （pstore）：下次启动后，它们位于磁盘 p1 的 `crash/` 中（单独模组上为
+  `/root/crash`）。软件复位（崩溃、软件看门狗、`reboot`）会保留它们；复位键和
+  断电会清除它们。
 - **时间。** 开发板没有 RTC。启动时设置上次保存的时间，使 TLS 在联网前
   可用。每次 DHCP 获得或续租地址时，`ntpd` 从 DHCP 服务器提供的 NTP 服务器
   和 `/etc/default/ntp` 中的 `NTP_SERVERS`（`pool.ntp.org`）设置时钟。没有

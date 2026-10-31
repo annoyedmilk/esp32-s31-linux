@@ -8,3 +8,4 @@ tmpfs		/dev/shm	tmpfs	mode=1777,size=1m	0	0
 tmpfs		/tmp		tmpfs	mode=1777,size=2m	0	0
 tmpfs		/run		tmpfs	mode=0755,nosuid,nodev,size=512k	0	0
 sysfs		/sys		sysfs	defaults	0	0
+pstore		/sys/fs/pstore	pstore	defaults	0	0

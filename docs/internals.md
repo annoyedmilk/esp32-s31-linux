@@ -63,7 +63,8 @@ ROM -> ESP-IDF 2nd stage -> loader (hart 0) -> OpenSBI (hart 1, M) -> Linux (har
 | `0x2F04E000` | 8 KiB | Trap code of Linux (`CONFIG_RISCV_TRAP_SRAM`), see "The instruction cache" |
 | `0x2F050000` | 52 KiB | Shared block: requests, flash mailbox, ESP-Hosted rings |
 | `0x2F079000` | 4 KiB | LCD DMA descriptor ring (Korvo-1) |
-| `0x50000000` | 14.5 MiB | Linux RAM, from the kernel image |
+| `0x50000000` | 14 MiB 480 KiB | Linux RAM, from the kernel image |
+| `0x50E78000` | 32 KiB | Crash log (pstore, reserved, no-map); Linux writes it at `0xC0E78000` |
 | `0x50E80000` | 256 KiB | Heap of the radio firmware on hart 0 (reserved, no-map), see "Internal SRAM" |
 | `0x50EC0000` | 252 KiB | Linux RAM |
 | `0x50EFF000` | 4 KiB | Guard page below OpenSBI (reserved, no-map, see Protection) |
@@ -90,6 +91,8 @@ debugfs, so there is no `memblock/reserved`):
 | Frame buffer (Korvo-1 only) | 768 | no-map, uncached; 800 × 480 × 2 = 750 KiB used |
 | MemTotal | 10716 | Linux |
 
+Since v0.11.0, the crash log takes 32 KiB more (below).
+
 The other boards have the frame buffer area as RAM, and their kernel
 image has a different size: the README gives their MemTotal. No board has
 CMA. The coherent DMA pool, the trap code and the ESP-Hosted rings are in
@@ -109,6 +112,29 @@ stays with lz4: the zstd backend adds 229 KiB to the Image of the Korvo-1,
 which is RAM that Linux never gets back.
 
 The libc is musl, so a switch to musl gives nothing.
+
+### The crash log
+
+The PSRAM keeps its data over a software reset: a pattern written
+through the uncached alias was still there after `reboot`, and the
+pstore records were there after a panic reboot and after a reboot of the
+soft watchdog. The reset button and the
+RTS line of the console bridge (a power-on reset, `rst:0x1`) clear it:
+the words came back with bits lost. Nothing in the boot chain tests or
+clears the PSRAM (`CONFIG_SPIRAM_MEMTEST` is off). The reset of OpenSBI
+(`LP_SYS_SW_RST`) does not write the D-cache back, so a record in a dirty
+line would be lost. Thus ramoops writes through the uncached alias: the
+device tree reserves `0x50E78000` (32 KiB, no-map) and gives ramoops
+`0xC0E78000`, with a console record of 16 KiB and one panic record of
+16 KiB: with 8 KiB, the header and the 8 KiB log did not fit, and the
+last line was cut. `S11pstore` copies the records to
+`crash/` on p1 of the disk, or `/root/crash/` on the module alone, and
+removes them. After the boot, the consoles take only warnings
+(`S99banner.sh`), so after a hang of user space the console record has
+the warnings and `softdog: Initiating system reboot`, not the full log.
+`softdog.soft_panic=1` would make a hang a panic, with a full panic
+record and the red LED, but 10 s later; the boards keep 0. The LED shows
+red at a panic only since the WS2812 driver sets it without sleeping.
 
 ### Internal SRAM
 
