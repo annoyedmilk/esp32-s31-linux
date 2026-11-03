@@ -1,0 +1,5 @@
+config BR2_PACKAGE_SC101IOT_FIRMWARE
+	bool "SC101IOT sensor initialization data"
+	help
+	  Install the Espressif SC101IOT VGA UYVY mode data for the
+	  Linux camera driver. The camera module supplies a 20 MHz clock.

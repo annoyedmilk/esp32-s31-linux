@@ -1,0 +1,38 @@
+Subject: [PATCH] spi: register the ESP32-S31 PIO master driver
+
+Add the GPSPI master driver to the SPI configuration and build.
+---
+diff --git a/drivers/spi/Kconfig b/drivers/spi/Kconfig
+--- a/drivers/spi/Kconfig
++++ b/drivers/spi/Kconfig
+@@ -404,6 +404,19 @@
+ 	  This enables using the Cirrus EP93xx SPI controller in master
+ 	  mode.
+ 
++config SPI_ESP32S31
++	tristate "Espressif ESP32-S31 SPI controller"
++	depends on SOC_ESP32S31 || COMPILE_TEST
++	depends on OF && GPIOLIB
++	help
++	  Say Y here to use the ESP32-S31 GPSPI controller in master mode.
++	  This driver uses PIO transfers and native or GPIO chip selects.
++	  It supports mode 0, single-bit or quad-bit reads and writes, and
++	  native SPI memory operations.
++
++	  To compile this driver as a module, choose M here: the module
++	  will be called spi-esp32s31.
++
+ config SPI_FALCON
+ 	bool "Falcon SPI controller support"
+ 	depends on SOC_FALCON
+diff --git a/drivers/spi/Makefile b/drivers/spi/Makefile
+--- a/drivers/spi/Makefile
++++ b/drivers/spi/Makefile
+@@ -58,6 +58,7 @@
+ obj-$(CONFIG_SPI_DW_MMIO)		+= spi-dw-mmio.o
+ obj-$(CONFIG_SPI_DW_PCI)		+= spi-dw-pci.o
+ obj-$(CONFIG_SPI_EP93XX)		+= spi-ep93xx.o
++obj-$(CONFIG_SPI_ESP32S31)		+= spi-esp32s31.o
+ obj-$(CONFIG_SPI_FALCON)		+= spi-falcon.o
+ obj-$(CONFIG_SPI_FSI)			+= spi-fsi.o
+ obj-$(CONFIG_SPI_FSL_CPM)		+= spi-fsl-cpm.o

@@ -1,0 +1,36 @@
+Subject: [PATCH] Input: register the Hynitron CST9220 touchscreen driver
+
+Add the polled CST9220 driver to the touchscreen configuration and build.
+---
+diff --git a/drivers/input/touchscreen/Kconfig b/drivers/input/touchscreen/Kconfig
+--- a/drivers/input/touchscreen/Kconfig
++++ b/drivers/input/touchscreen/Kconfig
+@@ -462,6 +462,17 @@
+ 
+ 	  To compile this driver as a module, choose M here: the
+ 	  module will be called hycon-hy46xx.
++
++config TOUCHSCREEN_HYNITRON_CST9220
++	tristate "Hynitron CST9220 touchscreen"
++	depends on I2C
++	depends on REGULATOR
++	help
++	  Say Y here for the Hynitron CST9220 I2C touchscreen controller.
++	  Reports are polled, including on boards without a touch IRQ.
++
++	  To compile this driver as a module, choose M here: the module
++	  will be called cst9220.
+ 
+ config TOUCHSCREEN_HYNITRON_CSTXXX
+ 	tristate "Hynitron touchscreen support"
+diff --git a/drivers/input/touchscreen/Makefile b/drivers/input/touchscreen/Makefile
+--- a/drivers/input/touchscreen/Makefile
++++ b/drivers/input/touchscreen/Makefile
+@@ -50,6 +50,7 @@
+ obj-$(CONFIG_TOUCHSCREEN_GOODIX_BERLIN_SPI)	+= goodix_berlin_spi.o
+ obj-$(CONFIG_TOUCHSCREEN_HIDEEP)	+= hideep.o
+ obj-$(CONFIG_TOUCHSCREEN_HIMAX_HX852X)	+= himax_hx852x.o
++obj-$(CONFIG_TOUCHSCREEN_HYNITRON_CST9220)	+= cst9220.o
+ obj-$(CONFIG_TOUCHSCREEN_HYNITRON_CSTXXX)	+= hynitron_cstxxx.o
+ obj-$(CONFIG_TOUCHSCREEN_HYNITRON_CST816X)	+= hynitron-cst816x.o
+ obj-$(CONFIG_TOUCHSCREEN_ILI210X)	+= ili210x.o

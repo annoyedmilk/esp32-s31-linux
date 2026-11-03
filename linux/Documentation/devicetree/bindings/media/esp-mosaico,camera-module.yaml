@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/media/esp-mosaico,camera-module.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: ESP-Mosaico removable CameraBoard descriptor EEPROM
+
+maintainers:
+  - whatshu <shussm@qq.com>
+
+description: |
+  The left-slot EEPROM at 0x50 contains a CRC-protected ESP module descriptor.
+  Presence is polled without writing the EEPROM. The sensor node must be
+  disabled so the module driver can instantiate it only while connected.
+
+properties:
+  compatible:
+    const: esp-mosaico,camera-module
+  reg:
+    const: 0x50
+  sensor:
+    $ref: /schemas/types.yaml#/definitions/phandle
+    description: Disabled SC101IOT sensor node on the same I2C adapter
+
+required:
+  - compatible
+  - reg
+  - sensor
+
+additionalProperties: false

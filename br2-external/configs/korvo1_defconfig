@@ -197,6 +197,9 @@ BR2_PACKAGE_MOSQUITTO=y
 # The BlueZ tools and the deprecated ones (hciconfig, hcitool, hcidump).
 BR2_PACKAGE_BLUEZ5_UTILS_TOOLS=y
 BR2_PACKAGE_BLUEZ5_UTILS_DEPRECATED=y
+
+# genimage uses mcopy to populate the FAT boot partition.
+BR2_PACKAGE_HOST_MTOOLS=y
 # ESP32-S31-Korvo-1, with the ESP32-S31-WROOM-3-N16R16V module: root on the
 # microSD card (diskroot.fragment), and the LCD with its touch controller.
 #

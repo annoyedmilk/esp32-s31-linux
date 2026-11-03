@@ -1,0 +1,19 @@
+From: whatshu <shussm@qq.com>
+Subject: [PATCH] dt-bindings: vendor-prefixes: add ESP-Mosaico
+
+Register the prefix used by the modular ESP-Mosaico development boards.
+
+Signed-off-by: whatshu <shussm@qq.com>
+---
+diff --git a/Documentation/devicetree/bindings/vendor-prefixes.yaml b/Documentation/devicetree/bindings/vendor-prefixes.yaml
+--- a/Documentation/devicetree/bindings/vendor-prefixes.yaml
++++ b/Documentation/devicetree/bindings/vendor-prefixes.yaml
+@@ -557,6 +557,8 @@
+     description: Ecole Polytechnique Fédérale de Lausanne
+   "^epson,.*":
+     description: Seiko Epson Corp.
++  "^esp-mosaico,.*":
++    description: ESP-Mosaico modular development boards
+   "^esp,.*":
+     description: Espressif Systems Co. Ltd.
+   "^est,.*":

@@ -1,0 +1,29 @@
+From: whatshu <shussm@qq.com>
+Subject: [PATCH] media: platform: register ESP32-S31 DVP capture
+
+Register the DVP receiver and removable Mosaico module manager.
+
+Signed-off-by: whatshu <shussm@qq.com>
+---
+diff --git a/drivers/media/platform/Kconfig b/drivers/media/platform/Kconfig
+--- a/drivers/media/platform/Kconfig
++++ b/drivers/media/platform/Kconfig
+@@ -73,6 +73,7 @@
+ source "drivers/media/platform/cadence/Kconfig"
+ source "drivers/media/platform/chips-media/Kconfig"
+ source "drivers/media/platform/dreamchip/Kconfig"
++source "drivers/media/platform/espressif/Kconfig"
+ source "drivers/media/platform/imagination/Kconfig"
+ source "drivers/media/platform/intel/Kconfig"
+ source "drivers/media/platform/marvell/Kconfig"
+diff --git a/drivers/media/platform/Makefile b/drivers/media/platform/Makefile
+--- a/drivers/media/platform/Makefile
++++ b/drivers/media/platform/Makefile
+@@ -16,6 +16,7 @@
+ obj-y += cadence/
+ obj-y += chips-media/
+ obj-y += dreamchip/
++obj-y += espressif/
+ obj-y += imagination/
+ obj-y += intel/
+ obj-y += marvell/

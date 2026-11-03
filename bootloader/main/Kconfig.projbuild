@@ -16,6 +16,9 @@ config S31_LINUX_BOARD_ESP32S31
 config S31_LINUX_BOARD_COREBOARD1
     bool "ESP32-S31-Function-CoreBoard-1 (USB, RGB LED)"
 
+config S31_LINUX_BOARD_ESP_MOSAICO
+    bool "ESP-Mosaico CoreBoard V1.2 (QSPI LCD, CST9220 touch)"
+
 endchoice
 
 endmenu

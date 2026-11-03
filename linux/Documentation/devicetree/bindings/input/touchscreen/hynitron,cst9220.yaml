@@ -1,0 +1,51 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/input/touchscreen/hynitron,cst9220.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Hynitron CST9220 touchscreen controller
+
+maintainers:
+  - whatshu <shussm@qq.com>
+
+description:
+  I2C touch controller with up to five simultaneous contacts. Reports are
+  polled; the driver does not require an interrupt line.
+
+allOf:
+  - $ref: touchscreen.yaml#
+
+properties:
+  compatible:
+    const: hynitron,cst9220
+
+  reg:
+    maxItems: 1
+
+  vdd-supply:
+    description: Peripheral power supply
+
+required:
+  - compatible
+  - reg
+  - vdd-supply
+  - touchscreen-size-x
+  - touchscreen-size-y
+
+unevaluatedProperties: false
+
+examples:
+  - |
+    i2c {
+        #address-cells = <1>;
+        #size-cells = <0>;
+
+        touchscreen@5a {
+            compatible = "hynitron,cst9220";
+            reg = <0x5a>;
+            vdd-supply = <&vcc_3v3>;
+            touchscreen-size-x = <480>;
+            touchscreen-size-y = <480>;
+        };
+    };

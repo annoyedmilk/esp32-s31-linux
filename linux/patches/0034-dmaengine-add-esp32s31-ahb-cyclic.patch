@@ -1,0 +1,40 @@
+From: whatshu <shussm@qq.com>
+Subject: [PATCH] dmaengine: add ESP32-S31 AHB cyclic channels
+
+Register AHB cyclic DMA independently from its ASoC consumer.
+
+Signed-off-by: whatshu <shussm@qq.com>
+---
+diff --git a/drivers/dma/Kconfig b/drivers/dma/Kconfig
+--- a/drivers/dma/Kconfig
++++ b/drivers/dma/Kconfig
+@@ -31,6 +31,18 @@
+ 
+ 
+ if DMADEVICES
++
++config ESP32S31_AHB_DMA
++	tristate "ESP32-S31 AHB cyclic peripheral DMA"
++	depends on SOC_ESP32S31 || COMPILE_TEST
++	depends on OF && HAS_IOMEM
++	select DMA_ENGINE
++	select DMA_VIRTUAL_CHANNELS
++	help
++	  Cyclic transfers for the five AHB receive/transmit channel pairs.
++	  Linked descriptors and audio buffers use coherent SRAM.
++	  Only cyclic peripheral transfers are supported.
++	  To compile this driver as a module, choose M here.
+ 
+ config ESP32S31_AXI_DMA
+ 	tristate "ESP32-S31 AXI receive DMA"
+diff --git a/drivers/dma/Makefile b/drivers/dma/Makefile
+--- a/drivers/dma/Makefile
++++ b/drivers/dma/Makefile
+@@ -4,6 +4,7 @@
+ subdir-ccflags-$(CONFIG_DMADEVICES_VDEBUG) += -DVERBOSE_DEBUG
+ 
+ #core
++obj-$(CONFIG_ESP32S31_AHB_DMA) += esp32s31-ahb-dma.o
+ obj-$(CONFIG_ESP32S31_AXI_DMA) += esp32s31-axi-dma.o
+ obj-$(CONFIG_DMA_ENGINE) += dmaengine.o
+ obj-$(CONFIG_DMA_VIRTUAL_CHANNELS) += virt-dma.o

@@ -1,0 +1,122 @@
+Subject: [PATCH] mtd: mtdswap: optionally reserve pages written with OOB markers
+
+mtdswap writes clean and dirty markers to the first two NAND pages before
+programming swap data over them. With on-die ECC, the later program cannot
+replace parity bits already programmed for the marker-only page.
+GD5F1GM7UE then reports uncorrectable data at each eraseblock's start.
+
+Add an opt-in module parameter to reserve those pages. Round the
+reservation to a system page and keep physical mapping indices unchanged.
+Reduce capacity and free-page accounting so GC retains its spare blocks.
+Do not count a nonexistent current write block as free space.
+Existing users retain the original layout unless the option is enabled.
+
+A direct 512 KiB write/read with incompressible data reproduces the failure
+without memory pressure. The ESP-Mosaico NAND swap enables the reservation.
+---
+diff --git a/drivers/mtd/mtdswap.c b/drivers/mtd/mtdswap.c
+--- a/drivers/mtd/mtdswap.c
++++ b/drivers/mtd/mtdswap.c
+@@ -108,6 +108,7 @@
+ 	unsigned int eblks;
+ 	unsigned int spare_eblks;
+ 	unsigned int pages_per_eblk;
++	unsigned int data_pages_per_eblk;
+ 	unsigned int max_erase_count;
+ 	struct swap_eb *eb_data;
+ 
+@@ -174,6 +175,12 @@
+ module_param(spare_eblocks, uint, 0444);
+ MODULE_PARM_DESC(spare_eblocks, "Percentage of spare erase blocks for "
+ 		"garbage collection (default 10%)");
++
++/* Keep OOB marker writes away from ECC-protected swap data pages. */
++static bool reserve_marker_pages;
++module_param(reserve_marker_pages, bool, 0444);
++MODULE_PARM_DESC(reserve_marker_pages,
++		 "Reserve the first two NAND pages for OOB markers (default 0)");
+ 
+ static bool header; /* false */
+ module_param(header, bool, 0444);
+@@ -505,7 +512,7 @@
+ static void mtdswap_store_eb(struct mtdswap_dev *d, struct swap_eb *eb)
+ {
+ 	unsigned int weight = eb->active_count;
+-	unsigned int maxweight = d->pages_per_eblk;
++	unsigned int maxweight = d->data_pages_per_eblk;
+ 
+ 	if (eb == d->curr_write)
+ 		return;
+@@ -585,7 +592,8 @@
+ 		if (ret)
+ 			return ret;
+ 
+-		d->curr_write_pos = 0;
++		/* The first two NAND pages already contain the OOB markers. */
++		d->curr_write_pos = d->pages_per_eblk - d->data_pages_per_eblk;
+ 		d->curr_write = eb;
+ 		if (old_eb)
+ 			mtdswap_store_eb(d, old_eb);
+@@ -603,13 +611,16 @@
+ 
+ static unsigned int mtdswap_free_page_cnt(struct mtdswap_dev *d)
+ {
+-	return TREE_COUNT(d, CLEAN) * d->pages_per_eblk +
+-		d->pages_per_eblk - d->curr_write_pos;
++	unsigned int free = TREE_COUNT(d, CLEAN) * d->data_pages_per_eblk;
++
++	if (d->curr_write)
++		free += d->pages_per_eblk - d->curr_write_pos;
++	return free;
+ }
+ 
+ static unsigned int mtdswap_enough_free_pages(struct mtdswap_dev *d)
+ {
+-	return mtdswap_free_page_cnt(d) > d->pages_per_eblk;
++	return mtdswap_free_page_cnt(d) > d->data_pages_per_eblk;
+ }
+ 
+ static int mtdswap_write_block(struct mtdswap_dev *d, char *buf,
+@@ -1280,6 +1291,10 @@
+ 	d->eblks = eblocks;
+ 	d->spare_eblks = spare_cnt;
+ 	d->pages_per_eblk = mtd->erasesize >> PAGE_SHIFT;
++	d->data_pages_per_eblk = d->pages_per_eblk;
++	if (reserve_marker_pages)
++		d->data_pages_per_eblk -= DIV_ROUND_UP(2 * mtd->writesize,
++						     PAGE_SIZE);
+ 
+ 	pages = d->mbd_dev->size;
+ 	blocks = eblocks * d->pages_per_eblk;
+@@ -1338,7 +1353,7 @@
+ 	char *parts;
+ 	char *this_opt;
+ 	unsigned long part;
+-	unsigned int eblocks, eavailable, bad_blocks, spare_cnt;
++	unsigned int eblocks, eavailable, bad_blocks, spare_cnt, data_pages;
+ 	uint64_t swap_size, use_size, size_limit;
+ 	int ret;
+ 
+@@ -1408,8 +1423,20 @@
+ 	if (spare_cnt > eavailable - 1)
+ 		spare_cnt = eavailable - 1;
+ 
+-	swap_size = (uint64_t)(eavailable - spare_cnt) * mtd->erasesize +
+-		(header ? PAGE_SIZE : 0);
++	data_pages = mtd->erasesize >> PAGE_SHIFT;
++	if (reserve_marker_pages) {
++		unsigned int marker_pages = DIV_ROUND_UP(2 * mtd->writesize,
++						       PAGE_SIZE);
++
++		if (data_pages <= marker_pages) {
++			pr_err("%s: No data pages after reserving OOB markers\n",
++			       MTDSWAP_PREFIX);
++			return;
++		}
++		data_pages -= marker_pages;
++	}
++	swap_size = ((uint64_t)(eavailable - spare_cnt) * data_pages +
++		     (header ? 1 : 0)) << PAGE_SHIFT;
+ 
+ 	printk(KERN_INFO "%s: Enabling MTD swap on device %lu, size %llu KB, "
+ 		"%u spare, %u bad blocks\n",

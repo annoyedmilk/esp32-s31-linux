@@ -19,9 +19,9 @@ tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 status=0
 
-for board in korvo1 esp32s31 coreboard1; do
+for board in korvo1 esp32s31 coreboard1 esp-mosaico; do
 	case $board in
-	esp32s31) fragments="common flashroot $board" ;;
+	esp32s31|esp-mosaico) fragments="common flashroot $board" ;;
 	*) fragments="common diskroot $board" ;;
 	esac
 	CONFIG_=BR2_ external/buildroot/support/kconfig/merge_config.sh -m -O "$tmp" \

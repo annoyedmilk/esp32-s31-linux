@@ -1,0 +1,23 @@
+#!/bin/sh
+# SPDX-License-Identifier: MIT
+# Register audio paths; neither playback nor recording starts at boot.
+
+case "$1" in
+start)
+	modprobe esp32s31-ahb-dma || exit 1
+	modprobe snd-soc-es8311 || exit 1
+	modprobe snd-soc-simple-amplifier || exit 1
+	modprobe snd-soc-esp32s31-i2s || exit 1
+	modprobe snd-soc-simple-card
+	;;
+stop)
+	# ALSA closes streams and DAPM switches the amplifier off.
+	;;
+restart|reload)
+	"$0" start
+	;;
+*)
+	echo "Usage: $0 {start|stop|restart|reload}" >&2
+	exit 1
+	;;
+esac

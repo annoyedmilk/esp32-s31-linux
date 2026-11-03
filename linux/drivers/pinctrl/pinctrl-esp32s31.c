@@ -566,7 +566,8 @@ static void esp32s31_gpio_irq_handler(struct irq_desc *desc)
 	chained_irq_enter(parent, desc);
 	pending = readl(pctrl->gpio + ESP32S31_GPIO_INT(ESP32S31_IRQ_LINE0 +
 							 bank->bank, bank->bank));
-	for_each_set_bit(bit, &pending, 32)
+	for_each_set_bit(bit, &pending,
+			 min(32U, pctrl->chip.ngpio - bank->bank * 32))
 		generic_handle_domain_irq(pctrl->chip.irq.domain,
 					  bank->bank * 32 + bit);
 	chained_irq_exit(parent, desc);
@@ -580,10 +581,16 @@ static int esp32s31_irq_init(struct platform_device *pdev,
 	u32 ours = ESP32S31_PIN_INT_ENA(ESP32S31_IRQ_LINE0) |
 		   ESP32S31_PIN_INT_ENA(ESP32S31_IRQ_LINE0 + 1);
 	unsigned int i;
-	int irq;
+	int irq, count;
 
-	if (platform_irq_count(pdev) < ESP32S31_NBANKS)
+	count = platform_irq_count(pdev);
+	if (count < 0)
+		return count;
+	if (!count)
 		return 0;
+	if (count != ESP32S31_NBANKS)
+		return dev_err_probe(&pdev->dev, -EINVAL,
+				     "expected two GPIO parent interrupts\n");
 
 	for (i = 0; i < ESP32S31_NBANKS; i++) {
 		irq = platform_get_irq(pdev, i);

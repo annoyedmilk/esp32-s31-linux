@@ -1,0 +1,29 @@
+From: whatshu <shussm@qq.com>
+Subject: [PATCH] ASoC: register ESP32-S31 standard I2S
+
+Register the CPU DAI using the existing DMAengine PCM interface.
+
+Signed-off-by: whatshu <shussm@qq.com>
+---
+diff --git a/sound/soc/Kconfig b/sound/soc/Kconfig
+--- a/sound/soc/Kconfig
++++ b/sound/soc/Kconfig
+@@ -110,6 +110,7 @@
+ source "sound/soc/bcm/Kconfig"
+ source "sound/soc/cirrus/Kconfig"
+ source "sound/soc/dwc/Kconfig"
++source "sound/soc/espressif/Kconfig"
+ source "sound/soc/fsl/Kconfig"
+ source "sound/soc/google/Kconfig"
+ source "sound/soc/hisilicon/Kconfig"
+diff --git a/sound/soc/Makefile b/sound/soc/Makefile
+--- a/sound/soc/Makefile
++++ b/sound/soc/Makefile
+@@ -52,6 +52,7 @@
+ obj-$(CONFIG_SND_SOC)	+= bcm/
+ obj-$(CONFIG_SND_SOC)	+= cirrus/
+ obj-$(CONFIG_SND_SOC)	+= dwc/
++obj-$(CONFIG_SND_SOC)	+= espressif/
+ obj-$(CONFIG_SND_SOC)	+= fsl/
+ obj-$(CONFIG_SND_SOC)	+= google/
+ obj-$(CONFIG_SND_SOC)	+= hisilicon/

@@ -1,0 +1,5 @@
+config BR2_PACKAGE_BMI270_FIRMWARE
+	bool "Bosch BMI270 initialization data"
+	help
+	  Install the Bosch BMI270 initialization image used by the
+	  kernel IIO driver. The sensor requires this image after reset.

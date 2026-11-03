@@ -1,0 +1,56 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/media/esp,esp32s31-camera.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Espressif ESP32-S31 parallel camera receiver
+
+maintainers:
+  - whatshu <shussm@qq.com>
+
+properties:
+  compatible:
+    const: esp,esp32s31-camera
+  reg:
+    maxItems: 1
+  clocks:
+    minItems: 4
+    maxItems: 4
+  clock-names:
+    items:
+      - const: apb
+      - const: sys
+      - const: core
+      - const: cam
+  resets:
+    minItems: 2
+    maxItems: 2
+  dmas:
+    maxItems: 1
+  dma-names:
+    const: rx
+  port:
+    $ref: /schemas/graph.yaml#/$defs/port-base
+    unevaluatedProperties: false
+    properties:
+      endpoint:
+        $ref: video-interfaces.yaml#
+        unevaluatedProperties: false
+        properties:
+          bus-width:
+            const: 8
+        required:
+          - bus-width
+
+required:
+  - compatible
+  - reg
+  - clocks
+  - clock-names
+  - resets
+  - dmas
+  - dma-names
+  - port
+
+additionalProperties: false

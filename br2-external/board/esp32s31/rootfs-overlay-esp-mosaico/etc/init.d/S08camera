@@ -1,0 +1,21 @@
+#!/bin/sh
+# SPDX-License-Identifier: MIT
+# Firmware mode data is available after the NAND overlay has mounted.
+
+case "$1" in
+start)
+	for driver in esp32s31-axi-dma sc101iot esp32s31-camera esp-mosaico-camera-module; do
+		modprobe "$driver" || exit 1
+	done
+	;;
+stop)
+	# Sensor detach stops capture. Board drivers stay loaded until shutdown.
+	;;
+restart|reload)
+	"$0" start
+	;;
+*)
+	echo "Usage: $0 {start|stop|restart|reload}" >&2
+	exit 1
+	;;
+esac

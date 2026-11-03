@@ -1,0 +1,17 @@
+What:		/sys/bus/platform/devices/20700008.reboot-mode/next_mode
+Date:		October 2026
+Contact:	whatshu <shussm@qq.com>
+Description:
+		Select the ESP32-S31 boot path for the next orderly system restart.
+		Read or write "normal" (default) or "bootloader". Only root can
+		write this attribute. Other values return EINVAL.
+
+		The value is kept in RAM until the reboot notifier runs. Selecting
+		bootloader does not reset the board or write flash. Shutdown and
+		poweroff do not apply it. A RESTART2 command, when supplied,
+		takes precedence over the saved value.
+
+		Bootloader selects the ROM UART/USB downloader. Before resetting
+		back into the application, the flashing tool must clear bit 2 of
+		LP_SYSTEM control at 0x20700008; the bit survives a software reset.
+Users:		ESP-Mosaico /sbin/reboot wrapper for BusyBox init

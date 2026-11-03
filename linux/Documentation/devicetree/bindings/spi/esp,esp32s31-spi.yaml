@@ -1,0 +1,46 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/spi/esp,esp32s31-spi.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Espressif ESP32-S31 GPSPI controller
+
+maintainers:
+  - whatshu <shussm@qq.com>
+
+description:
+  GPSPI master with a 64-byte FIFO. The driver uses PIO, native or GPIO chip
+  selects, and single-bit or quad-bit reads and writes in mode 0.
+
+allOf:
+  - $ref: spi-controller.yaml#
+
+properties:
+  compatible:
+    const: esp,esp32s31-spi
+
+  reg:
+    maxItems: 1
+
+  clocks:
+    items:
+      - description: APB register clock
+      - description: Master source clock
+
+  clock-names:
+    items:
+      - const: apb
+      - const: core
+
+  resets:
+    maxItems: 1
+
+required:
+  - compatible
+  - reg
+  - clocks
+  - clock-names
+  - resets
+
+unevaluatedProperties: false

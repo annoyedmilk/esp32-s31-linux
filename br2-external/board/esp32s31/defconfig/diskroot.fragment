@@ -59,3 +59,6 @@ BR2_PACKAGE_MOSQUITTO=y
 # The BlueZ tools and the deprecated ones (hciconfig, hcitool, hcidump).
 BR2_PACKAGE_BLUEZ5_UTILS_TOOLS=y
 BR2_PACKAGE_BLUEZ5_UTILS_DEPRECATED=y
+
+# genimage uses mcopy to populate the FAT boot partition.
+BR2_PACKAGE_HOST_MTOOLS=y

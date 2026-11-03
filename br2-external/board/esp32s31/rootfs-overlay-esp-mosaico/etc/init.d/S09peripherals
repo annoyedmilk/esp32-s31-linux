@@ -1,0 +1,23 @@
+#!/bin/sh
+# SPDX-License-Identifier: MIT
+# BMI270 loads its initialization data from the mounted rootfs.
+
+case "$1" in
+start)
+	status=0
+	for driver in bmi270_i2c bmc150_magn_i2c gpio-vibra gpio_keys; do
+		modprobe "$driver" || status=1
+	done
+	exit "$status"
+	;;
+stop)
+	# The input drivers stop effects on close and suspend.
+	;;
+restart|reload)
+	"$0" start
+	;;
+*)
+	echo "Usage: $0 {start|stop|restart|reload}" >&2
+	exit 1
+	;;
+esac

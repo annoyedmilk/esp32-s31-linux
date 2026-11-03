@@ -1,0 +1,169 @@
+From: whatshu <shussm@qq.com>
+Subject: [PATCH] usb: dwc2: coordinate PHY and software role switching
+
+Set the generic PHY role before forcing controller mode, outside the
+controller spinlock. Mask old device-session interrupts before ending
+the B-session and leave OTG negotiation interrupts disabled for software
+role switches without HNP/SRP. This avoids session-end interrupt storms
+while the host controller is being initialized.
+
+Signed-off-by: whatshu <shussm@qq.com>
+---
+diff --git a/drivers/usb/dwc2/drd.c b/drivers/usb/dwc2/drd.c
+index 1ad8fa3..d6cab7c 100644
+--- a/drivers/usb/dwc2/drd.c
++++ b/drivers/usb/dwc2/drd.c
+@@ -9,6 +9,7 @@
+ 
+ #include <linux/clk.h>
+ #include <linux/iopoll.h>
++#include <linux/phy/phy.h>
+ #include <linux/platform_device.h>
+ #include <linux/usb/role.h>
+ #include "core.h"
+@@ -88,6 +89,7 @@ static int dwc2_drd_role_sw_set(struct usb_role_switch *sw, enum usb_role role)
+ 	struct dwc2_hsotg *hsotg = usb_role_switch_get_drvdata(sw);
+ 	unsigned long flags;
+ 	int already = 0;
++	int ret;
+ 
+ 	/* Skip session not in line with dr_mode */
+ 	if ((role == USB_ROLE_DEVICE && hsotg->dr_mode == USB_DR_MODE_HOST) ||
+@@ -111,14 +113,12 @@ static int dwc2_drd_role_sw_set(struct usb_role_switch *sw, enum usb_role role)
+ 	 * mode and sessions. It is the case if cable is plugged at boot.
+ 	 */
+ 	if (!hsotg->ll_hw_enabled && hsotg->clk) {
+-		int ret = clk_prepare_enable(hsotg->clk);
++		ret = clk_prepare_enable(hsotg->clk);
+ 
+ 		if (ret)
+ 			return ret;
+ 	}
+ 
+-	spin_lock_irqsave(&hsotg->lock, flags);
+-
+ 	if (role == USB_ROLE_NONE) {
+ 		/* default operation mode when usb role is USB_ROLE_NONE */
+ 		if (hsotg->role_sw_default_mode == USB_DR_MODE_HOST)
+@@ -127,6 +127,14 @@ static int dwc2_drd_role_sw_set(struct usb_role_switch *sw, enum usb_role role)
+ 			role = USB_ROLE_DEVICE;
+ 	}
+ 
++	/* PHY mode changes may sleep; keep them outside the controller lock. */
++	ret = phy_set_mode(hsotg->phy, role == USB_ROLE_HOST ?
++			   PHY_MODE_USB_HOST : PHY_MODE_USB_DEVICE);
++	if (ret)
++		goto out_disable_clk;
++
++	spin_lock_irqsave(&hsotg->lock, flags);
++
+ 	if ((IS_ENABLED(CONFIG_USB_DWC2_PERIPHERAL) ||
+ 	     IS_ENABLED(CONFIG_USB_DWC2_DUAL_ROLE)) &&
+ 	     dwc2_is_device_mode(hsotg) &&
+@@ -137,6 +145,14 @@ static int dwc2_drd_role_sw_set(struct usb_role_switch *sw, enum usb_role role)
+ 		dwc2_gadget_exit_clock_gating(hsotg, 0);
+ 
+ 	if (role == USB_ROLE_HOST) {
++		if (dwc2_is_device_mode(hsotg)) {
++			u32 mask = dwc2_readl(hsotg, GINTMSK);
++
++			/* The old B-session ends before host mode is forced. */
++			mask &= ~(GINTSTS_OTGINT | GINTSTS_USBRST |
++				  GINTSTS_RESETDET);
++			dwc2_writel(hsotg, mask, GINTMSK);
++		}
+ 		already = dwc2_ovr_avalid(hsotg, true);
+ 	} else if (role == USB_ROLE_DEVICE) {
+ 		already = dwc2_ovr_bvalid(hsotg, true);
+@@ -160,14 +176,15 @@ static int dwc2_drd_role_sw_set(struct usb_role_switch *sw, enum usb_role role)
+ 		/* This will raise a Connector ID Status Change Interrupt */
+ 		dwc2_force_mode(hsotg, role == USB_ROLE_HOST);
+ 
+-	if (!hsotg->ll_hw_enabled && hsotg->clk)
+-		clk_disable_unprepare(hsotg->clk);
+-
+ 	dev_dbg(hsotg->dev, "%s-session valid\n",
+ 		role == USB_ROLE_NONE ? "No" :
+ 		role == USB_ROLE_HOST ? "A" : "B");
+ 
+-	return 0;
++out_disable_clk:
++	if (!hsotg->ll_hw_enabled && hsotg->clk)
++		clk_disable_unprepare(hsotg->clk);
++
++	return ret;
+ }
+ 
+ int dwc2_drd_init(struct dwc2_hsotg *hsotg)
+@@ -180,6 +197,12 @@ int dwc2_drd_init(struct dwc2_hsotg *hsotg)
+ 		return 0;
+ 
+ 	hsotg->role_sw_default_mode = usb_get_role_switch_default_mode(hsotg->dev);
++	ret = phy_set_mode(hsotg->phy,
++			   hsotg->role_sw_default_mode == USB_DR_MODE_HOST ?
++			   PHY_MODE_USB_HOST : PHY_MODE_USB_DEVICE);
++	if (ret)
++		return ret;
++
+ 	role_sw_desc.driver_data = hsotg;
+ 	role_sw_desc.fwnode = dev_fwnode(hsotg->dev);
+ 	role_sw_desc.set = dwc2_drd_role_sw_set;
+diff --git a/drivers/usb/dwc2/hcd.c b/drivers/usb/dwc2/hcd.c
+index cd0dc87..fb19174 100644
+--- a/drivers/usb/dwc2/hcd.c
++++ b/drivers/usb/dwc2/hcd.c
+@@ -50,7 +50,10 @@ static void dwc2_enable_common_interrupts(struct dwc2_hsotg *hsotg)
+ 	dwc2_writel(hsotg, 0xffffffff, GINTSTS);
+ 
+ 	/* Enable the interrupts in the GINTMSK */
+-	intmsk = GINTSTS_MODEMIS | GINTSTS_OTGINT;
++	intmsk = GINTSTS_MODEMIS;
++	if (!hsotg->role_sw || hsotg->params.otg_caps.hnp_support ||
++	    hsotg->params.otg_caps.srp_support)
++		intmsk |= GINTSTS_OTGINT;
+ 
+ 	if (!hsotg->params.host_dma)
+ 		intmsk |= GINTSTS_RXFLVL;
+diff --git a/drivers/usb/dwc2/platform.c b/drivers/usb/dwc2/platform.c
+index ef0d730..17fc334 100644
+--- a/drivers/usb/dwc2/platform.c
++++ b/drivers/usb/dwc2/platform.c
+@@ -94,8 +94,13 @@ static int dwc2_get_dr_mode(struct dwc2_hsotg *hsotg)
+ static int __dwc2_lowlevel_hw_enable(struct dwc2_hsotg *hsotg)
+ {
+ 	struct platform_device *pdev = to_platform_device(hsotg->dev);
++	enum usb_dr_mode mode = hsotg->dr_mode;
+ 	int ret;
+ 
++	/* Initial hardware enable precedes dwc2_get_dr_mode(). */
++	if (mode == USB_DR_MODE_UNKNOWN)
++		mode = usb_get_dr_mode(hsotg->dev);
++
+ 	ret = regulator_bulk_enable(ARRAY_SIZE(hsotg->supplies),
+ 				    hsotg->supplies);
+ 	if (ret)
+@@ -119,11 +124,20 @@ static int __dwc2_lowlevel_hw_enable(struct dwc2_hsotg *hsotg)
+ 		ret = hsotg->plat->phy_init(pdev, hsotg->plat->phy_type);
+ 	} else {
+ 		ret = phy_init(hsotg->phy);
+-		if (ret == 0) {
+-			ret = phy_power_on(hsotg->phy);
+-			if (ret)
+-				phy_exit(hsotg->phy);
++		if (ret)
++			goto err_dis_clk;
++
++		if (mode == USB_DR_MODE_HOST)
++			ret = phy_set_mode(hsotg->phy, PHY_MODE_USB_HOST);
++		else if (mode == USB_DR_MODE_PERIPHERAL)
++			ret = phy_set_mode(hsotg->phy, PHY_MODE_USB_DEVICE);
++		if (ret) {
++			phy_exit(hsotg->phy);
++			goto err_dis_clk;
+ 		}
++		ret = phy_power_on(hsotg->phy);
++		if (ret)
++			phy_exit(hsotg->phy);
+ 	}
+ 
+ 	if (ret)
