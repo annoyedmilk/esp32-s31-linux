@@ -1,0 +1,7 @@
+# /etc/init.d/S16led reads this file at boot.  LED_TRIGGER: none (the LED
+# stays off until a program sets it), heartbeat, timer, default-on, netdev
+# (the link and the traffic of LED_NETDEV) or panic (red at a kernel panic,
+# until the reboot).  LED_COLOR: R G B, each 0 to 255.
+LED_TRIGGER=none
+LED_COLOR="0 0 255"
+LED_NETDEV=wlan0

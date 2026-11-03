@@ -8,6 +8,12 @@ CONFIG_NTPD=y
 # only at the first boot.  /var/run is tmpfs.
 CONFIG_PID_FILE_PATH="/var/run"
 
+# A DHCP server for the clients of the access point (ap.sh), and
+# dumpleases to read its binary lease file.
+CONFIG_UDHCPD=y
+CONFIG_FEATURE_UDHCPD_WRITE_LEASES_EARLY=y
+CONFIG_DUMPLEASES=y
+
 # S05swap.sh gives zram a higher priority than the swap on the disk.
 CONFIG_FEATURE_SWAPON_PRI=y
 

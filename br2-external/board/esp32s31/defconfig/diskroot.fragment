@@ -51,6 +51,11 @@ BR2_PACKAGE_HOSTAPD=y
 BR2_PACKAGE_OPENTHREAD=y
 # The RCP for the OpenThread Border Router app of Home Assistant.
 BR2_PACKAGE_THREAD_RELAY=y
+# MQTT clients for Home Assistant: libmosquitto, mosquitto_pub and
+# mosquitto_sub with TLS.  No broker: it runs on the LAN.  On the module,
+# the squashfs would be 100 KiB larger than its partition.
+BR2_PACKAGE_MOSQUITTO=y
+# BR2_PACKAGE_MOSQUITTO_BROKER is not set
 # The BlueZ tools and the deprecated ones (hciconfig, hcitool, hcidump).
 BR2_PACKAGE_BLUEZ5_UTILS_TOOLS=y
 BR2_PACKAGE_BLUEZ5_UTILS_DEPRECATED=y

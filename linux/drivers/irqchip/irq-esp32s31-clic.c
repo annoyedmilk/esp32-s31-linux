@@ -53,9 +53,7 @@
 #define ESP32S31_MAX_PRIORITY 3			/* Bits [6:5] of CLICCTL_MAKE() */
 
 /* CLIC CSRs */
-#ifndef CSR_SINTTHRESH
 #define CSR_SINTTHRESH 0x147
-#endif
 
 /* cliccfg 0x23 (snlbits 0): the bits are priority; 0xe0 keeps level 255. */
 #define CLICCTL_MAKE(level, prio) \

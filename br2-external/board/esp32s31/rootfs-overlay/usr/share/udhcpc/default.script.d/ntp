@@ -1,11 +1,37 @@
 #!/bin/sh
 # SPDX-License-Identifier: MIT
 # udhcpc hook.  There is no RTC, and S01clock.sh sets only the last known time,
-# which is late.  Thus set the clock at each new lease.  Not at a renewal, so
-# that a running board does not ask again and again.
+# which is late.  Thus set the clock at each new lease and renewal, with the
+# servers of DHCP option 42 first, then those of /etc/default/ntp.  ntpd -q
+# stops after 10 s without a reply, so try again until the clock is set.
 
-[ "$1" = bound ] || exit 0
+case "$1" in
+bound|renew) ;;
+*) exit 0 ;;
+esac
+
+NTP=yes
+NTP_SERVERS=pool.ntp.org
+[ -r /etc/default/ntp ] && . /etc/default/ntp
+[ "$NTP" = no ] && exit 0
+
+pid=/var/run/ntp-sync.pid
+[ -r $pid ] && kill -0 "$(cat $pid)" 2>/dev/null && exit 0
+
+peers=
+for s in $ntpsrv $NTP_SERVERS; do
+	peers="$peers -p $s"
+done
+
 (
-	ntpd -q -n -p pool.ntp.org >/dev/null 2>&1 &&
-		date -u +'%Y-%m-%d %H:%M:%S' >/etc/timestamp
-) &
+	for wait in 0 10 30 60 120 300 600 1800 3600; do
+		sleep $wait
+		if ntpd -q -n $peers >/dev/null 2>&1; then
+			/etc/init.d/S01clock.sh save
+			logger -t ntp "clock set: $(date -u)"
+			break
+		fi
+	done
+	rm -f $pid
+) </dev/null >/dev/null 2>&1 &
+echo $! >$pid

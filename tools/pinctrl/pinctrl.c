@@ -108,8 +108,15 @@ static void usage(void)
 	printf("--regs FILE reads the snapshot instead of the hardware.\n");
 	printf("\n");
 	printf("%s set refuses the flash pins, the pins in gpio-reserved-ranges of the\n", name);
-	printf("device tree, and the lines that a kernel driver uses (-f overrides the\n");
-	printf("last). It warns before it changes a strapping pin (36, 37, 60, 61).\n");
+	printf("device tree, the lines that a kernel driver uses (-f overrides this)\n");
+	printf("and the pins with an enabled interrupt line. It never changes the\n");
+	printf("interrupt fields. It warns before it changes a strapping pin (36, 37,\n");
+	printf("60, 61).\n");
+	printf("\n");
+	printf("get shows the interrupt of a pin that has one: [irq TYPE, lines N]\n");
+	printf("with the type (rising, falling, both, low, high), the enabled lines\n");
+	printf("(the kernel uses 2 for GPIO0-31 and 3 for GPIO32-61), and pending\n");
+	printf("when the status bit is set.\n");
 	printf("\n");
 	printf("Valid [options] for %s set are:\n", name);
 	printf("  ip      set GPIO as input\n");
@@ -175,6 +182,22 @@ static void print_gpio_alts_info(unsigned int num)
 	printf("\n");
 }
 
+/* The interrupt fields, only for a pin that has one of them. */
+static void print_irq(const struct pin_state *st)
+{
+	unsigned int line;
+
+	if (!st->int_type && !st->int_lines && !st->int_pending)
+		return;
+	printf(" [irq %s, lines", int_type_name(st->int_type));
+	if (!st->int_lines)
+		printf(" none");
+	for (line = 0; line < 4; line++)
+		if (st->int_lines >> line & 1)
+			printf(" %u", line);
+	printf("%s]", st->int_pending ? ", pending" : "");
+}
+
 static int do_gpio_get(unsigned int num)
 {
 	const char *label;
@@ -196,6 +219,7 @@ static int do_gpio_get(unsigned int num)
 	       pull_names[st.pull], level_name(st.level), name, st.func);
 	if (verbose_mode)
 		printf(" (%umA%s)", st.drive_ma, st.open_drain ? ", open drain" : "");
+	print_irq(&st);
 	printf("\n");
 	return 0;
 }
@@ -203,6 +227,8 @@ static int do_gpio_get(unsigned int num)
 /* Why set must not change this GPIO, or NULL. */
 static const char *set_refusal(unsigned int gpio)
 {
+	struct pin_state st;
+
 	if (pin_is_flash(gpio))
 		return "it is a flash pin";
 	if (!board.have_lines)
@@ -211,6 +237,9 @@ static const char *set_refusal(unsigned int gpio)
 		return "it is in gpio-reserved-ranges of the device tree";
 	if ((board.used >> gpio & 1) && !force_mode)
 		return "a kernel driver uses it (-f changes it anyway)";
+	pin_get(&regs, gpio, &st);
+	if (st.int_lines)
+		return "an interrupt line is enabled on it";
 	return NULL;
 }
 

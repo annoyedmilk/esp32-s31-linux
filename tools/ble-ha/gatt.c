@@ -111,11 +111,12 @@ static size_t attr_type(uint16_t h, uint8_t *uuid)
 /* The value of an attribute, or -ERR_* when it cannot be read. */
 static int attr_value(const struct gatt *g, uint16_t h, uint8_t *v)
 {
-	const struct attr *a = &db[h];
+	const struct attr *a;
 	int i;
 
 	if (h < 1 || h > LAST_HANDLE)
 		return -ERR_INVALID_HANDLE;
+	a = &db[h];
 	switch (a->kind) {
 	case SVC:
 		memcpy(v, a->uuid, a->uuid_len);
@@ -330,7 +331,7 @@ size_t gatt_handle(struct gatt *g, const uint8_t *req, size_t len,
 	switch (req[0]) {
 	case 0x02:	/* Exchange MTU */
 		if (len < 3)
-			break;
+			return error_rsp(rsp, req[0], 0, ERR_INVALID_LEN);
 		g->mtu = get16(req + 1) < g->mtu_max ? get16(req + 1) : g->mtu_max;
 		if (g->mtu < 23)
 			g->mtu = 23;

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0+
 /*
- * Espressif ESP32-S31 minimal device tree.
+ * Espressif ESP32-S31 SoC device tree.
  * Author: Marco Müller <hello@annoyedmilk.ch>
  */
 
@@ -55,6 +55,23 @@
 		fw-heap@50e80000 {
 			reg = <0x50e80000 0x40000>;
 			no-map;
+		};
+
+		/*
+		 * The crash log (pstore), which PSRAM keeps over a software
+		 * reset.  Linux writes it through the uncached alias, so that
+		 * the reset, which writes no cache back, loses nothing.
+		 */
+		pstore@50e78000 {
+			reg = <0x50e78000 0x8000>;
+			no-map;
+		};
+
+		ramoops@c0e78000 {
+			compatible = "ramoops";
+			reg = <0xc0e78000 0x8000>;
+			record-size = <0x4000>;
+			console-size = <0x4000>;
 		};
 	};
 
@@ -190,6 +207,12 @@
 			#interrupt-cells = <2>;
 			#address-cells = <0>;
 			gpio-ranges = <&pinctrl 0 0 62>;
+			/* GPIO_INTR2 for GPIO0-31, GPIO_INTR3 for GPIO32-61 */
+			interrupt-parent = <&clic>;
+			interrupts = <39 63 IRQ_TYPE_LEVEL_HIGH>,
+				     <40 64 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-controller;
+			#interrupt-cells = <2>;
 			/* Flash, USB Serial/JTAG (33/34), 41 (no pin), UART0. */
 			gpio-reserved-ranges = <26 9>, <41 1>, <58 2>;
 		};

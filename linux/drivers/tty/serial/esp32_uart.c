@@ -14,7 +14,6 @@
 #include <linux/bits.h>
 #include <linux/clk.h>
 #include <linux/console.h>
-#include <linux/delay.h>
 #include <linux/io.h>
 #include <linux/iopoll.h>
 #include <linux/irq.h>
@@ -623,7 +622,10 @@ static int esp32_uart_probe(struct platform_device *pdev)
 	port->dev = &pdev->dev;
 	port->type = PORT_GENERIC;
 	port->iotype = UPIO_MEM;
-	port->irq = platform_get_irq(pdev, 0);
+	ret = platform_get_irq(pdev, 0);
+	if (ret < 0)
+		return ret;
+	port->irq = ret;
 	port->ops = &esp32_uart_pops;
 	port->flags = UPF_BOOT_AUTOCONF;
 	port->has_sysrq = 1;

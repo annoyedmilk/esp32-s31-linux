@@ -328,7 +328,7 @@ static if_ops_t s_if_ops = {
 interface_context_t *interface_insert_driver(int (*event_handler)(uint8_t val))
 {
 	memset(&s_context, 0, sizeof(s_context));
-	/* There is no transport type for shared memory.  The frames are USB frames. */
+	/* No transport type for shared memory: the frames are USB frames. */
 	s_context.type = USB;
 	s_context.if_ops = &s_if_ops;
 	s_context.event_handler = event_handler;

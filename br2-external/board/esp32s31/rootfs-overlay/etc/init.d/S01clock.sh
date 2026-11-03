@@ -15,9 +15,13 @@ start)
 		date -u -s "$saved" >/dev/null && echo "clock: restored $saved UTC"
 	fi
 	;;
-stop)
-	# Save only a correct clock.
-	[ "$(date -u +%Y)" -ge 2020 ] && date -u +"$FORMAT" >"$STAMP"
+stop|save)
+	# Save only a correct clock.  A new file and a rename: a reset that
+	# comes before the data is on the disk keeps the old file.
+	[ "$(date -u +%Y)" -ge 2020 ] && date -u +"$FORMAT" >"$STAMP.new" &&
+		mv "$STAMP.new" "$STAMP"
+	# NTP has set the clock: S42wireguard waits for this.
+	[ "$1" = save ] && : >/var/run/clock-set
 	;;
 esac
 

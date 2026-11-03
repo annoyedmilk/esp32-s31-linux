@@ -64,7 +64,8 @@ ROM -> ESP-IDF 2nd stage -> loader (hart 0) -> OpenSBI (hart 1, M) -> Linux (har
 | `0x2F04E000` | 8 KiB | Trap code of Linux (`CONFIG_RISCV_TRAP_SRAM`), see "The instruction cache" |
 | `0x2F050000` | 52 KiB | Shared block: requests, flash mailbox, ESP-Hosted rings |
 | `0x2F079000` | 4 KiB | LCD DMA descriptor ring (Korvo-1) |
-| `0x50000000` | 14.5 MiB | Linux RAM, from the kernel image |
+| `0x50000000` | 14 MiB 480 KiB | Linux RAM, from the kernel image |
+| `0x50E78000` | 32 KiB | Crash log (pstore, reserved, no-map); Linux writes it at `0xC0E78000` |
 | `0x50E80000` | 256 KiB | Heap of the radio firmware on hart 0 (reserved, no-map), see "Internal SRAM" |
 | `0x50EC0000` | 252 KiB | Linux RAM |
 | `0x50EFF000` | 4 KiB | Guard page below OpenSBI (reserved, no-map, see Protection) |
@@ -74,6 +75,69 @@ ROM -> ESP-IDF 2nd stage -> loader (hart 0) -> OpenSBI (hart 1, M) -> Linux (har
 
 The loader (`main.c`, `display.c`) and OpenSBI (`platform.c`) keep their
 own copies of these numbers. The device trees must agree with them.
+
+### Where the PSRAM goes
+
+Measured on the Korvo-1 at v0.10.0, idle, with Wi-Fi connected
+(`/proc/iomem`, `/proc/meminfo` and the boot log; the kernel has no
+debugfs, so there is no `memblock/reserved`):
+
+| Part | KiB | Owner and use |
+| --- | --- | --- |
+| Kernel image after boot | 4219 | code 3401, rodata 542, data 184, bss 87; the 188 KiB of init code are freed |
+| Early kernel allocations | 229 | `struct page` for each page, the device tree, per-CPU data, the first page; the rest of 16 MiB |
+| Heap of the firmware on hart 0 | 256 | no-map; the loader reports 254 KiB of it free at idle |
+| Guard page below OpenSBI | 4 | no-map, the APM trap (see Protection) |
+| OpenSBI | 192 | no-map: 128 KiB code (120.6 KiB used), 64 KiB data (52 KiB used, of it a heap of 36 KiB with 10 KiB used) |
+| Frame buffer (Korvo-1 only) | 768 | no-map, uncached; 800 × 480 × 2 = 750 KiB used |
+| MemTotal | 10716 | Linux |
+
+Since v0.11.0, the crash log takes 32 KiB more (below).
+
+The other boards have the frame buffer area as RAM, and their kernel
+image has a different size: the README gives their MemTotal. No board has
+CMA. The coherent DMA pool, the trap code and the ESP-Hosted rings are in
+the internal SRAM, not in the PSRAM.
+
+Of the MemTotal, after `echo 3 > /proc/sys/vm/drop_caches` at idle: 2364
+KiB free, 2316 KiB page cache, 2020 KiB slab, 1124 KiB process memory, 408
+KiB kernel stacks, 332 KiB page tables. zram took 2813 KiB of RAM for 3187
+KiB of swapped pages that compress to 1116 KiB: zsmalloc keeps a
+partly-filled page set for each of its size classes, and with few objects
+most of these sets are almost empty. Compaction did not change it. With
+zspages of at most 4 pages (`CONFIG_ZSMALLOC_CHAIN_SIZE`, 8 by default),
+zram used 1552 KiB for 2830 KiB, and MemAvailable at idle was 3288 KiB,
+not 2344 KiB; under a load of 2 MB of file data, 2642 KiB for 5538 KiB,
+not 3838 KiB for 5890 KiB (one run each). zram
+stays with lz4: the zstd backend adds 229 KiB to the Image of the Korvo-1,
+which is RAM that Linux never gets back.
+
+The libc is musl, so a switch to musl gives nothing.
+
+### The crash log
+
+The PSRAM keeps its data over a software reset: a pattern written
+through the uncached alias was still there after `reboot`, and the
+pstore records were there after a panic reboot and after a reboot of the
+soft watchdog. The reset button and the
+RTS line of the console bridge (a power-on reset, `rst:0x1`) clear it:
+the words came back with bits lost. Nothing in the boot chain tests or
+clears the PSRAM (`CONFIG_SPIRAM_MEMTEST` is off). The reset of OpenSBI
+(`LP_SYS_SW_RST`) does not write the D-cache back, so a record in a dirty
+line would be lost. Thus ramoops writes through the uncached alias: the
+device tree reserves `0x50E78000` (32 KiB, no-map) and gives ramoops
+`0xC0E78000`, with a console record of 16 KiB and one panic record of
+16 KiB: with 8 KiB, the header and the 8 KiB log did not fit, and the
+last line was cut. Each software reboot keeps the console record, so
+`S11pstore` copies the records to `crash/` on p1 of the disk, or
+`/root/crash/` on the module alone, only when there is a panic record or
+the console record ends with the reboot of the soft watchdog; then it
+removes them. After the boot, the consoles take only warnings
+(`S99banner.sh`), so after a hang of user space the console record has
+the warnings and `softdog: Initiating system reboot`, not the full log.
+`softdog.soft_panic=1` would make a hang a panic, with a full panic
+record and the red LED, but 10 s later; the boards keep 0. The LED shows
+red at a panic only since the WS2812 driver sets it without sleeping.
 
 ### Internal SRAM
 
@@ -156,6 +220,31 @@ The traps that cost the most time:
 Driver: `drivers/irqchip/irq-esp32s31-clic.c`. Interrupt specifiers have
 three cells: `<CLIC ID, matrix source, type>`. The driver writes the
 Interrupt Matrix route itself.
+
+### GPIO interrupts
+
+The GPIO block has four interrupt lines (matrix sources 61 to 64,
+`GPIO_INTR0` to `GPIO_INTR3`). Each line covers all 62 pins. `GPIO_PINn`
+has the type of the pin (bits 9:7: rising, falling, both, low, high) and
+an enable bit for each line (bits 13 to 16). Each line has a status
+register for GPIO0-31 (`GPIO_INT_n`, `0xa4` + 4n) and one for GPIO32-61
+(`0xb4` + 4n): the `STATUS` bits of the pins that enable that line. A
+write to `STATUS_W1TC` clears a pin.
+
+Linux uses line 2 for GPIO0-31 (CLIC 39) and line 3 for GPIO32-61 (CLIC
+40), so a bank without users gives no interrupts, and lines 0 and 1 stay
+for hart 0. ESP-IDF uses only line 0 today. The enable bits come from a
+test on the Korvo-1: bit 13 + n sets `GPIO_INT_n`, bit 17 sets nothing.
+`gpio_struct.h` of ESP-IDF agrees; `GPIO_LL_INTR2_ENA` (`BIT(3)`) and
+`GPIO_LL_INTR3_ENA` (`BIT(4)`) in `gpio_ll.h` are wrong for this chip.
+
+The driver (`pinctrl-esp32s31.c`) puts an irqchip on the gpio_chip, with
+one chained handler for each bank. Edges use `handle_edge_irq`, levels
+`handle_level_irq`: a held level fires again only after the handler
+returns, at the rate of the consumer. The chip has glitch filters (8
+channels in `GPIO_EXT`), but their window is at most 64 clocks of the IO
+MUX (1.6 µs at 40 MHz), too short for a contact, so debounce is the
+software debounce of gpiolib.
 
 ### Timer and IPI
 
@@ -435,6 +524,59 @@ the USB transport in shared SRAM. The layout is in
   1.0.6.0.23 (`5dfbbc8`) fixes a part: the SoftAP encrypts its robust
   management frames, and the firmware gets the MFP flag of each station.
 
+### Monitor mode
+
+The ESP-Hosted host driver registers the monitor type when the firmware
+reports `ESP_WLAN_MONITOR_SUPPORT` (`esp_cfg80211.c`), and the firmware
+does so on this chip. `iw phy phy0 interface add mon0 type monitor` makes
+a second netdev with radiotap headers; `iw dev wlan0 set type monitor`
+fails. The firmware turns on the promiscuous mode of ESP-IDF with a
+fixed filter (management, control and data frames) and sends each frame
+with its metadata as an ESP-Hosted packet of the monitor type; the host
+builds the radiotap header (flags with FCS, channel, signal) and gives
+each frame to `netif_rx()`. There is no frame injection.
+
+- Measured on the Korvo-1 with the station connected: `tcpdump -i mon0`
+  showed beacons, data, ACK, RTS and CTS frames of the channel of the
+  station; 188 frames reached the filter in 15 s, and the kernel dropped
+  36. The station stayed connected.
+- While the station or the access point uses the radio, the monitor
+  channel is the channel of that link, and the firmware refuses scans
+  on other channels while `mon0` is up.
+- The S31 metadata (`esp_wifi_rxctrl_t`, the HE layout) has no MCS or
+  bandwidth field, so the radiotap header has no rate.
+- A frame goes through the 32 KiB ring to Linux like a data frame (about
+  20 frames of 1.6 KiB fit), and on hart 0 through the same queue of 100
+  slots as the station data, from the internal heap. The frame rate of a
+  busy channel, the drops of the firmware and the ring fill are not
+  measured.
+- The coexistence table of ESP-IDF marks the sniffer with Bluetooth LE as
+  unstable and with a Thread router as not supported.
+
+## USB device mode
+
+The S31 has two USB controllers, each with its own PHY. The USB
+Serial/JTAG controller has a full-speed PHY on GPIO33/34. The DWC2 OTG
+controller has a high-speed UTMI PHY on dedicated pads and no full-speed
+PHY (`soc_caps.h`: no FSLS PHY, one UTMI PHY; `usb_dwc_periph.c`). No PHY
+is shared. The DWC2 supports host and device mode (`GHWCFG2.OTGMODE` = 2,
+dedicated TX FIFOs, 7 IN endpoints), and ESP-IDF lists its TinyUSB device
+examples, NCM included, for the S31. The firmware on hart 0 uses no USB
+block, only the USB Serial/JTAG as its second console.
+
+The Linux host driver uses the DWC2 on the UTMI PHY. The PHY driver sets
+the host pull-downs and has no VBUS override. On the
+Function-CoreBoard-1 and the Korvo-1, the only DWC2 connector is a Type-A
+host port with a TPS2051C switch that drives VBUS: the root stick of the
+Function-CoreBoard-1 and the USB devices of the Korvo-1 use it. A gadget
+on it would lose the root disk or the USB devices, and the port cannot
+take VBUS from a host. The module alone has the DWC2 pads, but no
+connector is known. The boot log copy and JTAG are on the other
+controller, so a gadget would not cost them. Thus no board gets a gadget.
+For device mode, the FIFO RAM of 896 words would need the RX, EP0 and
+IN FIFO sizes of the gadget (patch 0004 sets only the host sizes), and
+buffer DMA through the sync engine, as the host uses.
+
 ## The flash root without a card
 
 The ESP32-S31-WROOM-3-N16R16V alone has no card. Linux has no driver for the
@@ -500,10 +642,10 @@ in `br2-external/configs/` differs from its fragments.
 
 | | Module alone | Function-CoreBoard-1 | Korvo-1 |
 | --- | --- | --- | --- |
-| Base | Kernel, toolchain, BusyBox, Dropbear, OpenSSL, `wpa_supplicant` (WPA3, PEAP/TTLS/TLS, AP mode), curl, iperf3, libgpiod, `pinctrl`, `ble-ha`, BlueZ (`bluetoothd`, `bluetoothctl`), Lua, `nft` with a firewall, an SFTP server, `mdnsd` | The same | The same |
+| Base | Kernel, toolchain, BusyBox, Dropbear, OpenSSL, `wpa_supplicant` (WPA3, PEAP/TTLS/TLS, AP mode), curl, iperf3, libgpiod, `pinctrl`, `ble-ha`, BlueZ (`bluetoothd`, `bluetoothctl`), Lua, `nft` with a firewall, an SFTP server, `mdnsd`, `wg` (WireGuard), udhcpd, pstore for crash logs | The same | The same |
 | Root | squashfs root in the flash, UBIFS overlay, the MTD tools | ext4 root on the USB stick | ext4 root on the card |
-| Board parts | | Ethernet, USB, the LED | LCD, touch, the card, USB with Ethernet adapters, the LED |
-| Tools | The base only | `hostapd`, the classic BlueZ tools, OpenThread (`ot-daemon`, `ot-ctl`), `thread-relay`, bash, vim, gdb, strace, tcpdump, links, MicroPython, htop, filesystem tools, tmux, nano, nnn, ncdu, tree, bc, sqlite3, ethtool | `hostapd`, the classic BlueZ tools, OpenThread (`ot-daemon`, `ot-ctl`), `thread-relay`, bash, vim, gdb, strace, tcpdump, links, MicroPython, htop, filesystem tools, tmux, nano, nnn, ncdu, tree, bc, sqlite3, `evtest`, `gpm`, a tmux desktop on the LCD, irssi |
+| Board parts | | Ethernet, USB, the LED, I2C on ESP_I2C | LCD, touch, I2C, the card, USB with Ethernet adapters, the LED |
+| Tools | The base only | `hostapd`, the MQTT clients, the classic BlueZ tools, OpenThread (`ot-daemon`, `ot-ctl`), `thread-relay`, bash, vim, gdb, strace, tcpdump, links, MicroPython, htop, filesystem tools, tmux, nano, nnn, ncdu, tree, bc, sqlite3, ethtool | `hostapd`, the MQTT clients, the classic BlueZ tools, OpenThread (`ot-daemon`, `ot-ctl`), `thread-relay`, bash, vim, gdb, strace, tcpdump, links, MicroPython, htop, filesystem tools, tmux, nano, nnn, ncdu, tree, bc, sqlite3, `evtest`, `gpm`, a tmux desktop on the LCD, irssi |
 | Swap | zram only | zram, then p3 of the stick | zram, then p3 of the card |
 
 The Korvo-1 and the Function-CoreBoard-1 have a disk with much space, and
@@ -550,12 +692,15 @@ and Bluetooth stack the same on all boards.
 | Bluetooth for Home Assistant | `tools/ble-ha/` (the proxy, Improv, an ATT server on the HCI user channel); `make -C tools/ble-ha test` runs its tests on the host |
 | The flash root | `bootloader/components/esp_hosted/shm_flash.c`, `linux/drivers/net/wireless/espressif/esp_hosted/esp_shm_flash.c` |
 | The boards | `bootloader/main/board_*.c`, `br2-external/board/esp32s31/defconfig/*.fragment` (`make defconfigs` makes `br2-external/configs/*_defconfig`) |
-| Pins and GPIO | `linux/drivers/pinctrl/pinctrl-esp32s31.c` (also `/dev/esp32s31-gpiomem`) |
+| Pins and GPIO | `linux/drivers/pinctrl/pinctrl-esp32s31.c` (also `/dev/esp32s31-gpiomem` and the GPIO interrupts) |
 | The pinctrl tool | `tools/pinctrl/esp32s31.c` (the registers of a pin), `tools/pinctrl/pinctrl.c` (the command line); `make -C tools/pinctrl test` runs its tests on the host |
 | Clocks and resets | `linux/drivers/clk/clk-esp32s31.c` |
 | The console | `linux/drivers/tty/serial/esp32_uart.c` |
 | Kernel memory | `br2-external/board/esp32s31/linux.config`, `linux/patches/0021`, `0022` |
 | The firewall | `br2-external/board/esp32s31/rootfs-overlay/etc/nftables.conf` |
+| The time | `br2-external/board/esp32s31/rootfs-overlay/usr/share/udhcpc/default.script.d/ntp`, `etc/init.d/S01clock.sh` |
+| WireGuard | `br2-external/board/esp32s31/rootfs-overlay/etc/init.d/S42wireguard`, `/etc/default/wireguard` |
+| Crash logs | the `ramoops` node of `esp32s31.dtsi`, `rootfs-overlay/etc/init.d/S11pstore`; see "The crash log" |
 | Thread | `br2-external/board/esp32s31/rootfs-overlay-diskroot/usr/sbin/thread-start`, `bootloader/main/radio_coex.c`, `tools/thread-relay/` (the RCP for Home Assistant; `make -C tools/thread-relay test` runs its tests on the host) |
 | Device tree | `linux/arch/riscv/boot/dts/espressif/esp32s31.dtsi` |
 

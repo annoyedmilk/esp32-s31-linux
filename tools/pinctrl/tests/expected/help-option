@@ -38,8 +38,15 @@ pinctrl dump writes the registers and the board to a snapshot, and
 --regs FILE reads the snapshot instead of the hardware.
 
 pinctrl set refuses the flash pins, the pins in gpio-reserved-ranges of the
-device tree, and the lines that a kernel driver uses (-f overrides the
-last). It warns before it changes a strapping pin (36, 37, 60, 61).
+device tree, the lines that a kernel driver uses (-f overrides this)
+and the pins with an enabled interrupt line. It never changes the
+interrupt fields. It warns before it changes a strapping pin (36, 37,
+60, 61).
+
+get shows the interrupt of a pin that has one: [irq TYPE, lines N]
+with the type (rising, falling, both, low, high), the enabled lines
+(the kernel uses 2 for GPIO0-31 and 3 for GPIO32-61), and pending
+when the status bit is set.
 
 Valid [options] for pinctrl set are:
   ip      set GPIO as input

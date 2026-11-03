@@ -75,6 +75,11 @@ static const char *const iomux_funcs[NPINS][NFUNCS] = {
 
 static const unsigned int drive_ma[] = { 5, 10, 20, 40 };
 
+/* GPIO_PINn INT_TYPE; 6 and 7 are not defined. */
+static const char *const int_types[] = {
+	"none", "rising", "falling", "both", "low", "high", "type6", "type7",
+};
+
 /*
  * The CNNT pads: their IO MUX function also needs a select bit.  The
  * datasheet has no F4 name for the SD host, so the block names it.
@@ -163,6 +168,11 @@ static void gpio_w1(struct regs *r, unsigned int pin, unsigned int reg0,
 	r->w1(r, bank(pin, reg0, reg1), 1u << (pin % 32), set);
 }
 
+const char *int_type_name(unsigned int type)
+{
+	return int_types[type & 7];
+}
+
 int pin_level(struct regs *r, unsigned int pin)
 {
 	if (!(r->iomux[pin] & IOMUX_IE))
@@ -233,6 +243,9 @@ void pin_get(struct regs *r, unsigned int pin, struct pin_state *st)
 	st->level = pin_level(r, pin);
 	st->drive_ma = drive_ma[(mux & IOMUX_DRV_MASK) >> IOMUX_DRV_SHIFT];
 	st->open_drain = !!(gpio_rd(r, GPIO_PIN(pin)) & PIN_PAD_DRIVER);
+	st->int_type = (gpio_rd(r, GPIO_PIN(pin)) & PIN_INT_TYPE_MASK) >> PIN_INT_TYPE_SHIFT;
+	st->int_lines = (gpio_rd(r, GPIO_PIN(pin)) & PIN_INT_ENA_MASK) >> PIN_INT_ENA_SHIFT;
+	st->int_pending = gpio_bit(r, pin, GPIO_STATUS, GPIO_STATUS1);
 
 	if (func != FUNC_GPIO) {
 		const char *name = iomux_func_name(pin, func);

@@ -17,7 +17,8 @@ SECTOR = 4096
 image, manifest = sys.argv[1], sys.argv[2]
 with open(image, "rb") as f:
     data = f.read()
+crc = zlib.crc32(data)
 with open(manifest, "wb") as f:
-    manifest_data = struct.pack("<III", 0x455A4953, len(data), zlib.crc32(data))
+    manifest_data = struct.pack("<III", 0x455A4953, len(data), crc)
     f.write(b"\xff" * (SECTOR - len(manifest_data)) + manifest_data)
-print(f"{manifest}: {len(data)} bytes, crc32 {zlib.crc32(data):#010x}")
+print(f"{manifest}: {len(data)} bytes, crc32 {crc:#010x}")

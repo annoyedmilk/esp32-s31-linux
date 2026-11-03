@@ -39,6 +39,8 @@
 #define I2C_SCL_RSTART_SETUP		0x44
 #define I2C_SCL_STOP_HOLD		0x48
 #define I2C_SCL_STOP_SETUP		0x4c
+#define I2C_SCL_ST_TIME_OUT		0x78
+#define I2C_SCL_MAIN_ST_TIME_OUT	0x7c
 #define I2C_FILTER_CFG			0x50
 #define I2C_COMD(n)			(0x58 + (n) * 4)
 #define I2C_SCL_SP_CONF			0x80
@@ -286,7 +288,8 @@ static void esp32s31_i2c_reset_fifos(struct esp32s31_i2c *i2c)
 /* In source clock cycles: half is half an SCL period, WAIT_HIGH the rise. */
 static void esp32s31_i2c_set_timing(struct esp32s31_i2c *i2c)
 {
-	u32 half = DIV_ROUND_UP(clk_get_rate(i2c->clk), 2 * i2c->bus_freq);
+	unsigned long rate = clk_get_rate(i2c->clk);
+	u32 half = DIV_ROUND_UP(rate, 2 * i2c->bus_freq);
 	u32 wait = i2c->bus_freq >= 80000 ? half / 2 - 2 : half / 4;
 	void __iomem *base = i2c->base;
 
@@ -299,9 +302,15 @@ static void esp32s31_i2c_set_timing(struct esp32s31_i2c *i2c)
 	writel(half - 1, base + I2C_SCL_RSTART_SETUP);
 	writel(half - 1, base + I2C_SCL_STOP_HOLD);
 	writel(half - 1, base + I2C_SCL_STOP_SETUP);
-	/* 2^n source clock cycles: approximately 10 SCL periods */
-	writel(FIELD_PREP(I2C_TO_VALUE, order_base_2(20 * half)) | I2C_TO_EN,
-	       base + I2C_TO);
+	/*
+	 * 2^n source clock cycles of SCL at one level: 2.5 ms, as in ESP-IDF.
+	 * SCL stays low at an END until the IRQ refills the FIFO.
+	 */
+	writel(FIELD_PREP(I2C_TO_VALUE, min(order_base_2(rate / 400), 31)) |
+	       I2C_TO_EN, base + I2C_TO);
+	/* The SCL state machines too: 2^23 cycles, the most, not 2^16. */
+	writel(23, base + I2C_SCL_ST_TIME_OUT);
+	writel(23, base + I2C_SCL_MAIN_ST_TIME_OUT);
 }
 
 /* 9 SCL pulses after an error free the bus; idle, the GT1151 would NACK. */

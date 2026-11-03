@@ -49,6 +49,9 @@ done
 
 # Buildroot copies the overlays with go=rX; local-overlay/ can add a key here.
 chmod 600 "$1/etc/wpa_supplicant.conf"
+if [ -e "$1/etc/default/mqtt" ]; then
+	chmod 600 "$1/etc/default/mqtt"
+fi
 
 # The boot scripts stay on ash; root logs in with bash where it exists.
 if [ -x "$1/bin/bash" ]; then

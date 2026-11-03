@@ -11,7 +11,7 @@ set -eu
 
 cd "$(dirname "$0")/.."
 # The images of a local build contain the files of local-overlay/.
-if [ -n "$(ls -A local-overlay | grep -vx .empty)" ]; then
+if [ -n "$(ls -A local-overlay | grep -vxF .empty)" ]; then
 	echo "local-overlay/ has files, which can be keys: do not release this build" >&2
 	exit 1
 fi

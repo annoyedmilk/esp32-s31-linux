@@ -130,14 +130,13 @@ diff --git a/arch/riscv/kernel/head.S b/arch/riscv/kernel/head.S
 diff --git a/drivers/irqchip/Kconfig b/drivers/irqchip/Kconfig
 --- a/drivers/irqchip/Kconfig
 +++ b/drivers/irqchip/Kconfig
-@@ -696,6 +696,17 @@
+@@ -696,6 +696,16 @@
  	bool
  	select ACLINT_SSWI
  
 +config ESP32S31_CLIC
 +	bool "ESP32-S31 CLIC (Core-Local Interrupt Controller)"
 +	depends on RISCV && 32BIT
-+	select IRQ_DOMAIN
 +	select IRQ_DOMAIN_HIERARCHY
 +	help
 +	  Support for the RISC-V Core-Local Interrupt Controller on the

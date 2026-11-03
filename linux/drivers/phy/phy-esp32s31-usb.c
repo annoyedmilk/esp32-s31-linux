@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
+ * Author: Marco Müller <hello@annoyedmilk.ch>
+ *
  * ESP32-S31 integrated USB 2.0 UTMI PHY
  *
  * The register sequence is the same as ESP-IDF usb_utmi_hal_init() and
@@ -190,5 +192,6 @@ static struct platform_driver esp32s31_usb_phy_driver = {
 };
 module_platform_driver(esp32s31_usb_phy_driver);
 
+MODULE_AUTHOR("Marco Müller <hello@annoyedmilk.ch>");
 MODULE_DESCRIPTION("Espressif ESP32-S31 USB 2.0 UTMI PHY driver");
 MODULE_LICENSE("GPL");

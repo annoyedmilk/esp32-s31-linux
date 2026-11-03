@@ -46,3 +46,6 @@ err-pins-name --regs korvo1.regs -p get SPICS
 err-regs --regs missing.regs get
 help --regs korvo1.regs help
 help-option -h
+korvo1-irq-get --regs korvo1-irq.regs get 3,46-48
+korvo1-irq-set --regs korvo1-irq.regs set 47 op
+korvo1-irq-set-type --regs korvo1-irq.regs -e set 3 pu

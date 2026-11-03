@@ -3,8 +3,8 @@
 
 #include <stdbool.h>
 
-/* The flash mailbox for Linux.  The transport calls these. */
-/* Map the window and start the mailbox task, which calls done() per request. */
+/* The flash mailbox for Linux: map the window and start the mailbox task,
+ * which calls done() per request.  The transport calls these. */
 void shm_flash_init(void (*done)(void));
 /* Wake the mailbox task after a doorbell from Linux. */
 void shm_flash_kick(void);

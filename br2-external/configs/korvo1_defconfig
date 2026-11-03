@@ -28,7 +28,7 @@ BR2_CCACHE=y
 # change the version, change this value and update the series.
 BR2_LINUX_KERNEL=y
 BR2_LINUX_KERNEL_CUSTOM_VERSION=y
-BR2_LINUX_KERNEL_CUSTOM_VERSION_VALUE="7.3"
+BR2_LINUX_KERNEL_CUSTOM_VERSION_VALUE="7.3.1"
 BR2_LINUX_KERNEL_PATCH="$(BR2_EXTERNAL_ESP32S31_PATH)/../linux/patches"
 BR2_LINUX_KERNEL_USE_CUSTOM_CONFIG=y
 BR2_LINUX_KERNEL_CUSTOM_CONFIG_FILE="$(BR2_EXTERNAL_ESP32S31_PATH)/board/esp32s31/linux.config"
@@ -80,7 +80,7 @@ BR2_PACKAGE_LIBCURL_CURL=y
 # HTTP, HTTPS and FTP only: no DICT, Gopher, IMAP, POP3, RTSP, SMB, SMTP,
 # Telnet or TFTP.
 # BR2_PACKAGE_LIBCURL_EXTRA_PROTOCOLS_FEATURES is not set
-# This release installs a small set of necessary terminfo files.
+# Only the terminfo entries that ncurses installs by default.
 BR2_PACKAGE_NCURSES_ADDITIONAL_TERMINFO=""
 BR2_PACKAGE_OPENSSL=y
 # OpenSSL for WPA2/WPA3 Personal and Enterprise (eduroam) and HTTPS.
@@ -134,6 +134,8 @@ BR2_PACKAGE_NFTABLES=y
 # 5353 with the mDNS responder of ot-daemon.
 BR2_PACKAGE_MDNSD=y
 BR2_PACKAGE_MDNSD_SSH_SERVICE=y
+# wg for WireGuard; S42wireguard needs no wg-quick, which is a bash script.
+BR2_PACKAGE_WIREGUARD_TOOLS=y
 # The root on a disk, for the boards with one: the microSD card of korvo1
 # and the USB stick of coreboard1.  The disk has room, so these builds have
 # the full set of workstation and debugging tools.
@@ -187,6 +189,11 @@ BR2_PACKAGE_HOSTAPD=y
 BR2_PACKAGE_OPENTHREAD=y
 # The RCP for the OpenThread Border Router app of Home Assistant.
 BR2_PACKAGE_THREAD_RELAY=y
+# MQTT clients for Home Assistant: libmosquitto, mosquitto_pub and
+# mosquitto_sub with TLS.  No broker: it runs on the LAN.  On the module,
+# the squashfs would be 100 KiB larger than its partition.
+BR2_PACKAGE_MOSQUITTO=y
+# BR2_PACKAGE_MOSQUITTO_BROKER is not set
 # The BlueZ tools and the deprecated ones (hciconfig, hcitool, hcidump).
 BR2_PACKAGE_BLUEZ5_UTILS_TOOLS=y
 BR2_PACKAGE_BLUEZ5_UTILS_DEPRECATED=y

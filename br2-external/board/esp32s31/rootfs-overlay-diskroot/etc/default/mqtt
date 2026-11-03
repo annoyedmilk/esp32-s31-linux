@@ -1,0 +1,11 @@
+# The MQTT examples in /usr/share/examples read this file.  It can hold a
+# password, so its mode is 600.  The board is a client; the broker runs on
+# the LAN.  MQTT_CAFILE: the CA certificate of the broker for TLS (port
+# 8883, the clock must be right); empty: no TLS (port 1883).  MQTT_ID must
+# differ for each board.
+MQTT_HOST="broker.lan"
+MQTT_PORT=1883
+MQTT_USER=""
+MQTT_PASS=""
+MQTT_ID="esp32s31"
+MQTT_CAFILE=""

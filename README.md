@@ -2,7 +2,7 @@
 
 English | [简体中文](README.zh-CN.md)
 
-Linux 7.3 and OpenSBI 1.9 on the Espressif ESP32-S31, a microcontroller
+Linux 7.3.1 and OpenSBI 1.9 on the Espressif ESP32-S31, a microcontroller
 with two RV32 harts at 320 MHz and 512 KiB of SRAM. Linux runs on hart 1
 in the 16 MiB octal PSRAM. Hart 0 runs the ESP-Hosted radio firmware for
 Wi-Fi, Bluetooth and Thread. A stock kernel with a small patch set boots a
@@ -102,14 +102,15 @@ on your computer. For your own builds, put the key into
 | Root | squashfs in the flash, with a writable UBIFS overlay | ext4 on the USB stick | ext4 on the microSD card |
 | Persistence | All files: the overlay is in the flash | All files on the stick | All files on the card |
 | Swap | zram (6 MiB) | zram, then 64 MiB on p3 of the stick | zram, then 64 MiB on p3 of the card |
-| RAM for Linux (MemTotal) | 11.7 MiB | 11.2 MiB | 10.5 MiB |
+| RAM for Linux (MemTotal) | about 11.6 MiB | about 11.1 MiB | 10.4 MiB |
 | UART console (`ttyS0`), 9767 baud to 5 Mbaud with `stty` | yes | yes | yes |
 | Copy of the boot log and JTAG on the native USB port | yes | yes | no: the LCD uses the pins |
 | LCD console, USB keyboard, tmux desktop, touch (GT1151) | no | no | yes |
 | Wi-Fi station (`wlan0`): WPA2 and WPA3 Personal | yes | yes | yes |
 | Wi-Fi Enterprise (PEAP, TTLS, TLS) | available, not tested | available, not tested | available, not tested |
-| Wi-Fi access point: WPA2 Personal (WPA3 does not work yet) | `wpa_supplicant` | `wpa_supplicant`, `hostapd` | `wpa_supplicant`, `hostapd` |
+| Wi-Fi access point: WPA2 Personal (WPA3 does not work yet), DHCP for the clients | `wpa_supplicant`, `udhcpd` | `wpa_supplicant`, `hostapd`, `udhcpd` | `wpa_supplicant`, `hostapd`, `udhcpd` |
 | Firewall and NAT (`nft`, rules load at boot) | yes | yes | yes |
+| WireGuard VPN (`wg`, client or server) | yes | yes, also `wg-quick` | yes (a module), also `wg-quick` |
 | Bluetooth (`hci0`): BlueZ, `bluetoothctl` | yes | yes | yes |
 | Bluetooth proxy for Home Assistant (ESPHome API), Wi-Fi setup over Bluetooth LE (Improv) | yes | yes | yes |
 | Classic BlueZ tools (`hciconfig`, `hcitool`) | no | yes | yes |
@@ -118,10 +119,13 @@ on your computer. For your own builds, put the key into
 | USB host (DWC2) | no | the root stick; a second stick by hand | keyboards, mice, storage (FAT, exFAT) mounted at plug-in on `/mnt/usb`, Ethernet adapters |
 | Name on the LAN (`esp32s31.local`, mDNS) | yes | yes | yes |
 | Reboot after a kernel panic or a hang (soft watchdog) | yes | yes | yes |
+| Crash log of the last boot after a panic or a hang (pstore) | yes | yes | yes |
 | microSD | no | no | the root card |
-| RGB LED (`/sys/class/leds/rgb:status`) | no | GPIO60 | GPIO37 |
+| RGB LED (`/sys/class/leds/rgb:status`), triggers in `/etc/default/led` | no | GPIO60 | GPIO37 |
 | GPIO, hardware RNG, HTTPS with `curl`, SSH (Dropbear, key only) | yes | yes | yes |
 | Pin functions, pulls and levels with `pinctrl` (as on the Raspberry Pi), net names on the GPIO lines | yes | yes | yes |
+| GPIO interrupts: edge events for `gpiomon` and libgpiod, debounce | yes | yes | yes |
+| I2C for user space (`/dev/i2c-N`, `i2cdetect`, `i2cget`, `i2cset`) | no; a disabled example bus in `esp32s31.dts` | `i2c-0` on ESP_I2C (GPIO50/51); a disabled example on J2 pins 13 and 14 | `i2c-0`: the touch controller and the codec |
 
 Notes:
 
@@ -147,20 +151,29 @@ Notes:
 
 | Build | Packages |
 | --- | --- |
-| All boards | BusyBox, Dropbear, OpenSSL with the CA bundle, `wpa_supplicant` (WPA3, EAP, access point) with `wpa_cli` and `wpa_passphrase`, `iw`, `curl`, `iperf3`, the libgpiod 2 tools, BlueZ (`bluetoothd`, `bluetoothctl`), Lua, `nft` with a firewall, an SFTP server, `pinctrl`, `ble-ha` |
+| All boards | BusyBox, Dropbear, OpenSSL with the CA bundle, `wpa_supplicant` (WPA3, EAP, access point) with `wpa_cli` and `wpa_passphrase`, `iw`, `curl`, `iperf3`, the libgpiod 2 tools, BlueZ (`bluetoothd`, `bluetoothctl`), Lua, `nft` with a firewall, an SFTP server, `pinctrl`, `ble-ha`, `wg` |
 | `esp32s31` also | The MTD tools (`mtdinfo`, `flash_erase`) |
-| `coreboard1` and `korvo1` also | `hostapd`, the classic BlueZ tools (`hciconfig`, `hcitool`), OpenThread (`ot-daemon`, `ot-ctl`), `thread-relay`, bash, coreutils, vim, nano, less, file, htop, fastfetch, strace, gdb and `gdbserver`, tcpdump, links, MicroPython, tmux, nnn, ncdu, tree, bc, sqlite3, e2fsprogs, dosfstools |
+| `coreboard1` and `korvo1` also | `mosquitto_pub`, `mosquitto_sub`, `hostapd`, the classic BlueZ tools (`hciconfig`, `hcitool`), OpenThread (`ot-daemon`, `ot-ctl`), `thread-relay`, bash, coreutils, vim, nano, less, file, htop, fastfetch, strace, gdb and `gdbserver`, tcpdump, links, MicroPython, tmux, nnn, ncdu, tree, bc, sqlite3, e2fsprogs, dosfstools |
 | `coreboard1` also | `ethtool` |
 | `korvo1` also | `gpm`, `irssi`, `evtest` |
 | `esp-mosaico` application build also | Manually started [`camera-preview`](applications/camera-preview/README.md) and [`mosaico-test`](applications/mosaico-test/README.md), an LVGL peripheral test interface; neither starts at boot |
 
-`/etc/motd` lists the first commands. `/usr/share/examples` has example
+`/etc/motd` lists the first commands; on the Korvo-1, the first window of
+the tmux desktop shows it. `/usr/share/examples` has example
 scripts.
 
 - **Wi-Fi.** `iw dev wlan0 link` shows the connection, and
   `/usr/share/examples/wifi-scan.sh` lists the networks in range with
-  their signal and channel. `/usr/share/examples/ap.sh SSID PASSPHRASE`
-  starts a WPA2 access point at 192.168.4.1 without DHCP.
+  their signal and channel. On the disk boards,
+  `/usr/share/examples/wifi-monitor.sh [COUNT]` shows the 802.11 frames
+  of the channel with tcpdump (monitor mode); the station stays
+  connected. `/usr/share/examples/ap.sh SSID PASSPHRASE`
+  starts a WPA2 access point at 192.168.4.1. `udhcpd` gives the clients
+  192.168.4.100 to 192.168.4.200 and no default route, so they reach
+  only the board; `dumpleases -f /var/run/udhcpd.wlan0.leases` lists
+  them. With `--nat eth0` (or another interface that is not `wlan0`), the
+  board routes the clients to that interface with NAT and gives them its
+  own DNS servers. udhcpd runs only while `wlan0` is an access point.
   `/etc/init.d/S40wifi restart` goes back to the station.
 - **Bluetooth.** `bluetoothctl`, then `scan le`, `scan bredr`, `devices`.
   `bluetoothd` starts at the first `bluetoothctl`.
@@ -241,6 +254,18 @@ scripts.
   Korvo-1. A reload of the firewall empties the list of hosts: then run
   `thread-start stop` and `thread-start`. Tested with Home Assistant 2026.10
   and `otbr-agent` in a container, not with the app of Home Assistant OS.
+- **MQTT** (Function-CoreBoard-1, Korvo-1). `mosquitto_pub` and
+  `mosquitto_sub`, with TLS, send and receive MQTT messages; the broker
+  runs on the LAN. `/etc/default/mqtt` (mode 600) has the broker, the
+  user, the password, the client ID and the CA file for TLS (port 8883;
+  TLS needs the right time). `/usr/share/examples/mqtt-report.sh` sends
+  the uptime, the free memory and the Wi-Fi signal, with retained
+  discovery messages, so that Home Assistant shows them as sensors
+  without YAML; its comment has the `crontab` line.
+  `/usr/share/examples/mqtt-led.sh` sets the LED from `R G B` messages on
+  `esp32s31/MQTT_ID/led` and refuses other messages. Tested against
+  Mosquitto 2 on a Mac, with and without TLS; not tested with Home
+  Assistant. The module alone has no MQTT: its flash has no room.
 - **GPIO.** `gpiodetect`, `gpioinfo`, `gpioget --numeric -c gpiochip0 PIN`
   and `gpioset -t0 -c gpiochip0 PIN=1`. `/usr/share/examples/gpio.sh PIN
   [0|1]` reads or sets a pin. The kernel refuses the pins of the flash, the
@@ -252,11 +277,44 @@ scripts.
   `pinctrl set 47 op dh`. `set` is a debug tool: it writes the registers
   past the kernel driver, and it refuses the flash pins, the reserved pins
   and the lines that a driver uses. `pinctrl -h` tells more.
+
+  Each GPIO has an interrupt for edges (rising, falling, both) and levels
+  (high, low), so `gpiomon` and the edge events of libgpiod work.
+  `/usr/share/examples/gpio-watch.sh PIN [rising|falling|both]` prints
+  each edge with the time. `/usr/share/examples/button.sh PIN COMMAND`
+  runs a command at each press of a button between the pin and GND.
+  `gpiomon -p 20ms` ignores the bounces of a contact for 20 ms: the kernel
+  does this in software, because the glitch filters of the chip are too
+  short for a button (at most 64 clocks of the IO MUX). `pinctrl get`
+  shows the interrupt of a pin, for example `[irq falling, lines 3]`, and
+  `set` refuses a pin with an enabled interrupt. With a loopback on one
+  pin, `gpiomon` got all 2000 edges at a half period of 50 µs and 1 ms,
+  and lost a few in some runs at 20 µs and 100 µs. No board has a free
+  user button for `gpio-keys`: the button of the Function-CoreBoard-1 is
+  the BOOT strapping pin (GPIO61), and the Korvo-1 buttons are on an ADC.
+- **I2C.** `/dev/i2c-0` gives the I2C bus to user space: `i2cdetect -l`
+  lists the buses, `i2cdetect -y 0` scans bus 0, `i2cget -y 0 0x48 0x00`
+  reads a register (BusyBox has these tools). On the Korvo-1, the scan
+  shows `UU` at 0x14, the GT1151 that the touch driver owns, and 0x10, the
+  ES8389 codec. A scan writes to each address, and some devices do not
+  like it: scan only a bus that you know. Do not write to the devices of
+  the board. On the Function-CoreBoard-1, bus 0 is ESP_I2C on the board;
+  for a device on header J2, set `status = "okay"` for `&i2c1` in
+  `esp32s31_coreboard1.dts` (SDA on pin 13, SCL on pin 14) and add
+  4.7 kOhm pull-ups to 3V3. The module alone has an example bus on GPIO47
+  and GPIO48 in `esp32s31.dts`; it also needs `CONFIG_I2C` in
+  `linux-esp32s31.fragment`. The boot chain does not apply device tree
+  overlays, so each change needs a new kernel.
 - **LED** (Function-CoreBoard-1, Korvo-1). The WS2812 is
   `/sys/class/leds/rgb:status`: write `R G B` (0 to 255) to
   `multi_intensity`, then `255` to `brightness`.
-  `/usr/share/examples/led.sh R G B` (Function-CoreBoard-1) and
-  `micropython /usr/share/examples/led.py R G B` (Korvo-1) do this.
+  `/usr/share/examples/led.sh R G B` does this, and on the Korvo-1 also
+  `micropython /usr/share/examples/led.py R G B`.
+  The LED can also show a state: in `/etc/default/led`, `LED_TRIGGER`
+  `heartbeat` (blinks with the load), `timer`, `default-on`, `netdev`
+  (on with the link of `LED_NETDEV`, blinks with its traffic) or `panic`
+  (red from a kernel panic to the reboot), and `LED_COLOR`. `S16led` sets
+  them at boot; the default `none` leaves the LED as before.
 - **Network.** `iperf3` measures the throughput against a server.
   On the Korvo-1, a USB Ethernet adapter (CDC ECM or NCM, ASIX AX88179,
   Realtek RTL8152 or RTL8153) becomes `eth0` with DHCP when it is plugged
@@ -264,21 +322,41 @@ scripts.
   `curl` verifies certificates against the CA bundle.
   `/usr/share/examples/report.sh URL` sends the uptime and the free memory
   with HTTPS; its comment shows the `crontab` line for each 5 minutes.
+- **WireGuard.** The board can be a peer of a WireGuard server, or a
+  small server. `/usr/share/examples/wg-setup.sh [PORT]` makes a key pair
+  on the board, writes `/etc/wireguard/wg0.conf` (mode 600) with a peer
+  template, and prints the public key of the board for the other side.
+  Put the public key, the `Endpoint` and the `AllowedIPs` of the peer into
+  `wg0.conf` (the format of `wg setconf`: no `Address`, `DNS` or `MTU`),
+  and set `WG=yes`, `WG_ADDRESS`, `WG_ROUTES` and `WG_MTU` in
+  `/etc/default/wireguard`. `/etc/init.d/S42wireguard restart` makes
+  `wg0`, also at each boot. At boot, it waits for a default route and
+  for the NTP time: a peer drops a handshake with a time older than the
+  last one from the board, and `wg setconf` resolves the `Endpoint` name
+  once. With a `ListenPort` in `wg0.conf`, the firewall takes that UDP
+  port while `wg0` is up. `wg0` gets the same firewall rules as the other
+  interfaces (SSH, ping). `wg show` shows the handshake. Measured on the
+  Korvo-1 on Wi-Fi with a Mac as the peer: 8.8 Mbit/s TX and 15.6 Mbit/s
+  RX through the tunnel, against 42.8 and 36.3 Mbit/s without it; the
+  CPU is busy all the time. After a reboot, the tunnel worked again 32 s
+  after the start.
 - **Code.** `lua`, and `micropython` on the Function-CoreBoard-1 and the
   Korvo-1. `gdbserver` and `strace` are there too.
-- **Firewall.** `/etc/nftables.conf` loads at boot: the board answers
-  ping, DHCP and mDNS and takes SSH and (on the disk boards) the Thread
-  mesh, the border agent (UDP 49191 and 49192) and, in relay mode, the
-  Home Assistant hosts on TCP 6638. It drops and logs all other new
-  connections. The module has
-  the firewall since v0.10.0: a server on another port needs a rule after
-  the update. `nft
-  insert rule inet filter input tcp dport 8080 accept` opens a port until the
-  next boot; a line in the file keeps it. For a router between an access point and `eth0`:
-  `sysctl -w net.ipv4.ip_forward=1`, then `nft add table ip nat`, `nft
-  'add chain ip nat postrouting { type nat hook postrouting priority
-  srcnat; }'` and `nft add rule ip nat postrouting oifname eth0
-  masquerade`, and a forward rule for the access point interface.
+- **Firewall.** `/etc/nftables.conf` loads at boot. The board answers
+  ping and mDNS and takes SSH, the DHCP replies of its own client, and
+  on the disk boards the Thread mesh and the border agent (UDP 49191 and
+  49192). Some ports are open only while a feature runs: DHCP requests
+  (UDP 67) on the access point of `ap.sh`, the `ListenPort` of WireGuard
+  while `wg0` is up, the Bluetooth proxy (TCP 6053) for the hosts in
+  `BT_PROXY_ALLOW`, and in relay mode the Home Assistant hosts on TCP
+  6638. The firewall drops and logs all other new connections. The
+  module has the firewall since v0.10.0: a server on another port needs
+  a rule after the update. `nft insert rule inet filter input tcp dport
+  8080 accept` opens a port until the next boot; a line in the file keeps
+  it. `ap.sh SSID PASSPHRASE --nat eth0` makes a router between the
+  access point and `eth0`: it turns on forwarding, adds a masquerade rule
+  in the table `ip ap-nat`, and lets the access point forward to `eth0`
+  (the set `ap_route`). `/etc/init.d/S40wifi stop` removes these again.
 - **Web page.** `nft insert rule inet filter input tcp dport 8080 accept`,
   then `httpd -p 8080 -h /usr/share/examples/www` serves a page that sets
   the pins and the LED. It has no password: open the port only on a
@@ -297,10 +375,22 @@ scripts.
 - **Recovery.** The board reboots 10 s after a kernel panic, and 60 s
   after user space stops (the soft watchdog; `/etc/init.d/S15watchdog stop`
   turns it off). SysRq works with `/proc/sysrq-trigger`: `s` syncs, `u`
-  remounts read-only, `b` reboots.
-- **Time.** The clock is UTC. On the Function-CoreBoard-1 and the Korvo-1,
-  `ln -sf /usr/share/zoneinfo/Europe/Zurich /etc/localtime` sets a local
-  zone.
+  remounts read-only, `b` reboots. After a kernel panic or a reboot of
+  the soft watchdog, the next boot puts the kernel log of the panic and
+  the console of the boot before into `crash/` on p1 of the disk
+  (`/root/crash` on the module alone). They stay over the reboot in 32
+  KiB of PSRAM (pstore); the reset button and a power cycle clear them.
+- **Time.** The board has no RTC. At boot, it sets the last saved time,
+  so that TLS works before the network. At each DHCP lease and renewal,
+  `ntpd` sets the clock from the NTP servers of the DHCP server and from
+  `NTP_SERVERS` in `/etc/default/ntp` (`pool.ntp.org`). Without a reply,
+  it tries again after 10 s, 30 s, 1 min, and up to 1 h. `NTP=no` turns
+  it off. The board is not an NTP server. The clock is UTC. A local zone
+  for the shell: a POSIX string in `/etc/default/tz`, for example
+  `TZ="CET-1CEST,M3.5.0,M10.5.0/3"`, on all boards; on the
+  Function-CoreBoard-1 and the Korvo-1 also `ln -sf
+  /usr/share/zoneinfo/Europe/Zurich /etc/localtime`, which the daemons
+  use too.
 
 ## Tested hardware
 

@@ -1,4 +1,4 @@
-Linux 7.3 on the ESP32-S31, ready to flash: for the ESP32-S31-Korvo-1, the
+Linux 7.3.1 on the ESP32-S31, ready to flash: for the ESP32-S31-Korvo-1, the
 ESP32-S31-Function-CoreBoard-1, and the ESP32-S31-WROOM-3-N16R16V module
 alone with UART only.
 
@@ -40,6 +40,102 @@ alone with UART only.
 On the Korvo-1, the LCD shows the Tux logo and the kernel warnings, then
 the tmux desktop for a USB keyboard. Later kernel messages go to `tty2`
 (`Alt-F2`), not over the desktop.
+
+## New in v0.11.0
+
+- Module alone: the overlay keeps the files that you changed, also over
+  an update. If you changed `/etc/nftables.conf` or `/etc/fstab`, merge
+  the new file of the image, which is at `/rom/etc/`: `ap.sh` and
+  `S42wireguard` need the new sets `ap_dhcp`, `ap_route` and `wg_port`,
+  and the crash log needs the `pstore` line of `fstab`.
+- Linux 7.3.1, the newest stable release. All patches apply as before.
+- Memory: the kernel has no restartable sequences, no `cachestat`, no
+  block module autoload and no CRDA helper. Nothing on the boards uses
+  them. `/tmp` (2 MiB), `/run` (512 KiB) and `/dev/shm` (1 MiB) have a
+  size limit, so a large file cannot take all of the RAM. On the module
+  alone, the squashfs keeps one decompressed fragment, not three.
+  `docs/internals.md` tells where each part of the PSRAM goes.
+- Memory: zram uses zspages of at most 4 pages, not 8. On an idle
+  Korvo-1, zram took 1.2 MiB less RAM for the same swap, and MemAvailable
+  went from 2.3 to 3.2 MiB.
+- Time: the clock is set again when the first NTP try fails. Before, a
+  board whose first try after the lease got no reply (10 s) kept the
+  saved time until the next new lease. Now `ntpd` tries again up to 1 h,
+  also at each lease renewal, and uses the NTP servers of the DHCP server
+  first. `/etc/default/ntp` has the servers and `NTP=no`. A reset just
+  after a sync no longer leaves an empty `/etc/timestamp`, which gave a
+  clock in 1970 and TLS errors until the network came up. A POSIX time
+  zone in `/etc/default/tz` works without zoneinfo, also on the module
+  alone.
+- Access point: `ap.sh` starts the DHCP server `udhcpd` for the clients
+  (192.168.4.100 to 192.168.4.200). `ap.sh SSID PASSPHRASE --nat eth0`
+  also routes them to `eth0` with NAT. The firewall now takes DHCP
+  requests (UDP 67) only on the access point while `ap.sh` runs; before,
+  it took them on all interfaces, but no server listened.
+- GPIO interrupts: `gpiomon`, the edge events of libgpiod and interrupts
+  for drivers work on all pins, for rising, falling and both edges and
+  for high and low levels. `gpiomon -p 20ms` debounces a button.
+  `/usr/share/examples/gpio-watch.sh` prints the edges of a pin, and
+  `/usr/share/examples/button.sh` runs a command at each press.
+  `pinctrl get` shows the interrupt of a pin, and `pinctrl set` refuses a
+  pin with an enabled interrupt.
+- I2C: the Function-CoreBoard-1 has `/dev/i2c-0` on its ESP_I2C bus, as
+  the Korvo-1 has on its touch bus. `i2cdetect`, `i2cget`, `i2cset` and
+  `i2ctransfer` of BusyBox were already on all boards. The device trees
+  of the Function-CoreBoard-1 (header J2) and of the module alone have a
+  disabled example bus for external devices.
+- WireGuard on all boards: `wg`, `/usr/share/examples/wg-setup.sh` for
+  the keys, and `/etc/init.d/S42wireguard` for `wg0` without `wg-quick`
+  (`WG=no` by default). Through the tunnel, the Korvo-1 gave 8.8 Mbit/s
+  TX and 15.6 Mbit/s RX on Wi-Fi. Firewall: with a `ListenPort`, UDP on
+  that port is open while `wg0` is up, through the new set `wg_port`.
+- MQTT on the Function-CoreBoard-1 and the Korvo-1: `mosquitto_pub` and
+  `mosquitto_sub` with TLS, no broker. `/etc/default/mqtt` (mode 600) has
+  the broker. `/usr/share/examples/mqtt-report.sh` sends the uptime, the
+  free memory and the Wi-Fi signal with Home Assistant discovery, and
+  `/usr/share/examples/mqtt-led.sh` sets the LED from MQTT. The module
+  alone has no room for them in its flash.
+- Status LED (Function-CoreBoard-1, Korvo-1): `/etc/default/led` sets a
+  trigger at boot, for example `netdev` for the Wi-Fi link or `panic` for
+  red at a kernel panic. The default is `none`, as before.
+- Crash logs: the kernel log of a panic and the console of the last boot
+  stay in 32 KiB of PSRAM over a software reset. After a panic or a
+  reboot of the soft watchdog, `S11pstore` copies them to `crash/` on p1
+  of the disk, or `/root/crash` on the module alone; a clean reboot
+  leaves no copy. This takes 32 KiB of MemTotal.
+- USB device mode: checked, not added. The only DWC2 port of the
+  Function-CoreBoard-1 and the Korvo-1 is a host port with a VBUS switch,
+  with the root stick or the USB devices on it. `docs/internals.md` has
+  the details.
+- Wi-Fi monitor mode works on the disk boards, with no change:
+  `iw phy phy0 interface add mon0 type monitor`, `ip link set mon0 up`
+  and `tcpdump -i mon0` show the 802.11 frames of the channel of the
+  station; `/usr/share/examples/wifi-monitor.sh` does this and removes
+  `mon0` at the end. `docs/internals.md` tells the limits.
+- `/usr/share/examples/led.sh` is on the Korvo-1 too, not only on the
+  Function-CoreBoard-1.
+- Korvo-1: the motd shows only in the first window of the tmux desktop,
+  not in the boot log on the UART or at an SSH login.
+- MemTotal: 10.4 MiB on the Korvo-1 (measured); about 11.6 MiB on the
+  module alone and 11.1 MiB on the Function-CoreBoard-1 (computed from
+  the larger kernel and the crash log, not measured).
+- Fixes: the WS2812 LED changes without sleeping, so the panic trigger
+  works; the UART checks its interrupt at probe; the Wi-Fi transport
+  clears its running flag under its lock; `ble-ha` has no undefined
+  behavior for large GATT handles and empty API messages; `pinctrl`
+  returns the right error when it cannot read the used lines; the
+  release check matches `.empty` literally.
+- Fixes: the I2C bus timeouts are 2.5 ms and more, not 26 µs. A read of
+  more than 32 bytes waits for an interrupt at each 32 bytes, and at boot
+  the touch controller of the Korvo-1 sometimes logged a timeout when it
+  read its configuration (2 of 3 boots before, 0 of 8 now).
+- Fixes: `wpa_cli` ended when `wpa_supplicant` did not answer for 10 s,
+  for example while the firmware restarts, and then no new connection got
+  a DHCP lease. `S40wifi` now starts it again within 5 s.
+- Fixes: after an Improv identify, `ble-ha` gives the LED back to the
+  trigger of `/etc/default/led`; `make bootloader` prints the command for
+  the ESP-IDF patches again; `thread-relay` logs one message for each
+  time its device is away.
 
 ## New in v0.10.0
 

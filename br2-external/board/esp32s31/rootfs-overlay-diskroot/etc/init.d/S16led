@@ -1,0 +1,29 @@
+#!/bin/sh
+# SPDX-License-Identifier: MIT
+# Give the RGB LED the color and the trigger of /etc/default/led, once at
+# boot.  With LED_TRIGGER=none, it does nothing.
+
+LED=/sys/class/leds/rgb:status
+LED_TRIGGER=none
+LED_COLOR="0 0 255"
+LED_NETDEV=wlan0
+[ -r /etc/default/led ] && . /etc/default/led
+
+case "$1" in
+start)
+	[ -d $LED ] && [ "$LED_TRIGGER" != none ] || exit 0
+	[ "$LED_TRIGGER" = panic ] && LED_COLOR="255 0 0"
+	echo "$LED_COLOR" > $LED/multi_intensity
+	if ! echo "$LED_TRIGGER" > $LED/trigger 2>/dev/null; then
+		echo "led: no trigger $LED_TRIGGER"
+		exit 1
+	fi
+	if [ "$LED_TRIGGER" = netdev ]; then
+		echo "$LED_NETDEV" > $LED/device_name
+		for f in link rx tx; do echo 1 > $LED/$f; done
+	fi
+	echo "led: $LED_TRIGGER"
+	;;
+esac
+
+exit 0

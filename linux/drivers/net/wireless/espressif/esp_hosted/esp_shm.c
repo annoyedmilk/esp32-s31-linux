@@ -469,8 +469,10 @@ static void esp_shm_remove(struct platform_device *pdev)
 	devm_free_irq(&pdev->dev, platform_get_irq(pdev, 0), ctx);
 	esp_shm_flash_remove(ctx->flash);
 
-	esp_shm_set_tx_quiesced(ctx, true);
+	spin_lock_bh(&ctx->tx_lock);
+	ctx->tx_quiesced = true;
 	ctx->running = false;
+	spin_unlock_bh(&ctx->tx_lock);
 	cancel_work_sync(&ctx->tx_work);
 	esp_shm_tx_purge(ctx);
 	adapter->if_context = NULL;

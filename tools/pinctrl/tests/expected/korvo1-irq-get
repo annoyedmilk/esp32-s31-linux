@@ -1,0 +1,5 @@
+ 3: no    pn | -- // I2S_SCLK/GPIO3 = none [irq high, lines none]
+46: ip    pn | lo // CAM_D0/GPIO46 = input
+47: ip    pn | lo // CAM_D1/GPIO47 = input [irq both, lines 3, pending]
+48: no    pn | -- // CAM_D2/GPIO48 = none
+rc=0

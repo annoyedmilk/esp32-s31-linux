@@ -10,14 +10,14 @@ Bluetooth bluetoothctl, then: scan le, scan bredr, devices
 Thread    thread-start, then ot-ctl state; thread-start stop ends it
           thread-share: a key for a phone app
           Home Assistant: /usr/share/examples/ha-thread.sh HA_ADDRESS
+VPN       WireGuard: /usr/share/examples/wg-setup.sh, /etc/default/wireguard
+MQTT      mosquitto_pub, mosquitto_sub; /etc/default/mqtt, mqtt-report.sh
 Firewall  nft list ruleset; open a port until the next boot:
           nft insert rule inet filter input tcp dport 8080 accept
 System    htop, free, df -h, ncdu, dmesg, tmux
-Time      UTC; local zone: ln -sf /usr/share/zoneinfo/Europe/Zurich /etc/localtime
 Network   ssh, scp, curl, links, iperf3, tcpdump
 Files     nnn, tree; /mnt/usb is the FAT partition of the USB stick
 Code      micropython, lua, vim, nano, sqlite3, bc, gdbserver, strace
-GPIO      pinctrl, gpiodetect, gpioinfo, gpioget, gpioset
-LED       echo 0 32 0 > /sys/class/leds/rgb:status/multi_intensity
-          echo 255 > /sys/class/leds/rgb:status/brightness
+GPIO      pinctrl, gpioinfo, gpioget, gpioset, gpiomon (edges)
+          /usr/share/examples/gpio-watch.sh PIN, button.sh PIN COMMAND
 Examples  ls /usr/share/examples

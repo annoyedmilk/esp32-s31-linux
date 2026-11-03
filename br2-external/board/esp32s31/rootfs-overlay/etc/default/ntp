@@ -1,0 +1,6 @@
+# The udhcpc hook /usr/share/udhcpc/default.script.d/ntp reads this file.
+# It sets the clock at each DHCP lease and renewal: first from the servers
+# that DHCP gives (option 42), then from NTP_SERVERS (separated by spaces).
+# NTP=no: never.  The board is a client only; it does not serve the time.
+NTP=yes
+NTP_SERVERS="pool.ntp.org"

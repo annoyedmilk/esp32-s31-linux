@@ -1,0 +1,12 @@
+# /etc/init.d/S42wireguard reads this file.  WG=yes: make wg0 when the
+# network has a default route and NTP has set the clock.
+# /etc/wireguard/wg0.conf (mode 600) has the key, the ListenPort and the
+# peers in the format of "wg setconf": no Address, DNS or MTU lines.
+# /usr/share/examples/wg-setup.sh makes the key and a template.
+# WG_ADDRESS: the address of wg0.  WG_ROUTES: more networks through wg0,
+# separated by spaces; AllowedIPs adds no routes.  With a ListenPort in
+# wg0.conf, the firewall takes that UDP port while wg0 is up.
+WG=no
+WG_ADDRESS="10.0.0.2/24"
+WG_ROUTES=""
+WG_MTU=1420

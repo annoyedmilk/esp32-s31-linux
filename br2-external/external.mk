@@ -35,3 +35,9 @@ define PCRE2_REMOVE_PROGRAMS
 	rm -f $(TARGET_DIR)/usr/bin/pcre2grep $(TARGET_DIR)/usr/bin/pcre2test
 endef
 PCRE2_POST_INSTALL_TARGET_HOOKS += PCRE2_REMOVE_PROGRAMS
+
+# Only mosquitto_pub and mosquitto_sub: the clients install mosquitto_rr too.
+define MOSQUITTO_REMOVE_RR
+	rm -f $(TARGET_DIR)/usr/bin/mosquitto_rr
+endef
+MOSQUITTO_POST_INSTALL_TARGET_HOOKS += MOSQUITTO_REMOVE_RR

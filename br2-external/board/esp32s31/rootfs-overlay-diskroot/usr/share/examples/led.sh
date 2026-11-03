@@ -1,6 +1,6 @@
 #!/bin/sh
 # SPDX-License-Identifier: MIT
-# Set the color of the RGB LED (GPIO60), or show red, green and blue.
+# Set the color of the RGB LED, or show red, green and blue.
 #
 #   led.sh [RED GREEN BLUE]     each value is 0 to 255
 

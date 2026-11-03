@@ -6,11 +6,13 @@ Wi-Fi     wpa_passphrase "<ssid>" "<passphrase>" >> /etc/wpa_supplicant.conf
           iw dev wlan0 link; /usr/share/examples/wifi-scan.sh
 Bluetooth bluetoothctl, then: scan le, scan bredr, devices
           Home Assistant: /usr/share/examples/ha-bluetooth.sh HA_ADDRESS
+VPN       WireGuard: /usr/share/examples/wg-setup.sh, /etc/default/wireguard
 Firewall  nft list ruleset; open a port until the next boot:
           nft insert rule inet filter input tcp dport 8080 accept
 System    free, df -h, dmesg, mtdinfo
 Network   ssh, scp, curl, iperf3
-GPIO      pinctrl, gpiodetect, gpioinfo, gpioget, gpioset
+GPIO      pinctrl, gpioinfo, gpioget, gpioset, gpiomon (edges)
+          /usr/share/examples/gpio-watch.sh PIN, button.sh PIN COMMAND
 Examples  ls /usr/share/examples
 Storage   The root is writable and stays in the flash (UBIFS on /dev/mtd1).
           flash_erase /dev/mtd1 0 0, then reboot: back to the image.

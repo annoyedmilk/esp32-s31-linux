@@ -7,7 +7,7 @@ PHY driver sets the clock, the reset and the host pull-downs.
 diff --git a/drivers/phy/Kconfig b/drivers/phy/Kconfig
 --- a/drivers/phy/Kconfig
 +++ b/drivers/phy/Kconfig
-@@ -66,6 +66,18 @@
+@@ -66,6 +66,16 @@
  	  functional modes using gpios and sets the attribute max link
  	  rate, for CAN drivers.
  
@@ -20,8 +20,6 @@ diff --git a/drivers/phy/Kconfig b/drivers/phy/Kconfig
 +	  Synopsys DWC2 USB controller.  The driver sets the SoC clock and
 +	  reset controls.  It also sets the data-line pull-downs for host
 +	  mode.
-+
-+	  If unsure, say N.
 +
  config PHY_EYEQ5_ETH
  	tristate "Ethernet PHY Driver on EyeQ5"
