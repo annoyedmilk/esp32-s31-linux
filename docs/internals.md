@@ -231,8 +231,8 @@ register for GPIO0-31 (`GPIO_INT_n`, `0xa4` + 4n) and one for GPIO32-61
 (`0xb4` + 4n): the `STATUS` bits of the pins that enable that line. A
 write to `STATUS_W1TC` clears a pin.
 
-Linux uses line 2 for GPIO0-31 (CLIC 39) and line 3 for GPIO32-61 (CLIC
-40), so a bank without users gives no interrupts, and lines 0 and 1 stay
+Linux uses line 2 for GPIO0-31 (CLIC 43) and line 3 for GPIO32-61 (CLIC
+44), so a bank without users gives no interrupts, and lines 0 and 1 stay
 for hart 0. ESP-IDF uses only line 0 today. The enable bits come from a
 test on the Korvo-1: bit 13 + n sets `GPIO_INT_n`, bit 17 sets nothing.
 `gpio_struct.h` of ESP-IDF agrees; `GPIO_LL_INTR2_ENA` (`BIT(3)`) and
