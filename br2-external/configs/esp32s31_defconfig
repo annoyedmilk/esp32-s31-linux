@@ -144,7 +144,6 @@ BR2_PACKAGE_WIREGUARD_TOOLS=y
 BR2_TARGET_ROOTFS_SQUASHFS=y
 BR2_TARGET_ROOTFS_SQUASHFS4_ZSTD=y
 BR2_TARGET_ROOTFS_SQUASHFS_EXTREME_COMP=y
-BR2_TARGET_ROOTFS_SQUASHFS_BS_32K=y
 # Both overlay implementations need ubiattach and ubimkvol. Board fragments
 # select any additional NAND initialization tools.
 BR2_PACKAGE_MTD=y
@@ -175,3 +174,6 @@ BR2_LINUX_KERNEL_CONFIG_FRAGMENT_FILES="$(BR2_EXTERNAL_ESP32S31_PATH)/board/esp3
 # The module alone uses the NOR overlay without NAND setup tools.
 # BR2_PACKAGE_MTD_UBIDETACH is not set
 # BR2_PACKAGE_MTD_UBIFORMAT is not set
+
+# Balance NOR image size against the SquashFS decompression cache.
+BR2_TARGET_ROOTFS_SQUASHFS_BS_32K=y

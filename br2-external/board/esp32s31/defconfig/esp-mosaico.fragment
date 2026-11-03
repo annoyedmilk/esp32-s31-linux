@@ -32,3 +32,6 @@ BR2_PACKAGE_ALSA_LIB_CTL_PLUGINS="hw"
 # Manually started preview; no boot service takes the display.
 BR2_PACKAGE_CAMERA_PREVIEW=y
 BR2_PACKAGE_MOSAICO_TEST=y
+
+# Balance NOR image size against the SquashFS decompression cache.
+BR2_TARGET_ROOTFS_SQUASHFS_BS_128K=y

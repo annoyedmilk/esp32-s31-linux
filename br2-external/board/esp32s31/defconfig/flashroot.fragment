@@ -6,7 +6,6 @@
 BR2_TARGET_ROOTFS_SQUASHFS=y
 BR2_TARGET_ROOTFS_SQUASHFS4_ZSTD=y
 BR2_TARGET_ROOTFS_SQUASHFS_EXTREME_COMP=y
-BR2_TARGET_ROOTFS_SQUASHFS_BS_32K=y
 # Both overlay implementations need ubiattach and ubimkvol. Board fragments
 # select any additional NAND initialization tools.
 BR2_PACKAGE_MTD=y
