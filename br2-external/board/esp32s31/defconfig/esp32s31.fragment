@@ -6,4 +6,4 @@ BR2_ROOTFS_OVERLAY="$(BR2_EXTERNAL_ESP32S31_PATH)/board/esp32s31/rootfs-overlay 
 #
 # The Korvo-1 kernel config, without the display, the card, USB and the LED,
 # and with the flash window as MTD.
-BR2_LINUX_KERNEL_CONFIG_FRAGMENT_FILES="$(BR2_EXTERNAL_ESP32S31_PATH)/board/esp32s31/linux-esp32s31.fragment"
+BR2_LINUX_KERNEL_CONFIG_FRAGMENT_FILES="$(BR2_EXTERNAL_ESP32S31_PATH)/board/esp32s31/linux-headless.fragment $(BR2_EXTERNAL_ESP32S31_PATH)/board/esp32s31/linux-esp32s31.fragment"

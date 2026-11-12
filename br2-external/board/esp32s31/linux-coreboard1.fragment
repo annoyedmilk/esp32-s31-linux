@@ -6,20 +6,9 @@ CONFIG_BUILTIN_DTB_NAME="espressif/esp32s31_coreboard1"
 # rootwait waits for usb-storage, which scans a new stick after 1 s.
 CONFIG_CMDLINE="earlycon=sbi console=ttyS0,115200 esp32_shm.radio_service=bt+154 root=PARTUUID=45533331-02 rootfstype=ext4 rootwait rootflags=errors=remount-ro rw"
 
-# No loadable modules: the m options of linux.config are built in.
-# CONFIG_MODULES is not set
-
-# No panel, VTs, input devices or card.  The one USB port has the root
-# stick, and no console takes input from a USB keyboard.  I2C stays for
-# /dev/i2c-0 on ESP_I2C.
-# CONFIG_FB is not set
-# CONFIG_VT is not set
-# CONFIG_INPUT is not set
-# CONFIG_HID is not set
-# CONFIG_MMC is not set
-# The stick is the root, and no script waits for a second one.
-# CONFIG_UEVENT_HELPER is not set
-# The board has Ethernet: no USB Ethernet adapters.
+# The one USB port has the root stick, and no console takes input from a
+# USB keyboard.  I2C stays for /dev/i2c-0 on ESP_I2C.  The board has
+# Ethernet: no USB Ethernet adapters.
 # CONFIG_USB_USBNET is not set
 # CONFIG_USB_RTL8152 is not set
 
