@@ -97,6 +97,13 @@ static time_t now(void)
 
 static void handle_packet(const uint8_t *p, size_t len);
 
+/* A hard error of the HCI socket: the adapter is gone, so ble-ha ends. */
+static void adapter_gone(void)
+{
+	syslog(LOG_ERR, "adapter: %s", strerror(errno));
+	stop = 1;
+}
+
 static ssize_t hci_read(uint8_t *buf, size_t len, int ms)
 {
 	struct pollfd pfd = { .fd = s.hci, .events = POLLIN };
@@ -121,8 +128,11 @@ static int hci_cmd(uint16_t op, const void *param, uint8_t plen, uint8_t *ret, s
 	pkt[3] = plen;
 	if (plen)
 		memcpy(pkt + 4, param, plen);
-	if (write(s.hci, pkt, 4u + plen) != 4 + plen)
+	if (write(s.hci, pkt, 4u + plen) != 4 + plen) {
+		if (errno != EINTR && errno != EAGAIN)
+			adapter_gone();
 		return -1;
+	}
 	for (;;) {
 		int64_t left = end - now_ms();
 		ssize_t n;
@@ -130,6 +140,10 @@ static int hci_cmd(uint16_t op, const void *param, uint8_t plen, uint8_t *ret, s
 		if (left <= 0)
 			break;
 		n = hci_read(pkt, sizeof(pkt), (int)left);
+		if (n < 0 && errno != EINTR) {
+			adapter_gone();
+			return -1;
+		}
 		if (n <= 0)
 			continue;
 		if (pkt[0] == HCI_EVT && pkt[1] == 0x0e && n >= 7 && get16(pkt + 4) == op) {
@@ -749,17 +763,20 @@ static void run(void)
 		if (s.adv_dirty && s.improv && s.conn < 0)
 			set_advertising(1);
 		set_scan(subscribers() > 0);
+		/* hci_cmd() can find the adapter gone: no event comes after that. */
+		if (stop)
+			break;
 		pfd[0] = (struct pollfd){ .fd = s.hci, .events = POLLIN };
 		pfd[1] = (struct pollfd){ .fd = s.lfd, .events = POLLIN };
 		for (i = 0; i < MAX_CLIENTS; i++)
 			pfd[2 + i] = (struct pollfd){ .fd = s.clients[i].fd, .events = POLLIN };
 		if (poll(pfd, 2 + MAX_CLIENTS, poll_timeout()) < 0 && errno != EINTR)
 			break;
-		if (pfd[0].revents & POLLIN) {
+		if (pfd[0].revents & (POLLIN | POLLERR | POLLHUP)) {
 			ssize_t n = read(s.hci, pkt, sizeof(pkt));
 
 			if (n < 0 && errno != EINTR) {
-				syslog(LOG_ERR, "adapter: %s", strerror(errno));
+				adapter_gone();
 				break;
 			}
 			if (n > 0)
