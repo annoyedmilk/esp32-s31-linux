@@ -275,6 +275,19 @@ KERNEL_SYNC = sum=$$({ find /work/linux -type f ! -name ._\* | sort | xargs cat;
 	fi; \
 	mkdir -p $(BR_O); echo "$$sum" > $$stamp
 
+# Buildroot copies a local package (tools/) only at its first build: when a
+# source of a tool changes, build the tools again.
+TOOLS_SYNC = sum=$$(find /work/tools \( -name '*.[ch]' -o -name Makefile \) \
+		! -name ._\* | sort | xargs cat | sha256sum | cut -d" " -f1); \
+	stamp=$(BR_O)/.esp32s31-tools-inputs; \
+	if test -f $(BR_O)/.config && \
+		test "$$(cat $$stamp 2>/dev/null)" != "$$sum"; then \
+		echo "tools changed: building them again"; \
+		$(BR_MAKE) ble-ha-dirclean esp32s31-pinctrl-dirclean \
+			thread-relay-dirclean; \
+	fi; \
+	echo "$$sum" > $$stamp
+
 # Only the kernel: the images do not contain it, so "all" would only write
 # the card image again.  The defconfig first, as in rootfs.
 kernel: br-volume
@@ -320,6 +333,7 @@ rootfs: br-volume
 		cd /work/$(BR_DIR); \
 		$(BR_MAKE) $(BR_DEFCONFIG); \
 		$(KERNEL_SYNC); \
+		$(TOOLS_SYNC); \
 		$(BR_MAKE)'
 	@$(MAKE) --no-print-directory br-artifacts
 
