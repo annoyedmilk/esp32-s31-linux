@@ -356,8 +356,8 @@ sdcard: rootfs
 		echo 'Buildroot produced no sdcard.img; check post-image.sh'; exit 1; }
 	@ls -l "$(BR_OUT)/sdcard.img"
 
-# Stop if SD_DISK is not set.
-SD_DISK_REQUIRED = @test -n "$(SD_DISK)" || { \
+# Stop unless SD_DISK is a whole disk: dd to a bare diskN writes a file.
+SD_DISK_REQUIRED = @echo "$(SD_DISK)" | grep -Eqx '/dev/disk[0-9]+' || { \
 	echo 'set SD_DISK=/dev/diskN (see: diskutil list external)'; exit 1; }
 # Stop if the user does not type $(1).
 SD_CONFIRM = @read -r -p 'Type $(1) to continue: ' reply; \
@@ -408,6 +408,7 @@ sdroot:
 	@part=$$(diskutil info -plist "$(SD_DISK)s2" | plutil -extract TotalSize raw -) && \
 		test "$$part" -ge $$(stat -f %z "$(BR_OUT)/rootfs.ext2") || { \
 		echo '$(SD_DISK)s2 is smaller than rootfs.ext2; run make sdpart or sdwrite'; exit 1; }
+	$(SD_SHOW)
 	@echo "This overwrites the root partition $(SD_DISK)s2."
 	$(call SD_CONFIRM,WRITE)
 	@diskutil unmountDisk "$(SD_DISK)"
