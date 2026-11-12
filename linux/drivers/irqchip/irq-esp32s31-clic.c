@@ -14,6 +14,9 @@
  *   - 32 external interrupts (CLIC IDs 16-47) from the Interrupt Matrix
  */
 
+#define pr_fmt(fmt) "CLIC: " fmt
+
+#include <linux/bitfield.h>
 #include <linux/interrupt.h>
 #include <linux/irq.h>
 #include <linux/irqchip.h>
@@ -21,7 +24,6 @@
 #include <linux/irq_work.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
-#include <linux/percpu.h>
 #include <asm/csr.h>
 #include <asm/irq.h>
 #include <asm/smp.h>
@@ -67,11 +69,10 @@
 /* The Interrupt Matrix block of this hart; the other is for the firmware. */
 #define ESP32S31_INTMATRIX_CORE_STRIDE 0x800
 #define ESP32S31_INTMATRIX_MAP_MASK 0x3f
-#define ESP32S31_INTMATRIX_PASS_LEVEL_SHIFT 8
-#define ESP32S31_INTMATRIX_PASS_LEVEL_MASK (0x3 << ESP32S31_INTMATRIX_PASS_LEVEL_SHIFT)
-#define ESP32S31_INTMATRIX_PASS_LEVEL_S (1 << ESP32S31_INTMATRIX_PASS_LEVEL_SHIFT)
+#define ESP32S31_INTMATRIX_PASS_LEVEL GENMASK(9, 8)
+#define ESP32S31_INTMATRIX_PASS_LEVEL_S 1
 
-/* Per-CPU CLIC structure */
+/* Linux runs on one hart, so there is one CLIC. */
 
 struct esp32s31_clic {
 	void __iomem *regs;
@@ -79,7 +80,7 @@ struct esp32s31_clic {
 	struct irq_domain *domain;
 };
 
-static DEFINE_PER_CPU(struct esp32s31_clic *, clic_per_cpu);
+static struct esp32s31_clic *clic;
 
 /* The per-interrupt registers of this core; the +0x10000 alias is not used. */
 static inline u8 clic_readb(struct esp32s31_clic *clic, unsigned int irq_id,
@@ -100,8 +101,7 @@ static inline void clic_writeb(struct esp32s31_clic *clic, unsigned int irq_id,
 
 static void esp32s31_clic_irq_enable(struct irq_data *d, u8 enable)
 {
-	clic_writeb(irq_data_get_irq_chip_data(d), d->hwirq,
-		    ESP32S31_CLIC_INT_IE, enable);
+	clic_writeb(clic, d->hwirq, ESP32S31_CLIC_INT_IE, enable);
 }
 
 static void esp32s31_clic_irq_mask(struct irq_data *d)
@@ -125,8 +125,8 @@ static int esp32s31_clic_set_type(struct irq_data *d, unsigned int flow_type)
 	if (!(flow_type & IRQ_TYPE_LEVEL_MASK))
 		return -EINVAL;
 
-	clic_writeb(irq_data_get_irq_chip_data(d), d->hwirq,
-		    ESP32S31_CLIC_INT_ATTR, CLIC_ATTR_MODE_S | CLIC_ATTR_TRIG_LEVEL);
+	clic_writeb(clic, d->hwirq, ESP32S31_CLIC_INT_ATTR,
+		    CLIC_ATTR_MODE_S | CLIC_ATTR_TRIG_LEVEL);
 	return 0;
 }
 
@@ -142,8 +142,6 @@ static struct irq_chip esp32s31_clic_chip = {
 /* UP RISC-V has no self-interrupt; input 1 does not arbitrate: use 16. */
 void arch_irq_work_raise(void)
 {
-	struct esp32s31_clic *clic = this_cpu_read(clic_per_cpu);
-
 	/* Before the probe: esp32s31_irq_work_init() raises it once. */
 	if (!clic)
 		return;
@@ -154,14 +152,14 @@ void arch_irq_work_raise(void)
 static irqreturn_t esp32s31_irq_work_interrupt(int irq, void *dev_id)
 {
 	/* Clear IP before the work runs: an item that adds work sets it. */
-	clic_writeb(dev_id, ESP32S31_CLIC_IRQ_WORK_ID, ESP32S31_CLIC_INT_IP, 0);
+	clic_writeb(clic, ESP32S31_CLIC_IRQ_WORK_ID, ESP32S31_CLIC_INT_IP, 0);
 
 	irq_work_run();
 
 	return IRQ_HANDLED;
 }
 
-static int __init esp32s31_irq_work_init(struct esp32s31_clic *clic)
+static int __init esp32s31_irq_work_init(void)
 {
 	int virq;
 	int ret;
@@ -170,15 +168,13 @@ static int __init esp32s31_irq_work_init(struct esp32s31_clic *clic)
 	clic_writeb(clic, ESP32S31_CLIC_IRQ_WORK_ID, ESP32S31_CLIC_INT_IP, 0);
 	clic_writeb(clic, ESP32S31_CLIC_IRQ_WORK_ID, ESP32S31_CLIC_INT_ATTR,
 		    CLIC_ATTR_MODE_S | CLIC_ATTR_TRIG_EDGE);
-	clic_writeb(clic, ESP32S31_CLIC_IRQ_WORK_ID, ESP32S31_CLIC_INT_CTL,
-		    CLICCTL_MAKE(1, ESP32S31_MAX_PRIORITY));
 
 	virq = irq_create_mapping(clic->domain, ESP32S31_CLIC_IRQ_WORK_ID);
 	if (!virq)
 		return -ENOMEM;
 
 	ret = request_irq(virq, esp32s31_irq_work_interrupt, 0,
-			  "esp32s31-irq-work", clic);
+			  "esp32s31-irq-work", NULL);
 	if (ret) {
 		irq_dispose_mapping(virq);
 		return ret;
@@ -189,53 +185,37 @@ static int __init esp32s31_irq_work_init(struct esp32s31_clic *clic)
 	return 0;
 }
 #else
-static int __init esp32s31_irq_work_init(struct esp32s31_clic *clic)
+static int __init esp32s31_irq_work_init(void)
 {
 	return 0;
 }
 #endif
 
 /* sie/sieh are illegal in CLIC mode: mask the local causes in the CLIC. */
-static void esp32s31_intc_clic_irq_mask(struct irq_data *d)
-{
-	clic_writeb(this_cpu_read(clic_per_cpu), d->hwirq,
-		    ESP32S31_CLIC_INT_IE, 0);
-}
-
-static void esp32s31_intc_clic_irq_unmask(struct irq_data *d)
-{
-	clic_writeb(this_cpu_read(clic_per_cpu), d->hwirq,
-		    ESP32S31_CLIC_INT_IE, 1);
-}
-
 static struct irq_chip esp32s31_intc_chip = {
 	.name		= "ESP32-S31 CLIC local INTC",
-	.irq_mask	= esp32s31_intc_clic_irq_mask,
-	.irq_unmask	= esp32s31_intc_clic_irq_unmask,
+	.irq_mask	= esp32s31_clic_irq_mask,
+	.irq_unmask	= esp32s31_clic_irq_unmask,
 	.irq_eoi	= esp32s31_clic_irq_eoi,
 };
 
 /* IRQ domain operations */
 
-static void esp32s31_intmatrix_route(struct esp32s31_clic *clic,
-				     unsigned int source,
-				     irq_hw_number_t hwirq)
+static void esp32s31_intmatrix_route(unsigned int source, irq_hw_number_t hwirq)
 {
 	void __iomem *reg;
 	u32 val;
 
 	if (source >= ESP32S31_INTMATRIX_CORE_STRIDE / sizeof(u32)) {
-		pr_warn("CLIC: S31 interrupt source %u out of matrix range\n",
-			source);
+		pr_warn("S31 interrupt source %u out of matrix range\n", source);
 		return;
 	}
 
 	reg = clic->intmatrix_regs + source * sizeof(u32);
 	val = readl(reg);
-	val &= ~(ESP32S31_INTMATRIX_MAP_MASK |
-		 ESP32S31_INTMATRIX_PASS_LEVEL_MASK);
+	val &= ~(ESP32S31_INTMATRIX_MAP_MASK | ESP32S31_INTMATRIX_PASS_LEVEL);
 	val |= (hwirq & ESP32S31_INTMATRIX_MAP_MASK) |
-	       ESP32S31_INTMATRIX_PASS_LEVEL_S;
+	       FIELD_PREP(ESP32S31_INTMATRIX_PASS_LEVEL, ESP32S31_INTMATRIX_PASS_LEVEL_S);
 	writel(val, reg);
 }
 
@@ -258,9 +238,7 @@ static int esp32s31_clic_parse_fwspec(struct irq_fwspec *fwspec,
 static int esp32s31_clic_domain_map(struct irq_domain *d, unsigned int irq,
 				   irq_hw_number_t hwirq)
 {
-	struct esp32s31_clic *clic = d->host_data;
-
-	irq_domain_set_info(d, irq, hwirq, &esp32s31_clic_chip, clic,
+	irq_domain_set_info(d, irq, hwirq, &esp32s31_clic_chip, NULL,
 			    handle_fasteoi_irq, NULL, NULL);
 
 	return 0;
@@ -280,7 +258,6 @@ static int esp32s31_clic_domain_alloc(struct irq_domain *domain,
 				     unsigned int virq, unsigned int nr_irqs,
 				     void *data)
 {
-	struct esp32s31_clic *clic = domain->host_data;
 	struct irq_fwspec *fwspec = data;
 	irq_hw_number_t hwirq;
 	unsigned int source, type;
@@ -291,30 +268,15 @@ static int esp32s31_clic_domain_alloc(struct irq_domain *domain,
 	if (hwirq >= CLIC_NR_IRQS)
 		return -EINVAL;
 
-	esp32s31_intmatrix_route(clic, source, hwirq);
-	esp32s31_clic_domain_map(domain, virq, hwirq);
-
-	clic_writeb(clic, hwirq, ESP32S31_CLIC_INT_CTL,
-		    CLICCTL_MAKE(1, ESP32S31_MAX_PRIORITY));
-
-	if (type != IRQ_TYPE_NONE)
-		esp32s31_clic_set_type(irq_get_irq_data(virq), type);
-
-	return 0;
-}
-
-static void esp32s31_clic_domain_free(struct irq_domain *domain,
-				     unsigned int virq, unsigned int nr_irqs)
-{
-	struct irq_data *data = irq_domain_get_irq_data(domain, virq);
-
-	irq_domain_reset_irq_data(data);
+	/* The probe set the control and the level attribute of each ID. */
+	esp32s31_intmatrix_route(source, hwirq);
+	return esp32s31_clic_domain_map(domain, virq, hwirq);
 }
 
 static const struct irq_domain_ops esp32s31_clic_domain_ops = {
 	.map = esp32s31_clic_domain_map,
 	.alloc = esp32s31_clic_domain_alloc,
-	.free = esp32s31_clic_domain_free,
+	.free = irq_domain_free_irqs_top,
 	.translate = esp32s31_clic_domain_translate,
 };
 
@@ -323,7 +285,6 @@ static void (*fallback_handle_irq)(struct pt_regs *);
 
 static void esp32s31_clic_handle_irq(struct pt_regs *regs)
 {
-	struct esp32s31_clic *clic = this_cpu_read(clic_per_cpu);
 	unsigned long raw_cause;
 	unsigned long irq_id;
 
@@ -345,7 +306,7 @@ static void esp32s31_clic_handle_irq(struct pt_regs *regs)
 	}
 
 	if (irq_id >= CLIC_NR_IRQS) {
-		pr_warn_ratelimited("CLIC: spurious interrupt %lu\n", irq_id);
+		pr_warn_ratelimited("spurious interrupt %lu\n", irq_id);
 		return;
 	}
 
@@ -354,7 +315,7 @@ static void esp32s31_clic_handle_irq(struct pt_regs *regs)
 
 /* Initialization */
 
-static void __init esp32s31_clic_init_cpu(struct esp32s31_clic *clic, int cpu)
+static void __init esp32s31_clic_init(struct esp32s31_clic *c)
 {
 	int i;
 
@@ -362,15 +323,13 @@ static void __init esp32s31_clic_init_cpu(struct esp32s31_clic *clic, int cpu)
 
 	/* OpenSBI controls the local inputs; set up only the external ones. */
 	for (i = CLIC_EXT_MIN_ID; i < CLIC_NR_IRQS; i++) {
-		clic_writeb(clic, i, ESP32S31_CLIC_INT_IP, 0);
-		clic_writeb(clic, i, ESP32S31_CLIC_INT_IE, 0);
-		clic_writeb(clic, i, ESP32S31_CLIC_INT_ATTR,
+		clic_writeb(c, i, ESP32S31_CLIC_INT_IP, 0);
+		clic_writeb(c, i, ESP32S31_CLIC_INT_IE, 0);
+		clic_writeb(c, i, ESP32S31_CLIC_INT_ATTR,
 			    CLIC_ATTR_MODE_S | CLIC_ATTR_TRIG_LEVEL);
-		clic_writeb(clic, i, ESP32S31_CLIC_INT_CTL,
+		clic_writeb(c, i, ESP32S31_CLIC_INT_CTL,
 			    CLICCTL_MAKE(1, ESP32S31_MAX_PRIORITY));
 	}
-
-	per_cpu(clic_per_cpu, cpu) = clic;
 }
 
 static int __init esp32s31_clic_probe(struct device_node *node,
@@ -378,60 +337,57 @@ static int __init esp32s31_clic_probe(struct device_node *node,
 {
 	struct fwnode_handle *intc_fwnode;
 	struct irq_domain *intc_domain;
-	struct esp32s31_clic *clic;
+	struct esp32s31_clic *c;
 	struct resource res;
 	unsigned long hart;
 	int ret;
 
-	clic = kzalloc_obj(*clic, GFP_KERNEL);
-	if (!clic)
+	c = kzalloc_obj(*c, GFP_KERNEL);
+	if (!c)
 		return -ENOMEM;
 
 	/* The full S-mode window: threshold register and the other core too. */
-	ret = of_address_to_resource(node, 0, &res);
-	if (ret)
-		goto err_free;
-
-	clic->regs = ioremap(res.start, resource_size(&res));
-	if (!clic->regs) {
-		pr_err("CLIC: Failed to ioremap 0x%llx\n",
-		       (unsigned long long)res.start);
+	c->regs = of_iomap(node, 0);
+	if (!c->regs) {
+		pr_err("cannot map the CLIC\n");
 		ret = -ENOMEM;
 		goto err_free;
 	}
 
 	ret = of_address_to_resource(node, 1, &res);
 	if (ret) {
-		pr_err("CLIC: missing interrupt matrix resource\n");
+		pr_err("missing interrupt matrix resource\n");
 		goto err_unmap;
 	}
 
 	hart = cpuid_to_hartid_map(0);
 	if ((hart + 1) * ESP32S31_INTMATRIX_CORE_STRIDE > resource_size(&res)) {
-		pr_err("CLIC: hart %lu has no interrupt matrix block\n", hart);
+		pr_err("hart %lu has no interrupt matrix block\n", hart);
 		ret = -EINVAL;
 		goto err_unmap;
 	}
 
-	clic->intmatrix_regs = ioremap(res.start +
-				       hart * ESP32S31_INTMATRIX_CORE_STRIDE,
-				       ESP32S31_INTMATRIX_CORE_STRIDE);
-	if (!clic->intmatrix_regs) {
-		pr_err("CLIC: Failed to ioremap S31 interrupt matrix\n");
+	c->intmatrix_regs = ioremap(res.start +
+				    hart * ESP32S31_INTMATRIX_CORE_STRIDE,
+				    ESP32S31_INTMATRIX_CORE_STRIDE);
+	if (!c->intmatrix_regs) {
+		pr_err("Failed to ioremap S31 interrupt matrix\n");
 		ret = -ENOMEM;
 		goto err_unmap;
 	}
 
-	clic->domain = irq_domain_create_linear(of_fwnode_handle(node),
-						CLIC_NR_IRQS,
-						&esp32s31_clic_domain_ops, clic);
-	if (!clic->domain) {
-		pr_err("CLIC: Failed to create IRQ domain\n");
+	c->domain = irq_domain_create_linear(of_fwnode_handle(node),
+					     CLIC_NR_IRQS,
+					     &esp32s31_clic_domain_ops, NULL);
+	if (!c->domain) {
+		pr_err("Failed to create IRQ domain\n");
 		ret = -ENOMEM;
 		goto err_unmap;
 	}
 
-	esp32s31_clic_init_cpu(clic, 0);
+	/* Set the pointer after the init: arch_irq_work_raise() reads it. */
+	esp32s31_clic_init(c);
+	clic = c;
 
 	/* Use riscv_intc_irq() for the local causes (IDs < 16). */
 	fallback_handle_irq = handle_arch_irq;
@@ -441,26 +397,26 @@ static int __init esp32s31_clic_probe(struct device_node *node,
 	intc_domain = intc_fwnode ?
 		irq_find_matching_fwnode(intc_fwnode, DOMAIN_BUS_ANY) : NULL;
 	if (intc_domain) {
+		/* riscv-intc masks with sie/sieh, illegal in CLIC mode: use our chip. */
 		intc_domain->host_data = &esp32s31_intc_chip;
-		ret = esp32s31_irq_work_init(clic);
+		ret = esp32s31_irq_work_init();
 		if (ret)
-			pr_warn("CLIC: failed to initialize UP irq_work: %d\n",
-				ret);
+			pr_warn("failed to initialize UP irq_work: %d\n", ret);
 	} else {
-		pr_warn("CLIC: no INTC domain - local IRQ masking unavailable\n");
+		pr_warn("no INTC domain - local IRQ masking unavailable\n");
 	}
 
-	pr_info("CLIC: initialized, %u interrupts, S-mode non-vectored\n",
+	pr_info("initialized, %u interrupts, S-mode non-vectored\n",
 		CLIC_NR_IRQS);
 
 	return 0;
 
 err_unmap:
-	if (clic->intmatrix_regs)
-		iounmap(clic->intmatrix_regs);
-	iounmap(clic->regs);
+	if (c->intmatrix_regs)
+		iounmap(c->intmatrix_regs);
+	iounmap(c->regs);
 err_free:
-	kfree(clic);
+	kfree(c);
 	return ret;
 }
 
