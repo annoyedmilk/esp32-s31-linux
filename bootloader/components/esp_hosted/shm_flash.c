@@ -185,10 +185,14 @@ void shm_flash_init(void (*done)(void))
 	s_size = 0;
 	if (root && data && data->address == root->address + root->size &&
 	    spi_flash_mmap(root->address, root->size + data->size,
-			   SPI_FLASH_MMAP_DATA, &map, &handle) == ESP_OK &&
-	    flash_task_start(done)) {
-		s_base = root->address;
-		s_size = root->size + data->size;
+			   SPI_FLASH_MMAP_DATA, &map, &handle) == ESP_OK) {
+		if (flash_task_start(done)) {
+			s_base = root->address;
+			s_size = root->size + data->size;
+		} else {
+			spi_flash_munmap(handle);
+			map = NULL;
+		}
 	}
 	*flash_word(ESP_SHM_FLASH_MAP_OFF) = (uint32_t)map;
 	*flash_word(ESP_SHM_FLASH_SIZE_OFF) = s_size;
