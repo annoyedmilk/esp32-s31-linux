@@ -77,7 +77,6 @@ part_field = $(shell awk -F'[ ,]+' '$$1 == "$(1)" { print $$$(2) }' $(PARTITIONS
 
 # The squashfs root in the flash: empty on a board with its root on a disk.
 ROOT_OFFSET := $(call part_field,rootfs,4)
-ROOT_SIZE := $(call part_field,rootfs,5)
 SD_DISK ?=
 SD_RAW = $(subst /dev/disk,/dev/rdisk,$(SD_DISK))
 # The FAT partition of sdpart, not below 4G.  The root gets the rest minus swap.
@@ -194,6 +193,10 @@ bootloader:
 			echo 'apply the ESP-Hosted patches and the backports to ESP-IDF first:'; \
 			echo '  IDF_PATH=$(IDF_PATH) scripts/patch-esp-idf.sh'; exit 1; }; \
 	done
+	@want=$$(cat bootloader/esp-idf.version); \
+	have=$$(git -C "$(IDF_PATH)" rev-parse HEAD~1); \
+	test "$$want" = "$$have" || { \
+		echo "ESP-IDF is on $$have, but bootloader/esp-idf.version wants $$want"; exit 1; }
 	@export IDF_PYTHON_ENV_PATH="$(IDF_PYTHON_ENV)"; \
 	if ! source "$(IDF_PATH)/export.sh" >"$(BUILD_DIR)/idf-export.log" 2>&1; then \
 		cat "$(BUILD_DIR)/idf-export.log"; \
@@ -312,19 +315,8 @@ rootfs: br-volume
 # linux.size is the last flash sector of the linux partition, with the
 # manifest in its last 12 bytes (mklinuxsize.py).
 br-artifacts:
-	@$(BR_RUN) sh -c 'set -e; \
-		mkdir -p /work/$(BR_OUT) /work/$(BUILD_DIR); \
-		test $$(wc -c < $(BR_O)/images/Image) -le $$(( $(LINUX_SIZE) - 4096 )) || \
-			{ echo "Image is larger than the $(LINUX_SIZE) partition without its last sector"; exit 1; }; \
-		cp $(BR_O)/images/Image $(BR_O)/images/linux.size /work/$(BUILD_DIR)/; \
-		if test -f $(BR_O)/images/rootfs.squashfs; then \
-			test $$(wc -c < $(BR_O)/images/rootfs.squashfs) -le $$(( $(ROOT_SIZE) )) || \
-				{ echo "rootfs.squashfs is larger than the $(ROOT_SIZE) partition"; exit 1; }; \
-			cp $(BR_O)/images/rootfs.squashfs /work/$(BUILD_DIR)/; \
-		fi; \
-		for f in rootfs.ext2 sdcard.img; do \
-			if test -f $(BR_O)/images/$$f; then cp $(BR_O)/images/$$f /work/$(BR_OUT)/; fi; \
-		done'
+	@$(BR_RUN) /work/scripts/copy-images.sh $(BR_O)/images /work/$(BUILD_DIR) \
+		/work/$(PARTITIONS)
 
 # The downloads in the volume stay.
 rootfs-clean: br-volume
