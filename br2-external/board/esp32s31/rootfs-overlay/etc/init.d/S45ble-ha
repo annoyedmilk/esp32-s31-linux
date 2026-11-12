@@ -25,6 +25,13 @@ mdns()
 
 start()
 {
+	# bluetoothd takes the adapter when a device is paired (S40bluetooth),
+	# and ble-ha then exits: do not open the port or announce the proxy.
+	set -- /var/lib/bluetooth/*/*/info
+	if [ -e "$1" ] || pidof bluetoothd >/dev/null; then
+		echo "ble-ha: bluetoothd has the adapter" >&2
+		return 0
+	fi
 	set --
 	if [ -n "$BT_PROXY_ALLOW" ]; then
 		if nft_allow ble_ha "$BT_PROXY_ALLOW"; then
