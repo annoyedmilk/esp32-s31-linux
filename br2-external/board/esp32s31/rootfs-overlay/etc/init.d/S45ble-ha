@@ -20,7 +20,7 @@ mdns()
 	else
 		rm -f $MDNS
 	fi
-	pidof mdnsd >/dev/null && kill -HUP $(pidof mdnsd)
+	killall -HUP mdnsd 2>/dev/null
 }
 
 start()

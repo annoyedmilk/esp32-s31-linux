@@ -11,7 +11,8 @@ P1=$DISK_FAT
 # fsck.fat (8 bytes for each cluster) clears the dirty flag of p1 when it fits.
 check_p1()
 {
-	set -- $(od -An -tu1 -v -N66 $P1 2>/dev/null)
+	bytes=$(od -An -tu1 -v -N66 $P1 2>/dev/null)
+	set -- $bytes
 	[ $# -eq 66 ] || return
 	cluster=$(( (${12} + ${13} * 256) * ${14} ))
 	[ "$cluster" -gt 0 ] || return

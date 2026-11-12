@@ -12,6 +12,8 @@ esac
 
 . /etc/default/ntp
 [ "$NTP" = no ] && exit 0
+# udhcpc passes the servers of option 42 in the environment.
+: "${ntpsrv:=}"
 
 pid=/var/run/ntp-sync.pid
 [ -s $pid ] && kill -0 "$(cat $pid)" 2>/dev/null && exit 0

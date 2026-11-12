@@ -11,7 +11,7 @@ set -eu
 
 cd "$(dirname "$0")/.."
 # The images of a local build contain the files of local-overlay/.
-if [ -n "$(ls -A local-overlay | grep -vxF .empty)" ]; then
+if [ -n "$(find local-overlay -mindepth 1 ! -name .empty)" ]; then
 	echo "local-overlay/ has files, which can be keys: do not release this build" >&2
 	exit 1
 fi
@@ -45,7 +45,8 @@ done
 echo "$flash_args" | sed 's/^ //' > "$stage/flash_args"
 
 # One image for offset 0, for the simplest flash command.
-(cd "$stage" && $esptool --chip esp32s31 merge-bin -o flash.bin $(cat flash_args))
+flash_files=$(cat "$stage/flash_args")
+(cd "$stage" && $esptool --chip esp32s31 merge-bin -o flash.bin $flash_files)
 
 disk=sdcard
 case $board in
@@ -101,6 +102,6 @@ if [ -f "$card" ]; then
 fi
 # The checksums of all packages in build/release, also of other boards.
 (cd "$out" && rm -f SHA256SUMS &&
-	set -- $(ls) &&
+	set -- * &&
 	{ sha256sum "$@" 2>/dev/null || shasum -a 256 "$@"; } > SHA256SUMS)
 ls -l "$out"

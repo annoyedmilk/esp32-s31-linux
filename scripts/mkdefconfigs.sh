@@ -24,8 +24,9 @@ for board in korvo1 esp32s31 coreboard1; do
 	esp32s31) fragments="common flashroot $board" ;;
 	*) fragments="common diskroot $board" ;;
 	esac
+	files=$(for f in $fragments; do echo "$frag/$f.fragment"; done)
 	CONFIG_=BR2_ external/buildroot/support/kconfig/merge_config.sh -m -O "$tmp" \
-		$(for f in $fragments; do echo "$frag/$f.fragment"; done) >"$tmp/log" 2>&1 ||
+		$files >"$tmp/log" 2>&1 ||
 		{ cat "$tmp/log" >&2; exit 1; }
 	if grep -q 'is redefined' "$tmp/log"; then
 		grep -A2 'is redefined' "$tmp/log" >&2

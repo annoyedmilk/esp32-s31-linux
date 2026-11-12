@@ -45,7 +45,7 @@ wpa_supplicant -B -s -D nl80211 -i $IFACE -c $CONF -P /var/run/wpa_supplicant.$I
 ip addr add $NET.1/24 dev $IFACE
 
 # A second DHCP server on a network breaks it: serve only in AP mode.
-for i in 1 2 3 4 5 6 7 8 9 10; do
+for _ in $(seq 1 10); do
 	iw dev $IFACE info | grep -q 'type AP' && break
 	sleep 1
 done
