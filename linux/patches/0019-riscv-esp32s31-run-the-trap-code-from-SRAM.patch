@@ -12,7 +12,7 @@ diff --git a/arch/riscv/Kconfig.socs b/arch/riscv/Kconfig.socs
  config SOC_ESP32S31
  	bool "Espressif ESP32-S31 SoC"
  	select ESP32S31_CLIC
-+	select RISCV_TRAP_SRAM
++	imply RISCV_TRAP_SRAM
  	help
  	  This enables support for the Espressif ESP32-S31 SoC.  The kernel
  	  runs in Supervisor mode on OpenSBI, with the Sv32 MMU.  It gets
