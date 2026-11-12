@@ -40,6 +40,9 @@ watch_cli()
 start_wifi()
 {
 	[ -d /sys/class/net/$IFACE ] || return 0
+	# A second instance fails and removes the pidfile of the first.
+	sup=/var/run/wpa_supplicant.$IFACE.pid
+	[ -s $sup ] && kill -0 "$(cat $sup)" 2>/dev/null && return 0
 	# -s: the notes about unregistered frame types go to syslog.
 	if ! wpa_supplicant -B -s -D nl80211 -i $IFACE -c "$CONF" \
 		-P /var/run/wpa_supplicant.$IFACE.pid; then
@@ -60,8 +63,13 @@ stop)
 	# udhcpd and the firewall entries are from ap.sh.
 	for p in wpa_watch wpa_cli wpa_supplicant udhcpc udhcpd; do
 		f=/var/run/$p.$IFACE.pid
-		[ -r $f ] && kill "$(cat $f)" 2>/dev/null
+		[ -s $f ] && kill "$(cat $f)" 2>/dev/null
 		rm -f $f
+	done
+	# kill only signals: wait until the station has left the interface.
+	for _ in $(seq 1 10); do
+		pidof wpa_supplicant >/dev/null || break
+		sleep 1
 	done
 	nft flush set inet filter ap_dhcp 2>/dev/null
 	nft flush set inet filter ap_route 2>/dev/null
@@ -70,7 +78,6 @@ stop)
 	;;
 restart)
 	"$0" stop
-	sleep 1
 	start_wifi
 	;;
 esac

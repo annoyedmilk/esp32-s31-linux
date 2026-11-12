@@ -41,7 +41,8 @@ network={
 }
 CONF
 /etc/init.d/S40wifi stop
-wpa_supplicant -B -s -D nl80211 -i $IFACE -c $CONF -P /var/run/wpa_supplicant.$IFACE.pid
+wpa_supplicant -B -s -D nl80211 -i $IFACE -c $CONF -P /var/run/wpa_supplicant.$IFACE.pid ||
+	{ echo "ap.sh: wpa_supplicant did not start" >&2; exit 1; }
 ip addr add $NET.1/24 dev $IFACE
 
 # A second DHCP server on a network breaks it: serve only in AP mode.
