@@ -2,6 +2,8 @@
 config ESP32S31_HOSTED
 	bool "ESP-Hosted for the ESP32-S31 (shared memory)"
 	depends on SOC_ESP32S31 && CFG80211=y && BT=y
+	# Built in: the flash part cannot call a modular MTD.
+	depends on MTD=y || MTD=n
 	help
 	  The ESP-Hosted host driver for the ESP-Hosted firmware on hart 0:
 	  Wi-Fi (cfg80211 full-MAC), Bluetooth HCI and the Spinel stream of
