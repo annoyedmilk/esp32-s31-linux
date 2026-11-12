@@ -368,6 +368,27 @@ A measurement on hart 1 also agrees (below). The ESP-IDF option
   depend on the layout of the kernel. With all other code at the same
   address, a pipe round trip between two processes took 136 µs, against
   174 µs with the trap code in PSRAM. Kallsyms does not cover this range.
+- **The hot text** (`CONFIG_RISCV_HOT_TEXT`, `patches/0023` and `0024`).
+  Linux 7.3.4 made the pipe round trip of `tools/pipe-rtt` 18 to 25 %
+  slower with no change on its path. A jump over N bytes in a cold
+  function of `mm/` gave 139 to 167 µs for the same code: the layout
+  decided. Now the kernel functions of the round trip are linked first in
+  `.text`, then the plain `.text` of the assembly files (the user copy,
+  `memcpy`) and the scheduler text: 38 KiB, of which approximately 3 KiB
+  run in each round trip. The list is
+  `linux/arch/riscv/kernel/hot-text.lds.h`. The function profiler of a test
+  build gave the traced functions, and `objdump` gave the inline and
+  notrace callees that the profiler does not see. After `ld -r`, the
+  out-of-line copies of a static inline function from all files share one
+  section; such a section is not in the list when it is larger than 256
+  bytes. On the module build, the round trip went from 165 to 179 µs to 77
+  to 99 µs, and the padding test no longer moves it (1 KiB: 90 to 94 µs,
+  4 KiB: 77 to 79 µs, 8 KiB: 81 to 87 µs, all in the range of one boot to
+  the next). The other numbers did not change. A spread of approximately
+  20 % between boots stays. Its cause is not the kernel text and not the
+  pages of the program: six copies of the program in one boot gave the
+  same time. A kernel update can rename a function, and then its line
+  matches nothing: make the list again after each update.
 
 ## Page blocks
 
