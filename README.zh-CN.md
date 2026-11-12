@@ -4,7 +4,7 @@
 
 > 本文译自 [README.md](README.md)。两者不同时，以英文版为准。
 
-在乐鑫 ESP32-S31 上运行 Linux 7.3.1 和 OpenSBI 1.9。ESP32-S31 是一款微控制器，
+在乐鑫 ESP32-S31 上运行 Linux 7.3.4 和 OpenSBI 1.9。ESP32-S31 是一款微控制器，
 有两个 320 MHz 的 RV32 hart 和 512 KiB SRAM。Linux 在 hart 1 上运行，使用
 16 MiB 八线 PSRAM。hart 0 运行 ESP-Hosted 无线固件，提供 Wi-Fi、蓝牙和
 Thread。标准内核加上一小组补丁即可启动 Buildroot 用户空间：shell、
