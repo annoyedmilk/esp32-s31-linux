@@ -24,6 +24,10 @@ LIBGPIOD2_CONF_OPTS += -Dbindings-glib=disabled -Ddbus=disabled
 # Without OpenSSL, iperf3 does not load libcrypto at each start.
 IPERF3_CONF_OPTS += --without-openssl
 
+# nftables is GPL-2.0 only and readline GPL-3.0; the last option wins.
+# Only nft -i goes; the scripts call nft with one command each time.
+NFTABLES_CONF_OPTS += --without-cli
+
 # pcre2 always installs pcre2grep and pcre2test; only the library is used.
 define PCRE2_REMOVE_PROGRAMS
 	rm -f $(TARGET_DIR)/usr/bin/pcre2grep $(TARGET_DIR)/usr/bin/pcre2test
