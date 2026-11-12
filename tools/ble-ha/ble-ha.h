@@ -22,6 +22,10 @@ static inline void put16(uint8_t *p, uint16_t v)
 	p[1] = (uint8_t)(v >> 8);
 }
 
+/* 00467768-6228-2272-4663-2774782680XX, in the byte order of the air. */
+#define IMPROV(x) { x, 0x80, 0x26, 0x78, 0x74, 0x27, 0x63, 0x46, \
+		    0x72, 0x22, 0x28, 0x62, 0x68, 0x77, 0x46, 0x00 }
+
 #define ADV_MAX		31
 #define ADV_BATCH	16
 

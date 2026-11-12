@@ -27,9 +27,6 @@ enum { SVC, DECL, VALUE, CCCD };
 
 #define LAST_HANDLE	19
 
-/* 00467768-6228-2272-4663-2774782680XX, in the byte order of the air. */
-#define IMPROV(x) { x, 0x80, 0x26, 0x78, 0x74, 0x27, 0x63, 0x46, \
-		    0x72, 0x22, 0x28, 0x62, 0x68, 0x77, 0x46, 0x00 }
 #define U16(x) { (x) & 0xff, (x) >> 8 }
 
 /* For SVC and DECL: the UUID that it declares.  For VALUE: the UUID of the characteristic. */

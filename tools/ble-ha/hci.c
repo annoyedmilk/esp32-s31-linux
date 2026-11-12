@@ -5,11 +5,7 @@
 
 #include "ble-ha.h"
 
-/* 00467768-6228-2272-4663-277478268000, in the byte order of the air. */
-static const uint8_t improv_uuid[16] = {
-	0x00, 0x80, 0x26, 0x78, 0x74, 0x27, 0x63, 0x46,
-	0x72, 0x22, 0x28, 0x62, 0x68, 0x77, 0x46, 0x00,
-};
+static const uint8_t improv_uuid[16] = IMPROV(0x00);
 
 /*
  * An LE Advertising Report event (after the packet type): event code,
