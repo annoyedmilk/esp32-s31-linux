@@ -39,7 +39,7 @@ start)
 	done < /proc/mounts
 	check_p1
 	mkdir -p $DISK_MNT
-	if mount -t vfat -o rw,noatime $P1 $DISK_MNT 2>/dev/null; then
+	if mount -t vfat -o rw,noatime,umask=077 $P1 $DISK_MNT 2>/dev/null; then
 		echo "disk: $P1 on $DISK_MNT"
 	else
 		echo "disk: $P1 will not mount"
