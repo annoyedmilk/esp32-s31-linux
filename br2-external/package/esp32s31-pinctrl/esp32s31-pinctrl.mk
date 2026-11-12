@@ -11,9 +11,9 @@ ESP32S31_PINCTRL_SITE_METHOD = local
 ESP32S31_PINCTRL_LICENSE = BSD-3-Clause (pinctrl.c), MIT
 ESP32S31_PINCTRL_LICENSE_FILES = pinctrl.c
 
+# -B: the local site copies the tool directory with a binary from the host.
 define ESP32S31_PINCTRL_BUILD_CMDS
-	$(TARGET_MAKE_ENV) $(MAKE) -B -C $(@D) CC="$(TARGET_CC)" \
-		CFLAGS="$(TARGET_CFLAGS)" LDFLAGS="$(TARGET_LDFLAGS)" pinctrl
+	$(TARGET_MAKE_ENV) $(MAKE) -B -C $(@D) $(TARGET_CONFIGURE_OPTS) pinctrl
 endef
 
 define ESP32S31_PINCTRL_INSTALL_TARGET_CMDS
