@@ -280,7 +280,7 @@ static struct sk_buff *esp_shm_read(struct esp_adapter *adapter)
 		    len > to_host.size ||
 		    ESP_SHM_RECORD_LEN(len) > head - tail) {
 			dev_err_ratelimited(ctx->dev, "bad frame length %u\n", len);
-			shm_write32(ctx, to_host.ctrl + ESP_SHM_TAIL_OFF, head);
+			esp_shm_rx_done(ctx, head);
 			esp_schedule_transport_recovery(adapter);
 			return NULL;
 		}
