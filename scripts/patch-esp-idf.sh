@@ -17,7 +17,7 @@ idf() { git -C "$IDF_PATH" "$@"; }
 
 if [ "$(idf rev-parse HEAD~1 2>/dev/null)" = "$(cat bootloader/esp-idf.version)" ] &&
 	[ "$(idf log -1 --format=%an)" = esp32s31-linux ]; then
-	idf reset -q --soft HEAD~1
+	idf reset -q --keep HEAD~1
 fi
 
 files=
