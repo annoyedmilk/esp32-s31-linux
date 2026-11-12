@@ -19,6 +19,6 @@ with open(image, "rb") as f:
     data = f.read()
 crc = zlib.crc32(data)
 with open(manifest, "wb") as f:
-    manifest_data = struct.pack("<III", 0x455A4953, len(data), crc)
+    manifest_data = struct.pack("<4sII", b"SIZE", len(data), crc)
     f.write(b"\xff" * (SECTOR - len(manifest_data)) + manifest_data)
 print(f"{manifest}: {len(data)} bytes, crc32 {crc:#010x}")
