@@ -122,7 +122,8 @@ static int hci_cmd(uint16_t op, const void *param, uint8_t plen, uint8_t *ret, s
 	pkt[1] = op & 0xff;
 	pkt[2] = (uint8_t)(op >> 8);
 	pkt[3] = plen;
-	memcpy(pkt + 4, param, plen);
+	if (plen)
+		memcpy(pkt + 4, param, plen);
 	if (write(s.hci, pkt, 4u + plen) != 4 + plen)
 		return -1;
 	while (now_ms() < end) {
