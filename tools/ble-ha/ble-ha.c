@@ -336,7 +336,8 @@ static void rpc_write(void *ctx, const uint8_t *data, size_t len)
 	}
 	set_state(s.gatt.state, IMPROV_ERR_NONE);
 	improv_command(&c);
-	memset(&c, 0, sizeof(c));
+	/* c is dead here: a memset() may be removed, and it holds the passphrase. */
+	explicit_bzero(&c, sizeof(c));
 }
 
 static void join_poll(void)
