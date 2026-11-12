@@ -8,6 +8,8 @@
 
 IFACE=wg0
 CONF=/etc/wireguard/$IFACE.conf
+# The waiter of start, so that stop and restart can end it.
+WAITER=/var/run/wireguard-start.pid
 . /etc/default/wireguard
 . /etc/default/ntp
 
@@ -45,16 +47,25 @@ up()
 case "$1" in
 start)
 	[ "$WG" = yes ] || exit 0
+	ip link show $IFACE >/dev/null 2>&1 && exit 0
+	[ -s $WAITER ] && kill -0 "$(cat $WAITER)" 2>/dev/null && exit 0
 	[ -r $CONF ] || { echo "wireguard: no $CONF"; exit 1; }
-	(wait_network; up) </dev/null >/dev/null 2>&1 &
+	(wait_network; up; rm -f $WAITER) </dev/null >/dev/null 2>&1 &
+	echo $! >$WAITER
 	;;
 stop)
+	[ -s $WAITER ] && kill "$(cat $WAITER)" 2>/dev/null
+	rm -f $WAITER
 	ip link del $IFACE 2>/dev/null
 	nft flush set inet filter wg_port 2>/dev/null
 	;;
 restart)
 	"$0" stop
-	[ "$WG" = yes ] && wait_network && up
+	[ "$WG" = yes ] || exit 0
+	# This shell is the waiter now, so that a start meanwhile does nothing.
+	echo $$ >$WAITER
+	wait_network && up
+	rm -f $WAITER
 	;;
 esac
 
