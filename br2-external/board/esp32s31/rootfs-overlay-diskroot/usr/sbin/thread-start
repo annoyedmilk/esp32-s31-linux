@@ -77,6 +77,8 @@ start_daemon()
 	mkdir -p $DATA
 	bb=$(backbone "$1")
 	if [ -n "$bb" ]; then
+		# With forwarding, accept_ra=1 ignores the router of the backbone.
+		sysctl -q -w net.ipv6.conf."$bb".accept_ra=2
 		sysctl -q -w net.ipv6.conf.all.forwarding=1
 		sysctl -q -w net.ipv4.ip_forward=1
 		set -- -B "$bb"
