@@ -1,7 +1,9 @@
 From: Marco Müller <hello@annoyedmilk.ch>
 Subject: [PATCH] fw_base: mask the CLIC state bits of mcause
 
-The CLIC puts level bits in mcause.  Keep bit 31 and the code.
+The CLIC puts level bits in mcause.  Keep bit 31 and the code, also in
+the expected traps of the unprivileged accesses, where the cause is an
+exception and only the code counts.
 
 Upstream: not sent
 ---
@@ -17,3 +19,26 @@ diff --git a/firmware/fw_base.S b/firmware/fw_base.S
  	REG_S	t0, (SBI_TRAP_REGS_SIZE + SBI_TRAP_INFO_OFFSET(cause))(sp)
  	csrr	t0, CSR_MTVAL
  	REG_S	t0, (SBI_TRAP_REGS_SIZE + SBI_TRAP_INFO_OFFSET(tval))(sp)
+diff --git a/lib/sbi/sbi_expected_trap.S b/lib/sbi/sbi_expected_trap.S
+--- a/lib/sbi/sbi_expected_trap.S
++++ b/lib/sbi/sbi_expected_trap.S
+@@ -26,6 +26,9 @@
+ 	li	a4, MSTATUS_MPRV
+ 	csrc	CSR_MSTATUS, a4
+ 	csrr	a4, CSR_MCAUSE
++	/* An exception: keep the code, drop the CLIC state bits. */
++	slli	a4, a4, __riscv_xlen - 12
++	srli	a4, a4, __riscv_xlen - 12
+ 	REG_S	a4, SBI_TRAP_INFO_OFFSET(cause)(a3)
+ 	csrr	a4, CSR_MTVAL
+ 	REG_S	a4, SBI_TRAP_INFO_OFFSET(tval)(a3)
+@@ -44,6 +47,9 @@
+ 	li	a4, MSTATUS_MPRV
+ 	csrc	CSR_MSTATUS, a4
+ 	csrr	a4, CSR_MCAUSE
++	/* An exception: keep the code, drop the CLIC state bits. */
++	slli	a4, a4, __riscv_xlen - 12
++	srli	a4, a4, __riscv_xlen - 12
+ 	REG_S	a4, SBI_TRAP_INFO_OFFSET(cause)(a3)
+ 	csrr	a4, CSR_MTVAL
+ 	REG_S	a4, SBI_TRAP_INFO_OFFSET(tval)(a3)
