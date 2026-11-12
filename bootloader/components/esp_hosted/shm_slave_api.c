@@ -236,6 +236,17 @@ static int32_t shm_write(interface_handle_t *handle,
 	return buf_handle->payload_len;
 }
 
+/* Give the ring up to TAIL back to the host, and wake it when it waits. */
+static void release_to_fw(uint32_t tail)
+{
+	shm_store(to_fw.ctrl + ESP_SHM_TAIL_OFF, tail);
+	shm_fence();
+	if (shm_load(to_fw.ctrl + ESP_SHM_WAIT_OFF)) {
+		shm_store(to_fw.ctrl + ESP_SHM_WAIT_OFF, 0);
+		ring_host_doorbell();
+	}
+}
+
 static int shm_read(interface_handle_t *handle,
 		    interface_buffer_handle_t *buf_handle)
 {
@@ -262,7 +273,7 @@ static int shm_read(interface_handle_t *handle,
 	    ESP_SHM_RECORD_LEN(len) > head - tail) {
 		/* A broken record: drop all frames, the host recovers. */
 		ESP_LOGE(TAG, "bad frame length %u", (unsigned)len);
-		shm_store(to_fw.ctrl + ESP_SHM_TAIL_OFF, head);
+		release_to_fw(head);
 		return 0;
 	}
 
@@ -270,13 +281,7 @@ static int shm_read(interface_handle_t *handle,
 	if (!buf)
 		return 0;
 	ring_copy_out(&to_fw, tail + 4, buf, len);
-	shm_store(to_fw.ctrl + ESP_SHM_TAIL_OFF, tail + ESP_SHM_RECORD_LEN(len));
-	shm_fence();
-
-	if (shm_load(to_fw.ctrl + ESP_SHM_WAIT_OFF)) {
-		shm_store(to_fw.ctrl + ESP_SHM_WAIT_OFF, 0);
-		ring_host_doorbell();
-	}
+	release_to_fw(tail + ESP_SHM_RECORD_LEN(len));
 
 	hdr = (const struct esp_payload_header *)buf;
 	buf_handle->if_type = hdr->if_type;
