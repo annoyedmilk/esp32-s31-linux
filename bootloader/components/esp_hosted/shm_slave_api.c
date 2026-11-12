@@ -146,8 +146,10 @@ static void IRAM_ATTR shm_doorbell_isr(void *arg)
 	portYIELD_FROM_ISR(woken);
 }
 
+/* After the data that it announces: fence rw,rw does not order the MMIO write. */
 static void ring_host_doorbell(void)
 {
+	__asm__ volatile ("fence iorw, iorw" ::: "memory");
 	REG_WRITE(DOORBELL_TO_HOST_REG, 1);
 }
 

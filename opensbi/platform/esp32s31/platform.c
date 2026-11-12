@@ -3,6 +3,7 @@
 
 #include <sbi/riscv_asm.h>
 #include <sbi/riscv_atomic.h>
+#include <sbi/riscv_barrier.h>
 #include <sbi/sbi_console.h>
 #include <sbi/sbi_domain.h>
 #include <sbi/sbi_ecall_interface.h>
@@ -205,6 +206,8 @@ static void esp32s31_request_poweroff(void)
 	atomic_raw_set_bit(__builtin_ctz(ESP_SHM_REQ_POWEROFF),
 			   (volatile unsigned long *)(ESP_SHM_ADDR + ESP_SHM_CTRL +
 						      ESP_SHM_HOST_REQ_OFF));
+	/* The request before the doorbell: the AMO above is relaxed. */
+	wmb();
 	reg_write(ESP32S31_DOORBELL_TO_FW, 1);
 }
 
