@@ -256,8 +256,11 @@ static irqreturn_t esp32_uart_int(int irq, void *dev_id)
 
 	if (status & ESP32_UART_RX_INTS)
 		esp32_uart_rxint(port);
-	if (status & UART_TXFIFO_EMPTY_INT)
+	if (status & UART_TXFIFO_EMPTY_INT) {
+		uart_port_lock(port);
 		esp32_uart_transmit_buffer(port);
+		uart_port_unlock(port);
+	}
 
 	esp32_uart_write(port, UART_INT_CLR_REG, status);
 
