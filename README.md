@@ -122,14 +122,13 @@ Notes:
   disk: write the flash image and the disk from the same release.
 - On the module alone, `flash_erase /dev/mtd1 0 0` and a reboot put the
   root back to the image. `make flash` does not write the `data` partition,
-  so the overlay stays after an update. An update from v0.9.1 or older is
-  the exception: the `data` partition moved, so the first boot formats it,
-  and the files of the overlay are lost.
+  so the overlay stays after an update.
 - `poweroff` puts the chip into deep sleep. Only the reset button starts it
   again.
 - Linux is uniprocessor. The FPU is not used (F without D), so userspace is
   soft-float.
-- With WPA3-SAE, the first connection can fail. `wpa_supplicant` tries again.
+- With WPA3-SAE, the first connection can fail. `wpa_supplicant` tries
+  again.
 - On the access point, use WPA2 (`ap.sh`). WPA3 (SAE) and protected
   management frames on the access point do not work correctly yet. The
   station is not affected.
@@ -146,239 +145,141 @@ Notes:
 | `coreboard1` also | `ethtool` |
 | `korvo1` also | `gpm`, `irssi`, `evtest` |
 
-`/etc/motd` lists the first commands; on the Korvo-1, the first window of
-the tmux desktop shows it. `/usr/share/examples` has example
+`/etc/motd` lists the first commands. `/usr/share/examples` has example
 scripts.
 
-- **Wi-Fi.** `iw dev wlan0 link` shows the connection, and
-  `/usr/share/examples/wifi-scan.sh` lists the networks in range with
-  their signal and channel. On the disk boards,
-  `/usr/share/examples/wifi-monitor.sh [COUNT]` shows the 802.11 frames
-  of the channel with tcpdump (monitor mode); the station stays
-  connected. `/usr/share/examples/ap.sh SSID PASSPHRASE`
-  starts a WPA2 access point at 192.168.4.1. `udhcpd` gives the clients
-  192.168.4.100 to 192.168.4.200 and no default route, so they reach
-  only the board; `dumpleases -f /var/run/udhcpd.wlan0.leases` lists
-  them. With `--nat eth0` (or another interface that is not `wlan0`), the
-  board routes the clients to that interface with NAT and gives them its
-  own DNS servers. udhcpd runs only while `wlan0` is an access point.
+- **Wi-Fi.** `iw dev wlan0 link` shows the connection.
+  `/usr/share/examples/wifi-scan.sh` lists the networks in range, and on
+  the disk boards `/usr/share/examples/wifi-monitor.sh [COUNT]` shows the
+  802.11 frames. On the Korvo-1, Wi-Fi gives about 45 Mbit/s TX and
+  36 Mbit/s RX. While the Bluetooth proxy scans, it gives about 17/21
+  Mbit/s TX/RX, and while the Thread radio receives, about 12/17.
+  `/usr/share/examples/ap.sh SSID PASSPHRASE [--nat eth0]` starts a WPA2
+  access point at 192.168.4.1. The clients get 192.168.4.100 to
+  192.168.4.200 and reach only the board, or with `--nat` also the other
+  interface. `dumpleases -f /var/run/udhcpd.wlan0.leases` lists them.
   `/etc/init.d/S40wifi restart` goes back to the station.
 - **Bluetooth.** `bluetoothctl`, then `scan le`, `scan bredr`, `devices`.
-  `bluetoothd` starts at the first `bluetoothctl`.
-  `/usr/share/examples/ble-scan.sh 10` lists the LE devices after a scan of
-  10 seconds.
-
-  `ble-ha` gives Bluetooth LE to Home Assistant (`/etc/default/ble-ha`).
-  While it runs, it owns the adapter, and `bluetoothctl` does not work.
-  It does not start while `bluetoothd` runs, for example at boot with a
-  paired device.
-  - Bluetooth proxy: `/usr/share/examples/ha-bluetooth.sh HA_ADDRESS`
-    makes the board a passive Bluetooth proxy with the ESPHome native API
-    on TCP port 6053, also after each boot. Home Assistant finds it with
-    mDNS as an ESPHome device, or add the ESPHome integration with the
-    board and port 6053. Home Assistant then sees the Bluetooth LE devices
-    near the board, for example BTHome, Xiaomi or Qingping sensors. The
-    API has no encryption, so the firewall accepts the port only from the
-    hosts in `BT_PROXY_ALLOW`. While Home Assistant receives the
-    advertisements, Wi-Fi gives approximately 13/21 Mbit/s TX/RX instead
-    of 40/33 (the coexistence of Wi-Fi and Bluetooth).
-    `ha-bluetooth.sh off` ends the proxy.
-  - Wi-Fi setup: while `wpa_supplicant` has no network, as on a new board,
-    the board offers Improv Wi-Fi over Bluetooth LE. A phone or Home
-    Assistant gives it a Wi-Fi network. The board keeps the network only
-    when it connects with an address in 30 seconds. During this time, any
-    device in range can do the setup. `IMPROV=no` turns it off.
-- **Thread** (Function-CoreBoard-1, Korvo-1). `thread-start` starts
-  `ot-daemon` on the IEEE 802.15.4 radio as a border router on `wlan0` or
-  `eth0` (`thread-start eth0` chooses); `ot-ctl` starts it at the first
-  command. `ot-ctl dataset init new`, `ot-ctl dataset commit active`,
-  `ot-ctl ifconfig up` and `ot-ctl thread start` form a network; `ot-ctl
-  state` shows it, and `ot-ctl dataset active -x` prints the dataset for
-  other devices. The border router routes IPv6 between the mesh and the
-  backbone, runs the SRP and DNS-SD servers, and publishes the services
-  of the Thread devices with mDNS on the backbone, so a Matter controller
-  on the LAN talks to Matter devices on Thread through the board. The
-  board itself announces `_meshcop._udp`. With a backbone, Thread devices
-  also reach IPv4 hosts through NAT64 (192.168.255.0/24, masqueraded), and
-  the border router sends their DNS queries to the resolvers of the board.
-  To commission a Matter device,
-  the controller gives it the dataset over Bluetooth:
-  - chip-tool on a PC takes the dataset directly:
-    `chip-tool pairing code-thread 1 hex:DATASET SETUPCODE`. On Linux,
+  `/usr/share/examples/ble-scan.sh 10` scans for 10 seconds. `ble-ha`
+  (`/etc/default/ble-ha`) gives Bluetooth LE to Home Assistant. While it
+  runs, `bluetoothctl` does not work. It does not start while
+  `bluetoothd` runs.
+  - `/usr/share/examples/ha-bluetooth.sh HA_ADDRESS` makes the board a
+    Bluetooth proxy with the ESPHome API on TCP port 6053, also at each
+    boot. The API has no encryption: the firewall accepts the port only
+    from the hosts in `BT_PROXY_ALLOW`. `ha-bluetooth.sh off` ends it.
+  - While `wpa_supplicant` has no network, any device in range can give
+    the board a network with Improv Wi-Fi over Bluetooth LE. The board
+    keeps it only when it gets an address in 30 seconds. `IMPROV=no`
+    turns this off.
+- **Thread** (Function-CoreBoard-1, Korvo-1). `thread-start [eth0]`
+  starts a border router on `wlan0` or `eth0`; `thread-start stop` ends
+  it. `ot-ctl dataset init new`, `ot-ctl dataset commit active`,
+  `ot-ctl ifconfig up` and `ot-ctl thread start` form a network.
+  `ot-ctl state` shows it, and `ot-ctl dataset active -x` prints the
+  dataset. Thread devices reach IPv4 hosts through NAT64
+  (192.168.255.0/24). To give the dataset to a device:
+  - chip-tool: `chip-tool pairing code-thread 1 hex:DATASET SETUPCODE`.
+    On a Linux PC,
     `sysctl -w net.ipv6.conf.IFACE.accept_ra_rt_info_max_plen=64` gives
-    the PC the route to the mesh.
-  - A phone app (Google Home, Apple Home) takes the dataset only from its
-    own credential store. `thread-share [MINUTES]` starts an ephemeral key
-    (ePSKc, Thread 1.4 credential sharing) for 1 to 10 minutes (default 2)
-    and prints it; an app that supports credential sharing finds the board
-    as `_meshcop-e._udp` and gets the dataset with it. `thread-share stop`
-    ends the key. The firewall accepts the border agent on UDP port 49191
-    and the ephemeral key on UDP port 49192.
-  - Thread devices without Matter join with a PSKd: `ot-ctl commissioner
-    start`, then `ot-ctl commissioner joiner add * PSKD`.
+    the route to the mesh.
+  - A phone app: `thread-share [MINUTES]` prints an ephemeral key, valid
+    for 1 to 10 minutes (default 2). `thread-share stop` ends it.
+  - Thread devices without Matter: `ot-ctl commissioner start`, then
+    `ot-ctl commissioner joiner add * PSKD`.
 
-  Wi-Fi and 802.15.4 share the radio: while the Thread
-  radio receives, Wi-Fi gives approximately 12/17 Mbit/s TX/RX instead
-  of 46/37.
-  `thread-start stop` ends the network and the daemon. In this mode,
-  nothing starts at boot. `/usr/share/examples/thread-hub.sh` is a sensor
-  hub: it starts the network, prints the dataset for the sensors, and logs
-  each UDP datagram on port 4242 with the time and the sender to p1 of the
-  disk.
-
-  Home Assistant can also be the Thread host, with the radio of the board
-  as with a USB radio. `/usr/share/examples/ha-thread.sh HA_ADDRESS` sets
-  `THREAD_MODE=relay` and `RELAY_ALLOW` in `/etc/default/thread` and
-  starts `thread-relay`, also at each boot: it gives the radio to Home
-  Assistant on TCP port 6638. In the OpenThread Border Router app, set a
-  dummy device and `network_device` to `BOARD_ADDRESS:6638`. The Thread
-  and Matter integrations then work as with a USB radio, and the
-  Companion app can give the credentials to a phone. The port gives full
-  control of the radio, so the firewall accepts it only from
-  `RELAY_ALLOW`. In this mode `ot-ctl` and `thread-share` do not work;
-  `ha-thread.sh off` gives the radio back to `ot-daemon`. The RCP protocol
-  is sensitive to delays on the network: Ethernet (Function-CoreBoard-1)
-  is better than Wi-Fi, which shares the radio with 802.15.4 on the
-  Korvo-1. A reload of the firewall empties the list of hosts: then run
-  `thread-start stop` and `thread-start`. Tested with Home Assistant 2026.10
-  and `otbr-agent` in a container, not with the app of Home Assistant OS.
+  `/usr/share/examples/thread-hub.sh` forms a network and logs each UDP
+  datagram on port 4242 to p1 of the disk.
+  `/usr/share/examples/ha-thread.sh HA_ADDRESS` gives the radio to Home
+  Assistant on TCP port 6638 (`THREAD_MODE=relay` and `RELAY_ALLOW` in
+  `/etc/default/thread`). In the OpenThread Border Router app, set a
+  dummy device and `network_device` to `BOARD_ADDRESS:6638`. The port
+  gives full control of the radio: the firewall accepts it only from
+  `RELAY_ALLOW`. Ethernet is better than Wi-Fi for the relay. After a
+  reload of the firewall, run `thread-start stop` and `thread-start`.
+  `ha-thread.sh off` ends the relay. The app of Home Assistant OS is not
+  tested.
 - **MQTT** (Function-CoreBoard-1, Korvo-1). `mosquitto_pub` and
-  `mosquitto_sub`, with TLS, send and receive MQTT messages; the broker
-  runs on the LAN. `/etc/default/mqtt` (mode 600) has the broker, the
-  user, the password, the client ID and the CA file for TLS (port 8883;
-  TLS needs the right time). `/usr/share/examples/mqtt-report.sh` sends
-  the uptime, the free memory and the Wi-Fi signal, with retained
-  discovery messages, so that Home Assistant shows them as sensors
-  without YAML; its comment has the `crontab` line.
-  `/usr/share/examples/mqtt-led.sh` sets the LED from `R G B` messages on
-  `esp32s31/MQTT_ID/led` and refuses other messages. Tested against
-  Mosquitto 2 on a Mac, with and without TLS; not tested with Home
-  Assistant. The module alone has no MQTT: its flash has no room.
-- **GPIO.** `gpiodetect`, `gpioinfo`, `gpioget --numeric -c gpiochip0 PIN`
-  and `gpioset -t0 -c gpiochip0 PIN=1`. `/usr/share/examples/gpio.sh PIN
-  [0|1]` reads or sets a pin. The kernel refuses the pins of the flash, the
-  console, the loader and the drivers (`gpio-reserved-ranges` in the device
-  tree). `pinctrl` shows the state of each pin from the registers, as on the
-  Raspberry Pi: the function, the pull, the level and the net name of the
-  board. `pinctrl get 47`, `pinctrl -p get` (the pins of header J2 on the
-  Function-CoreBoard-1, the module pads on the others), `pinctrl funcs 8`,
-  `pinctrl set 47 op dh`. `set` is a debug tool: it writes the registers
-  past the kernel driver, and it refuses the flash pins, the reserved pins
-  and the lines that a driver uses. `pinctrl -h` tells more.
-
-  Each GPIO has an interrupt for edges (rising, falling, both) and levels
-  (high, low), so `gpiomon` and the edge events of libgpiod work.
+  `mosquitto_sub` send and receive messages, also with TLS (port 8883;
+  TLS needs the right time). `/etc/default/mqtt` (mode 600) has the
+  broker, the user, the password, the client ID and the CA file.
+  `/usr/share/examples/mqtt-report.sh` sends sensors to Home Assistant,
+  and `/usr/share/examples/mqtt-led.sh` sets the LED from `R G B`
+  messages on `esp32s31/MQTT_ID/led`. The two scripts are not tested with
+  Home Assistant.
+- **GPIO.** `gpiodetect`, `gpioinfo`,
+  `gpioget --numeric -c gpiochip0 PIN`, `gpioset -t0 -c gpiochip0 PIN=1`,
+  `/usr/share/examples/gpio.sh PIN [0|1]`. The kernel refuses the
+  reserved pins. `pinctrl get 47`, `pinctrl -p get` (the header pins),
+  `pinctrl funcs 8` and `pinctrl set 47 op dh` show and set the function,
+  the pull and the level. `set` writes the registers past the kernel
+  driver: use it only to debug. `pinctrl -h` tells more.
   `/usr/share/examples/gpio-watch.sh PIN [rising|falling|both]` prints
-  each edge with the time. `/usr/share/examples/button.sh PIN COMMAND`
-  runs a command at each press of a button between the pin and GND.
-  `gpiomon -p 20ms` ignores the bounces of a contact for 20 ms: the kernel
-  does this in software, because the glitch filters of the chip are too
-  short for a button (at most 64 clocks of the IO MUX). `pinctrl get`
-  shows the interrupt of a pin, for example `[irq falling, lines 3]`, and
-  `set` refuses a pin with an enabled interrupt. With a loopback on one
-  pin, `gpiomon` got all 2000 edges at a half period of 50 µs and 1 ms,
-  and lost a few in some runs at 20 µs and 100 µs. No board has a free
-  user button for `gpio-keys`: the button of the Function-CoreBoard-1 is
-  the BOOT strapping pin (GPIO61), and the Korvo-1 buttons are on an ADC.
-- **I2C.** `/dev/i2c-0` gives the I2C bus to user space: `i2cdetect -l`
-  lists the buses, `i2cdetect -y 0` scans bus 0, `i2cget -y 0 0x48 0x00`
-  reads a register (BusyBox has these tools). On the Korvo-1, the scan
-  shows `UU` at 0x14, the GT1151 that the touch driver owns, and 0x10, the
-  ES8389 codec. A scan writes to each address, and some devices do not
-  like it: scan only a bus that you know. Do not write to the devices of
-  the board. On the Function-CoreBoard-1, bus 0 is ESP_I2C on the board;
-  for a device on header J2, set `status = "okay"` for `&i2c1` in
-  `esp32s31_coreboard1.dts` (SDA on pin 13, SCL on pin 14) and add
-  4.7 kOhm pull-ups to 3V3. The module alone has an example bus on GPIO47
-  and GPIO48 in `esp32s31.dts`; it also needs `CONFIG_I2C` in
-  `linux-esp32s31.fragment`. The boot chain does not apply device tree
-  overlays, so each change needs a new kernel.
-- **LED** (Function-CoreBoard-1, Korvo-1). The WS2812 is
-  `/sys/class/leds/rgb:status`: write `R G B` (0 to 255) to
-  `multi_intensity`, then `255` to `brightness`.
-  `/usr/share/examples/led.sh R G B` does this, and on the Korvo-1 also
-  `micropython /usr/share/examples/led.py R G B`.
-  The LED can also show a state: in `/etc/default/led`, `LED_TRIGGER`
-  `heartbeat` (blinks with the load), `timer`, `default-on`, `netdev`
-  (on with the link of `LED_NETDEV`, blinks with its traffic) or `panic`
-  (red from a kernel panic to the reboot), and `LED_COLOR`. `S16led` sets
-  them at boot; the default `none` leaves the LED as before.
-- **Network.** `iperf3` measures the throughput against a server.
-  On the Korvo-1, a USB Ethernet adapter (CDC ECM or NCM, ASIX AX88179,
-  Realtek RTL8152 or RTL8153) becomes `eth0` with DHCP when it is plugged
-  in, and its default route wins over Wi-Fi.
-  `curl` verifies certificates against the CA bundle.
-  `/usr/share/examples/report.sh URL` sends the uptime and the free memory
-  with HTTPS; its comment shows the `crontab` line for each 5 minutes.
-- **WireGuard.** The board can be a peer of a WireGuard server, or a
-  small server. `/usr/share/examples/wg-setup.sh [PORT]` makes a key pair
-  on the board, writes `/etc/wireguard/wg0.conf` (mode 600) with a peer
-  template, and prints the public key of the board for the other side.
-  Put the public key, the `Endpoint` and the `AllowedIPs` of the peer into
-  `wg0.conf` (the format of `wg setconf`: no `Address`, `DNS` or `MTU`),
-  and set `WG=yes`, `WG_ADDRESS`, `WG_ROUTES` and `WG_MTU` in
-  `/etc/default/wireguard`. `/etc/init.d/S42wireguard restart` makes
-  `wg0`, also at each boot. At boot, it waits for a default route and
-  for the NTP time: a peer drops a handshake with a time older than the
-  last one from the board, and `wg setconf` resolves the `Endpoint` name
-  once. With a `ListenPort` in `wg0.conf`, the firewall takes that UDP
-  port while `wg0` is up. `wg0` gets the same firewall rules as the other
-  interfaces (SSH, ping). `wg show` shows the handshake. Measured on the
-  Korvo-1 on Wi-Fi with a Mac as the peer: 8.8 Mbit/s TX and 15.6 Mbit/s
-  RX through the tunnel, against 42.8 and 36.3 Mbit/s without it; the
-  CPU is busy all the time. After a reboot, the tunnel worked again 32 s
-  after the start.
-- **Code.** `lua`, and `micropython` on the Function-CoreBoard-1 and the
-  Korvo-1. `gdbserver` and `strace` are there too.
-- **Firewall.** `/etc/nftables.conf` loads at boot. The board answers
-  ping and mDNS and takes SSH, the DHCP replies of its own client, and
-  on the disk boards the Thread mesh and the border agent (UDP 49191 and
-  49192). Some ports are open only while a feature runs: DHCP requests
-  (UDP 67) on the access point of `ap.sh`, the `ListenPort` of WireGuard
-  while `wg0` is up, the Bluetooth proxy (TCP 6053) for the hosts in
-  `BT_PROXY_ALLOW`, and in relay mode the Home Assistant hosts on TCP
-  6638. The firewall drops and logs all other new connections. The
-  module has the firewall since v0.10.0: a server on another port needs
-  a rule after the update. `nft insert rule inet filter input tcp dport
-  8080 accept` opens a port until the next boot; a line in the file keeps
-  it. `ap.sh SSID PASSPHRASE --nat eth0` makes a router between the
-  access point and `eth0`: it turns on forwarding, adds a masquerade rule
-  in the table `ip ap-nat`, and lets the access point forward to `eth0`
-  (the set `ap_route`). `/etc/init.d/S40wifi stop` removes these again.
-- **Web page.** `nft insert rule inet filter input tcp dport 8080 accept`,
-  then `httpd -p 8080 -h /usr/share/examples/www` serves a page that sets
-  the pins and the LED. It has no password: open the port only on a
-  network that you trust.
+  each edge. `/usr/share/examples/button.sh PIN COMMAND` runs a command
+  at each press of a button to GND. `gpiomon -p 20ms` ignores bounces.
+- **I2C.** `i2cdetect -l` lists the buses, `i2cdetect -y 0` scans bus 0,
+  `i2cget -y 0 0x48 0x00` reads a register. Scan only a bus that you
+  know, and do not write to the devices of the board. On the
+  Function-CoreBoard-1, bus 0 is ESP_I2C. For header J2, set
+  `status = "okay"` for `&i2c1` in `esp32s31_coreboard1.dts` (SDA on pin
+  13, SCL on pin 14) and add 4.7 kOhm pull-ups to 3V3. The module alone
+  has an example bus on GPIO47 and GPIO48 in `esp32s31.dts`, and needs
+  `CONFIG_I2C` in `linux-esp32s31.fragment`. Each change needs a new
+  kernel.
+- **LED** (Function-CoreBoard-1, Korvo-1).
+  `/usr/share/examples/led.sh R G B` (0 to 255) sets the WS2812: it
+  writes `multi_intensity` and `brightness` of
+  `/sys/class/leds/rgb:status`. On the Korvo-1,
+  `micropython /usr/share/examples/led.py R G B` does the same.
+  `LED_TRIGGER` (`heartbeat`, `timer`, `default-on`, `netdev` with
+  `LED_NETDEV`, `panic`) and `LED_COLOR` in `/etc/default/led` make it
+  show a state.
+- **Network.** On the Korvo-1, a USB Ethernet adapter (CDC ECM or NCM,
+  ASIX AX88179, Realtek RTL8152 or RTL8153) becomes `eth0` with DHCP.
+  `/usr/share/examples/report.sh URL` sends the uptime and the free
+  memory with HTTPS.
+- **WireGuard.** `/usr/share/examples/wg-setup.sh [PORT]` makes a key
+  pair and `/etc/wireguard/wg0.conf` (mode 600), and prints the public
+  key. Add the public key, the `Endpoint` and the `AllowedIPs` of the
+  peer to `wg0.conf` (the format of `wg setconf`: no `Address`, `DNS` or
+  `MTU`). Set `WG=yes`, `WG_ADDRESS`, `WG_ROUTES` and `WG_MTU` in
+  `/etc/default/wireguard`, then run `/etc/init.d/S42wireguard restart`.
+  `wg show` shows the handshake. The CPU limits the throughput.
+- **Firewall.** `/etc/nftables.conf` loads at boot. The board accepts
+  ping, mDNS, SSH, DHCP replies, and on the disk boards the Thread mesh
+  and the border agent (UDP 49191 and 49192). These ports are open only
+  while their feature runs: DHCP (UDP 67) on the access point, the
+  `ListenPort` of `wg0`, TCP 6053 for `BT_PROXY_ALLOW` and TCP 6638 for
+  `RELAY_ALLOW`. The firewall drops
+  and logs all other new connections.
+  `nft insert rule inet filter input tcp dport 8080 accept` opens a port
+  until the next boot; a line in the file keeps it.
+- **Web page.** Open port 8080, then
+  `httpd -p 8080 -h /usr/share/examples/www` serves a page that sets the
+  pins and the LED. It has no password: open the port only on a network
+  that you trust.
 - **Start at boot.** The board runs `autostart.sh` from p1 of the disk
   (`/mnt/sd` on the Korvo-1, `/mnt/usb` on the Function-CoreBoard-1), or
-  `/root/autostart.sh` when the disk has none. Its output is in
-  `/tmp/autostart.log`. `/usr/share/examples/autostart.sh` is a template.
+  `/root/autostart.sh`. The output is in `/tmp/autostart.log`.
+  `/usr/share/examples/autostart.sh` is a template.
   `scp file root@<address>:/mnt/sd/` puts a file on p1.
-- **Touch** (Korvo-1). `/usr/share/examples/touch.sh` prints the touches on
-  the LCD with `evtest`.
-- **Desktop** (Korvo-1). In tmux on the LCD: `Ctrl-b c` opens a window,
-  `Ctrl-b n` goes to the next, `Ctrl-b %` and `Ctrl-b "` split, `Ctrl-b d`
-  logs out. Kernel messages do not write over the desktop: they go to
-  `tty2` (`Alt-F2`, back with `Alt-F1`) and to the UART.
+- **Korvo-1.** `/usr/share/examples/touch.sh` prints the touches. In tmux
+  on the LCD: `Ctrl-b c` opens a window, `Ctrl-b n` goes to the next,
+  `Ctrl-b %` and `Ctrl-b "` split, `Ctrl-b d` logs out. Kernel messages go
+  to `tty2` (`Alt-F2`, back with `Alt-F1`).
 - **Recovery.** The board reboots 10 s after a kernel panic, and 60 s
-  after user space stops (the soft watchdog; `/etc/init.d/S15watchdog stop`
-  turns it off). SysRq works with `/proc/sysrq-trigger`: `s` syncs, `u`
-  remounts read-only, `b` reboots. After a kernel panic or a reboot of
-  the soft watchdog, the next boot puts the kernel log of the panic and
-  the console of the boot before into `crash/` on p1 of the disk
-  (`/root/crash` on the module alone). They stay over the reboot in 32
-  KiB of PSRAM (pstore); the reset button and a power cycle clear them.
-- **Time.** The board has no RTC. At boot, it sets the last saved time,
-  so that TLS works before the network. At each DHCP lease and renewal,
-  `ntpd` sets the clock from the NTP servers of the DHCP server and from
-  `NTP_SERVERS` in `/etc/default/ntp` (`pool.ntp.org`). Without a reply,
-  it tries again after 10 s, 30 s, 1 min, and up to 1 h. `NTP=no` turns
-  it off. The board is not an NTP server. The clock is UTC. A local zone
-  for the shell: a POSIX string in `/etc/default/tz`, for example
-  `TZ="CET-1CEST,M3.5.0,M10.5.0/3"`, on all boards; on the
-  Function-CoreBoard-1 and the Korvo-1 also `ln -sf
-  /usr/share/zoneinfo/Europe/Zurich /etc/localtime`, which the daemons
-  use too.
+  after user space stops (`/etc/init.d/S15watchdog stop` turns this off).
+  SysRq works with `/proc/sysrq-trigger`: `s` syncs, `u` remounts
+  read-only, `b` reboots.
+  After a panic or a watchdog reboot, the crash log is in `crash/` on p1
+  of the disk (`/root/crash` on the module alone). The reset button and a
+  power cycle clear it.
+- **Time.** The board has no RTC. `ntpd` uses the NTP servers from DHCP
+  and `NTP_SERVERS` in `/etc/default/ntp` (`pool.ntp.org`); `NTP=no`
+  turns it off. The clock is UTC. Set a local zone with a POSIX string in
+  `/etc/default/tz`, for example `TZ="CET-1CEST,M3.5.0,M10.5.0/3"`, or on
+  the disk boards with
+  `ln -sf /usr/share/zoneinfo/Europe/Zurich /etc/localtime`.
 
 ## Updates and compatibility
 
@@ -402,9 +303,27 @@ boot log. A different revision can change the behavior.
 `python -m esptool --chip esp32s31 -p PORT chip-id` shows the revision of
 your board.
 
+The `esp32s31` and `korvo1` builds are tested on the Korvo-1. The
+`coreboard1` build is tested on a Korvo-1 with the root on a USB stick;
+Ethernet, the eFuse MAC address, the LED and the I2C pins are not tested
+on a Function-CoreBoard-1.
+
+| Feature | `esp32s31` | `korvo1` | `coreboard1` |
+| --- | --- | --- | --- |
+| Boot, console, `stty`, SysRq | tested | tested | tested on the Korvo-1 |
+| Wi-Fi station | tested | tested | not tested |
+| Wi-Fi access point with DHCP | not tested | not tested | not tested |
+| Firewall, SSH with a key | tested | tested | not tested |
+| Bluetooth, proxy for Home Assistant | not tested | tested | not tested |
+| Thread border router | no | not tested | not tested |
+| Writable root in the flash | tested | no | no |
+| LCD, USB keyboard, touch | no | not tested | no |
+| Ethernet | no | not tested | not tested |
+| Watchdog, crash log | tested | tested | not tested |
+
 ## Build from source
 
-The host is macOS. The build needs:
+On a macOS host, the build needs:
 
 - Homebrew and GNU make (`brew install make`).
 - ESP-IDF at `~/esp/esp-idf`, at the commit in `bootloader/esp-idf.version`,
@@ -415,8 +334,6 @@ The host is macOS. The build needs:
 - The Apple `container` CLI. Buildroot does not run on macOS: it runs in the
   Debian image from `container/Containerfile`. Run `container system start`
   first.
-
-On Linux, `scripts/ci-build.sh` builds everything without a container.
 
 ```sh
 git submodule update --init --recursive
@@ -448,8 +365,21 @@ make monitor BOARD=korvo1 SERIAL_PORT=/dev/cu.usbserial-XXXX
   then use `rfc2217://localhost:2217` as the port of the script and of
   `make monitor`. The board resets only on an RTS pulse, and the script
   prints the time from the reset to the banner. Stop the server to flash.
-- Files in `local-overlay/` go into the root of all builds. git ignores them.
+- Files in `local-overlay/` go into the root of all builds. git ignores
+  them.
 - `make help` shows all targets.
+
+On a Linux host, Buildroot runs without a container:
+
+```sh
+BOARD=korvo1 scripts/ci-build.sh
+```
+
+It needs ESP-IDF at `$IDF_PATH` (default `~/esp/esp-idf`), at the commit
+in `bootloader/esp-idf.version`, patched with `scripts/patch-esp-idf.sh`
+and with its tools installed, and the Buildroot host packages. The flash
+images go to `build/<board>/`. For `korvo1` and `coreboard1`, the disk
+image is `build/<board>/buildroot/sdcard.img`.
 
 ## License
 

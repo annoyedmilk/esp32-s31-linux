@@ -117,8 +117,6 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
   上，二者分别更新，且内核从磁盘加载模块：flash 镜像和磁盘须来自同一发布版本。
 - 单独使用模组时，运行 `flash_erase /dev/mtd1 0 0` 再重启，可将根文件系统
   恢复为镜像状态。`make flash` 不写入 `data` 分区，因此更新后 overlay 保留。
-  从 v0.9.1 或更早版本更新时例外：`data` 分区的位置改变，首次启动会格式化它，
-  overlay 中的文件会丢失。
 - `poweroff` 使芯片进入 Deep-sleep 模式，只有复位键能再次启动它。
 - Linux 以单处理器模式运行。不使用 FPU（只有 F，没有 D），因此用户空间使用
   软浮点。
@@ -138,194 +136,122 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
 | `coreboard1` 另有 | `ethtool` |
 | `korvo1` 另有 | `gpm`、`irssi`、`evtest` |
 
-`/etc/motd` 列出入门命令；在 Korvo-1 上，tmux 桌面的第一个窗口显示它。`/usr/share/examples` 中有示例脚本。
+`/etc/motd` 列出入门命令。`/usr/share/examples` 中有示例脚本。
 
-- **Wi-Fi。** `iw dev wlan0 link` 显示连接状态，
-  `/usr/share/examples/wifi-scan.sh` 列出范围内的网络及其信号强度和信道。
-  在磁盘开发板上，`/usr/share/examples/wifi-monitor.sh [COUNT]` 用 tcpdump 显示
-  该信道的 802.11 帧（监听模式）；station 保持连接。
-  `/usr/share/examples/ap.sh SSID PASSPHRASE` 在 192.168.4.1 启动 WPA2
-  接入点。`udhcpd` 为客户端分配 192.168.4.100 到 192.168.4.200，不提供
-  默认路由，因此客户端只能访问开发板；`dumpleases -f
-  /var/run/udhcpd.wlan0.leases` 列出租约。加 `--nat eth0`（或其他不是
-  `wlan0` 的接口）时，开发板通过 NAT 把客户端路由到该接口，并提供自己的
-  DNS 服务器。udhcpd 只在 `wlan0` 是接入点时运行。`/etc/init.d/S40wifi restart` 切回 station 模式。
+- **Wi-Fi。** `iw dev wlan0 link` 显示连接状态。
+  `/usr/share/examples/wifi-scan.sh` 列出范围内的网络；在磁盘开发板上，
+  `/usr/share/examples/wifi-monitor.sh [COUNT]` 显示 802.11 帧。在 Korvo-1
+  上，Wi-Fi 约为 45 Mbit/s 发送、36 Mbit/s 接收。蓝牙代理扫描期间，约为
+  17/21 Mbit/s（发送/接收）；Thread 射频接收期间，约为 12/17。
+  `/usr/share/examples/ap.sh SSID PASSPHRASE [--nat eth0]` 在 192.168.4.1
+  启动 WPA2 接入点。客户端获得 192.168.4.100 到 192.168.4.200 的地址，只能
+  访问开发板；加 `--nat` 时也能访问另一个接口。
+  `dumpleases -f /var/run/udhcpd.wlan0.leases` 列出租约。
+  `/etc/init.d/S40wifi restart` 切回 station 模式。
 - **蓝牙。** 运行 `bluetoothctl`，然后 `scan le`、`scan bredr`、`devices`。
-  `bluetoothd` 在第一次运行 `bluetoothctl` 时启动。
-  `/usr/share/examples/ble-scan.sh 10` 扫描 10 秒后列出 LE 设备。
-
-  `ble-ha` 为 Home Assistant 提供蓝牙 LE（`/etc/default/ble-ha`）。它运行时
-  独占适配器，`bluetoothctl` 不能使用。`bluetoothd` 运行时（例如开机时有已配对
-  设备），它不会启动。
-  - 蓝牙代理：`/usr/share/examples/ha-bluetooth.sh HA_ADDRESS` 使开发板成为
-    被动蓝牙代理，通过 TCP 端口 6053 上的 ESPHome 原生 API 工作，之后每次开机
-    也会启动。Home Assistant 通过 mDNS 将其发现为 ESPHome 设备，也可以用开发板
-    地址和端口 6053 添加 ESPHome 集成。之后 Home Assistant 可以看到开发板附近的
-    蓝牙 LE 设备，例如 BTHome、小米或青萍传感器。该 API 没有加密，因此防火墙
-    只接受来自 `BT_PROXY_ALLOW` 中主机的连接。Home Assistant 接收广播期间，
-    Wi-Fi 吞吐量（发送/接收）约为 13/21 Mbit/s，而不是 40/33 Mbit/s（Wi-Fi 与
-    蓝牙的共存）。`ha-bluetooth.sh off` 结束代理。
-  - Wi-Fi 设置：当 `wpa_supplicant` 没有网络时（例如新开发板），开发板通过
-    蓝牙 LE 提供 Improv Wi-Fi。手机或 Home Assistant 可以为其设置 Wi-Fi 网络。
-    只有在 30 秒内连接成功并获得地址时，开发板才会保留该网络。在此期间，
-    范围内的任何设备都可以进行设置。`IMPROV=no` 关闭此功能。
-- **Thread**（Function-CoreBoard-1、Korvo-1）。`thread-start` 在
-  IEEE 802.15.4 无线上启动 `ot-daemon`，作为 `wlan0` 或 `eth0` 上的边界
-  路由器（用 `thread-start eth0` 选择）；第一次运行 `ot-ctl` 命令时也会启动它。
+  `/usr/share/examples/ble-scan.sh 10` 扫描 10 秒。`ble-ha`
+  （`/etc/default/ble-ha`）为 Home Assistant 提供蓝牙 LE。它运行时，
+  `bluetoothctl` 不能使用。`bluetoothd` 运行时，它不会启动。
+  - `/usr/share/examples/ha-bluetooth.sh HA_ADDRESS` 使开发板成为蓝牙代理，
+    通过 TCP 端口 6053 上的 ESPHome API 工作，之后每次开机也会启动。该 API
+    没有加密：防火墙只接受来自 `BT_PROXY_ALLOW` 中主机的连接。
+    `ha-bluetooth.sh off` 结束代理。
+  - 当 `wpa_supplicant` 没有网络时，范围内的任何设备都可以通过蓝牙 LE 上的
+    Improv Wi-Fi 为开发板设置网络。只有在 30 秒内获得地址时，开发板才会保留
+    该网络。`IMPROV=no` 关闭此功能。
+- **Thread**（Function-CoreBoard-1、Korvo-1）。`thread-start [eth0]` 在
+  `wlan0` 或 `eth0` 上启动边界路由器；`thread-start stop` 将其停止。
   `ot-ctl dataset init new`、`ot-ctl dataset commit active`、
-  `ot-ctl ifconfig up` 和 `ot-ctl thread start` 组建网络；`ot-ctl state`
-  显示状态，`ot-ctl dataset active -x` 打印供其他设备使用的数据集。边界路由器
-  在 Mesh 网络和骨干网络之间路由 IPv6，运行 SRP 和 DNS-SD 服务器，并通过
-  mDNS 在骨干网络上发布 Thread 设备的服务，因此局域网中的 Matter 控制器
-  可以通过开发板与 Thread 上的 Matter 设备通信。开发板自身广播
-  `_meshcop._udp`。有骨干网络时，Thread 设备还可通过 NAT64
-  （192.168.255.0/24，经地址伪装）访问 IPv4 主机，边界路由器把它们的 DNS
-  查询转发给开发板的解析器。为 Matter 设备配网时，控制器通过蓝牙把数据集交给设备：
-  - PC 上的 chip-tool 直接使用数据集：
-    `chip-tool pairing code-thread 1 hex:DATASET SETUPCODE`。在 Linux 上，
-    `sysctl -w net.ipv6.conf.IFACE.accept_ra_rt_info_max_plen=64` 让 PC
-    获得到 Mesh 网络的路由。
-  - 手机应用（Google Home、Apple Home）只从自己的凭据存储中获取数据集。
-    `thread-share [MINUTES]` 启动一个临时密钥（ePSKc，Thread 1.4 凭据共享），
-    有效 1 到 10 分钟（默认 2 分钟），并打印该密钥；支持凭据共享的应用通过
-    `_meshcop-e._udp` 找到开发板，并用该密钥获取数据集。`thread-share stop`
-    结束该密钥。防火墙接受 UDP 端口 49191 上的边界代理和 UDP 端口 49192 上的
-    临时密钥。
-  - 不使用 Matter 的 Thread 设备用 PSKd 加入：`ot-ctl commissioner start`，
-    然后 `ot-ctl commissioner joiner add * PSKD`。
+  `ot-ctl ifconfig up` 和 `ot-ctl thread start` 组建网络。`ot-ctl state`
+  显示状态，`ot-ctl dataset active -x` 打印数据集。Thread 设备通过 NAT64
+  （192.168.255.0/24）访问 IPv4 主机。把数据集交给设备的方法：
+  - chip-tool：`chip-tool pairing code-thread 1 hex:DATASET SETUPCODE`。
+    在 Linux PC 上，
+    `sysctl -w net.ipv6.conf.IFACE.accept_ra_rt_info_max_plen=64` 提供到
+    Mesh 网络的路由。
+  - 手机应用：`thread-share [MINUTES]` 打印一个临时密钥，有效 1 到 10 分钟
+    （默认 2 分钟）。`thread-share stop` 结束该密钥。
+  - 不使用 Matter 的 Thread 设备：`ot-ctl commissioner start`，然后
+    `ot-ctl commissioner joiner add * PSKD`。
 
-  Wi-Fi 和 802.15.4 共用射频：Thread 无线
-  接收时，Wi-Fi 吞吐量（发送/接收）约为 12/17 Mbit/s，而不是 46/37 Mbit/s。`thread-start stop`
-  停止网络和守护进程。在此模式下，开机时不会自动启动。`/usr/share/examples/thread-hub.sh`
-  是一个传感器集线器：它启动网络，打印供传感器使用的数据集，并将 UDP 4242
-  端口收到的每个数据报连同时间和发送方记录到磁盘 p1 上。
-
-  Home Assistant 也可以作为 Thread 主机，像使用 USB 无线模块一样使用开发板的
-  射频。`/usr/share/examples/ha-thread.sh HA_ADDRESS` 在 `/etc/default/thread`
-  中设置 `THREAD_MODE=relay` 和 `RELAY_ALLOW`，并启动 `thread-relay`（之后每次
-  开机也会启动）：它通过 TCP 端口 6638 将射频交给 Home Assistant。在
-  OpenThread Border Router 应用中，设置一个占位设备，并将 `network_device`
-  设为 `BOARD_ADDRESS:6638`。之后 Thread 和 Matter 集成的工作方式与使用 USB
-  无线模块时相同，Companion 应用可以将凭据交给手机。该端口可以完全控制射频，
-  因此防火墙只接受来自 `RELAY_ALLOW` 的连接。在此模式下 `ot-ctl` 和
-  `thread-share` 不能使用；`ha-thread.sh off` 将射频交还给 `ot-daemon`。RCP
-  协议对网络延迟敏感：以太网（Function-CoreBoard-1）优于 Wi-Fi，在 Korvo-1 上
-  Wi-Fi 与 802.15.4 共用射频。重新加载防火墙会清空主机列表：之后请运行
-  `thread-start stop` 和 `thread-start`。已用 Home Assistant 2026.10 和容器中的
-  `otbr-agent` 测试，尚未用 Home Assistant OS 的应用测试。
+  `/usr/share/examples/thread-hub.sh` 组建网络，并将 UDP 4242 端口收到的
+  每个数据报记录到磁盘 p1 上。
+  `/usr/share/examples/ha-thread.sh HA_ADDRESS` 通过 TCP 端口 6638 将射频
+  交给 Home Assistant（`/etc/default/thread` 中的 `THREAD_MODE=relay` 和
+  `RELAY_ALLOW`）。在 OpenThread Border Router 应用中，设置一个占位设备，
+  并将 `network_device` 设为 `BOARD_ADDRESS:6638`。该端口可以完全控制
+  射频：防火墙只接受来自 `RELAY_ALLOW` 的连接。对中继来说，以太网优于
+  Wi-Fi。重新加载防火墙后，请运行 `thread-start stop` 和 `thread-start`。
+  `ha-thread.sh off` 结束中继。尚未用 Home Assistant OS 的应用测试。
 - **MQTT**（Function-CoreBoard-1、Korvo-1）。`mosquitto_pub` 和
-  `mosquitto_sub` 收发 MQTT 消息，支持 TLS；代理服务器运行在局域网中。
-  `/etc/default/mqtt`（权限 600）包含代理服务器、用户名、密码、客户端 ID 和
-  TLS 的 CA 文件（端口 8883；TLS 需要正确的时间）。
-  `/usr/share/examples/mqtt-report.sh` 发送运行时间、空闲内存和 Wi-Fi 信号，
-  并附带保留的发现消息，使 Home Assistant 无需 YAML 即可把它们显示为传感器；
-  脚本注释中给出 `crontab` 行。`/usr/share/examples/mqtt-led.sh` 根据
-  `esp32s31/MQTT_ID/led` 上的 `R G B` 消息设置 LED，并拒绝其他消息。已在 Mac 上
-  用 Mosquitto 2 测试（有 TLS 和无 TLS）；尚未用 Home Assistant 测试。单独模组
-  没有 MQTT：其 Flash 没有空间。
-- **GPIO。** `gpiodetect`、`gpioinfo`、`gpioget --numeric -c gpiochip0 PIN`
-  和 `gpioset -t0 -c gpiochip0 PIN=1`。`/usr/share/examples/gpio.sh PIN [0|1]`
-  读取或设置引脚。内核拒绝使用 Flash、控制台、加载程序和驱动占用的引脚
-  （设备树中的 `gpio-reserved-ranges`）。`pinctrl` 与 Raspberry Pi 上的工具
-  相同，从寄存器读取每个引脚的状态：功能、上下拉、电平和开发板的网络名称。
-  `pinctrl get 47`、`pinctrl -p get`（Function-CoreBoard-1 上为排针 J2 的引脚，
-  其他开发板上为模组焊盘）、`pinctrl funcs 8`、`pinctrl set 47 op dh`。`set`
-  是调试工具：它绕过内核驱动直接写寄存器，并拒绝 Flash 引脚、保留引脚和
-  驱动正在使用的引脚。更多信息见 `pinctrl -h`。
-
-  每个 GPIO 都有中断，支持边沿（上升、下降、双边沿）和电平（高、低），因此
-  `gpiomon` 和 libgpiod 的边沿事件可用。`/usr/share/examples/gpio-watch.sh
-  PIN [rising|falling|both]` 打印每个边沿及其时间。
-  `/usr/share/examples/button.sh PIN COMMAND` 在每次按下接在该引脚和 GND
-  之间的按键时运行一条命令。`gpiomon -p 20ms` 在 20 ms 内忽略触点抖动：
-  内核用软件实现，因为芯片的毛刺滤波器对按键来说太短（最多 64 个 IO MUX
-  时钟）。`pinctrl get` 显示引脚的中断，例如 `[irq falling, lines 3]`，
-  `set` 拒绝已启用中断的引脚。在单个引脚上回环测试时，`gpiomon` 在半周期
-  50 µs 和 1 ms 时收到全部 2000 个边沿，在 20 µs 和 100 µs 时部分测试丢失
-  少量边沿。没有开发板有可用于 `gpio-keys` 的空闲用户按键：
-  Function-CoreBoard-1 的按键是 BOOT 启动配置引脚（GPIO61），Korvo-1 的按键
-  接在 ADC 上。
-- **I2C。** `/dev/i2c-0` 把 I2C 总线交给用户空间：`i2cdetect -l` 列出总线，
-  `i2cdetect -y 0` 扫描总线 0，`i2cget -y 0 0x48 0x00` 读取一个寄存器
-  （BusyBox 提供这些工具）。在 Korvo-1 上，扫描在 0x14 显示 `UU`（触摸驱动
-  占用的 GT1151），在 0x10 显示 ES8389 编解码器。扫描会向每个地址写入，
-  某些器件不接受：只扫描你了解的总线。不要向开发板自带的器件写入。在
-  Function-CoreBoard-1 上，总线 0 是板上的 ESP_I2C；要接排针 J2 上的器件，
-  在 `esp32s31_coreboard1.dts` 中把 `&i2c1` 设为 `status = "okay"`（SDA 在
-  第 13 脚，SCL 在第 14 脚），并加 4.7 kΩ 上拉电阻到 3V3。单独模组在
-  `esp32s31.dts` 中有一个 GPIO47 和 GPIO48 上的示例总线；它还需要在
-  `linux-esp32s31.fragment` 中打开 `CONFIG_I2C`。启动链不应用设备树
-  overlay，因此每次修改都需要新内核。
-- **LED**（Function-CoreBoard-1、Korvo-1）。WS2812 对应
-  `/sys/class/leds/rgb:status`：向 `multi_intensity` 写入 `R G B`（0 到 255），
-  再向 `brightness` 写入 `255`。`/usr/share/examples/led.sh R G B` 完成
-  同样的操作，Korvo-1 上还可以用 `micropython /usr/share/examples/led.py R G B`。
-  LED 也可以显示状态：在 `/etc/default/led` 中设置 `LED_TRIGGER` 为
-  `heartbeat`（随负载闪烁）、`timer`、`default-on`、`netdev`
-  （`LED_NETDEV` 有链路时亮，有流量时闪烁）或 `panic`（内核崩溃后到重启前显示
-  红色），并设置 `LED_COLOR`。`S16led` 在启动时设置它们；默认值 `none` 使 LED
-  保持原样。
-- **网络。** `iperf3` 测量与服务器之间的吞吐量。`curl` 使用 CA 证书包验证证书。
-  在 Korvo-1 上，插入 USB 以太网适配器（CDC ECM 或 NCM、ASIX AX88179、
-  Realtek RTL8152 或 RTL8153）后，它成为 `eth0` 并通过 DHCP 获取地址，其默认
-  路由优先于 Wi-Fi。
-  `/usr/share/examples/report.sh URL` 通过 HTTPS 发送运行时间和空闲内存；
-  脚本注释中给出每 5 分钟运行一次的 `crontab` 行。
-- **WireGuard。** 开发板可以作为 WireGuard 服务器的对端，也可以作为小型服务器。
-  `/usr/share/examples/wg-setup.sh [PORT]` 在开发板上生成密钥对，写入
-  `/etc/wireguard/wg0.conf`（权限 600）和一个对端模板，并打印开发板的公钥供
-  对方使用。把对端的公钥、`Endpoint` 和 `AllowedIPs` 写入 `wg0.conf`（`wg
-  setconf` 的格式：没有 `Address`、`DNS` 或 `MTU`），并在
-  `/etc/default/wireguard` 中设置 `WG=yes`、`WG_ADDRESS`、`WG_ROUTES` 和
-  `WG_MTU`。`/etc/init.d/S42wireguard restart` 创建 `wg0`，每次启动时也会创建。
-  启动时，它等待默认路由和 NTP 时间：对端会丢弃时间早于该开发板上次握手时间的
-  握手，而 `wg setconf` 只解析一次 `Endpoint` 名称。`wg0.conf` 中有
-  `ListenPort` 时，防火墙在 `wg0` 运行期间接受该 UDP 端口。`wg0` 与其他接口
-  使用相同的防火墙规则（SSH、ping）。`wg show` 显示握手。在 Korvo-1 上经 Wi-Fi
-  以 Mac 为对端测得：隧道内 TX 8.8 Mbit/s、RX 15.6 Mbit/s，不经隧道为 42.8 和
-  36.3 Mbit/s；CPU 一直满载。重启后，隧道在启动 32 秒后恢复。
-- **编程。** `lua`，Function-CoreBoard-1 和 Korvo-1 上还有 `micropython`。
-  也有 `gdbserver` 和 `strace`。
-- **防火墙。** `/etc/nftables.conf` 在启动时加载。开发板响应 ping 和 mDNS，
-  接受 SSH、自身 DHCP 客户端的回复，以及磁盘开发板上的 Thread Mesh 流量和
-  边界代理（UDP 49191 和 49192）。有些端口只在某项功能运行时打开：`ap.sh`
-  接入点上的 DHCP 请求（UDP 67）、`wg0` 运行时 WireGuard 的 `ListenPort`、
-  `BT_PROXY_ALLOW` 中主机的蓝牙代理（TCP 6053），以及中继模式下 Home
-  Assistant 主机的 TCP 6638。防火墙丢弃并记录所有其他新连接。模组从
-  v0.10.0 起也有防火墙：更新后，其他端口上的服务器需要一条规则。
+  `mosquitto_sub` 收发消息，支持 TLS（端口 8883；TLS 需要正确的时间）。
+  `/etc/default/mqtt`（权限 600）包含代理服务器、用户名、密码、客户端 ID
+  和 CA 文件。`/usr/share/examples/mqtt-report.sh` 向 Home Assistant 发送
+  传感器数据，`/usr/share/examples/mqtt-led.sh` 根据
+  `esp32s31/MQTT_ID/led` 上的 `R G B` 消息设置 LED。这两个脚本尚未用
+  Home Assistant 测试。
+- **GPIO。** `gpiodetect`、`gpioinfo`、
+  `gpioget --numeric -c gpiochip0 PIN`、`gpioset -t0 -c gpiochip0 PIN=1`、
+  `/usr/share/examples/gpio.sh PIN [0|1]`。内核拒绝使用保留引脚。
+  `pinctrl get 47`、`pinctrl -p get`（排针引脚）、`pinctrl funcs 8` 和
+  `pinctrl set 47 op dh` 显示和设置功能、上下拉和电平。`set` 绕过内核驱动
+  直接写寄存器：只用于调试。更多信息见 `pinctrl -h`。
+  `/usr/share/examples/gpio-watch.sh PIN [rising|falling|both]` 打印每个
+  边沿。`/usr/share/examples/button.sh PIN COMMAND` 在每次按下接到 GND 的
+  按键时运行一条命令。`gpiomon -p 20ms` 忽略触点抖动。
+- **I2C。** `i2cdetect -l` 列出总线，`i2cdetect -y 0` 扫描总线 0，
+  `i2cget -y 0 0x48 0x00` 读取一个寄存器。只扫描你了解的总线，不要向开发板
+  自带的器件写入。在 Function-CoreBoard-1 上，总线 0 是 ESP_I2C。要接排针
+  J2 上的器件，在 `esp32s31_coreboard1.dts` 中把 `&i2c1` 设为
+  `status = "okay"`（SDA 在第 13 脚，SCL 在第 14 脚），并加 4.7 kΩ 上拉
+  电阻到 3V3。单独模组在 `esp32s31.dts` 中有一个 GPIO47 和 GPIO48 上的示例
+  总线，还需要在 `linux-esp32s31.fragment` 中打开 `CONFIG_I2C`。每次修改
+  都需要新内核。
+- **LED**（Function-CoreBoard-1、Korvo-1）。
+  `/usr/share/examples/led.sh R G B`（0 到 255）设置 WS2812：它写入
+  `/sys/class/leds/rgb:status` 的 `multi_intensity` 和 `brightness`。在
+  Korvo-1 上，`micropython /usr/share/examples/led.py R G B` 作用相同。
+  `/etc/default/led` 中的 `LED_TRIGGER`（`heartbeat`、`timer`、
+  `default-on`、带 `LED_NETDEV` 的 `netdev`、`panic`）和 `LED_COLOR` 使
+  LED 显示状态。
+- **网络。** 在 Korvo-1 上，USB 以太网适配器（CDC ECM 或 NCM、ASIX
+  AX88179、Realtek RTL8152 或 RTL8153）成为 `eth0` 并通过 DHCP 获取地址。
+  `/usr/share/examples/report.sh URL` 通过 HTTPS 发送运行时间和空闲内存。
+- **WireGuard。** `/usr/share/examples/wg-setup.sh [PORT]` 生成密钥对和
+  `/etc/wireguard/wg0.conf`（权限 600），并打印公钥。把对端的公钥、
+  `Endpoint` 和 `AllowedIPs` 写入 `wg0.conf`（`wg setconf` 的格式：没有
+  `Address`、`DNS` 或 `MTU`）。在 `/etc/default/wireguard` 中设置
+  `WG=yes`、`WG_ADDRESS`、`WG_ROUTES` 和 `WG_MTU`，然后运行
+  `/etc/init.d/S42wireguard restart`。`wg show` 显示握手。CPU 限制吞吐量。
+- **防火墙。** `/etc/nftables.conf` 在启动时加载。开发板接受 ping、mDNS、
+  SSH、DHCP 回复，以及磁盘开发板上的 Thread Mesh 流量和边界代理（UDP 49191
+  和 49192）。以下端口只在对应功能运行时打开：接入点上的 DHCP（UDP 67）、
+  `wg0` 的 `ListenPort`、面向 `BT_PROXY_ALLOW` 的 TCP 6053，以及面向
+  `RELAY_ALLOW` 的 TCP 6638。防火墙丢弃并记录所有其他新连接。
   `nft insert rule inet filter input tcp dport 8080 accept` 打开一个端口，
-  直到下次重启；在该文件中加一行可永久保留。`ap.sh SSID PASSPHRASE --nat
-  eth0` 在接入点和 `eth0` 之间做路由器：它打开转发，在表 `ip ap-nat` 中加
-  一条 masquerade 规则，并允许接入点转发到 `eth0`（集合 `ap_route`）。
-  `/etc/init.d/S40wifi stop` 再删除它们。
-- **网页。** `nft insert rule inet filter input tcp dport 8080 accept`，然后
-  `httpd -p 8080 -h /usr/share/examples/www` 提供一个可设置引脚和 LED 的网页。
-  网页没有密码：只在可信的网络中打开该端口。
+  直到下次重启；在该文件中加一行可永久保留。
+- **网页。** 打开端口 8080，然后
+  `httpd -p 8080 -h /usr/share/examples/www` 提供一个可设置引脚和 LED 的
+  网页。网页没有密码：只在可信的网络中打开该端口。
 - **开机自启动。** 开发板运行磁盘 p1 上的 `autostart.sh`（Korvo-1 上为
-  `/mnt/sd`，Function-CoreBoard-1 上为 `/mnt/usb`）；磁盘上没有时，运行
+  `/mnt/sd`，Function-CoreBoard-1 上为 `/mnt/usb`），或
   `/root/autostart.sh`。输出保存在 `/tmp/autostart.log`。
   `/usr/share/examples/autostart.sh` 是模板。
   `scp file root@<address>:/mnt/sd/` 可将文件复制到 p1。
-- **触摸**（Korvo-1）。`/usr/share/examples/touch.sh` 用 `evtest` 打印 LCD
-  上的触摸事件。
-- **桌面**（Korvo-1）。在 LCD 上的 tmux 中：`Ctrl-b c` 打开新窗口，
-  `Ctrl-b n` 切换到下一个窗口，`Ctrl-b %` 和 `Ctrl-b "` 分屏，`Ctrl-b d`
-  退出登录。内核消息不会覆盖桌面：它们显示在 `tty2`（`Alt-F2`，用 `Alt-F1`
-  返回）和 UART 上。
-- **恢复。** 内核崩溃 10 秒后，或用户空间停止 60 秒后（软件看门狗；
-  `/etc/init.d/S15watchdog stop` 将其关闭），开发板自动重启。SysRq 可通过
+- **Korvo-1。** `/usr/share/examples/touch.sh` 打印触摸事件。在 LCD 上的
+  tmux 中：`Ctrl-b c` 打开新窗口，`Ctrl-b n` 切换到下一个窗口，`Ctrl-b %`
+  和 `Ctrl-b "` 分屏，`Ctrl-b d` 退出登录。内核消息显示在 `tty2`
+  （`Alt-F2`，用 `Alt-F1` 返回）。
+- **恢复。** 内核崩溃 10 秒后，或用户空间停止 60 秒后，开发板自动重启
+  （`/etc/init.d/S15watchdog stop` 将其关闭）。SysRq 可通过
   `/proc/sysrq-trigger` 使用：`s` 同步，`u` 以只读方式重新挂载，`b` 重启。
-  内核崩溃或软件看门狗重启后，下次启动会把崩溃时的内核日志和上次启动的控制台
-  输出放入磁盘 p1 的 `crash/` 中（单独模组上为 `/root/crash`）。它们在重启时
-  保存在 32 KiB 的 PSRAM 中（pstore）；复位键和断电会清除它们。
-- **时间。** 开发板没有 RTC。启动时设置上次保存的时间，使 TLS 在联网前
-  可用。每次 DHCP 获得或续租地址时，`ntpd` 从 DHCP 服务器提供的 NTP 服务器
-  和 `/etc/default/ntp` 中的 `NTP_SERVERS`（`pool.ntp.org`）设置时钟。没有
-  回复时，在 10 秒、30 秒、1 分钟之后重试，最长间隔 1 小时。`NTP=no` 关闭
-  它。开发板不是 NTP 服务器。时钟为 UTC。shell 的本地时区：在所有开发板
-  上，`/etc/default/tz` 中的 POSIX 字符串，例如
-  `TZ="CST-8"`；在 Function-CoreBoard-1 和 Korvo-1 上也可以用
-  `ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime`，守护进程也使用它。
+  崩溃或看门狗重启后，崩溃日志位于磁盘 p1 的 `crash/` 中（单独模组上为
+  `/root/crash`）。复位键和断电会清除它。
+- **时间。** 开发板没有 RTC。`ntpd` 使用 DHCP 提供的 NTP 服务器和
+  `/etc/default/ntp` 中的 `NTP_SERVERS`（`pool.ntp.org`）；`NTP=no` 将其
+  关闭。时钟为 UTC。用 `/etc/default/tz` 中的 POSIX 字符串设置本地时区，
+  例如 `TZ="CST-8"`；在磁盘开发板上也可以用
+  `ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime`。
 
 ## 更新与兼容性
 
@@ -344,9 +270,26 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
 （以二级引导加载程序在启动日志中打印的为准）。不同版本可能导致行为不同。
 `python -m esptool --chip esp32s31 -p PORT chip-id` 显示开发板的版本。
 
+`esp32s31` 和 `korvo1` 构建在 Korvo-1 上测试。`coreboard1` 构建在 Korvo-1
+上测试，根文件系统位于 U 盘；以太网、eFuse MAC 地址、LED 和 I2C 引脚尚未在
+Function-CoreBoard-1 上测试。
+
+| 功能 | `esp32s31` | `korvo1` | `coreboard1` |
+| --- | --- | --- | --- |
+| 启动、控制台、`stty`、SysRq | 已测试 | 已测试 | 在 Korvo-1 上已测试 |
+| Wi-Fi station | 已测试 | 已测试 | 未测试 |
+| 带 DHCP 的 Wi-Fi 接入点 | 未测试 | 未测试 | 未测试 |
+| 防火墙、使用密钥的 SSH | 已测试 | 已测试 | 未测试 |
+| 蓝牙、Home Assistant 蓝牙代理 | 未测试 | 已测试 | 未测试 |
+| Thread 边界路由器 | 否 | 未测试 | 未测试 |
+| Flash 中的可写根文件系统 | 已测试 | 否 | 否 |
+| LCD、USB 键盘、触摸 | 否 | 未测试 | 否 |
+| 以太网 | 否 | 未测试 | 未测试 |
+| 看门狗、崩溃日志 | 已测试 | 已测试 | 未测试 |
+
 ## 从源码构建
 
-主机为 macOS。构建需要：
+在 macOS 主机上，构建需要：
 
 - Homebrew 和 GNU make（`brew install make`）。
 - ESP-IDF，位于 `~/esp/esp-idf`，检出到 `bootloader/esp-idf.version` 中的
@@ -357,8 +300,6 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
 - Apple `container` CLI。Buildroot 无法在 macOS 上运行，它在
   `container/Containerfile` 构建的 Debian 镜像中运行。请先运行
   `container system start`。
-
-在 Linux 上，`scripts/ci-build.sh` 无需容器即可构建全部内容。
 
 ```sh
 git submodule update --init --recursive
@@ -388,6 +329,18 @@ make monitor BOARD=korvo1 SERIAL_PORT=/dev/cu.usbserial-XXXX
   RTS 脉冲时复位，脚本会打印从复位到启动横幅的时间。烧录前请停止该服务。
 - `local-overlay/` 中的文件会放入所有构建的根目录。git 忽略这些文件。
 - `make help` 显示所有目标。
+
+在 Linux 主机上，Buildroot 无需容器即可运行：
+
+```sh
+BOARD=korvo1 scripts/ci-build.sh
+```
+
+它需要位于 `$IDF_PATH`（默认 `~/esp/esp-idf`）的 ESP-IDF，检出到
+`bootloader/esp-idf.version` 中的提交，用 `scripts/patch-esp-idf.sh` 打好
+补丁并安装其工具，还需要 Buildroot 的主机软件包。Flash 镜像输出到
+`build/<board>/`。对于 `korvo1` 和 `coreboard1`，磁盘镜像为
+`build/<board>/buildroot/sdcard.img`。
 
 ## 许可证
 
