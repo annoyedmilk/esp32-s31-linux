@@ -1,4 +1,6 @@
-if(CONFIG_S31_LINUX_BOARD_KORVO1)
+# REQUIRES has the LCD components on each board: ESP-IDF reads it in an
+# early pass, before the CONFIG_ values exist.
+if(CONFIG_S31_LINUX_DISPLAY)
     set(board_srcs board_korvo1.c display.c)
 else()
     set(board_srcs board_esp32s31.c)

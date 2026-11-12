@@ -1,21 +1,10 @@
 menu "ESP32-S31 Linux loader"
 
-choice S31_LINUX_BOARD
-    prompt "Board"
-    default S31_LINUX_BOARD_KORVO1
+config S31_LINUX_DISPLAY
+    bool "Start the 800x480 RGB panel of the ESP32-S31-Korvo-1"
+    default n
     help
-        The board selects if the loader starts the display (Korvo-1
-        only).  The Makefile sets it from BOARD.
-
-config S31_LINUX_BOARD_KORVO1
-    bool "ESP32-S31-Korvo-1 (LCD, microSD, USB, RGB LED)"
-
-config S31_LINUX_BOARD_ESP32S31
-    bool "ESP32-S31-WROOM-3-N16R16V module alone (UART0 only)"
-
-config S31_LINUX_BOARD_COREBOARD1
-    bool "ESP32-S31-Function-CoreBoard-1 (USB, RGB LED)"
-
-endchoice
+        The loader starts the panel and keeps its frame buffer at
+        0x50F40000 for Linux.  sdkconfig.defaults.korvo1 sets it.
 
 endmenu

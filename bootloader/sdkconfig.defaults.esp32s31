@@ -1,6 +1,5 @@
 # The ESP32-S31-WROOM-3-N16R16V module alone, with UART0 only.  The Makefile
 # adds this file to sdkconfig.defaults for BOARD=esp32s31.
-CONFIG_S31_LINUX_BOARD_ESP32S31=y
 CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions-esp32s31.csv"
 # No display uses GPIO33/34, so the native USB Serial/JTAG stays the second
 # console (the default) and JTAG.
