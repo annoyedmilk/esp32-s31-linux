@@ -123,11 +123,16 @@ static void fence_i(void)
     __asm__ volatile ("fence.i" ::: "memory");
 }
 
+/* The radios run: a store between the two steps would be lost. */
 static void flush_l1_cache_before_handoff(void)
 {
+    static portMUX_TYPE lock = portMUX_INITIALIZER_UNLOCKED;
+
+    portENTER_CRITICAL(&lock);
     cache_ll_writeback_all(CACHE_LL_LEVEL_ALL, CACHE_TYPE_DATA, CACHE_LL_ID_ALL);
     cache_ll_invalidate_all(CACHE_LL_LEVEL_ALL, CACHE_TYPE_ALL, CACHE_LL_ID_ALL);
     fence_i();
+    portEXIT_CRITICAL(&lock);
 }
 
 /* Open each APM: one region, all addresses, RWX for all modes and masters. */
