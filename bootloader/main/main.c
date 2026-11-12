@@ -55,11 +55,11 @@
 #define FW_PSRAM_HEAP_SIZE          0x00040000U
 
 /* SRAM of the kernel (dma-pool and trap-sram in esp32s31.dtsi), not heap. */
-#define LINUX_DMA_POOL_ADDR         0x2F040000U
-#define LINUX_DMA_POOL_SIZE         0x00010000U
+#define LINUX_SRAM_ADDR             0x2F040000U
+#define LINUX_SRAM_SIZE             0x00010000U
 
-SOC_RESERVE_MEMORY_REGION(LINUX_DMA_POOL_ADDR,
-                          LINUX_DMA_POOL_ADDR + LINUX_DMA_POOL_SIZE,
+SOC_RESERVE_MEMORY_REGION(LINUX_SRAM_ADDR,
+                          LINUX_SRAM_ADDR + LINUX_SRAM_SIZE,
                           linux_dma_pool);
 
 /* The ROM start code of hart 1 uses this stack: keep it out of the heap. */
@@ -212,8 +212,8 @@ static void protect_linux_memory(void)
     PMP_RESET_AND_ENTRY_SET(14, PMPADDR_NAPOT(PSRAM_UNCACHED_BASE,
                                               PSRAM_UNCACHED_BASE + PSRAM_PMA_SIZE),
                             PMP_NO_ACCESS);
-    PMP_RESET_AND_ENTRY_SET(15, PMPADDR_NAPOT(LINUX_DMA_POOL_ADDR,
-                                              LINUX_DMA_POOL_ADDR + LINUX_DMA_POOL_SIZE),
+    PMP_RESET_AND_ENTRY_SET(15, PMPADDR_NAPOT(LINUX_SRAM_ADDR,
+                                              LINUX_SRAM_ADDR + LINUX_SRAM_SIZE),
                             PMP_NO_ACCESS);
 
     if (PMP_ENTRY_CFG_READ(11) != PMP_NO_ACCESS_TOR ||
