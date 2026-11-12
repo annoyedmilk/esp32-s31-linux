@@ -251,7 +251,7 @@ static void start_linux_hart(void)
 static const esp_partition_t *find_partition(const char *name)
 {
     const esp_partition_t *part = esp_partition_find_first(
-        ESP_PARTITION_TYPE_DATA, 0x40, name);
+        ESP_PARTITION_TYPE_DATA, S31_LINUX_PARTITION_SUBTYPE, name);
     if (!part) {
         ESP_LOGE(TAG, "%s partition not found", name);
     }
