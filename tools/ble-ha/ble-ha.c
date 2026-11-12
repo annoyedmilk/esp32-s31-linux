@@ -53,7 +53,7 @@ static struct {
 	int scanning;
 	struct adv batch[ADV_BATCH];
 	int nbatch;
-	long batch_ms;		/* when the first of the batch came */
+	int64_t batch_ms;	/* when the first of the batch came */
 	/* Improv */
 	int improv, advertising, adv_dirty;
 	int conn;
@@ -87,12 +87,12 @@ static time_t now(void)
 	return ts.tv_sec;
 }
 
-static long now_ms(void)
+static int64_t now_ms(void)
 {
 	struct timespec ts;
 
 	clock_gettime(CLOCK_MONOTONIC, &ts);
-	return ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+	return (int64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
 }
 
 /* ---- The adapter ---- */
@@ -116,7 +116,7 @@ static ssize_t hci_read(uint8_t *buf, size_t len, int ms)
 static int hci_cmd(uint16_t op, const void *param, uint8_t plen, uint8_t *ret, size_t rlen)
 {
 	uint8_t pkt[260];
-	long end = now_ms() + 2000;
+	int64_t end = now_ms() + 2000;
 
 	pkt[0] = HCI_CMD;
 	pkt[1] = op & 0xff;
@@ -694,7 +694,7 @@ static int improv_needed(void)
 /* A batch goes out 100 ms after its first advertisement, or when it is full. */
 static int poll_timeout(void)
 {
-	long left = s.batch_ms + 100 - now_ms();
+	int64_t left = s.batch_ms + 100 - now_ms();
 
 	if (s.nbatch)
 		return left > 0 ? (int)left : 0;
