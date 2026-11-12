@@ -111,8 +111,6 @@ not 3838 KiB for 5890 KiB (one run each). zram
 stays with lz4: the zstd backend adds 229 KiB to the Image of the Korvo-1,
 which is RAM that Linux never gets back.
 
-The libc is musl, so a switch to musl gives nothing.
-
 ### The crash log
 
 The PSRAM keeps its data over a software reset: a pattern written
