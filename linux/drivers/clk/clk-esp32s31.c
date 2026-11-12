@@ -78,6 +78,8 @@ struct esp32s31_clk {
 	spinlock_t lock;
 	const struct esp32s31_reset *resets;
 	struct reset_controller_dev rcdev;
+	/* CNNT: the syscon of the dwmac glue, registered last in the probe */
+	struct regmap *syscon;
 };
 
 /* A clock in one register: the MPLL, a root divider or the SDIO LS divider */
@@ -409,8 +411,8 @@ static int esp32s31_cnnt_init(struct esp32s31_clk *ec)
 				       &esp32s31_cnnt_regmap_config);
 	if (IS_ERR(regmap))
 		return PTR_ERR(regmap);
-
-	return of_syscon_register_regmap(dev->of_node, regmap);
+	ec->syscon = regmap;
+	return 0;
 }
 
 struct esp32s31_clk_data {
@@ -470,7 +472,11 @@ static int esp32s31_clk_probe(struct platform_device *pdev)
 			return ret;
 	}
 
-	return devm_of_clk_add_hw_provider(dev, of_clk_hw_onecell_get, ec->hws);
+	ret = devm_of_clk_add_hw_provider(dev, of_clk_hw_onecell_get, ec->hws);
+	if (ret || !ec->syscon)
+		return ret;
+	/* Last: the syscon list keeps the regmap, and it has no unregister. */
+	return of_syscon_register_regmap(dev->of_node, ec->syscon);
 }
 
 static const struct esp32s31_clk_data esp32s31_lp_data = {
