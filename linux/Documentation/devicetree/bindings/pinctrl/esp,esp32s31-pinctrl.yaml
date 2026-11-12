@@ -58,6 +58,9 @@ properties:
       The pins of the flash, of the firmware on the other hart and of the
       loader, which the operating system must not use as GPIOs.
 
+  gpio-line-names:
+    maxItems: 62
+
 patternProperties:
   '-hog(-[0-9]+)?$':
     type: object
