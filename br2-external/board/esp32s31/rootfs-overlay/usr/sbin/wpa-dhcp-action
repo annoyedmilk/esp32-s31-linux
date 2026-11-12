@@ -8,7 +8,7 @@ pid=/var/run/udhcpc.$1.pid
 
 case "$2" in
 CONNECTED)
-	if [ -r $pid ] && kill -0 "$(cat $pid)" 2>/dev/null; then
+	if [ -s $pid ] && kill -0 "$(cat $pid)" 2>/dev/null; then
 		kill -USR1 "$(cat $pid)"
 	else
 		udhcpc -b -i "$1" -p $pid

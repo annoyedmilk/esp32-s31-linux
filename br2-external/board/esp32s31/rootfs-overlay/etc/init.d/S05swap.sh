@@ -10,8 +10,7 @@ ZRAM_SIZE=6M	# uncompressed
 
 start_zram()
 {
-	echo lz4 > $ZRAM/comp_algorithm &&
-		echo $ZRAM_SIZE > $ZRAM/disksize &&
+	echo $ZRAM_SIZE > $ZRAM/disksize &&
 		mkswap /dev/zram0 >/dev/null &&
 		swapon -p 100 /dev/zram0 &&
 		echo "swap: /dev/zram0 ($ZRAM_SIZE, lz4) active"

@@ -8,13 +8,8 @@
 
 IFACE=wg0
 CONF=/etc/wireguard/$IFACE.conf
-WG=no
-WG_ADDRESS=
-WG_ROUTES=
-WG_MTU=1420
-[ -r /etc/default/wireguard ] && . /etc/default/wireguard
-NTP=yes
-[ -r /etc/default/ntp ] && . /etc/default/ntp
+. /etc/default/wireguard
+. /etc/default/ntp
 
 # Up to 10 min for the route and the clock (S01clock.sh save marks it).
 wait_network()

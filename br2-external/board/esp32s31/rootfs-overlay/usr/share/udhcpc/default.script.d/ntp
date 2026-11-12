@@ -10,13 +10,11 @@ bound|renew) ;;
 *) exit 0 ;;
 esac
 
-NTP=yes
-NTP_SERVERS=pool.ntp.org
-[ -r /etc/default/ntp ] && . /etc/default/ntp
+. /etc/default/ntp
 [ "$NTP" = no ] && exit 0
 
 pid=/var/run/ntp-sync.pid
-[ -r $pid ] && kill -0 "$(cat $pid)" 2>/dev/null && exit 0
+[ -s $pid ] && kill -0 "$(cat $pid)" 2>/dev/null && exit 0
 
 peers=
 for s in $ntpsrv $NTP_SERVERS; do

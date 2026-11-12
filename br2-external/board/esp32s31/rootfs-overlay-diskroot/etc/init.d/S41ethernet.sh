@@ -18,7 +18,7 @@ start)
 	# udhcpc has written its pidfile.  udhcpc must not keep the lock.
 	exec 9>/var/run/udhcpc.$IFACE.lock
 	flock 9
-	[ -r $PID ] && kill -0 "$(cat $PID)" 2>/dev/null && exit 0
+	[ -s $PID ] && kill -0 "$(cat $PID)" 2>/dev/null && exit 0
 	command -v ethtool >/dev/null && ethtool -G $IFACE rx 64 tx 64
 	ip link set $IFACE up || exit 0
 	udhcpc -b -S -i $IFACE -p $PID 9>&-

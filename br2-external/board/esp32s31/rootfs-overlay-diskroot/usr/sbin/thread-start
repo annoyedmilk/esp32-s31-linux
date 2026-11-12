@@ -20,23 +20,10 @@ DAEMON=/usr/sbin/ot-daemon
 RELAY=/usr/sbin/thread-relay
 RCP=/dev/esp_rcp0
 DATA=/var/lib/thread
-THREAD_MODE=daemon
-RELAY_ALLOW=
-[ -r /etc/default/thread ] && . /etc/default/thread
+. /etc/default/thread
+. /usr/lib/nft-allow.sh
 
 # Put the hosts of $1 in the sets of the relay rule in nftables.conf.
-relay_allow()
-{
-	nft flush set inet filter thread_relay4 &&
-		nft flush set inet filter thread_relay6 || return 1
-	for a in $1; do
-		case $a in
-		*:*) nft add element inet filter thread_relay6 "{ $a }" ;;
-		*) nft add element inet filter thread_relay4 "{ $a }" ;;
-		esac || return 1
-	done
-}
-
 stop()
 {
 	if pidof thread-relay >/dev/null; then
@@ -44,7 +31,7 @@ stop()
 		echo "thread: relay stopped"
 	fi
 	# Also when the relay ended by itself.
-	relay_allow "" 2>/dev/null
+	nft_allow thread_relay "" 2>/dev/null
 	pidof ot-daemon >/dev/null || return 0
 	$CTL thread stop >/dev/null 2>&1
 	$CTL ifconfig down >/dev/null 2>&1
@@ -72,13 +59,13 @@ start_relay()
 		{ echo "thread: ot-daemon has the radio; thread-start stop first" >&2; return 1; }
 	[ -n "$RELAY_ALLOW" ] ||
 		{ echo "thread: relay mode needs RELAY_ALLOW in /etc/default/thread" >&2; return 1; }
-	if ! relay_allow "$RELAY_ALLOW"; then
-		relay_allow "" 2>/dev/null
+	if ! nft_allow thread_relay "$RELAY_ALLOW"; then
+		nft_allow thread_relay "" 2>/dev/null
 		echo "thread: cannot open the firewall for $RELAY_ALLOW" >&2
 		return 1
 	fi
 	start-stop-daemon --start --background --exec $RELAY -- $RCP ||
-		{ relay_allow "" 2>/dev/null; return 1; }
+		{ nft_allow thread_relay "" 2>/dev/null; return 1; }
 	echo "thread: thread-relay on TCP port 6638 for $RELAY_ALLOW"
 }
 
@@ -99,8 +86,7 @@ start_daemon()
 	start-stop-daemon --start --background --exec $DAEMON -- \
 		-v "$@" "spinel+hdlc+uart://$RCP" || return 1
 	# Wait for the daemon socket, so that the first command finds it.
-	i=0
-	while [ $i -lt 40 ]; do
+	for _ in $(seq 1 40); do
 		if $CTL state >/dev/null 2>&1; then
 			$CTL srp server enable >/dev/null
 			$CTL nat64 enable >/dev/null
@@ -109,7 +95,6 @@ start_daemon()
 			return 0
 		fi
 		sleep 0.25
-		i=$((i + 1))
 	done
 	echo "thread: ot-daemon did not start" >&2
 	return 1
