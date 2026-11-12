@@ -35,7 +35,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/time.h>
+#include <time.h>
 #include <unistd.h>
 
 #include "board.h"
@@ -333,7 +333,7 @@ static int do_gpio_poll_add(unsigned int num)
 static void do_gpio_poll(void)
 {
 	unsigned int idle_count = 0, i;
-	struct timeval idle_start;
+	struct timespec idle_start;
 
 	while (num_poll_gpios) {
 		int changed = 0;
@@ -345,12 +345,12 @@ static void do_gpio_poll(void)
 			if (level == state->level)
 				continue;
 			if (idle_count) {
-				struct timeval now;
+				struct timespec now;
 				uint64_t interval_us;
 
-				gettimeofday(&now, NULL);
+				clock_gettime(CLOCK_MONOTONIC, &now);
 				interval_us = (uint64_t)(now.tv_sec - idle_start.tv_sec) * 1000000 +
-					      (now.tv_usec - idle_start.tv_usec);
+					      (now.tv_nsec - idle_start.tv_nsec) / 1000;
 				printf("+%" PRIu64 "us\n", interval_us);
 				idle_count = 0;
 			}
@@ -361,7 +361,7 @@ static void do_gpio_poll(void)
 		}
 		if (!changed) {
 			if (!idle_count)
-				gettimeofday(&idle_start, NULL);
+				clock_gettime(CLOCK_MONOTONIC, &idle_start);
 			idle_count++;
 		}
 		usleep(1000);
