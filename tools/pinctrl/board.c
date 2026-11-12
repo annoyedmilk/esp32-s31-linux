@@ -102,11 +102,6 @@ void copy_str(char *dst, unsigned int len, const char *src)
 	dst[n] = '\0';
 }
 
-void board_init(struct board *b)
-{
-	memset(b, 0, sizeof(*b));
-}
-
 unsigned int header_npads(const struct header *hdr)
 {
 	return hdr->ranges[hdr->nranges - 1].last;
