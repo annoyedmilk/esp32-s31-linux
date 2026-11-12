@@ -582,7 +582,6 @@ static void tune_client(int fd)
 	int on = 1, idle = 20, intvl = 5, cnt = 4;
 	unsigned int user_ms = 30000;
 
-	fcntl(fd, F_SETFL, O_NONBLOCK);
 	setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &on, sizeof(on));
 	setsockopt(fd, IPPROTO_TCP, TCP_KEEPIDLE, &idle, sizeof(idle));
 	setsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL, &intvl, sizeof(intvl));
@@ -592,7 +591,7 @@ static void tune_client(int fd)
 
 static void accept_client(void)
 {
-	int fd = accept(s.lfd, NULL, NULL), i;
+	int fd = accept4(s.lfd, NULL, NULL, SOCK_CLOEXEC | SOCK_NONBLOCK), i;
 
 	if (fd < 0)
 		return;
