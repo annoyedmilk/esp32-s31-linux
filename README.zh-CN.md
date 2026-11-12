@@ -327,6 +327,17 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
   `TZ="CST-8"`；在 Function-CoreBoard-1 和 Korvo-1 上也可以用
   `ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime`，守护进程也使用它。
 
+## 更新与兼容性
+
+从 v1.0.0 起，同一主版本的各发布版本保持以下接口不变：`pinctrl` 命令的输出、
+横幅行 `=== ESP32-S31 Linux / Buildroot ===`、`/etc/default/*` 中的名称，以及
+单独模组的分区表（因此其 `data` 分区中的 overlay 在更新后保留）。更改其中任一
+接口的发布版本使用新的主版本号。
+
+更新时，烧录新发布版本的 `flash.bin`。在 Korvo-1 和 Function-CoreBoard-1 上，
+还要写入同一发布版本的磁盘镜像：这会清除磁盘上的文件，请先复制。GitHub 上每个
+发布版本的页面说明从上一版本更新所需的步骤。
+
 ## 已测试的硬件
 
 本移植在 ESP32-S31-Korvo-1 上测试，芯片版本 v0.0，eFuse 块版本 v0.0

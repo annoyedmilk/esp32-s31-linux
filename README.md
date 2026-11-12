@@ -380,6 +380,20 @@ scripts.
   /usr/share/zoneinfo/Europe/Zurich /etc/localtime`, which the daemons
   use too.
 
+## Updates and compatibility
+
+From v1.0.0, the releases of one major version keep these interfaces: the
+output of the `pinctrl` command, the banner line
+`=== ESP32-S31 Linux / Buildroot ===`, the names in `/etc/default/*`, and
+the partition table of the module alone, so that the overlay in its `data`
+partition stays after an update. A release that changes one of them has a
+new major version.
+
+To update, flash `flash.bin` of the new release. On the Korvo-1 and the
+Function-CoreBoard-1, also write the disk image of the same release: this
+erases the files on the disk, so copy them first. The page of each release
+on GitHub says what an update from the version before needs.
+
 ## Tested hardware
 
 The port is tested on the ESP32-S31-Korvo-1 with chip revision v0.0 and
