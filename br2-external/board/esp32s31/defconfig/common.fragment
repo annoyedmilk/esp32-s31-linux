@@ -8,15 +8,10 @@
 BR2_riscv=y
 BR2_riscv_custom=y
 BR2_RISCV_32=y
-BR2_RISCV_USE_MMU=y
-BR2_RISCV_ISA_RVI=y
 BR2_RISCV_ISA_RVM=y
 BR2_RISCV_ISA_RVA=y
 BR2_RISCV_ISA_RVC=y
-# BR2_RISCV_ISA_RVF is not set
-# BR2_RISCV_ISA_RVD is not set
 BR2_RISCV_ISA_EXTRA="zba_zbb_zbs"
-BR2_RISCV_ABI_ILP32=y
 BR2_TOOLCHAIN_BUILDROOT_MUSL=y
 # A kernel config or patch change extracts and builds the kernel again.  The
 # cache in $(HOME) (the build volume) makes such a rebuild take minutes.
@@ -32,16 +27,13 @@ BR2_LINUX_KERNEL_USE_CUSTOM_CONFIG=y
 BR2_LINUX_KERNEL_CUSTOM_CONFIG_FILE="$(BR2_EXTERNAL_ESP32S31_PATH)/board/esp32s31/linux.config"
 # CONFIG_BUILTIN_DTB, so the loader copies only one file.
 BR2_LINUX_KERNEL_IMAGE=y
-# Headers from the same kernel.  Also set the header series.  The default is
-# "really old", which tells all packages that the headers are 2.6.  7.1 is
-# the newest series that this Buildroot knows, and it also covers 7.3.
-BR2_KERNEL_HEADERS_AS_KERNEL=y
+# The headers come from the same kernel (the default).  Set their series: the
+# default is "really old", which tells all packages that the headers are 2.6.
+# 7.1 is the newest series that this Buildroot knows, and it also covers 7.3.
 BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_7_1=y
 # The ESP-Hosted host driver for the radio firmware on hart 0, built in.
 BR2_LINUX_KERNEL_EXT_ESP_HOSTED_LINUX=y
 
-BR2_INIT_BUSYBOX=y
-BR2_ROOTFS_DEVICE_CREATION_DYNAMIC_DEVTMPFS=y
 BR2_TARGET_GENERIC_HOSTNAME="esp32s31"
 BR2_TARGET_GENERIC_ISSUE="ESP32-S31 Linux"
 # BR2_TARGET_ENABLE_ROOT_LOGIN is not set
@@ -78,8 +70,6 @@ BR2_PACKAGE_LIBCURL_CURL=y
 # HTTP, HTTPS and FTP only: no DICT, Gopher, IMAP, POP3, RTSP, SMB, SMTP,
 # Telnet or TFTP.
 # BR2_PACKAGE_LIBCURL_EXTRA_PROTOCOLS_FEATURES is not set
-# Only the terminfo entries that ncurses installs by default.
-BR2_PACKAGE_NCURSES_ADDITIONAL_TERMINFO=""
 BR2_PACKAGE_OPENSSL=y
 # OpenSSL for WPA2/WPA3 Personal and Enterprise (eduroam) and HTTPS.
 # MSCHAPv2 needs MD4 and DES, and WPA/TKIP group keys need RC4: with
@@ -106,7 +96,6 @@ BR2_PACKAGE_OPENSSL=y
 # BR2_PACKAGE_LIBOPENSSL_ENABLE_PADLOCK_ENGINE is not set
 # BR2_PACKAGE_LIBOPENSSL_ENABLE_QUIC is not set
 # BR2_PACKAGE_LIBOPENSSL_ENABLE_SIV is not set
-# BR2_PACKAGE_LIBOPENSSL_ENABLE_SM2_PRECOMP_TABLE is not set
 # BR2_PACKAGE_LIBOPENSSL_ENABLE_SSL_TRACE is not set
 # BR2_PACKAGE_LIBOPENSSL_UNSECURE is not set
 # BR2_PACKAGE_LIBOPENSSL_DYNAMIC_ENGINE is not set
@@ -131,6 +120,5 @@ BR2_PACKAGE_NFTABLES=y
 # The board name on the LAN: ssh root@esp32s31.local.  mdnsd shares port
 # 5353 with the mDNS responder of ot-daemon.
 BR2_PACKAGE_MDNSD=y
-BR2_PACKAGE_MDNSD_SSH_SERVICE=y
 # wg for WireGuard; S42wireguard needs no wg-quick, which is a bash script.
 BR2_PACKAGE_WIREGUARD_TOOLS=y
