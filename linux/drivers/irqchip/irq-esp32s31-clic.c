@@ -23,7 +23,6 @@
 #include <linux/of_address.h>
 #include <linux/percpu.h>
 #include <asm/csr.h>
-#include <asm/esp32s31-clic.h>
 #include <asm/irq.h>
 #include <asm/smp.h>
 
@@ -322,7 +321,7 @@ static const struct irq_domain_ops esp32s31_clic_domain_ops = {
 /* do_irq() calls this with the unchanged CLIC cause in regs->cause. */
 static void (*fallback_handle_irq)(struct pt_regs *);
 
-void esp32s31_clic_handle_irq(struct pt_regs *regs)
+static void esp32s31_clic_handle_irq(struct pt_regs *regs)
 {
 	struct esp32s31_clic *clic = this_cpu_read(clic_per_cpu);
 	unsigned long raw_cause;
