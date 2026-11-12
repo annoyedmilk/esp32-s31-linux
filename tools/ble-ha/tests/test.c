@@ -23,6 +23,8 @@ static void test_varint(void)
 static void test_frames(void)
 {
 	static const uint8_t ping[] = { 0x00, 0x00, 0x07 };
+	/* A length of 2^32: five varint bytes with bits above 32. */
+	static const uint8_t big[] = { 0x00, 0x80, 0x80, 0x80, 0x80, 0x10, 0x01 };
 	uint8_t buf[64], m[2] = { 0x08, 0x01 };
 	const uint8_t *msg;
 	size_t mlen, n;
@@ -30,6 +32,7 @@ static void test_frames(void)
 
 	CHECK(api_next(ping, 3, &type, &msg, &mlen) == 3 && type == 7 && mlen == 0);
 	CHECK(api_next(ping, 2, &type, &msg, &mlen) == 0);
+	CHECK(api_next(big, sizeof(big), &type, &msg, &mlen) == -1);
 	n = api_frame(buf, 66, m, 2);
 	CHECK(n == 5 && buf[0] == 0 && buf[1] == 2 && buf[2] == 66);
 	CHECK(api_next(buf, n, &type, &msg, &mlen) == 5 && type == 66 && mlen == 2 && msg[1] == 1);
