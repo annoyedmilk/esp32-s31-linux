@@ -69,9 +69,8 @@ static int esp_shm_flash_read(struct mtd_info *mtd, loff_t from, size_t len,
 {
 	struct esp_shm_flash *flash = container_of(mtd, struct esp_shm_flash, mtd);
 
-	mutex_lock(&flash->lock);
+	guard(mutex)(&flash->lock);
 	memcpy(buf, flash->window + from, len);
-	mutex_unlock(&flash->lock);
 	*retlen = len;
 	return 0;
 }
@@ -81,43 +80,41 @@ static int esp_shm_flash_write(struct mtd_info *mtd, loff_t to, size_t len,
 			       size_t *retlen, const u_char *buf)
 {
 	struct esp_shm_flash *flash = container_of(mtd, struct esp_shm_flash, mtd);
-	int ret = 0;
+	int ret;
 
-	mutex_lock(&flash->lock);
+	guard(mutex)(&flash->lock);
 	while (len) {
 		u32 n = min_t(size_t, len,
 			      ESP_SHM_FLASH_DATA_SIZE - to % ESP_SHM_FLASH_DATA_SIZE);
 
 		ret = esp_shm_flash_cmd(flash, ESP_SHM_FLASH_PROGRAM, to, buf, n);
 		if (ret)
-			break;
+			return ret;
 		*retlen += n;
 		to += n;
 		buf += n;
 		len -= n;
 	}
-	mutex_unlock(&flash->lock);
-	return ret;
+	return 0;
 }
 
 static int esp_shm_flash_erase(struct mtd_info *mtd, struct erase_info *instr)
 {
 	struct esp_shm_flash *flash = container_of(mtd, struct esp_shm_flash, mtd);
 	u64 addr;
-	int ret = 0;
+	int ret;
 
-	mutex_lock(&flash->lock);
+	guard(mutex)(&flash->lock);
 	for (addr = instr->addr; addr < instr->addr + instr->len;
 	     addr += ESP_SHM_FLASH_BLOCK) {
 		ret = esp_shm_flash_cmd(flash, ESP_SHM_FLASH_ERASE, addr, NULL,
 					ESP_SHM_FLASH_BLOCK);
 		if (ret) {
 			instr->fail_addr = addr;
-			break;
+			return ret;
 		}
 	}
-	mutex_unlock(&flash->lock);
-	return ret;
+	return 0;
 }
 
 struct esp_shm_flash *esp_shm_flash_probe(struct device *dev, void __iomem *shm,

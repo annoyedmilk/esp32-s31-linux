@@ -204,16 +204,14 @@ static void esp_shm_tx_work(struct work_struct *work)
 	struct esp_shm_context *ctx =
 		container_of(work, struct esp_shm_context, tx_work);
 
-	spin_lock_bh(&ctx->tx_lock);
+	guard(spinlock_bh)(&ctx->tx_lock);
 	esp_shm_tx_flush(ctx);
-	spin_unlock_bh(&ctx->tx_lock);
 }
 
 static void esp_shm_tx_purge(struct esp_shm_context *ctx)
 {
-	spin_lock_bh(&ctx->tx_lock);
+	guard(spinlock_bh)(&ctx->tx_lock);
 	__skb_queue_purge(&ctx->tx_queue);
-	spin_unlock_bh(&ctx->tx_lock);
 }
 
 static irqreturn_t esp_shm_irq(int irq, void *data)
@@ -297,6 +295,21 @@ static struct sk_buff *esp_shm_read(struct esp_adapter *adapter)
 	return skb;
 }
 
+/* Queue a frame for the firmware; the caller frees it on an error. */
+static int esp_shm_queue(struct esp_shm_context *ctx, struct sk_buff *skb)
+{
+	guard(spinlock_bh)(&ctx->tx_lock);
+	if (!ctx->running || ctx->tx_quiesced)
+		return -ENODEV;
+	if (skb_queue_len(&ctx->tx_queue) >= ESP_SHM_TX_QUEUE_MAX)
+		return -EBUSY;
+	__skb_queue_tail(&ctx->tx_queue, skb);
+	esp_shm_tx_flush(ctx);
+	if (skb_queue_len(&ctx->tx_queue) >= ESP_SHM_TX_PAUSE)
+		esp_shm_tx_flow(ctx, true);
+	return 0;
+}
+
 static int esp_shm_write(struct esp_adapter *adapter, struct sk_buff *skb)
 {
 	struct esp_shm_context *ctx = adapter ? adapter->if_context : NULL;
@@ -315,19 +328,7 @@ static int esp_shm_write(struct esp_adapter *adapter, struct sk_buff *skb)
 		return ret;
 	}
 
-	spin_lock_bh(&ctx->tx_lock);
-	if (!ctx->running || ctx->tx_quiesced) {
-		ret = -ENODEV;
-	} else if (skb_queue_len(&ctx->tx_queue) >= ESP_SHM_TX_QUEUE_MAX) {
-		ret = -EBUSY;
-	} else {
-		__skb_queue_tail(&ctx->tx_queue, skb);
-		esp_shm_tx_flush(ctx);
-		if (skb_queue_len(&ctx->tx_queue) >= ESP_SHM_TX_PAUSE)
-			esp_shm_tx_flow(ctx, true);
-	}
-	spin_unlock_bh(&ctx->tx_lock);
-
+	ret = esp_shm_queue(ctx, skb);
 	if (ret)
 		dev_kfree_skb_any(skb);
 	return ret;
@@ -335,9 +336,8 @@ static int esp_shm_write(struct esp_adapter *adapter, struct sk_buff *skb)
 
 static void esp_shm_set_tx_quiesced(struct esp_shm_context *ctx, bool quiesced)
 {
-	spin_lock_bh(&ctx->tx_lock);
+	guard(spinlock_bh)(&ctx->tx_lock);
 	ctx->tx_quiesced = quiesced;
-	spin_unlock_bh(&ctx->tx_lock);
 }
 
 /* A "firmware reset" is a new boot event: drop the old session's frames. */
@@ -469,10 +469,10 @@ static void esp_shm_remove(struct platform_device *pdev)
 	devm_free_irq(&pdev->dev, platform_get_irq(pdev, 0), ctx);
 	esp_shm_flash_remove(ctx->flash);
 
-	spin_lock_bh(&ctx->tx_lock);
-	ctx->tx_quiesced = true;
-	ctx->running = false;
-	spin_unlock_bh(&ctx->tx_lock);
+	scoped_guard(spinlock_bh, &ctx->tx_lock) {
+		ctx->tx_quiesced = true;
+		ctx->running = false;
+	}
 	cancel_work_sync(&ctx->tx_work);
 	esp_shm_tx_purge(ctx);
 	adapter->if_context = NULL;
