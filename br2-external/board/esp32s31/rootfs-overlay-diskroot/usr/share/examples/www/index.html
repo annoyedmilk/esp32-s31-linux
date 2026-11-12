@@ -1,7 +1,7 @@
 <!DOCTYPE html>
-<html><head><meta charset="utf-8"><title>ESP32-S31-Function-CoreBoard-1</title></head>
+<html><head><meta charset="utf-8"><title>ESP32-S31 Linux</title></head>
 <body>
-<h1>ESP32-S31-Function-CoreBoard-1</h1>
+<h1>ESP32-S31 Linux</h1>
 <p>This page has no password: each host that can open it can set the LED
 and the pins. Use it only on a network that you trust.</p>
 <h2>RGB LED</h2>
@@ -11,9 +11,10 @@ and the pins. Use it only on a network that you trust.</p>
 <button onclick="led('0,0,0')">off</button>
 <pre id="led-out"></pre>
 <h2>GPIO</h2>
-<p>The free pins on J2: GPIO0-3, 20-25, 35-40, 42-49 and 61. GPIO4 on J2 is
-the interrupt line of the Ethernet PHY. Check the schematic: some pins also go
-to the audio codec.</p>
+<p>Set the pin number in the field. The pin must be free on your board. On
+the ESP32-S31-Function-CoreBoard-1, the free pins on J2 are GPIO0-3, 20-25,
+35-40, 42-49 and 61. GPIO4 on J2 is the interrupt line of the Ethernet PHY.
+Check the schematic: some pins also go to the audio codec.</p>
 <input id="pin" type="number" min="0" max="61" value="2">
 <button onclick="go('=1')">On</button>
 <button onclick="go('=0')">Off</button>
