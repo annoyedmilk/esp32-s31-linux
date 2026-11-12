@@ -491,6 +491,8 @@ static struct platform_driver esp_shm_driver = {
 	.driver = {
 		.name = "esp32s31-hosted-shm",
 		.of_match_table = esp_shm_of_match,
+		/* The root and Wi-Fi use it: an unbind would free the flash under UBI. */
+		.suppress_bind_attrs = true,
 	},
 };
 
