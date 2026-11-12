@@ -123,14 +123,12 @@ static int attr_value(const struct gatt *g, uint16_t h, uint8_t *v)
 		return a->uuid_len;
 	case DECL:
 		v[0] = a->props;
-		v[1] = (h + 1) & 0xff;
-		v[2] = (uint8_t)((h + 1) >> 8);
+		put16(v + 1, (uint16_t)(h + 1));
 		memcpy(v + 3, a->uuid, a->uuid_len);
 		return 3 + a->uuid_len;
 	case CCCD:
 		i = cccd_index(h);
-		v[0] = g->cccd[i] & 0xff;
-		v[1] = (uint8_t)(g->cccd[i] >> 8);
+		put16(v, g->cccd[i]);
 		return 2;
 	}
 	switch (h) {
@@ -161,21 +159,9 @@ static size_t error_rsp(uint8_t *rsp, uint8_t op, uint16_t h, uint8_t err)
 {
 	rsp[0] = 0x01;
 	rsp[1] = op;
-	rsp[2] = h & 0xff;
-	rsp[3] = (uint8_t)(h >> 8);
+	put16(rsp + 2, h);
 	rsp[4] = err;
 	return 5;
-}
-
-static uint16_t get16(const uint8_t *p)
-{
-	return (uint16_t)(p[0] | p[1] << 8);
-}
-
-static void put16(uint8_t *p, uint16_t v)
-{
-	p[0] = v & 0xff;
-	p[1] = (uint8_t)(v >> 8);
 }
 
 static uint16_t group_end(uint16_t h)

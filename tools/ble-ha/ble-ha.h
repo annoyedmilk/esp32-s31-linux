@@ -10,6 +10,18 @@
 #define HCI_ACL		0x02
 #define HCI_EVT		0x04
 
+/* Little-endian 16-bit fields of HCI, L2CAP and ATT. */
+static inline uint16_t get16(const uint8_t *p)
+{
+	return (uint16_t)(p[0] | p[1] << 8);
+}
+
+static inline void put16(uint8_t *p, uint16_t v)
+{
+	p[0] = v & 0xff;
+	p[1] = (uint8_t)(v >> 8);
+}
+
 #define ADV_MAX		31
 #define ADV_BATCH	16
 

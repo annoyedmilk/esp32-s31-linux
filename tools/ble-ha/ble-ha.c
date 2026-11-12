@@ -119,8 +119,7 @@ static int hci_cmd(uint16_t op, const void *param, uint8_t plen, uint8_t *ret, s
 	int64_t end = now_ms() + 2000;
 
 	pkt[0] = HCI_CMD;
-	pkt[1] = op & 0xff;
-	pkt[2] = (uint8_t)(op >> 8);
+	put16(pkt + 1, op);
 	pkt[3] = plen;
 	if (plen)
 		memcpy(pkt + 4, param, plen);
@@ -131,12 +130,12 @@ static int hci_cmd(uint16_t op, const void *param, uint8_t plen, uint8_t *ret, s
 
 		if (n <= 0)
 			continue;
-		if (pkt[0] == HCI_EVT && pkt[1] == 0x0e && n >= 7 && (pkt[4] | pkt[5] << 8) == op) {
+		if (pkt[0] == HCI_EVT && pkt[1] == 0x0e && n >= 7 && get16(pkt + 4) == op) {
 			if (ret)
 				memcpy(ret, pkt + 6, (size_t)n - 6 < rlen ? (size_t)n - 6 : rlen);
 			return pkt[6];
 		}
-		if (pkt[0] == HCI_EVT && pkt[1] == 0x0f && n >= 7 && (pkt[5] | pkt[6] << 8) == op)
+		if (pkt[0] == HCI_EVT && pkt[1] == 0x0f && n >= 7 && get16(pkt + 5) == op)
 			return pkt[3];
 		handle_packet(pkt, (size_t)n);
 	}
@@ -157,12 +156,12 @@ static int hci_init(void)
 	    hci_cmd(0x1009, NULL, 0, r, sizeof(r)))		/* Read BD_ADDR */
 		return -1;
 	memcpy(s.bdaddr, r + 1, 6);
-	if (hci_cmd(0x2002, NULL, 0, r, sizeof(r)) == 0 && (r[1] | r[2] << 8)) {
-		s.acl_len = (uint16_t)(r[1] | r[2] << 8);	/* LE Read Buffer Size */
+	if (hci_cmd(0x2002, NULL, 0, r, sizeof(r)) == 0 && get16(r + 1)) {
+		s.acl_len = get16(r + 1);	/* LE Read Buffer Size */
 		s.acl_credits = r[3];
 	} else if (hci_cmd(0x1005, NULL, 0, r, sizeof(r)) == 0) {
-		s.acl_len = (uint16_t)(r[1] | r[2] << 8);	/* Read Buffer Size */
-		s.acl_credits = (uint16_t)(r[4] | r[5] << 8);
+		s.acl_len = get16(r + 1);	/* Read Buffer Size */
+		s.acl_credits = get16(r + 4);
 	}
 	if (s.acl_len < 27)
 		s.acl_len = 27;
@@ -235,8 +234,7 @@ static void notify(uint16_t handle, const uint8_t *v, size_t len)
 	if (len + 3 > sizeof(pdu))
 		len = sizeof(pdu) - 3;
 	pdu[0] = 0x1b;
-	pdu[1] = handle & 0xff;
-	pdu[2] = (uint8_t)(handle >> 8);
+	put16(pdu + 1, handle);
 	memcpy(pdu + 3, v, len);
 	acl_send(4, pdu, len + 3);
 }
@@ -392,7 +390,7 @@ static void handle_acl(const uint8_t *p, size_t len)
 
 	if (len < 5)
 		return;
-	dl = (size_t)(p[3] | p[4] << 8);
+	dl = get16(p + 3);
 	if (dl + 5 > len)
 		return;
 	if (((p[2] >> 4) & 3) != 1)	/* a start fragment */
@@ -427,7 +425,7 @@ static void le_meta(const uint8_t *ev, size_t len)
 			s.batch[s.nbatch++] = ads[i];
 	} else if (ev[2] == 0x01 && len >= 6 && ev[3] == 0) {
 		/* LE Connection Complete: the advertising has stopped. */
-		s.conn = (ev[4] | ev[5] << 8) & 0x0fff;
+		s.conn = get16(ev + 4) & 0x0fff;
 		s.advertising = 0;
 		s.l2_len = s.rpc_len = 0;
 		s.gatt.mtu = 23;
@@ -452,7 +450,7 @@ static void handle_packet(const uint8_t *p, size_t len)
 		le_meta(p + 1, len - 1);
 		break;
 	case 0x05:	/* Disconnection Complete */
-		if (len >= 6 && ((p[4] | p[5] << 8) & 0x0fff) == s.conn) {
+		if (len >= 6 && (get16(p + 4) & 0x0fff) == s.conn) {
 			/* The controller does not report the packets of a closed link. */
 			s.acl_credits += s.conn_sent;
 			s.conn_sent = 0;
@@ -462,7 +460,7 @@ static void handle_packet(const uint8_t *p, size_t len)
 		break;
 	case 0x13:	/* Number of Completed Packets */
 		if (len >= 8) {
-			uint16_t n = (uint16_t)(p[6] | p[7] << 8);
+			uint16_t n = get16(p + 6);
 
 			s.acl_credits += n;
 			s.conn_sent -= n < s.conn_sent ? n : s.conn_sent;
