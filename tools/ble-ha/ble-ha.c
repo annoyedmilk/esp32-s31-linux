@@ -123,9 +123,13 @@ static int hci_cmd(uint16_t op, const void *param, uint8_t plen, uint8_t *ret, s
 		memcpy(pkt + 4, param, plen);
 	if (write(s.hci, pkt, 4u + plen) != 4 + plen)
 		return -1;
-	while (now_ms() < end) {
-		ssize_t n = hci_read(pkt, sizeof(pkt), (int)(end - now_ms()));
+	for (;;) {
+		int64_t left = end - now_ms();
+		ssize_t n;
 
+		if (left <= 0)
+			break;
+		n = hci_read(pkt, sizeof(pkt), (int)left);
 		if (n <= 0)
 			continue;
 		if (pkt[0] == HCI_EVT && pkt[1] == 0x0e && n >= 7 && get16(pkt + 4) == op) {
