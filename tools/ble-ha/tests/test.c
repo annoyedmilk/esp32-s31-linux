@@ -92,15 +92,6 @@ static void test_improv_adv(void)
 	CHECK(d[25] == IMPROV_AUTHORIZED && d[26] == 3);
 }
 
-static uint8_t sum(const uint8_t *p, size_t n)
-{
-	unsigned int s = 0;
-
-	while (n--)
-		s += *p++;
-	return (uint8_t)s;
-}
-
 static void test_improv_rpc(void)
 {
 	uint8_t pkt[64] = { 0x01, 0, 4, 'h', 'o', 'm', 'e', 8, 's', 'e', 'c', 'r', 'e', 't', '1', '2' };
@@ -110,23 +101,23 @@ static void test_improv_rpc(void)
 	size_t n;
 
 	pkt[1] = 14;
-	pkt[16] = sum(pkt, 16);
+	pkt[16] = 0xad;
 	CHECK(improv_parse(pkt, 17, &c) == 0 && c.cmd == 1);
 	CHECK(!strcmp(c.ssid, "home") && !strcmp(c.pass, "secret12"));
 	CHECK(improv_parse(pkt, 10, &c) == 1);
 	pkt[16]++;
 	CHECK(improv_parse(pkt, 17, &c) == IMPROV_ERR_INVALID);
 	/* A passphrase of 7 characters is not valid for WPA. */
-	pkt[1] = 13, pkt[7] = 7, pkt[15] = sum(pkt, 15);
+	pkt[1] = 13, pkt[7] = 7, pkt[15] = 0x79;
 	CHECK(improv_parse(pkt, 16, &c) == IMPROV_ERR_INVALID);
 	/* An open network: no passphrase. */
-	pkt[1] = 6, pkt[7] = 0, pkt[8] = sum(pkt, 8);
+	pkt[1] = 6, pkt[7] = 0, pkt[8] = 0xb4;
 	CHECK(improv_parse(pkt, 9, &c) == 0 && c.pass[0] == '\0');
 	pkt[0] = 0x09, pkt[1] = 0, pkt[2] = 0x09;
 	CHECK(improv_parse(pkt, 3, &c) == IMPROV_ERR_UNKNOWN);
 	n = improv_result(res, 0x03, str, 2);
 	CHECK(n == 8 && res[0] == 3 && res[1] == 5 && res[2] == 1 && res[4] == 2);
-	CHECK(res[7] == sum(res, 7));
+	CHECK(res[7] == 0x31);
 }
 
 static uint8_t rpc_seen[128];
