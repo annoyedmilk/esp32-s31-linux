@@ -3,6 +3,8 @@ Subject: [PATCH] riscv: entry: always inline arch_exit_to_user_mode_prepare()
 
 It runs from noinstr code on each return to user mode.  With -Os, GCC
 made an out-of-line copy in .text.
+
+Upstream: not sent
 ---
 diff --git a/arch/riscv/include/asm/entry-common.h b/arch/riscv/include/asm/entry-common.h
 --- a/arch/riscv/include/asm/entry-common.h

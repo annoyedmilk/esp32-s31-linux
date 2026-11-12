@@ -2,6 +2,8 @@ From: Marco Müller <hello@annoyedmilk.ch>
 Subject: [PATCH] riscv: esp32s31: run the trap code from SRAM
 
 The last 8 KiB of the Linux SRAM window of the loader.
+
+Upstream: not sent
 ---
 diff --git a/arch/riscv/Kconfig.socs b/arch/riscv/Kconfig.socs
 --- a/arch/riscv/Kconfig.socs

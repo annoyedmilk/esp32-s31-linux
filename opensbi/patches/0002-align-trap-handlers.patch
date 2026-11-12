@@ -2,6 +2,8 @@ From: Marco Müller <hello@annoyedmilk.ch>
 Subject: [PATCH] firmware: align the trap handlers to 64 bytes
 
 In CLIC mode, the mtvec BASE field is 64-byte aligned.
+
+Upstream: not sent
 ---
 diff --git a/firmware/fw_base.S b/firmware/fw_base.S
 --- a/firmware/fw_base.S

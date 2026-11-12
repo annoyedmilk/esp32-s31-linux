@@ -4,6 +4,8 @@ Subject: [PATCH] riscv: run the trap entry and exit code from on-chip SRAM
 Link the entry, irqentry and noinstr text for on-chip SRAM, which the
 core fetches without the I-cache.  See docs/internals.md, "The
 instruction cache".
+
+Upstream: not sent
 ---
 diff --git a/arch/riscv/Kconfig b/arch/riscv/Kconfig
 --- a/arch/riscv/Kconfig

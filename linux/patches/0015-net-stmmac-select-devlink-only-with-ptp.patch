@@ -3,6 +3,8 @@ Subject: [PATCH] net: stmmac: select devlink only with PTP
 
 stmmac uses devlink only with a PTP clock.  Without PTP_1588_CLOCK the
 select cost 183 KB on riscv32.
+
+Upstream: not sent
 ---
 diff --git a/drivers/net/ethernet/stmicro/stmmac/Kconfig b/drivers/net/ethernet/stmicro/stmmac/Kconfig
 --- a/drivers/net/ethernet/stmicro/stmmac/Kconfig
