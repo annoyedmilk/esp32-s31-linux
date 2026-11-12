@@ -544,10 +544,6 @@ int main(int argc, char *argv[])
 	poll = !strcmp(cmd, "poll");
 	funcs = !strcmp(cmd, "funcs");
 	dump = !strcmp(cmd, "dump");
-	if (!get && !set && !level && !poll && !funcs && !dump) {
-		printf("Unknown command \"%s\"\n", cmd);
-		return 1;
-	}
 	if (dump) {
 		snapshot_dump(stdout, &regs, &board);
 		return 0;
