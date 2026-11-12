@@ -146,11 +146,6 @@ static void IRAM_ATTR shm_doorbell_isr(void *arg)
 	portYIELD_FROM_ISR(woken);
 }
 
-static void shm_free_frame(void *buf)
-{
-	heap_caps_free(buf);
-}
-
 static void ring_host_doorbell(void)
 {
 	REG_WRITE(DOORBELL_TO_HOST_REG, 1);
@@ -291,7 +286,7 @@ static int shm_read(interface_handle_t *handle,
 	buf_handle->payload = buf;
 	buf_handle->payload_len = len;
 	buf_handle->priv_buffer_handle = buf;
-	buf_handle->free_buf_handle = shm_free_frame;
+	buf_handle->free_buf_handle = heap_caps_free;
 	return len;
 }
 
