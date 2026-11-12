@@ -3,21 +3,21 @@
 set -eu
 
 # Log in on the serial console automatically.  SSH takes a key only.
-grep -qF 'ttyS0::respawn:/sbin/getty -L -n -l /sbin/serial-autologin ttyS0 115200' "$1/etc/inittab"
+grep -qF 'ttyS0::respawn:/sbin/getty -L -n -l /sbin/serial-autologin ttyS0 115200' "$1/etc/inittab" ||
+	{ echo "post-build.sh: no autologin getty on ttyS0 in /etc/inittab" >&2; exit 1; }
 test -x "$1/sbin/serial-autologin"
-
-# A login on each VT in the arguments.  getty, not a shell: Ctrl-C needs a
-# controlling terminal, and cttyhack opens the serial port instead.
-target=$1
-shift
-for vt in "$@"; do
-	line="$vt::respawn:/sbin/getty -n -l /sbin/serial-autologin $vt 38400 linux"
-	grep -qF "$line" "$target/etc/inittab" || printf '%s\n' "$line" >> "$target/etc/inittab"
-done
-set -- "$target"
 
 # BusyBox installs a start script for its httpd.  Here httpd is a tool.
 rm -f "$1/etc/init.d/S90httpd"
+
+# ROOT BIN LIBEXEC START: move BIN to LIBEXEC; in its place, a wrapper that
+# runs START first.
+wrap() {
+	mkdir -p "$1/$3"
+	mv "$1/$2" "$1/$3/${2##*/}"
+	printf '#!/bin/sh\n%s && exec %s "$@"\n' "$4" "/$3/${2##*/}" >"$1/$2"
+	chmod 755 "$1/$2"
+}
 
 # dbus-daemon and bluetoothd hold memory while idle: bluetooth-start starts
 # them at the first bluetoothctl (or S40bluetooth), not the S prefix.
@@ -27,23 +27,14 @@ for s in S30dbus-daemon S40bluetoothd; do
 	fi
 done
 if ! grep -q bluetooth-start "$1/usr/bin/bluetoothctl"; then
-	mv "$1/usr/bin/bluetoothctl" "$1/usr/libexec/bluetooth/bluetoothctl"
-	printf '#!/bin/sh\n%s\n' \
-		'/usr/sbin/bluetooth-start && exec /usr/libexec/bluetooth/bluetoothctl "$@"' \
-		>"$1/usr/bin/bluetoothctl"
-	chmod 755 "$1/usr/bin/bluetoothctl"
+	wrap "$1" usr/bin/bluetoothctl usr/libexec/bluetooth /usr/sbin/bluetooth-start
 fi
 
 # ot-daemon holds memory while idle: thread-start starts it at the first
 # ot-ctl, as bluetooth-start does for bluetoothd.
 for d in usr/sbin usr/bin; do
 	if [ -x "$1/$d/ot-ctl" ] && ! grep -q thread-start "$1/$d/ot-ctl"; then
-		mkdir -p "$1/usr/libexec/openthread"
-		mv "$1/$d/ot-ctl" "$1/usr/libexec/openthread/ot-ctl"
-		printf '#!/bin/sh\n%s\n' \
-			'/usr/sbin/thread-start && exec /usr/libexec/openthread/ot-ctl "$@"' \
-			>"$1/$d/ot-ctl"
-		chmod 755 "$1/$d/ot-ctl"
+		wrap "$1" "$d/ot-ctl" usr/libexec/openthread /usr/sbin/thread-start
 	fi
 done
 
@@ -62,3 +53,12 @@ fi
 if [ -x "$1/sbin/overlay-init" ]; then
 	rm -f "$1/usr/bin/luac"
 fi
+
+# A login on each VT in the arguments.  getty, not a shell: Ctrl-C needs a
+# controlling terminal, and cttyhack opens the serial port instead.
+inittab=$1/etc/inittab
+shift
+for vt in "$@"; do
+	line="$vt::respawn:/sbin/getty -n -l /sbin/serial-autologin $vt 38400 linux"
+	grep -qF "$line" "$inittab" || printf '%s\n' "$line" >>"$inittab"
+done
