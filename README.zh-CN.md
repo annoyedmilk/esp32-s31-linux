@@ -17,7 +17,7 @@ ESP ROM -> ESP-IDF 2nd stage -> loader (hart 0) -> OpenSBI (hart 1) -> Linux (ha
 ![ESP32-S31-Korvo-1 上的 fastfetch](docs/fastfetch.svg)
 
 [docs/internals.md](docs/internals.md)（英文）说明移植的工作原理和代码位置。
-[docs/release-notes.md](docs/release-notes.md)（英文）列出每个版本的更改。
+[CHANGELOG.md](CHANGELOG.md)（英文）列出每个版本的更改。
 
 ## 快速开始
 

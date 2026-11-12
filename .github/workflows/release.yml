@@ -11,10 +11,29 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
+  # The release text first: a tag without a CHANGELOG.md section stops here,
+  # not after the builds.
+  notes:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Write the release text
+        run: |
+          tag=$GITHUB_REF_NAME
+          [ "$GITHUB_REF_TYPE" = tag ] || tag=$(sed -n 's/^## //p' CHANGELOG.md | head -1)
+          scripts/release-notes.sh "$tag" > notes.md
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: notes
+          path: notes.md
+
   build:
+    needs: notes
     runs-on: ubuntu-24.04
     strategy:
       matrix:
@@ -82,8 +101,10 @@ jobs:
           path: build/legal/
 
   publish:
-    needs: build
+    needs: [notes, build]
     runs-on: ubuntu-24.04
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -94,6 +115,10 @@ jobs:
           path: release
           pattern: esp32s31-linux-*
           merge-multiple: true
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: notes
 
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
@@ -117,5 +142,7 @@ jobs:
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           files: release/*
-          body_path: docs/release-notes.md
+          body_path: notes.md
           prerelease: ${{ contains(github.ref_name, '-') }}
+          # A final release waits as a draft for its smoke test.
+          draft: ${{ !contains(github.ref_name, '-') }}

@@ -15,8 +15,8 @@ ESP ROM -> ESP-IDF 2nd stage -> loader (hart 0) -> OpenSBI (hart 1) -> Linux (ha
 ![fastfetch on the ESP32-S31-Korvo-1](docs/fastfetch.svg)
 
 [docs/internals.md](docs/internals.md) tells how the port works and where
-the code is. [docs/release-notes.md](docs/release-notes.md) lists the
-changes of each release.
+the code is. [CHANGELOG.md](CHANGELOG.md) lists the changes of each
+release.
 
 ## Quick start
 
