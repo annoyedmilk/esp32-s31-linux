@@ -54,7 +54,12 @@ jobs:
           submodules: recursive
 
       - name: Read the version of the images
-        run: echo "ESP32S31_VERSION=$(make -s version)" >> "$GITHUB_ENV"
+        # git describe ignores a lightweight tag: then the images get a hash.
+        run: |
+          v=$(make -s version)
+          [ "$GITHUB_REF_TYPE" != tag ] || [ "$v" = "$GITHUB_REF_NAME" ] ||
+            { echo "version $v is not the tag $GITHUB_REF_NAME: use git tag -a" >&2; exit 1; }
+          echo "ESP32S31_VERSION=$v" >> "$GITHUB_ENV"
 
       - name: Read the ESP-IDF version
         id: idf
