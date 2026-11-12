@@ -121,10 +121,12 @@ def snapshot(dts_dir: str, b: dict) -> str:
         f"used {used:016x}",
         f"cnnt {b['cnnt']:08x}",
     ]
+    # The loader starts from zero pages: a row of zeros needs no line.
     for page, words in (("iomux", iomux), ("gpio", gpio)):
         for off in range(0, WORDS * 4, 32):
-            row = " ".join(f"{w:08x}" for w in words[off // 4 : off // 4 + 8])
-            lines.append(f"{page} {off:03x} {row}")
+            row = words[off // 4 : off // 4 + 8]
+            if any(row):
+                lines.append(f"{page} {off:03x} " + " ".join(f"{w:08x}" for w in row))
     return "\n".join(lines) + "\n"
 
 
