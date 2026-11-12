@@ -115,6 +115,11 @@ Notes:
 
 - The Korvo-1 and the Function-CoreBoard-1 do not boot without their root
   disk. The kernel waits for it.
+- `IMAGE_VERSION` in `/etc/os-release` is the version of the root. The
+  loader prints the version of the flash image as `App version` at the
+  start of the boot log. On the Korvo-1 and the Function-CoreBoard-1 the
+  two are updated separately, and the kernel loads its modules from the
+  disk: write the flash image and the disk from the same release.
 - On the module alone, `flash_erase /dev/mtd1 0 0` and a reboot put the
   root back to the image. `make flash` does not write the `data` partition,
   so the overlay stays after an update. An update from v0.9.1 or older is

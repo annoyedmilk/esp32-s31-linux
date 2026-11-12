@@ -6,6 +6,12 @@ ifeq ($(filter $(BOARD),esp32s31 coreboard1 korvo1),)
 $(error BOARD must be esp32s31, coreboard1 or korvo1, not "$(BOARD)")
 endif
 
+# The version of the images: the tag of a release, else the commit.  CI sets
+# it once for each job; the container and idf.py get it from the environment.
+ESP32S31_VERSION ?= $(shell git describe --always --dirty)
+ESP32S31_VERSION := $(ESP32S31_VERSION)
+export ESP32S31_VERSION
+
 BUILD_DIR := build/$(BOARD)
 LOG_DIR := logs
 
@@ -66,6 +72,7 @@ BR_MAKE := make O=$(BR_O) BR2_EXTERNAL=/work/br2-external BR2_DL_DIR=/br/dl \
 CONTAINER ?= $(shell command -v container 2>/dev/null)
 BR_RUN = "$(CONTAINER)" run --rm --cpus $(JOBS) --memory $(BR_MEMORY) \
 	--uid $(shell id -u) --gid $(shell id -g) -e HOME=/br/home \
+	-e ESP32S31_VERSION=$(ESP32S31_VERSION) \
 	-v $(BR_VOLUME):/br -v "$(CURDIR)":/work "$(BR_IMAGE)"
 # The same image without the build volume, for checks that only read files.
 BR_TOOLS = "$(CONTAINER)" run --rm --uid $(shell id -u) --gid $(shell id -g) \
@@ -100,7 +107,7 @@ LINUX_SIZE_OFFSET := $(shell printf '0x%x' $$(( $(LINUX_OFFSET) + $(LINUX_SIZE) 
 
 .DEFAULT_GOAL := help
 
-.PHONY: help check ports build bootloader opensbi kernel defconfigs \
+.PHONY: help version check ports build bootloader opensbi kernel defconfigs \
 	kernel-check kernel-clean kernel-vmlinux kernel-menuconfig \
 	kernel-saveconfig \
 	container-image \
@@ -112,6 +119,7 @@ help:
 		'ESP32-S31 Linux (macOS host)' \
 		'' \
 		'  make check                         verify host tools and submodules' \
+		'  make version                       print the version of the images' \
 		'  make ports                         list connected serial devices' \
 		'  make build                         build loader, OpenSBI, Linux, rootfs' \
 		'  make flash FLASH_PORT=/dev/cu.X    build and flash the complete image' \
@@ -160,6 +168,9 @@ help:
 		'On esp32s31 the rootfs is in the flash.  On korvo1 it is on the SD' \
 		'card, on coreboard1 on a USB stick.'
 
+version:
+	@echo $(ESP32S31_VERSION)
+
 check:
 	@test "$$(uname -s)" = Darwin || { echo 'this build is supported on macOS only'; exit 1; }
 	@test -n "$(PYTHON)" -a -x "$(PYTHON)" || { echo 'missing ESP-IDF Python environment'; exit 1; }
@@ -205,7 +216,8 @@ bootloader:
 	fi; \
 	cd bootloader && idf.py -B ../$(BUILD_DIR)/bootloader \
 		-D SDKCONFIG="$(CURDIR)/$(BUILD_DIR)/sdkconfig" \
-		-D SDKCONFIG_DEFAULTS="$(SDKCONFIG_DEFAULTS)" build
+		-D SDKCONFIG_DEFAULTS="$(SDKCONFIG_DEFAULTS)" \
+		-D PROJECT_VER="$(ESP32S31_VERSION)" build
 
 opensbi:
 	@rm -rf "$(OPENSBI_SRC)"

@@ -2,6 +2,15 @@
 # SPDX-License-Identifier: MIT
 set -eu
 
+# The version (make version) and the board of the image in os-release; ID
+# stays buildroot for fastfetch.  An image without a version is an error.
+version=${ESP32S31_VERSION:?post-build.sh: ESP32S31_VERSION is empty}
+board=$(sed -n 's,^BR2_DEFCONFIG=".*/\(.*\)_defconfig"$,\1,p' "$BR2_CONFIG")
+sed -i -e '/^PRETTY_NAME=/d' -e '/^IMAGE_ID=/d' -e '/^IMAGE_VERSION=/d' \
+	"$1/usr/lib/os-release"
+printf 'PRETTY_NAME="ESP32-S31 Linux %s"\nIMAGE_ID=esp32s31-linux-%s\nIMAGE_VERSION=%s\n' \
+	"$version" "${board:?post-build.sh: no BR2_DEFCONFIG}" "$version" >>"$1/usr/lib/os-release"
+
 # Log in on the serial console automatically.  SSH takes a key only.
 grep -qF 'ttyS0::respawn:/sbin/getty -L -n -l /sbin/serial-autologin ttyS0 115200' "$1/etc/inittab" ||
 	{ echo "post-build.sh: no autologin getty on ttyS0 in /etc/inittab" >&2; exit 1; }

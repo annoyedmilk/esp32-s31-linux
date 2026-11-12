@@ -19,6 +19,8 @@ cd "$(dirname "$0")/.."
 : "${BR_OUTPUT:=$PWD/build/br-output-$BOARD}"
 : "${BR_DL_DIR:=$PWD/build/br-dl}"
 export IDF_PATH BR2_DL_DIR="$BR_DL_DIR"
+# post-build.sh writes it into /etc/os-release; the release workflow sets it.
+export ESP32S31_VERSION="$(make -s version)"
 
 scripts/mkdefconfigs.sh --check
 make bootloader BOARD="$BOARD"
