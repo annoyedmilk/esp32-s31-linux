@@ -597,7 +597,7 @@ static int esp32_uart_probe(struct platform_device *pdev)
 	}
 	if (ret >= UART_NR) {
 		dev_err(&pdev->dev, "driver limited to %d serial ports\n", UART_NR);
-		return -ENOMEM;
+		return -ENODEV;
 	}
 
 	port->line = ret;
