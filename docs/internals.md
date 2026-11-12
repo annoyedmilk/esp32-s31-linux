@@ -109,7 +109,10 @@ zram used 1552 KiB for 2830 KiB, and MemAvailable at idle was 3288 KiB,
 not 2344 KiB; under a load of 2 MB of file data, 2642 KiB for 5538 KiB,
 not 3838 KiB for 5890 KiB (one run each). zram
 stays with lz4: the zstd backend adds 229 KiB to the Image of the Korvo-1,
-which is RAM that Linux never gets back.
+which is RAM that Linux never gets back. `vm.page-cluster` stays at 3 (8
+pages of swap readahead): with 0, a load that reads more pages than fit in
+RAM, in order, took about 25 % longer on the module and 50 % longer on the
+Korvo-1, and in a random order it was the same (v1.0.0).
 
 ### The crash log
 
@@ -292,8 +295,8 @@ This is the part that is most different from other RISC-V SoCs.
   (`ESP_SHM_CACHE_LOCK_OFF`); the firmware wraps the two ROM functions with
   `--wrap`. The lock covers only the short engine operation, never the
   program or erase. Linux asks through a vendor SBI extension
-  (`0x09000612`, functions: write back all, invalidate, write back,
-  write back and invalidate, I-cache sync). See
+  (`0x09000612`, functions 1 to 4: invalidate, write back, write back and
+  invalidate, I-cache sync). See
   `drivers/cache/esp32s31-cache.c`. An
   erratum: a write-back can lose part of the range, so OpenSBI runs it
   twice, as the ESP-IDF ROM patch does. A test of 360 write-backs did not
@@ -304,7 +307,10 @@ This is the part that is most different from other RISC-V SoCs.
 - **Streaming DMA uses the sync engine** through
   `riscv_noncoherent_register_cache_ops()`. `setup_arch()` enables
   non-coherent DMA early (`patches/0006`), because slab gets its alignment
-  from `dma_get_cache_alignment()` before the initcalls.
+  from `dma_get_cache_alignment()` before the initcalls. The SBI call is
+  most of the cost of a sync: an empty call takes 1.9 µs, the write-back of
+  one frame 3.3 µs (v1.0.0). An S-mode sync would need the double
+  write-back and the lock of the firmware; it can save at most the 1.9 µs.
 - **The I-cache refills from PSRAM, not from the D-cache, and `fence.i` does
   not invalidate it.** New code (module load, `exec`, JIT) can be in a dirty
   D-cache line. The I-cache also keeps the old line until other code replaces
@@ -381,14 +387,17 @@ A measurement on hart 1 also agrees (below). The ESP-IDF option
   notrace callees that the profiler does not see. After `ld -r`, the
   out-of-line copies of a static inline function from all files share one
   section; such a section is not in the list when it is larger than 256
-  bytes. On the module build, the round trip went from 165 to 179 µs to 77
-  to 99 µs, and the padding test no longer moves it (1 KiB: 90 to 94 µs,
-  4 KiB: 77 to 79 µs, 8 KiB: 81 to 87 µs, all in the range of one boot to
-  the next). The other numbers did not change. A spread of approximately
-  20 % between boots stays. Its cause is not the kernel text and not the
-  pages of the program: six copies of the program in one boot gave the
-  same time. A kernel update can rename a function, and then its line
-  matches nothing: make the list again after each update.
+  bytes. On the module alone the round trip went from about 170 to about
+  85 µs, and the jump in `mm/` no longer moves it. A spread of about 20 %
+  from one boot to the next stays; it does not come from the kernel text or
+  from the pages of the program. A kernel update can rename a function, and
+  then its line matches nothing: make the list again after each update.
+- **More code in the trap SRAM.** 4.9 KiB of the 8 KiB are free. A test put
+  the user copy, the checksum (`do_csum`, `csum_partial`,
+  `csum_tcpudp_nofold`) and the word copies of the transport there (666
+  bytes; `memcpy` and `memset` cannot go, because `setup_vm()` uses them
+  before the copy). With the hot text, iperf3 and the pipe round trip did
+  not change (v1.0.0).
 
 ## Page blocks
 
@@ -408,6 +417,20 @@ scan of all programs and libraries of the rootfs found calls to the soft-float
 helpers for single precision only in `libgcc_s` itself and 36 in
 `libstdc++`. Lua, MicroPython and libm use double precision, which F does
 not help. Thus the FPU stays off.
+
+## The Zc extensions
+
+The datasheet gives the HP cores Zcb, Zcmp and Zcmt. ESP-IDF at the pinned
+commit does not use them on this chip, and on the ESP32-C5, C61, H4 and P4
+it works around two faults of `cm.push` and `cm.popret`. Tests on hart 1:
+Zcb gives the right results, also for `c.lhu` and `c.sh` at an odd address;
+`cm.push` writes the registers in the order of the specification; and
+`sstatus.SIE` stayed clear after `cm.push` and `cm.pop` with interrupts off
+(10^6 of 10^6, in a kernel module). Zcmt needs its `jvt` CSR for each
+process, which Linux does not switch. A test kernel with `_zcb_zcmp` was 9 %
+smaller and gave the module about 300 KiB more MemAvailable (v1.0.0); iperf3
+RX on the module was about 5 % lower, on the Korvo-1 not. The kernel and
+the user space need a soak test with it, because each function changes.
 
 ## Protection
 
@@ -490,7 +513,8 @@ the USB transport in shared SRAM. The layout is in
   `netif_rx()` from the work ran the NET_RX softirq once for each frame.
   iperf3 TCP RX went from 30 to 37 Mbit/s. A pass has approximately 39
   frames at full load. GRO through `gro_cells` gave no gain while the
-  frames came one at a time.
+  frames came one at a time. With the batch, it gave about 2 Mbit/s more RX
+  on the module alone and less idle time (v1.0.0); it is not taken.
 - A restart of the firmware also restarts Linux. Thus when the host driver
   opens or closes the data path, the firmware only sends its boot event
   again. Over USB, close restarts the firmware. Here the firmware keeps its
@@ -521,6 +545,10 @@ the USB transport in shared SRAM. The layout is in
   the linker wraps the receive, sleep and disable calls of the OpenThread
   radio port. iperf3 TX/RX on the Korvo-1: 46/37 Mbit/s with Thread
   stopped or `wpan0` down, 12/17 as a Thread leader, also with a BLE scan.
+- The Bluetooth proxy of `ble-ha` scans actively, 30 ms of each 320 ms.
+  A passive scan gave Wi-Fi nothing (about 17/21 Mbit/s TX/RX on the
+  Korvo-1 with either scan, v1.0.0): the scan window costs the throughput,
+  not the scan requests.
 - The Bluetooth controller reports "BR/EDR Not Supported" in its LMP
   features, although it has BR/EDR. A host patch clears the bit
   (`0006-*`).
@@ -696,6 +724,28 @@ and Bluetooth stack the same on all boards.
 | USB Serial/JTAG without a host | `TX_FREE` stays clear, and the console slows to approximately 130 B/s. OpenSBI stops the copy after one timeout. |
 | ROM stack of hart 1 | The ROM start code of hart 1 uses 1 KiB below `0x2F07E600`. ESP-IDF gives this area to its heap, so the loader reserves it. |
 | UART registers | The block is the one of the ESP32-C6 generation, not the ESP32-S3 one. The `_SYNC` registers are shadow registers: a write takes effect after a write of `REG_UPDATE`. |
+
+## How the numbers are measured
+
+The numbers in this file, the README and the changelog come from three
+boots or runs of each build on the Korvo-1.
+
+- **iperf3:** `iperf3 -c HOST -t 30` (TX) and `-R` (RX) to a host on
+  Ethernet, through the same access point on the same channel at the same
+  distance. The value of the receiver line.
+- **Pipe round trip:** `tools/pipe-rtt`, one static binary for all builds:
+  10000 rounds of one byte between two processes, after 1000 rounds.
+- **SD read:** `echo 3 > /proc/sys/vm/drop_caches`, then
+  `dd if=/dev/mmcblk0 of=/dev/null bs=1M count=64 iflag=direct`.
+- **MemAvailable at idle:** 60 s after the banner, after
+  `echo 3 > /proc/sys/vm/drop_caches`.
+- **Boot time:** from the reset pulse to the line
+  `ESP32-S31 Linux / Buildroot`, on a port that stays open
+  (`scripts/reset-monitor.py --serve`, then a client without `--no-reset`).
+  On the module alone, a reset leaves the UBIFS overlay without an unmount,
+  and the next mount replays its journal: 0.1 to 0.6 s, more after many
+  writes and resets. Thus the boot time of the module changes with the state
+  of the overlay.
 
 ## Where to start reading
 
