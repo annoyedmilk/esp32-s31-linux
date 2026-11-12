@@ -6,6 +6,7 @@
 
 #include <errno.h>
 #include <inttypes.h>
+#include <limits.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -246,14 +247,45 @@ static int load_line(char *line, struct regs *r, struct board *b)
 	return 0;
 }
 
-int snapshot_load(const char *path, struct regs *r, struct board *b)
+static int load_file(const char *path, struct regs *r, struct board *b);
+
+/* "include FILE": load FILE, relative to the including file, at this line. */
+static int load_include(const char *from, const char *name, struct regs *r,
+			struct board *b)
+{
+	const char *slash = strrchr(from, '/');
+	int dir = name[0] == '/' || !slash ? 0 : (int)(slash - from + 1);
+	char path[PATH_MAX];
+
+	if (snprintf(path, sizeof(path), "%.*s%s", dir, from, name) >= (int)sizeof(path))
+		return -ENAMETOOLONG;
+	return load_file(path, r, b);
+}
+
+static int load_file(const char *path, struct regs *r, struct board *b)
 {
 	char line[NPINS * NAME_LEN + 16];	/* the names line is the longest */
 	unsigned int lineno = 0;
 	FILE *f = fopen(path, "r");
+	int ret = 0;
 
 	if (!f)
 		return -errno;
+	while (!ret && fgets(line, sizeof(line), f)) {
+		lineno++;
+		line[strcspn(line, "\n")] = '\0';
+		ret = strncmp(line, "include ", 8) ? load_line(line, r, b) :
+		      load_include(path, line + 8, r, b);
+		if (ret)
+			fprintf(stderr, "%s:%u: not a snapshot line\n", path, lineno);
+	}
+	fclose(f);
+	return ret ? -EINVAL : 0;
+}
+
+int snapshot_load(const char *path, struct regs *r, struct board *b)
+{
+	int ret;
 
 	r->iomux = snap_pages[0];
 	r->gpio = snap_pages[1];
@@ -261,16 +293,9 @@ int snapshot_load(const char *path, struct regs *r, struct board *b)
 	r->cnnt_read = snap_cnnt_read;
 	r->cnnt_write = snap_cnnt_write;
 	r->fd = -1;
-	while (fgets(line, sizeof(line), f)) {
-		lineno++;
-		line[strcspn(line, "\n")] = '\0';
-		if (load_line(line, r, b)) {
-			fprintf(stderr, "%s:%u: not a snapshot line\n", path, lineno);
-			fclose(f);
-			return -EINVAL;
-		}
-	}
-	fclose(f);
+	ret = load_file(path, r, b);
+	if (ret)
+		return ret;
 	b->have_lines = 1;
 	b->hdr = board_header(b->compatible);
 	return 0;
