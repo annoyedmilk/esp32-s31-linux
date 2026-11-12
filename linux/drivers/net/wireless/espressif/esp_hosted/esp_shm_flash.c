@@ -104,6 +104,11 @@ static int esp_shm_flash_erase(struct mtd_info *mtd, struct erase_info *instr)
 	u64 addr;
 	int ret;
 
+	/* The firmware erases whole blocks: a part of a block is an error. */
+	if (!IS_ALIGNED(instr->addr, ESP_SHM_FLASH_BLOCK) ||
+	    !IS_ALIGNED(instr->len, ESP_SHM_FLASH_BLOCK))
+		return -EINVAL;
+
 	guard(mutex)(&flash->lock);
 	for (addr = instr->addr; addr < instr->addr + instr->len;
 	     addr += ESP_SHM_FLASH_BLOCK) {
