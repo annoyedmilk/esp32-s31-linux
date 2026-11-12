@@ -88,6 +88,10 @@ $usage
 
 Console: the same UART port, 115200 8N1, logged in as root. SSH takes root
 only with a key: add it to /root/.ssh/authorized_keys from the console.
+
+The images contain free software. The licence texts and the sources are
+in esp32s31-linux-$version-licenses.tar.xz and
+esp32s31-linux-$version-sources.tar of the same release.
 TXT
 
 (cd "$out" && zip -qr "$name-flash.zip" "$name-flash")

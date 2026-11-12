@@ -73,14 +73,36 @@ jobs:
           name: esp32s31-linux-${{ matrix.board }}
           path: build/release/*
 
+      - name: Collect the licences and the sources
+        run: scripts/package-legal.sh collect ${{ matrix.board }}
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: legal-${{ matrix.board }}
+          path: build/legal/
+
   publish:
     needs: build
     runs-on: ubuntu-24.04
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           path: release
+          pattern: esp32s31-linux-*
           merge-multiple: true
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          path: build/legal
+          pattern: legal-*
+          merge-multiple: true
+
+      - name: Make the licence and source bundles
+        run: scripts/package-legal.sh bundle "$(make -s version)" release
 
       - name: Make the checksums
         run: cd release && sha256sum * > SHA256SUMS
@@ -90,16 +112,10 @@ jobs:
           name: esp32s31-linux
           path: release/*
 
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        if: github.ref_type == 'tag'
-        with:
-          path: src
-          sparse-checkout: docs
-
       - name: Publish the release
         if: github.ref_type == 'tag'
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           files: release/*
-          body_path: src/docs/release-notes.md
+          body_path: docs/release-notes.md
           prerelease: ${{ contains(github.ref_name, '-') }}
