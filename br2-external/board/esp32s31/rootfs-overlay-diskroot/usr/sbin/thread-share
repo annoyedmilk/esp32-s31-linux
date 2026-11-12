@@ -30,7 +30,9 @@ leader | router | child) ;;
 *) echo "thread-share: no Thread network; form one first (README)" >&2; exit 1 ;;
 esac
 
-key=$(tr -dc 0-9 </dev/urandom | head -c 9)
+# Thread TAP: 8 digits and their Verhoeff check digit.
+key=$(tr -dc 0-9 </dev/urandom | head -c 8)
+key=$key$($CTL verhoeff calculate "$key" | tr -d '\r' | head -1)
 $CTL ba ephemeralkey start "$key" $((min * 60000)) 49192 | grep -q '^Done' ||
 	{ echo "thread-share: the border agent did not take the key" >&2; exit 1; }
 echo "thread-share: key $key for $min min; thread-share stop ends it"
