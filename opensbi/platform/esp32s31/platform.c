@@ -421,7 +421,6 @@ static int esp32s31_timer_init(void)
 #define ESP32S31_CACHE_MAP_L1_DCACHE	(1UL << 4)
 
 /* Vendor SBI function IDs.  Keep them the same as in the Linux driver. */
-#define ESP32S31_SBI_CACHE_WBACK_ALL	0
 #define ESP32S31_SBI_CACHE_INV		1
 #define ESP32S31_SBI_CACHE_WBACK	2
 #define ESP32S31_SBI_CACHE_WBACK_INV	3
@@ -455,7 +454,6 @@ static const struct {
 	unsigned long dcache_op;
 	unsigned long icache_op;
 } esp32s31_cache_ops[] = {
-	[ESP32S31_SBI_CACHE_WBACK_ALL] = { ESP32S31_CACHE_WRITEBACK, 0 },
 	[ESP32S31_SBI_CACHE_INV] = { ESP32S31_CACHE_INVALIDATE, 0 },
 	[ESP32S31_SBI_CACHE_WBACK] = { ESP32S31_CACHE_WRITEBACK, 0 },
 	[ESP32S31_SBI_CACHE_WBACK_INV] = { ESP32S31_CACHE_WRITEBACK_INV, 0 },
@@ -480,11 +478,11 @@ static bool esp32s31_cache_op_allowed(unsigned long op, unsigned long addr,
 static int esp32s31_vendor_ext(long funcid, struct sbi_trap_regs *regs,
 			       struct sbi_ecall_return *out)
 {
-	bool all = funcid == ESP32S31_SBI_CACHE_WBACK_ALL;
-	unsigned long addr = all ? 0 : regs->a0;
-	unsigned long size = all ? 0 : regs->a1;
+	unsigned long addr = regs->a0, size = regs->a1;
 
-	if (funcid < 0 || funcid >= array_size(esp32s31_cache_ops))
+	/* ID 0 was a write-back of all; no kernel sends it. */
+	if (funcid < 0 || funcid >= array_size(esp32s31_cache_ops) ||
+	    !esp32s31_cache_ops[funcid].dcache_op)
 		return SBI_ENOTSUPP;
 	if (!esp32s31_cache_op_allowed(esp32s31_cache_ops[funcid].dcache_op,
 				       addr, size))
