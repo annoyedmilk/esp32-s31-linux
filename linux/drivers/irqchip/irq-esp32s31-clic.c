@@ -327,9 +327,6 @@ static void esp32s31_clic_handle_irq(struct pt_regs *regs)
 	unsigned long raw_cause;
 	unsigned long irq_id;
 
-	if (WARN_ON_ONCE(!clic))
-		return;
-
 	raw_cause = regs->cause;
 	irq_id = raw_cause & CLIC_CAUSE_EXCCODE_MASK;
 
