@@ -14,6 +14,7 @@
  * cannot use it at the same time.  It ends when it has nothing to do.
  */
 
+#include <ctype.h>
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -79,20 +80,17 @@ static void on_signal(int sig)
 	stop = 1;
 }
 
-static time_t now(void)
-{
-	struct timespec ts;
-
-	clock_gettime(CLOCK_MONOTONIC, &ts);
-	return ts.tv_sec;
-}
-
 static int64_t now_ms(void)
 {
 	struct timespec ts;
 
 	clock_gettime(CLOCK_MONOTONIC, &ts);
 	return (int64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+}
+
+static time_t now(void)
+{
+	return (time_t)(now_ms() / 1000);
 }
 
 /* ---- The adapter ---- */
@@ -649,8 +647,7 @@ static void setup_info(void)
 	gethostname(s.name, sizeof(s.name) - 1);
 	read_line("/sys/class/net/wlan0/address", s.mac, sizeof(s.mac));
 	for (i = 0; s.mac[i]; i++)
-		if (s.mac[i] >= 'a' && s.mac[i] <= 'f')
-			s.mac[i] -= 'a' - 'A';
+		s.mac[i] = (char)toupper((unsigned char)s.mac[i]);
 	snprintf(s.bt_mac, sizeof(s.bt_mac), "%02X:%02X:%02X:%02X:%02X:%02X",
 		 s.bdaddr[5], s.bdaddr[4], s.bdaddr[3], s.bdaddr[2], s.bdaddr[1], s.bdaddr[0]);
 	read_line("/proc/device-tree/model", s.model, sizeof(s.model));
