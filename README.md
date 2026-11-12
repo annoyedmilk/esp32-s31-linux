@@ -424,6 +424,11 @@ make monitor BOARD=korvo1 SERIAL_PORT=/dev/cu.usbserial-XXXX
 - `scripts/reset-monitor.py --port PORT --no-reset --success-pattern ""
   --cmd COMMAND` runs shell commands on the console and stops at the first
   command that fails.
+- The Korvo-1 resets each time its UART port opens.
+  `scripts/reset-monitor.py --port PORT --serve 2217` keeps the port open;
+  then use `rfc2217://localhost:2217` as the port of the script and of
+  `make monitor`. The board resets only on an RTS pulse, and the script
+  prints the time from the reset to the banner. Stop the server to flash.
 - Files in `local-overlay/` go into the root of all builds. git ignores them.
 - `make help` shows all targets.
 

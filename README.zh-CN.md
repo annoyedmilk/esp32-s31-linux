@@ -368,6 +368,10 @@ make monitor BOARD=korvo1 SERIAL_PORT=/dev/cu.usbserial-XXXX
 - `make rootfs-clean BOARD=...` 删除一个开发板的 Buildroot 输出，用于从头构建。
 - `scripts/reset-monitor.py --port PORT --no-reset --success-pattern ""
   --cmd COMMAND` 在控制台上运行 shell 命令，在第一个失败的命令处停止。
+- Korvo-1 的 UART 端口每次打开时开发板都会复位。
+  `scripts/reset-monitor.py --port PORT --serve 2217` 让端口保持打开；然后把
+  `rfc2217://localhost:2217` 用作该脚本和 `make monitor` 的端口。开发板只在
+  RTS 脉冲时复位，脚本会打印从复位到启动横幅的时间。烧录前请停止该服务。
 - `local-overlay/` 中的文件会放入所有构建的根目录。git 忽略这些文件。
 - `make help` 显示所有目标。
 

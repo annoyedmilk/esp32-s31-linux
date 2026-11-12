@@ -7,17 +7,23 @@ import contextlib
 import os
 import re
 import select
+import socket
 import sys
 import termios
+import threading
 import time
 import tty
+import types
 from collections.abc import Iterator
 from typing import BinaryIO
 
 import serial
+import serial.rfc2217
 
 CTRL_RBRACKET = b"\x1d"
 SEEN_MAX = 4096
+# A read waits this long: an rfc2217:// port has no fileno() for select().
+POLL = 0.05
 
 
 def now_name() -> str:
@@ -28,7 +34,11 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Reset an ESP32-S31 board and capture UART output"
     )
-    parser.add_argument("--port", required=True, help="UART port to capture")
+    parser.add_argument(
+        "--port",
+        required=True,
+        help="UART port to capture, or a URL such as rfc2217://localhost:2217",
+    )
     parser.add_argument(
         "--reset-port",
         default="",
@@ -40,6 +50,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--success-pattern", default="ESP32-S31 Linux / Buildroot")
     parser.add_argument("--no-reset", action="store_true")
     mode = parser.add_mutually_exclusive_group()
+    mode.add_argument(
+        "--serve",
+        type=int,
+        metavar="TCPPORT",
+        help="hold the port open and share it as rfc2217://localhost:TCPPORT; "
+        "boards that reset when the port opens then reset only on request",
+    )
     mode.add_argument(
         "--interactive",
         action="store_true",
@@ -59,11 +76,12 @@ def parse_args() -> argparse.Namespace:
 
 def open_port(port: str, baud: int, timeout: float) -> serial.Serial:
     """Open a port with DTR and RTS off, without a reset on the way."""
-    ser = serial.Serial(port, baud, timeout=timeout)
-    # The port opens with DTR and RTS on.  With the auto-program circuit,
-    # DTR off and RTS on pulls EN low: release RTS first.
+    ser = serial.serial_for_url(port, baud, timeout=timeout, do_not_open=True)
+    # With the auto-program circuit, DTR off and RTS on pulls EN low:
+    # release RTS first.
     ser.rts = False
     ser.dtr = False
+    ser.open()
     return ser
 
 
@@ -129,6 +147,7 @@ def capture(
     ser: serial.Serial,
     log: BinaryIO,
     pattern: bytes,
+    start: float,
     deadline: float,
     stdin_fd: int | None,
 ) -> bool:
@@ -139,17 +158,18 @@ def capture(
     """
     success = not pattern
     seen = b""
-    readers = [ser.fileno()] + ([stdin_fd] if stdin_fd is not None else [])
     while time.monotonic() < deadline or (success and stdin_fd is not None):
-        ready, _, _ = select.select(readers, [], [], 0.1)
-        hit = False
-        if ser.fileno() in ready:
-            seen = (seen + forward_serial(ser, log))[-SEEN_MAX:]
-            hit = not success and pattern in seen
-            success = success or hit
+        seen = (seen + forward_serial(ser, log))[-SEEN_MAX:]
+        hit = not success and pattern in seen
+        success = success or hit
+        if hit:
+            sys.stderr.write(f"\r\npattern after {time.monotonic() - start:.2f} s\r\n")
         if hit and stdin_fd is None:
             return True
-        if stdin_fd in ready and not forward_stdin(stdin_fd, ser):
+        if stdin_fd is None:
+            continue
+        ready, _, _ = select.select([stdin_fd], [], [], 0)
+        if ready and not forward_stdin(stdin_fd, ser):
             break
     return success
 
@@ -163,24 +183,23 @@ def run_cmd(ser: serial.Serial, log: BinaryIO, cmd: str, deadline: float) -> int
     ser.write(f'{cmd}; echo "{marker} $?"\n'.encode())
     seen = b""
     while time.monotonic() < deadline:
-        ready, _, _ = select.select([ser.fileno()], [], [], 0.1)
-        if ready:
-            seen = (seen + forward_serial(ser, log))[-SEEN_MAX:]
-            if m := end.search(seen):
-                return int(m.group(1))
+        seen = (seen + forward_serial(ser, log))[-SEEN_MAX:]
+        if m := end.search(seen):
+            return int(m.group(1))
     return None
 
 
 def run(args: argparse.Namespace, log: BinaryIO, deadline: float) -> int:
     """Return 0 on success, 1 for a failed command, 3 at the deadline."""
-    with open_port(args.port, args.baud, 0) as ser:
+    with open_port(args.port, args.baud, POLL) as ser:
         ser.reset_input_buffer()
+        start = time.monotonic()
         if not args.no_reset:
             reset_board(ser, args, log)
         if args.success_pattern or not args.cmd:
             with raw_stdin(args.interactive and sys.stdin.isatty()) as stdin_fd:
                 pattern = args.success_pattern.encode()
-                if not capture(ser, log, pattern, deadline, stdin_fd):
+                if not capture(ser, log, pattern, start, deadline, stdin_fd):
                     return 3
         for cmd in args.cmd:
             status = run_cmd(ser, log, cmd, deadline)
@@ -192,8 +211,64 @@ def run(args: argparse.Namespace, log: BinaryIO, deadline: float) -> int:
     return 0
 
 
+def pump(
+    ser: serial.Serial,
+    out: types.SimpleNamespace,
+    mgr: serial.rfc2217.PortManager,
+    stop: threading.Event,
+) -> None:
+    """Copy the UART to the client until stop."""
+    while not stop.is_set():
+        data = ser.read(ser.in_waiting or 1)
+        try:
+            out.write(b"".join(mgr.escape(data)))
+        except OSError:
+            return
+
+
+def session(ser: serial.Serial, conn: socket.socket) -> None:
+    """Bridge one client to the UART.  RTS and DTR follow the client."""
+    lock = threading.Lock()
+
+    # The reader thread and the telnet answers of mgr both send.
+    def write(data: bytes) -> None:
+        with lock:
+            conn.sendall(data)
+
+    out = types.SimpleNamespace(write=write)
+    mgr = serial.rfc2217.PortManager(ser, out)
+    stop = threading.Event()
+    reader = threading.Thread(target=pump, args=(ser, out, mgr, stop))
+    reader.start()
+    try:
+        while data := conn.recv(1024):
+            ser.write(b"".join(mgr.filter(data)))
+    except OSError:
+        pass
+    finally:
+        stop.set()
+        reader.join()
+        conn.close()
+
+
+def serve(args: argparse.Namespace) -> int:
+    """Share the port with one client at a time, without a new open."""
+    with (
+        open_port(args.port, args.baud, POLL) as ser,
+        socket.create_server(("127.0.0.1", args.serve)) as srv,
+    ):
+        print(f"serving {args.port} as rfc2217://localhost:{args.serve}", flush=True)
+        while True:
+            session(ser, srv.accept()[0])
+
+
 def main() -> int:
     args = parse_args()
+    if args.serve:
+        try:
+            return serve(args)
+        except KeyboardInterrupt:
+            return 130
     os.makedirs(args.log_dir, exist_ok=True)
     path = os.path.join(args.log_dir, f"{now_name()}-reset-uart.log")
     deadline = time.monotonic() + args.timeout
