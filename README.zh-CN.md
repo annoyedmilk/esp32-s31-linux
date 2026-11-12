@@ -385,3 +385,10 @@ make monitor BOARD=korvo1 SERIAL_PORT=/dev/cu.usbserial-XXXX
 `bootloader/components/esp_hosted/` 为 Apache-2.0，`linux/` 和
 `br2-external/package/esp-hosted-linux/` 为 GPL-2.0，
 `shared/esp32s31-hosted-shm.h` 为 GPL-2.0 或 Apache-2.0。
+
+补丁（`linux/patches/`、`opensbi/patches/`、`bootloader/idf-patches/`、
+`br2-external/patches/` 以及 `br2-external/package/*/` 中的补丁）采用其所修改
+软件的许可证。`tools/pinctrl/pinctrl.c` 为 BSD-3-Clause，版权属于 Raspberry Pi
+Ltd。发布的镜像包含许多其他项目的程序：其许可证文本在同一发布版本的
+`esp32s31-linux-VERSION-licenses.tar.xz` 中，源码在
+`esp32s31-linux-VERSION-sources.tar` 中。

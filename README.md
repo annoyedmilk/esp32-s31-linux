@@ -444,3 +444,11 @@ files have SPDX headers: `bootloader/` and the OpenSBI platform are
 BSD-2-Clause, `bootloader/components/esp_hosted/` is Apache-2.0, `linux/`
 and `br2-external/package/esp-hosted-linux/` are GPL-2.0,
 `shared/esp32s31-hosted-shm.h` is GPL-2.0 or Apache-2.0.
+
+A patch (`linux/patches/`, `opensbi/patches/`, `bootloader/idf-patches/`,
+`br2-external/patches/` and the patches in `br2-external/package/*/`) has
+the licence of the software that it changes. `tools/pinctrl/pinctrl.c` is
+BSD-3-Clause, with the copyright of Raspberry Pi Ltd. The images of a
+release contain the programs of many other projects: their licence texts
+are in `esp32s31-linux-VERSION-licenses.tar.xz` and their sources in
+`esp32s31-linux-VERSION-sources.tar` of the same release.
