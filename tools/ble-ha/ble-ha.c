@@ -319,6 +319,7 @@ static void rpc_write(void *ctx, const uint8_t *data, size_t len)
 
 	(void)ctx;
 	if (s.rpc_len + len > sizeof(s.rpc)) {
+		memset(s.rpc, 0, s.rpc_len);
 		s.rpc_len = 0;
 		set_state(s.gatt.state, IMPROV_ERR_INVALID);
 		return;
@@ -398,6 +399,7 @@ static void handle_acl(const uint8_t *p, size_t len)
 	if (((p[2] >> 4) & 3) != 1)	/* a start fragment */
 		s.l2_len = 0;
 	if (s.l2_len + dl > sizeof(s.l2)) {
+		memset(s.l2, 0, s.l2_len);
 		s.l2_len = 0;
 		return;
 	}
@@ -409,7 +411,17 @@ static void handle_acl(const uint8_t *p, size_t len)
 	if (s.l2_len < need)
 		return;
 	l2cap_frame((uint16_t)(s.l2[2] | s.l2[3] << 8), s.l2 + 4, need - 4);
+	memset(s.l2, 0, s.l2_len);
 	s.l2_len = 0;
+}
+
+/* The buffers of a link can hold a Wi-Fi passphrase. */
+static void forget_link(void)
+{
+	memset(s.l2, 0, sizeof(s.l2));
+	memset(s.rpc, 0, sizeof(s.rpc));
+	memset(s.gatt.prep, 0, sizeof(s.gatt.prep));
+	s.l2_len = s.rpc_len = s.gatt.prep_len = 0;
 }
 
 static void le_meta(const uint8_t *ev, size_t len)
@@ -429,10 +441,9 @@ static void le_meta(const uint8_t *ev, size_t len)
 		/* LE Connection Complete: the advertising has stopped. */
 		s.conn = get16(ev + 4) & 0x0fff;
 		s.advertising = 0;
-		s.l2_len = s.rpc_len = 0;
+		forget_link();
 		s.gatt.mtu = 23;
 		memset(s.gatt.cccd, 0, sizeof(s.gatt.cccd));
-		s.gatt.prep_len = 0;
 		syslog(LOG_INFO, "improv: a client connected");
 	}
 }
@@ -458,6 +469,7 @@ static void handle_packet(const uint8_t *p, size_t len)
 			s.conn_sent = 0;
 			s.conn = -1;
 			s.adv_dirty = 1;
+			forget_link();
 		}
 		break;
 	case 0x13:	/* Number of Completed Packets */
