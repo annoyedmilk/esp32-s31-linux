@@ -221,18 +221,15 @@ static void esp32_uart_put_char(struct uart_port *port, u8 c)
 	esp32_uart_write(port, UART_FIFO_REG, c);
 }
 
+/* Counts delay loops: the console writes with the interrupts off. */
 static void esp32_uart_put_char_sync(struct uart_port *port, u8 c)
 {
-	unsigned long timeout = jiffies + HZ;
+	u32 status;
 
-	while (esp32_uart_tx_fifo_cnt(port) >= ESP32_UART_TX_FIFO_SIZE) {
-		if (time_after(jiffies, timeout)) {
-			dev_warn(port->dev, "timeout waiting for TX FIFO\n");
-			return;
-		}
-		cpu_relax();
-	}
-	esp32_uart_put_char(port, c);
+	if (!readl_poll_timeout_atomic(port->membase + UART_STATUS_REG, status,
+				       FIELD_GET(UART_TXFIFO_CNT, status) <
+				       ESP32_UART_TX_FIFO_SIZE, 1, USEC_PER_SEC))
+		esp32_uart_put_char(port, c);
 }
 
 static void esp32_uart_transmit_buffer(struct uart_port *port)
