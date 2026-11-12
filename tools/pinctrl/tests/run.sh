@@ -18,7 +18,7 @@ while read -r name args; do
 	if [ "${UPDATE:-0}" = 1 ]; then
 		printf '%s\n' "$out" > "$dir/expected/$name"
 	elif ! printf '%s\n' "$out" | diff -u "$dir/expected/$name" - ; then
-		echo "FAIL $name"
+		echo "FAIL $name $args"
 		fail=$((fail + 1))
 	fi
 done < "$dir/cases"
