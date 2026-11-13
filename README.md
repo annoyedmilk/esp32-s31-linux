@@ -125,6 +125,9 @@ Notes:
   so the overlay stays after an update.
 - `poweroff` puts the chip into deep sleep. Only the reset button starts it
   again.
+- A fatal error of the radio firmware restarts the whole chip, Linux too,
+  without a sync, as a power cut does: data that is not yet on the flash
+  or the disk is lost.
 - Linux is uniprocessor. The FPU is not used (F without D), so userspace is
   soft-float.
 - With WPA3-SAE, the first connection can fail. `wpa_supplicant` tries
