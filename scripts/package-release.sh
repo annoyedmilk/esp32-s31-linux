@@ -10,13 +10,14 @@
 set -eu
 
 cd "$(dirname "$0")/.."
-# The images of a local build contain the files of local-overlay/.
-if [ -n "$(find local-overlay -mindepth 1 ! -name .empty)" ]; then
-	echo "local-overlay/ has files, which can be keys: do not release this build" >&2
-	exit 1
-fi
 version=${1:?usage: $0 VERSION BOARD}
 board=${2:?usage: $0 VERSION BOARD}
+# The root keeps the files of local-overlay/, which can be keys, until make
+# rootfs-clean; post-build.sh marks such a build.
+if [ -e "build/$board/local-overlay-used" ]; then
+	echo "build/$board has files of local-overlay/: run make rootfs-clean and build it again" >&2
+	exit 1
+fi
 name=esp32s31-linux-$version-$board
 out=build/release
 stage=$out/$name-flash

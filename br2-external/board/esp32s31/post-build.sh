@@ -47,6 +47,13 @@ for d in usr/sbin usr/bin; do
 	fi
 done
 
+# Buildroot copies an overlay without removing old files, so the files of
+# local-overlay/ stay in the root until make rootfs-clean: mark such a build
+# for package-release.sh, next to the images.
+if [ -n "$(find "$BR2_EXTERNAL_ESP32S31_PATH/../local-overlay" -mindepth 1 ! -name .empty)" ]; then
+	: >"$BINARIES_DIR/local-overlay-used"
+fi
+
 # Buildroot copies the overlays with go=rX; local-overlay/ can add a key here.
 chmod 600 "$1/etc/wpa_supplicant.conf"
 if [ -e "$1/etc/default/mqtt" ]; then

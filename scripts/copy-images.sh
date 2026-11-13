@@ -21,6 +21,11 @@ fits() {
 }
 
 mkdir -p "$out/buildroot"
+# The marker of a root with files of local-overlay/ (post-build.sh).
+rm -f "$out/local-overlay-used"
+if [ -f "$img/local-overlay-used" ]; then
+	cp "$img/local-overlay-used" "$out/"
+fi
 # linux.size is the last sector of the linux partition, after the Image.
 size=$(part_size linux)
 fits "$img/Image" "$size - 4096" "the $size partition without its last sector"
