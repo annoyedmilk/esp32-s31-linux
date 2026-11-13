@@ -434,6 +434,12 @@ the user space need a soak test with it, because each function changes.
 
 ## Protection
 
+The protection keeps OpenSBI and the firmware safe from mistakes of Linux
+and from DMA, not from a hostile kernel. S-mode can still program the cache
+(`0x2C000000`), the flash controllers with the MMU (`0x20500000`,
+`0x20501000`) and the PSRAM controller (`0x20502000`), and the PMP entries
+that are left cannot close all of them: root on Linux owns the chip.
+
 - **PMP.** OpenSBI gives its memory (`0x50F00000`, 192 KiB) no S/U access.
   PMP entries must not overlap on this CPU, even for a short time. The
   loader locks hart 0 out of the PSRAM with two TOR ranges, which leave
