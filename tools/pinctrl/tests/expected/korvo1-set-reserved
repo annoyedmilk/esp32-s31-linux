@@ -1,2 +1,0 @@
-GPIO8 not changed: it is in gpio-reserved-ranges of the device tree
-rc=1

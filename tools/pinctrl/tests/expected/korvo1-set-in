@@ -1,3 +1,0 @@
-46: ip    pd | lo // CAM_D0/GPIO46 = input
-47: ip    pd | lo // CAM_D1/GPIO47 = input
-rc=0

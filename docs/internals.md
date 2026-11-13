@@ -763,11 +763,11 @@ boots or runs of each build on the Korvo-1.
 | Interrupt controller | `linux/drivers/irqchip/irq-esp32s31-clic.c` |
 | DMA coherency | `linux/drivers/cache/esp32s31-cache.c`, `linux/patches/0006` |
 | Wi-Fi transport | `shared/esp32s31-hosted-shm.h` |
-| Bluetooth for Home Assistant | `tools/ble-ha/` (the proxy, Improv, an ATT server on the HCI user channel); `make -C tools/ble-ha test` runs its tests on the host |
+| Bluetooth for Home Assistant | `tools/ble-ha/` (the proxy, Improv, an ATT server on the HCI user channel) |
 | The flash root | `bootloader/components/esp_hosted/shm_flash.c`, `linux/drivers/net/wireless/espressif/esp_hosted/esp_shm_flash.c` |
 | The boards | `bootloader/main/board_*.c`, `br2-external/board/esp32s31/defconfig/*.fragment` (`make defconfigs` makes `br2-external/configs/*_defconfig`) |
 | Pins and GPIO | `linux/drivers/pinctrl/pinctrl-esp32s31.c` (also `/dev/esp32s31-gpiomem` and the GPIO interrupts) |
-| The pinctrl tool | `tools/pinctrl/esp32s31.c` (the registers of a pin), `tools/pinctrl/pinctrl.c` (the command line); `make -C tools/pinctrl test` runs its tests on the host |
+| The pinctrl tool | `tools/pinctrl/esp32s31.c` (the registers of a pin), `tools/pinctrl/pinctrl.c` (the command line) |
 | Clocks and resets | `linux/drivers/clk/clk-esp32s31.c` |
 | The console | `linux/drivers/tty/serial/esp32_uart.c` |
 | Kernel memory | `br2-external/board/esp32s31/linux.config`, `linux/patches/0021`, `0022` |
@@ -775,5 +775,5 @@ boots or runs of each build on the Korvo-1.
 | The time | `br2-external/board/esp32s31/rootfs-overlay/usr/share/udhcpc/default.script.d/ntp`, `etc/init.d/S01clock.sh` |
 | WireGuard | `br2-external/board/esp32s31/rootfs-overlay/etc/init.d/S42wireguard`, `/etc/default/wireguard` |
 | Crash logs | the `ramoops` node of `esp32s31.dtsi`, `rootfs-overlay/etc/init.d/S11pstore`; see "The crash log" |
-| Thread | `br2-external/board/esp32s31/rootfs-overlay-diskroot/usr/sbin/thread-start`, `bootloader/main/radio_coex.c`, `tools/thread-relay/` (the RCP for Home Assistant; `make -C tools/thread-relay test` runs its tests on the host) |
+| Thread | `br2-external/board/esp32s31/rootfs-overlay-diskroot/usr/sbin/thread-start`, `bootloader/main/radio_coex.c`, `tools/thread-relay/` (the RCP for Home Assistant) |
 | Device tree | `linux/arch/riscv/boot/dts/espressif/esp32s31.dtsi` |

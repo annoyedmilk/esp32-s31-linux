@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 /*
- * The headers for -p, the pin names, and register snapshots for tests
- * without hardware.
+ * The headers for -p, the pin names, and register snapshots (--regs)
+ * that need no hardware.
  */
 
 #include <errno.h>
