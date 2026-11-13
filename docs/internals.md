@@ -512,7 +512,7 @@ the USB transport in shared SRAM. The layout is in
   notes give the throughput of each release.
 - The host driver pads the payload header (offset 12 to 15 bytes) so that
   the header starts aligned in the headroom
-  (`br2-external/package/esp-hosted-linux/0008-*`).
+  (`br2-external/package/esp-hosted-linux/0007-*`).
   Before, it copied each TX frame into a new skb: 15% of the CPU time.
 - The RX work gives the frames of one pass, up to 64, to
   `netif_receive_skb_list()` in one BH-disabled section (`0010-*`). Before,

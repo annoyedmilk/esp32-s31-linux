@@ -12,6 +12,8 @@ Each version, newest first. The update notes come first in each version.
 - Update: `nft -i` is not in the image. The other `nft` commands do not
   change.
 - Linux 7.3.4.
+- ESP-Hosted 1.0.6.0.24. `iw dev wlan0 set power_save on` turns on the
+  modem sleep of the station. Power save stays off by default.
 - `/etc/os-release` has the version of the image (`IMAGE_VERSION`), and the
   loader prints the same version at boot.
 - Each release has the licence texts and the sources of its images.
