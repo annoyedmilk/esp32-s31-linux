@@ -70,11 +70,9 @@ The board mounts its root from the stick with this image (disk signature
 esp32s31)
 	title="the ESP32-S31-WROOM-3-N16R16V module alone (UART only)"
 	usage="The full system is in the flash.  The root is writable, and the files
-stay after a reboot and after a new flash.bin.  Not after an update from
-v0.9.1 or older: the data partition moved, and the first boot formats it.
-A data partition without UBI
-(a new board, or a board from v0.4.0) is erased and formatted at the first
-boot.  To go back to the image, run flash_erase /dev/mtd1 0 0 and reboot." ;;
+stay after a reboot and after a new flash.bin.  On a new board, the first
+boot formats the data partition.  To go back to the image, run
+flash_erase /dev/mtd1 0 0 and reboot." ;;
 esac
 
 cat > "$stage/FLASH.txt" <<TXT
