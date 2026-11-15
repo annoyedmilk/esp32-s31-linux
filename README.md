@@ -326,7 +326,8 @@ your board.
 The `esp32s31` and `korvo1` builds are tested on the Korvo-1. The
 `coreboard1` build is tested on a Korvo-1 with the root on a USB stick;
 Ethernet, the eFuse MAC address, the LED and the I2C pins are not tested
-on a Function-CoreBoard-1.
+on a Function-CoreBoard-1. Also not tested: the access point with a
+client, a USB Ethernet adapter on the Korvo-1, and a power cut.
 
 ## Build from source
 

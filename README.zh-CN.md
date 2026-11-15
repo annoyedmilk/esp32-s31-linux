@@ -287,7 +287,8 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
 
 `esp32s31` 和 `korvo1` 构建在 Korvo-1 上测试。`coreboard1` 构建在 Korvo-1
 上测试，根文件系统位于 U 盘；以太网、eFuse MAC 地址、LED 和 I2C 引脚尚未在
-Function-CoreBoard-1 上测试。
+Function-CoreBoard-1 上测试。以下也尚未测试：有客户端连接的接入点、Korvo-1 上的
+USB 以太网适配器，以及断电。
 
 ## 从源码构建
 
