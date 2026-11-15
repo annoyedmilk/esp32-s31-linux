@@ -20,6 +20,14 @@ Each version, newest first. The update notes come first in each version.
 - The kernel links its hot path first, so its speed does not change with
   other kernel code. A pipe round trip takes about 35 % less time than in
   v0.11.0.
+- The Bluetooth proxy, the MQTT scripts and the Thread relay are tested
+  with Home Assistant 2026.11.1. `mqtt-report.sh` retains its state, so
+  Home Assistant shows the sensors after the first run.
+- Improv Wi-Fi setup also ends when the board has a default route, for
+  example on Ethernet.
+- About 50 KiB more free memory on the module alone.
+- A minor release can change the partition table of the module alone: its
+  release page then says so.
 - Fixes in `ble-ha` (the clock after 24.8 days of uptime, the wipe of a
   Wi-Fi passphrase) and in the UART console (a hang with the interrupts off).
 
