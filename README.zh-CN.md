@@ -271,9 +271,10 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
 ## 更新与兼容性
 
 从 v1.0.0 起，同一主版本的各发布版本保持以下接口不变：`pinctrl` 命令的输出、
-横幅行 `=== ESP32-S31 Linux / Buildroot ===`、`/etc/default/*` 中的名称，以及
-单独模组的分区表（因此其 `data` 分区中的 overlay 在更新后保留）。更改其中任一
-接口的发布版本使用新的主版本号。
+横幅行 `=== ESP32-S31 Linux / Buildroot ===` 以及 `/etc/default/*` 中的名称。
+更改其中任一接口的发布版本使用新的主版本号。单独模组的 flash 几乎已满，因此
+次版本可以更改其分区表。此时其发布页面会说明这一点，因为更新可能会清除
+`data` 分区中的 overlay。
 
 更新时，烧录新发布版本的 `flash.bin`。在 Korvo-1 和 Function-CoreBoard-1 上，
 还要写入同一发布版本的磁盘镜像：这会清除磁盘上的文件，请先复制。GitHub 上每个
