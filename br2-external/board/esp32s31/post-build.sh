@@ -41,11 +41,9 @@ fi
 
 # ot-daemon holds memory while idle: thread-start starts it at the first
 # ot-ctl, as bluetooth-start does for bluetoothd.
-for d in usr/sbin usr/bin; do
-	if [ -x "$1/$d/ot-ctl" ] && ! grep -q thread-start "$1/$d/ot-ctl"; then
-		wrap "$1" "$d/ot-ctl" usr/libexec/openthread /usr/sbin/thread-start
-	fi
-done
+if [ -x "$1/usr/bin/ot-ctl" ] && ! grep -q thread-start "$1/usr/bin/ot-ctl"; then
+	wrap "$1" usr/bin/ot-ctl usr/libexec/openthread /usr/sbin/thread-start
+fi
 
 # Buildroot copies an overlay without removing old files, so the files of
 # local-overlay/ stay in the root until make rootfs-clean: mark such a build
