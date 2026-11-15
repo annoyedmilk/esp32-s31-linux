@@ -6,7 +6,9 @@ CONFIG_BUILTIN_DTB_NAME="espressif/esp32s31"
 # flash window.  overlay-init puts the data partition over it.
 CONFIG_CMDLINE="earlycon=sbi console=ttyS0,115200 esp32_shm.radio_service=bt+154 root=/dev/mtdblock0 rootfstype=squashfs ro rootwait init=/sbin/overlay-init"
 
-# No USB, LED or I2C device, and no disk.  zram stays.
+# No USB, LED or I2C device, and no disk.  zram stays.  No GMAC to take a
+# MAC address from the eFuse (MTD selects NVMEM).
+# CONFIG_NVMEM_ESP32S31_EFUSE is not set
 # CONFIG_I2C is not set
 # CONFIG_USB_SUPPORT is not set
 # CONFIG_PHY_ESP32S31_USB is not set
