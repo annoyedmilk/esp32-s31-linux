@@ -22,8 +22,6 @@
 #include <termios.h>
 #include <unistd.h>
 
-#include "relay.h"
-
 #define DEFAULT_PORT	6638
 
 static void usage(const char *name)
@@ -81,11 +79,17 @@ static int open_listener(int port)
 /* Spinel frames are small and the RCP waits for them: no Nagle delay. */
 static void tune_client(int fd)
 {
-	int on = 1;
+	int on = 1, idle = 5, intvl = 2, cnt = 3;
+	unsigned int user_ms = 10000;
 
 	setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &on, sizeof(on));
+	/* Close a connection whose peer is gone (power, Wi-Fi) within seconds. */
 	setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &on, sizeof(on));
-	relay_dead_peer_timeout(fd);
+	setsockopt(fd, IPPROTO_TCP, TCP_KEEPIDLE, &idle, sizeof(idle));
+	setsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL, &intvl, sizeof(intvl));
+	setsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT, &cnt, sizeof(cnt));
+	/* Also when data waits for an ACK, which keepalive does not cover. */
+	setsockopt(fd, IPPROTO_TCP, TCP_USER_TIMEOUT, &user_ms, sizeof(user_ms));
 }
 
 static int write_all(int fd, const char *buf, size_t len)
