@@ -158,8 +158,8 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
     通过 TCP 端口 6053 上的 ESPHome API 工作，之后每次开机也会启动。该 API
     没有加密：防火墙只接受来自 `BT_PROXY_ALLOW` 中主机的连接。
     `ha-bluetooth.sh off` 结束代理。
-  - 当 `wpa_supplicant` 没有网络时，范围内的任何设备都可以通过蓝牙 LE 上的
-    Improv Wi-Fi 为开发板设置网络。只有在 30 秒内获得地址时，开发板才会保留
+  - 当开发板没有网络时（没有 Wi-Fi 网络，也没有默认路由，例如通过以太网），
+    范围内的任何设备都可以通过蓝牙 LE 上的 Improv Wi-Fi 为开发板设置网络。只有在 30 秒内获得地址时，开发板才会保留
     该网络。`IMPROV=no` 关闭此功能。
 - **Thread**（Function-CoreBoard-1、Korvo-1）。`thread-start [eth0]` 在
   `wlan0` 或 `eth0` 上启动边界路由器；`thread-start stop` 将其停止。

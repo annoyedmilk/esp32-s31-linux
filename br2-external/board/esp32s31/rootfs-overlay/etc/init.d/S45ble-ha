@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT
 # Start ble-ha, Bluetooth LE for Home Assistant (/etc/default/ble-ha): the
 # Bluetooth proxy when BT_PROXY_ALLOW has hosts, and Improv Wi-Fi setup
-# while Wi-Fi has no network.  ble-ha ends when it has nothing to do.  It
+# while the board has no network.  ble-ha ends when it has nothing to do.  It
 # owns the adapter while it runs, so bluetoothctl does not work then.
 # The mDNS record lets Home Assistant find the proxy.
 

@@ -7,8 +7,9 @@
  * -p: a passive Bluetooth proxy: the ESPHome native API on TCP 6053 gives
  *     the LE advertisements in range to Home Assistant.  The adapter scans
  *     only while a client subscribes.
- * -i: Improv Wi-Fi over BLE while wpa_supplicant has no network: a phone or
- *     Home Assistant gives the board its Wi-Fi network.
+ * -i: Improv Wi-Fi over BLE while the board has no network (no Wi-Fi
+ *     network and no default route): a phone or Home Assistant gives the
+ *     board its Wi-Fi network.
  *
  * ble-ha owns the adapter through the HCI user channel, so bluetoothd
  * cannot use it at the same time.  It ends when it has nothing to do.
@@ -706,14 +707,35 @@ static int running(const char *name)
 	return found;
 }
 
-/* Improv only while wpa_supplicant has no network.  S40wifi starts it in the background. */
+/* A default route: the board has a network, for example on Ethernet. */
+static int default_route(void)
+{
+	char line[128];
+	unsigned int dst, flags;
+	int found = 0;
+	FILE *f = fopen("/proc/net/route", "r");
+
+	if (!f)
+		return 0;
+	while (!found && fgets(line, sizeof(line), f))
+		found = sscanf(line, "%*s %x %*x %x", &dst, &flags) == 2 && !dst && (flags & 1);
+	fclose(f);
+	return found;
+}
+
+static int has_network(void)
+{
+	return wpa_networks() > 0 || default_route();
+}
+
+/* Improv only while the board has no network.  S40wifi starts wpa_supplicant in the background. */
 static int improv_needed(void)
 {
 	int i, n = -1;
 
 	for (i = 0; i < 30 && (n = wpa_networks()) < 0 && !stop; i++)
 		sleep(1);
-	return n == 0;
+	return n == 0 && !default_route();
 }
 
 /* A batch goes out 100 ms after its first advertisement, or when it is full. */
@@ -742,11 +764,11 @@ static void timers(void)
 		s.done_at = 0;
 		set_advertising(0);
 	}
-	/* Wi-Fi got a network in another way: no Improv for anyone in range. */
+	/* The board got a network in another way: no Improv for anyone in range. */
 	if (s.improv && s.join_id < 0 && !s.done_at && s.conn < 0 && now() >= s.check_at) {
 		s.check_at = now() + 5;
-		if (wpa_networks() > 0) {
-			syslog(LOG_INFO, "improv: Wi-Fi has a network; Improv ends");
+		if (has_network()) {
+			syslog(LOG_INFO, "improv: the board has a network; Improv ends");
 			s.improv = 0;
 			set_advertising(0);
 		}
@@ -822,7 +844,7 @@ int main(int argc, char **argv)
 
 	s.improv = want_improv && improv_needed();
 	if (!s.proxy && !s.improv) {
-		syslog(LOG_INFO, "nothing to do: Wi-Fi has a network, and no proxy");
+		syslog(LOG_INFO, "nothing to do: the board has a network, and no proxy");
 		return 0;
 	}
 	/* The user channel would take the adapter from bluetoothd and its devices. */

@@ -171,8 +171,9 @@ scripts.
     Bluetooth proxy with the ESPHome API on TCP port 6053, also at each
     boot. The API has no encryption: the firewall accepts the port only
     from the hosts in `BT_PROXY_ALLOW`. `ha-bluetooth.sh off` ends it.
-  - While `wpa_supplicant` has no network, any device in range can give
-    the board a network with Improv Wi-Fi over Bluetooth LE. The board
+  - While the board has no network (no Wi-Fi network and no default
+    route, for example over Ethernet), any device in range can give the
+    board a network with Improv Wi-Fi over Bluetooth LE. The board
     keeps it only when it gets an address in 30 seconds. `IMPROV=no`
     turns this off.
 - **Thread** (Function-CoreBoard-1, Korvo-1). `thread-start [eth0]`
