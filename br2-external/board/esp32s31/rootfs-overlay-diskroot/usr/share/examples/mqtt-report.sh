@@ -2,7 +2,8 @@
 # SPDX-License-Identifier: MIT
 # Send the uptime, the free memory and the Wi-Fi signal to the MQTT broker
 # of /etc/default/mqtt, as report.sh does with HTTPS.  The retained
-# discovery messages make them sensors in Home Assistant, without YAML.
+# discovery messages make them sensors in Home Assistant, without YAML.  The
+# state is retained too: HA subscribes after discovery and gets it then.
 # To send each 5 minutes:
 #
 #   echo '*/5 * * * * /usr/share/examples/mqtt-report.sh' | crontab -
@@ -29,5 +30,5 @@ EOF
 \"device_class\":\"$class\",\"device\":{\"identifiers\":[\"$MQTT_ID\"],\
 \"name\":\"$MQTT_ID\",\"model\":\"ESP32-S31\"}}" || exit 1
 done
-exec mosquitto_pub "$@" -t "$state" \
+exec mosquitto_pub "$@" -r -t "$state" \
 	-m "{\"uptime\":$up,\"mem_kb\":$mem,\"rssi\":${rssi:-null}}"
