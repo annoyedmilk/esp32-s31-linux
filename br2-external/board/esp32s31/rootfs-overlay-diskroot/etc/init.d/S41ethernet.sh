@@ -2,11 +2,11 @@
 # SPDX-License-Identifier: MIT
 # Start a DHCP client on eth0: the GMAC of the Function-CoreBoard-1, or a
 # USB Ethernet adapter of the Korvo-1, at boot or when mdev reports a new
-# adapter (mdev.conf).  udhcpc -b goes to the background after its discover
-# attempts and keeps trying.  Without a link, udhcpc would retry in the
-# foreground and stop the boot: do not start it.  The default RX ring of
-# stmmac (512 pages) would take 2 MiB of the 16 MiB, so make the rings
-# smaller before the interface goes up; only the stmmac board has ethtool.
+# adapter (mdev.conf).  udhcpc -b goes to the background after its first
+# discover attempts and keeps trying, so without a link the boot waits only
+# for those attempts.  The default RX ring of stmmac (512 pages) would take
+# 2 MiB of the 16 MiB, so make the rings smaller before the interface goes
+# up; only the stmmac board has ethtool.
 
 IFACE=eth0
 PID=/var/run/udhcpc.$IFACE.pid
