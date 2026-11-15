@@ -1,19 +1,10 @@
 #!/bin/sh
 # SPDX-License-Identifier: MIT
-# thread-start [BACKBONE]: start ot-daemon, the Thread host, on the IEEE
-# 802.15.4 RCP of the firmware.  With a backbone interface (wlan0 or eth0,
-# the default is wlan0 when it is up, else eth0), ot-daemon is a border
-# router and routes IPv6 between wpan0 and the backbone.  NAT64 and the
-# upstream DNS give the Thread devices IPv4 hosts and names (nftables.conf
-# masquerades the NAT64 network).
-# With THREAD_MODE=relay in /etc/default/thread, start thread-relay instead:
-# Home Assistant is the Thread host, through TCP port 6638, which the
-# firewall opens only for the hosts in RELAY_ALLOW.  S60thread starts the
-# relay at boot.
-# thread-start stop: stop the Thread network and the host or the relay,
-# which turns the 802.15.4 radio off.  ot-daemon does not start at boot:
-# the radio takes Wi-Fi time only while it runs.  The ot-ctl wrapper of
-# post-build.sh runs "thread-start" first.
+# thread-start [BACKBONE]: start ot-daemon, a Thread border router on the
+# 802.15.4 RCP, with BACKBONE (wlan0 when it is up, else eth0).  With
+# THREAD_MODE=relay in /etc/default/thread, start thread-relay for Home
+# Assistant instead.  thread-start stop: stop either one and the radio.
+# Not at boot: the radio takes Wi-Fi time only while it runs.
 
 CTL=/usr/libexec/openthread/ot-ctl
 DAEMON=/usr/sbin/ot-daemon
