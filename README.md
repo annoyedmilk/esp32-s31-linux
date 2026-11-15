@@ -139,6 +139,15 @@ Notes:
   station is not affected.
 - `hcitool lescan` fails. Use `bluetoothctl` and `scan le`.
 - There is no audio or camera driver.
+- The kernel has no kallsyms, debugfs, ftrace, perf events,
+  `/proc/config.gz`, core dumps or `/dev/mem`: they cost RAM. A kernel oops
+  shows addresses, not function names. On the Korvo-1, modules load but do
+  not unload (no `rmmod`), and the kernel exports only the symbols that
+  its own modules use (`TRIM_UNUSED_KSYMS`): an out-of-tree module that
+  needs other symbols does not load.
+- Use a supply that gives enough current. On the USB port of a computer,
+  the Korvo-1 had a brown-out reset and a reset from a power glitch under
+  load.
 
 ## Userspace
 

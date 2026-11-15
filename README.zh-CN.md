@@ -129,6 +129,12 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
   （PMF）暂时还不能正常工作。station 模式不受影响。
 - `hcitool lescan` 无法使用。请使用 `bluetoothctl` 和 `scan le`。
 - 没有音频和摄像头驱动。
+- 内核没有 kallsyms、debugfs、ftrace、perf events、`/proc/config.gz`、
+  core dump 和 `/dev/mem`：它们占用 RAM。内核 oops 只显示地址，不显示函数名。
+  在 Korvo-1 上，模块可以加载但不能卸载（没有 `rmmod`），内核只导出其自身
+  模块使用的符号（`TRIM_UNUSED_KSYMS`）：需要其他符号的树外模块无法加载。
+- 请使用能提供足够电流的电源。在电脑的 USB 端口上，Korvo-1 在负载下出现过
+  一次欠压复位和一次电源毛刺复位。
 
 ## 用户空间
 
