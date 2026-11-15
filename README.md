@@ -311,19 +311,6 @@ The `esp32s31` and `korvo1` builds are tested on the Korvo-1. The
 Ethernet, the eFuse MAC address, the LED and the I2C pins are not tested
 on a Function-CoreBoard-1.
 
-| Feature | `esp32s31` | `korvo1` | `coreboard1` |
-| --- | --- | --- | --- |
-| Boot, console, `stty`, SysRq | tested | tested | tested on the Korvo-1 |
-| Wi-Fi station | tested | tested | not tested |
-| Wi-Fi access point with DHCP | not tested | not tested | not tested |
-| Firewall, SSH with a key | tested | tested | not tested |
-| Bluetooth, proxy for Home Assistant | not tested | tested | not tested |
-| Thread border router | no | not tested | not tested |
-| Writable root in the flash | tested | no | no |
-| LCD, USB keyboard, touch | no | not tested | no |
-| Ethernet | no | not tested | not tested |
-| Watchdog, crash log | tested | tested | not tested |
-
 ## Build from source
 
 On a macOS host, the build needs:

@@ -276,19 +276,6 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
 上测试，根文件系统位于 U 盘；以太网、eFuse MAC 地址、LED 和 I2C 引脚尚未在
 Function-CoreBoard-1 上测试。
 
-| 功能 | `esp32s31` | `korvo1` | `coreboard1` |
-| --- | --- | --- | --- |
-| 启动、控制台、`stty`、SysRq | 已测试 | 已测试 | 在 Korvo-1 上已测试 |
-| Wi-Fi station | 已测试 | 已测试 | 未测试 |
-| 带 DHCP 的 Wi-Fi 接入点 | 未测试 | 未测试 | 未测试 |
-| 防火墙、使用密钥的 SSH | 已测试 | 已测试 | 未测试 |
-| 蓝牙、Home Assistant 蓝牙代理 | 未测试 | 已测试 | 未测试 |
-| Thread 边界路由器 | 否 | 未测试 | 未测试 |
-| Flash 中的可写根文件系统 | 已测试 | 否 | 否 |
-| LCD、USB 键盘、触摸 | 否 | 未测试 | 否 |
-| 以太网 | 否 | 未测试 | 未测试 |
-| 看门狗、崩溃日志 | 已测试 | 已测试 | 未测试 |
-
 ## 从源码构建
 
 在 macOS 主机上，构建需要：
