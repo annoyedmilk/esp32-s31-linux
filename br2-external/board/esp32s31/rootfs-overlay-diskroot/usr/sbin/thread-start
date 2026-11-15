@@ -23,7 +23,6 @@ DATA=/var/lib/thread
 . /etc/default/thread
 . /usr/lib/nft-allow.sh
 
-# Put the hosts of $1 in the sets of the relay rule in nftables.conf.
 stop()
 {
 	if pidof thread-relay >/dev/null; then
