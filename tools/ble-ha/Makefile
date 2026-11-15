@@ -4,11 +4,10 @@
 CFLAGS ?= -Os
 # Not in CFLAGS: a CFLAGS on the command line replaces those of this file.
 WFLAGS = -std=c11 -D_GNU_SOURCE -Wall -Wextra
-SRCS = hci.c api.c gatt.c improv.c
-HDRS = ble-ha.h
+SRCS = ble-ha.c wpa.c hci-linux.c hci.c api.c gatt.c improv.c
 
-ble-ha: ble-ha.c wpa.c hci-linux.c $(SRCS) $(HDRS)
-	$(CC) $(WFLAGS) $(CFLAGS) $(LDFLAGS) -o $@ ble-ha.c wpa.c hci-linux.c $(SRCS)
+ble-ha: $(SRCS) ble-ha.h
+	$(CC) $(WFLAGS) $(CFLAGS) $(LDFLAGS) -o $@ $(SRCS)
 
 clean:
 	rm -f ble-ha
