@@ -11,11 +11,10 @@ MDNS=/etc/mdns.d/esphomelib.service
 . /etc/default/ble-ha
 . /usr/lib/nft-allow.sh
 
-# Put the hosts of $1 in the sets of the proxy rule in nftables.conf.
 mdns()
 {
 	if [ "$1" = on ]; then
-		printf 'type _esphomelib._tcp\nport 6053\ntxt mac=%s\ntxt friendly_name=%s\ntxt network=wifi\n' \
+		printf 'type _esphomelib._tcp\nport 6053\ntxt mac=%s\ntxt friendly_name=%s\n' \
 			"$(tr -d : </sys/class/net/wlan0/address)" "$(hostname)" >$MDNS
 	else
 		rm -f $MDNS
