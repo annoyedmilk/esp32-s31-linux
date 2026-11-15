@@ -57,8 +57,9 @@ wpa_cli status
 
 对于 WPA3 和 WPA2/WPA3 网络，network 块需要 `key_mgmt=WPA-PSK SAE`、
 `ieee80211w=1`，并以 `psk="..."` 的形式写入密码。配置在重启后保留。
-`S40wifi` 也会读取磁盘 p1（FAT 分区）上的 `wpa_supplicant.conf`，因此没有
-控制台的开发板也可以从电脑获取网络配置。
+当磁盘 p1（FAT 分区）上有 `wpa_supplicant.conf` 时，`S40wifi` 使用该文件，
+而不使用 `/etc/wpa_supplicant.conf`，因此没有控制台的开发板也可以从电脑获取
+网络配置。
 
 ### SSH
 
@@ -114,7 +115,8 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
 - Korvo-1 和 Function-CoreBoard-1 没有根磁盘时无法启动，内核会一直等待磁盘。
 - `/etc/os-release` 中的 `IMAGE_VERSION` 是根文件系统的版本。引导程序在启动日志
   开头以 `App version` 打印 flash 镜像的版本。在 Korvo-1 和 Function-CoreBoard-1
-  上，二者分别更新，且内核从磁盘加载模块：flash 镜像和磁盘须来自同一发布版本。
+  上，二者分别更新：flash 镜像和磁盘须来自同一发布版本。在 Korvo-1 上，内核
+  还从存储卡加载其模块。
 - 单独使用模组时，运行 `flash_erase /dev/mtd1 0 0` 再重启，可将根文件系统
   恢复为镜像状态。`make flash` 不写入 `data` 分区，因此更新后 overlay 保留。
 - `poweroff` 使芯片进入 Deep-sleep 模式，只有复位键能再次启动它。
@@ -134,7 +136,7 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
 | --- | --- |
 | 所有开发板 | BusyBox、Dropbear、带 CA 证书包的 OpenSSL、`wpa_supplicant`（WPA3、EAP、接入点）及 `wpa_cli` 和 `wpa_passphrase`、`iw`、`curl`、`iperf3`、libgpiod 2 工具、BlueZ（`bluetoothd`、`bluetoothctl`）、Lua、带防火墙的 `nft`、SFTP 服务器、`pinctrl`、`ble-ha`、`wg` |
 | `esp32s31` 另有 | MTD 工具（`mtdinfo`、`flash_erase`） |
-| `coreboard1` 和 `korvo1` 另有 | `mosquitto_pub`、`mosquitto_sub`、`hostapd`、传统 BlueZ 工具（`hciconfig`、`hcitool`）、OpenThread（`ot-daemon`、`ot-ctl`）、`thread-relay`、bash、coreutils、vim、nano、less、file、htop、fastfetch、strace、gdb 和 `gdbserver`、tcpdump、links、MicroPython、tmux、nnn、ncdu、tree、bc、sqlite3、e2fsprogs、dosfstools |
+| `coreboard1` 和 `korvo1` 另有 | `mosquitto_pub`、`mosquitto_sub`、`hostapd`、传统 BlueZ 工具（`hciconfig`、`hcitool`）、OpenThread（`ot-daemon`、`ot-ctl`）、`thread-relay`、bash、coreutils、vim、nano、file、htop、fastfetch、strace、`gdbserver`、tcpdump、links、MicroPython、tmux、nnn、ncdu、sqlite3、e2fsprogs、dosfstools |
 | `coreboard1` 另有 | `ethtool` |
 | `korvo1` 另有 | `gpm`、`irssi`、`evtest` |
 
@@ -195,7 +197,7 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
 - **GPIO。** `gpiodetect`、`gpioinfo`、
   `gpioget --numeric -c gpiochip0 PIN`、`gpioset -t0 -c gpiochip0 PIN=1`、
   `/usr/share/examples/gpio.sh PIN [0|1]`。内核拒绝使用保留引脚。
-  `pinctrl get 47`、`pinctrl -p get`（排针引脚）、`pinctrl funcs 8` 和
+  `pinctrl get 47`、`pinctrl -p get`（Function-CoreBoard-1 上为 J2 引脚，其他为模组的焊盘）、`pinctrl funcs 8` 和
   `pinctrl set 47 op dh` 显示和设置功能、上下拉和电平。`set` 绕过内核驱动
   直接写寄存器：只用于调试。更多信息见 `pinctrl -h`。
   `/usr/share/examples/gpio-watch.sh PIN [rising|falling|both]` 打印每个
@@ -233,8 +235,8 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
   `nft insert rule inet filter input tcp dport 8080 accept` 打开一个端口，
   直到下次重启；在该文件中加一行可永久保留。
 - **网页。** 打开端口 8080，然后
-  `httpd -p 8080 -h /usr/share/examples/www` 提供一个可设置引脚和 LED 的
-  网页。网页没有密码：只在可信的网络中打开该端口。
+  `httpd -p 8080 -h /usr/share/examples/www` 提供一个可设置引脚的网页，在
+  磁盘板上还可设置 LED。网页没有密码：只在可信的网络中打开该端口。
 - **开机自启动。** 开发板运行磁盘 p1 上的 `autostart.sh`（Korvo-1 上为
   `/mnt/sd`，Function-CoreBoard-1 上为 `/mnt/usb`），或
   `/root/autostart.sh`。输出保存在 `/tmp/autostart.log`。
@@ -317,7 +319,7 @@ make monitor BOARD=korvo1 SERIAL_PORT=/dev/cu.usbserial-XXXX
   `rfc2217://localhost:2217` 用作该脚本和 `make monitor` 的端口。开发板只在
   RTS 脉冲时复位，脚本会打印从复位到启动横幅的时间。烧录前请停止该服务。
 - `local-overlay/` 中的文件会放入所有构建的根目录。git 忽略这些文件。
-- `make help` 显示所有目标。
+- `make help` 显示各目标。
 
 在 Linux 主机上，Buildroot 无需容器即可运行：
 
@@ -335,9 +337,9 @@ BOARD=korvo1 scripts/ci-build.sh
 
 `LICENSE`（MIT）适用于构建系统、脚本和 rootfs 文件。其他文件带有 SPDX 头：
 `bootloader/` 和 OpenSBI 平台代码为 BSD-2-Clause，
-`bootloader/components/esp_hosted/` 为 Apache-2.0，`linux/` 和
-`br2-external/package/esp-hosted-linux/` 为 GPL-2.0，
-`shared/esp32s31-hosted-shm.h` 为 GPL-2.0 或 Apache-2.0。
+`bootloader/components/esp_hosted/` 为 Apache-2.0，`linux/` 为 GPL-2.0
+（设备树绑定为 GPL-2.0 或 BSD-2-Clause），`shared/esp32s31-hosted-shm.h` 为
+GPL-2.0 或 Apache-2.0。
 
 补丁（`linux/patches/`、`opensbi/patches/`、`bootloader/idf-patches/`、
 `br2-external/patches/` 以及 `br2-external/package/*/` 中的补丁）采用其所修改

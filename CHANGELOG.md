@@ -5,8 +5,8 @@ Each version, newest first. The update notes come first in each version.
 ## v1.0.0
 
 - Update: write the new `flash.bin` on all boards. On the Korvo-1 and the
-  Function-CoreBoard-1, also write the disk image of the same release: the
-  kernel loads its modules from the disk.
+  Function-CoreBoard-1, also write the disk image of the same release. On
+  the Korvo-1, the kernel loads its modules from the card.
 - Update: the start scripts read `/etc/default/*` without a fallback. A
   deleted file stops its service: copy it from the image again.
 - Update: `nft -i` is not in the image. The other `nft` commands do not
