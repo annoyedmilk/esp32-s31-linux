@@ -28,7 +28,9 @@ CONFIG_MTD_UBI=y
 CONFIG_SQUASHFS=y
 # The root is squashfs with zstd.
 CONFIG_SQUASHFS_ZSTD=y
-# Each entry of the fragment cache is a 32 KiB block: 1 entry, not 3.
+# Each entry of the fragment cache is a 32 KiB block: 1 entry, not 3.  The
+# size has a prompt only with SQUASHFS_EMBEDDED.
+CONFIG_SQUASHFS_EMBEDDED=y
 CONFIG_SQUASHFS_FRAGMENT_CACHE_SIZE=1
 # CONFIG_SQUASHFS_ZLIB is not set
 CONFIG_UBIFS_FS=y
