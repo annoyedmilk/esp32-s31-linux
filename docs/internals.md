@@ -276,11 +276,11 @@ This is the part that is most different from other RISC-V SoCs.
 - **No Zicbom, and Sv32 has no cacheability bits.** So Linux cannot make a
   usual mapping uncached. The hardware has two other ways. PSRAM has a
   cache-bypass alias at `0xC0000000` (the address plus `0x70000000`). It
-  needs no PMA entry and works from S-mode, and the port does not use it.
-  And bit 27 of a PMA cfg makes a range uncached at its usual address. The
-  PMA entry with the lowest index has priority. The port uses this for the
-  frame buffer. An uncached word read takes approximately 120 CPU cycles,
-  and a write approximately 50.
+  needs no PMA entry and works from S-mode. The port uses it only for the
+  records of ramoops ("The crash log"). And bit 27 of a PMA cfg makes a
+  range uncached at its usual address. The PMA entry with the lowest index
+  has priority. The port uses this for the frame buffer. An uncached word
+  read takes approximately 120 CPU cycles, and a write approximately 50.
 - **Two rules for uncached memory.** A store through one address of a word
   is visible to a load through its other address only after a `fence`. And
   when a range becomes uncached, its lines must not be in the cache: the
@@ -359,7 +359,8 @@ A measurement on hart 1 also agrees (below). The ESP-IDF option
 - **The counters.** The cache controller counts hits, misses and fills
   for each bus (`0x2C000180`: enable and clear, `0x2C000194` and up: IBUS1,
   the I-cache of hart 1; `0x2C0001D8` and up: DBUS1). S-mode can read them.
-  OpenSBI or `/dev/mem` can sample them without a change to the kernel image.
+  OpenSBI or JTAG can sample them without a change to the kernel image
+  (the kernel has no `/dev/mem`).
 - **SRAM.** The harts fetch internal SRAM without the I-cache, as fast as a
   cache hit: 229 ns for a block of 61 instructions from PSRAM (a hit) and
   from SRAM. Code in SRAM uses no line of the I-cache. A fetch loop of hart 1
@@ -515,7 +516,7 @@ the USB transport in shared SRAM. The layout is in
   (`br2-external/package/esp-hosted-linux/0007-*`).
   Before, it copied each TX frame into a new skb: 15% of the CPU time.
 - The RX work gives the frames of one pass, up to 64, to
-  `netif_receive_skb_list()` in one BH-disabled section (`0010-*`). Before,
+  `netif_receive_skb_list()` in one BH-disabled section (`0009-*`). Before,
   `netif_rx()` from the work ran the NET_RX softirq once for each frame.
   iperf3 TCP RX went from 30 to 37 Mbit/s. A pass has approximately 39
   frames at full load. GRO through `gro_cells` gave no gain while the
@@ -535,7 +536,7 @@ the USB transport in shared SRAM. The layout is in
   services (`esp32_shm.radio_service=bt+154`), which changes nothing.
 - The RCP is the OpenThread RCP of ESP-Hosted. Linux gets its Spinel
   stream at `/dev/esp_rcp0`, and a host patch keeps the firmware when the
-  stream closes (`0009-*`). `ot-daemon` of OpenThread on the disk boards
+  stream closes (`0008-*`). `ot-daemon` of OpenThread on the disk boards
   is the Thread host (`br2-external/package/openthread/`), and `wpan0`
   is its TUN interface. The daemon is a border router with the SRP and
   DNS-SD servers, the mDNS responder of the OpenThread core on the
@@ -549,7 +550,7 @@ the USB transport in shared SRAM. The layout is in
   802.15.4 radio receives. The loader turns the scheme off, and
   `bootloader/main/radio_coex.c` turns it on while the radio receives:
   the linker wraps the receive, sleep and disable calls of the OpenThread
-  radio port. iperf3 TX/RX on the Korvo-1: 46/37 Mbit/s with Thread
+  radio port. iperf3 TX/RX on the Korvo-1: 45/36 Mbit/s with Thread
   stopped or `wpan0` down, 12/17 as a Thread leader, also with a BLE scan.
 - The Bluetooth proxy of `ble-ha` scans actively, 30 ms of each 320 ms.
   A passive scan gave Wi-Fi nothing (about 17/21 Mbit/s TX/RX on the
