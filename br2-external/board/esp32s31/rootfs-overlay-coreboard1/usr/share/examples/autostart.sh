@@ -7,4 +7,5 @@
 
 # The web page of the examples on port 8080: the LED and the free pins of
 # J2.  It has no password, so start it only on a network that you trust.
+#nft insert rule inet filter input tcp dport 8080 accept
 #httpd -p 8080 -h /usr/share/examples/www
