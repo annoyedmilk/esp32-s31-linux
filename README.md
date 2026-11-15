@@ -173,6 +173,8 @@ scripts.
     Bluetooth proxy with the ESPHome API on TCP port 6053, also at each
     boot. The API has no encryption: the firewall accepts the port only
     from the hosts in `BT_PROXY_ALLOW`. `ha-bluetooth.sh off` ends it.
+    The proxy gives only the advertisements: Home Assistant cannot connect
+    to a device through it. Tested with Home Assistant 2026.11.1.
   - While the board has no network (no Wi-Fi network and no default
     route, for example over Ethernet), any device in range can give the
     board a network with Improv Wi-Fi over Bluetooth LE. The board
@@ -198,21 +200,24 @@ scripts.
   datagram on port 4242 to p1 of the disk.
   `/usr/share/examples/ha-thread.sh HA_ADDRESS` gives the radio to Home
   Assistant on TCP port 6638 (`THREAD_MODE=relay` and `RELAY_ALLOW` in
-  `/etc/default/thread`). In the OpenThread Border Router app, set a
-  dummy device and `network_device` to `BOARD_ADDRESS:6638`. The port
-  gives full control of the radio: the firewall accepts it only from
-  `RELAY_ALLOW`. Ethernet is better than Wi-Fi for the relay. After a
-  reload of the firewall, run `thread-start stop` and `thread-start`.
-  `ha-thread.sh off` ends the relay. The app of Home Assistant OS is not
-  tested.
+  `/etc/default/thread`). The port gives full control of the radio: the
+  firewall accepts it only from `RELAY_ALLOW`. After a reload of the
+  firewall, run `thread-start stop` and `thread-start`.
+  `ha-thread.sh off` ends the relay. Tested over Wi-Fi with `otbr-agent`
+  of the OpenThread Docker image, with
+  `OT_RCP_DEVICE=spinel+hdlc+forkpty:///usr/bin/socat?forkpty-arg=-,raw,echo=0&forkpty-arg=tcp:BOARD_ADDRESS:6638`,
+  and the OpenThread Border Router integration of Home Assistant
+  2026.11.1 at the REST API of `otbr-agent`. The OpenThread Border Router
+  app of Home Assistant OS (a dummy device, and `network_device` set to
+  `BOARD_ADDRESS:6638`) is not tested.
 - **MQTT** (Function-CoreBoard-1, Korvo-1). `mosquitto_pub` and
   `mosquitto_sub` send and receive messages, also with TLS (port 8883;
   TLS needs the right time). `/etc/default/mqtt` (mode 600) has the
   broker, the user, the password, the client ID and the CA file.
   `/usr/share/examples/mqtt-report.sh` sends sensors to Home Assistant,
   and `/usr/share/examples/mqtt-led.sh` sets the LED from `R G B`
-  messages on `esp32s31/MQTT_ID/led`. The two scripts are not tested with
-  Home Assistant.
+  messages on `esp32s31/MQTT_ID/led`. Both are tested with Home Assistant
+  2026.11.1 and Mosquitto 2.
 - **GPIO.** `gpiodetect`, `gpioinfo`,
   `gpioget --numeric -c gpiochip0 PIN`, `gpioset -t0 -c gpiochip0 PIN=1`,
   `/usr/share/examples/gpio.sh PIN [0|1]`. The kernel refuses the

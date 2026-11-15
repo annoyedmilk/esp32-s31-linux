@@ -159,7 +159,8 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
   - `/usr/share/examples/ha-bluetooth.sh HA_ADDRESS` 使开发板成为蓝牙代理，
     通过 TCP 端口 6053 上的 ESPHome API 工作，之后每次开机也会启动。该 API
     没有加密：防火墙只接受来自 `BT_PROXY_ALLOW` 中主机的连接。
-    `ha-bluetooth.sh off` 结束代理。
+    `ha-bluetooth.sh off` 结束代理。代理只提供广播数据：Home Assistant
+    不能通过它连接设备。已用 Home Assistant 2026.11.1 测试。
   - 当开发板没有网络时（没有 Wi-Fi 网络，也没有默认路由，例如通过以太网），
     范围内的任何设备都可以通过蓝牙 LE 上的 Improv Wi-Fi 为开发板设置网络。只有在 30 秒内获得地址时，开发板才会保留
     该网络。`IMPROV=no` 关闭此功能。
@@ -182,18 +183,22 @@ mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-ed25519 AAAA... you@hos
   每个数据报记录到磁盘 p1 上。
   `/usr/share/examples/ha-thread.sh HA_ADDRESS` 通过 TCP 端口 6638 将射频
   交给 Home Assistant（`/etc/default/thread` 中的 `THREAD_MODE=relay` 和
-  `RELAY_ALLOW`）。在 OpenThread Border Router 应用中，设置一个占位设备，
-  并将 `network_device` 设为 `BOARD_ADDRESS:6638`。该端口可以完全控制
-  射频：防火墙只接受来自 `RELAY_ALLOW` 的连接。对中继来说，以太网优于
-  Wi-Fi。重新加载防火墙后，请运行 `thread-start stop` 和 `thread-start`。
-  `ha-thread.sh off` 结束中继。尚未用 Home Assistant OS 的应用测试。
+  `RELAY_ALLOW`）。该端口可以完全控制射频：防火墙只接受来自 `RELAY_ALLOW`
+  的连接。重新加载防火墙后，请运行 `thread-start stop` 和 `thread-start`。
+  `ha-thread.sh off` 结束中继。已通过 Wi-Fi 测试：使用 OpenThread Docker
+  镜像中的 `otbr-agent`，设置
+  `OT_RCP_DEVICE=spinel+hdlc+forkpty:///usr/bin/socat?forkpty-arg=-,raw,echo=0&forkpty-arg=tcp:BOARD_ADDRESS:6638`，
+  并在 Home Assistant 2026.11.1 中通过 `otbr-agent` 的 REST API 使用
+  OpenThread Border Router 集成。Home Assistant OS 的 OpenThread Border
+  Router 应用（一个占位设备，并将 `network_device` 设为
+  `BOARD_ADDRESS:6638`）尚未测试。
 - **MQTT**（Function-CoreBoard-1、Korvo-1）。`mosquitto_pub` 和
   `mosquitto_sub` 收发消息，支持 TLS（端口 8883；TLS 需要正确的时间）。
   `/etc/default/mqtt`（权限 600）包含代理服务器、用户名、密码、客户端 ID
   和 CA 文件。`/usr/share/examples/mqtt-report.sh` 向 Home Assistant 发送
   传感器数据，`/usr/share/examples/mqtt-led.sh` 根据
-  `esp32s31/MQTT_ID/led` 上的 `R G B` 消息设置 LED。这两个脚本尚未用
-  Home Assistant 测试。
+  `esp32s31/MQTT_ID/led` 上的 `R G B` 消息设置 LED。这两个脚本已用
+  Home Assistant 2026.11.1 和 Mosquitto 2 测试。
 - **GPIO。** `gpiodetect`、`gpioinfo`、
   `gpioget --numeric -c gpiochip0 PIN`、`gpioset -t0 -c gpiochip0 PIN=1`、
   `/usr/share/examples/gpio.sh PIN [0|1]`。内核拒绝使用保留引脚。
