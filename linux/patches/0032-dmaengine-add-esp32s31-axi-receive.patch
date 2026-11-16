@@ -1,0 +1,40 @@
+From: whatshu <shussm@qq.com>
+Subject: [PATCH] dmaengine: add ESP32-S31 AXI receive channels
+
+Register the local receive DMA driver separately from its camera consumer.
+
+Signed-off-by: whatshu <shussm@qq.com>
+---
+diff --git a/drivers/dma/Kconfig b/drivers/dma/Kconfig
+--- a/drivers/dma/Kconfig
++++ b/drivers/dma/Kconfig
+@@ -31,6 +31,18 @@
+ 
+ 
+ if DMADEVICES
++
++config ESP32S31_AXI_DMA
++	tristate "ESP32-S31 AXI receive DMA"
++	depends on SOC_ESP32S31 || COMPILE_TEST
++	depends on OF && HAS_IOMEM
++	select DMA_ENGINE
++	select DMA_VIRTUAL_CHANNELS
++	help
++	  DMAengine support for the three AXI peripheral receive channels.
++	  Scatter-gather data buffers may reside in PSRAM; descriptor links
++	  use coherent SRAM. Only device-to-memory transfers are supported.
++	  To compile this driver as a module, choose M here.
+ 
+ comment "DMA Devices"
+ 
+diff --git a/drivers/dma/Makefile b/drivers/dma/Makefile
+--- a/drivers/dma/Makefile
++++ b/drivers/dma/Makefile
+@@ -4,6 +4,7 @@
+ subdir-ccflags-$(CONFIG_DMADEVICES_VDEBUG) += -DVERBOSE_DEBUG
+ 
+ #core
++obj-$(CONFIG_ESP32S31_AXI_DMA) += esp32s31-axi-dma.o
+ obj-$(CONFIG_DMA_ENGINE) += dmaengine.o
+ obj-$(CONFIG_DMA_VIRTUAL_CHANNELS) += virt-dma.o
+ obj-$(CONFIG_DMA_ACPI) += acpi-dma.o

@@ -1,0 +1,63 @@
+Subject: [PATCH] mtd: spinand: use the one-byte bad-block marker on GD5F1GM7UE
+
+GD5F1GM7UE reserves column 2048 for the bad-block marker. Its OOB
+layout exposes column 2049 as user data. Testing both bytes falsely
+rejects good blocks after mtdswap writes its OOB erase-count marker.
+
+Keep the default two-byte marker for other parts, and use the documented
+one-byte marker for this chip when testing and marking bad blocks.
+---
+diff --git a/include/linux/mtd/spinand.h b/include/linux/mtd/spinand.h
+--- a/include/linux/mtd/spinand.h
++++ b/include/linux/mtd/spinand.h
+@@ -491,6 +491,7 @@
+ #define SPINAND_HAS_READ_PLANE_SELECT_BIT		BIT(3)
+ #define SPINAND_NO_RAW_ACCESS				BIT(4)
+ #define SPINAND_ODTR_PACKED_PAGE_READ			BIT(5)
++#define SPINAND_BBM_1BYTE				BIT(6)
+ 
+ /**
+  * struct spinand_ondie_ecc_conf - private SPI-NAND on-die ECC engine structure
+diff --git a/drivers/mtd/nand/spi/core.c b/drivers/mtd/nand/spi/core.c
+--- a/drivers/mtd/nand/spi/core.c
++++ b/drivers/mtd/nand/spi/core.c
+@@ -1099,7 +1099,7 @@
+ 	u8 marker[2] = { };
+ 	struct nand_page_io_req req = {
+ 		.pos = *pos,
+-		.ooblen = sizeof(marker),
++		.ooblen = spinand->flags & SPINAND_BBM_1BYTE ? 1 : sizeof(marker),
+ 		.ooboffs = 0,
+ 		.oobbuf.in = marker,
+ 		.mode = MTD_OPS_RAW,
+@@ -1115,7 +1115,8 @@
+ 		spinand_read_page(spinand, &req);
+ 	}
+ 
+-	if (marker[0] != 0xff || marker[1] != 0xff)
++	if (marker[0] != 0xff ||
++	    (!(spinand->flags & SPINAND_BBM_1BYTE) && marker[1] != 0xff))
+ 		return true;
+ 
+ 	return false;
+@@ -1143,7 +1144,7 @@
+ 	struct nand_page_io_req req = {
+ 		.pos = *pos,
+ 		.ooboffs = 0,
+-		.ooblen = sizeof(marker),
++		.ooblen = spinand->flags & SPINAND_BBM_1BYTE ? 1 : sizeof(marker),
+ 		.oobbuf.out = marker,
+ 		.mode = MTD_OPS_RAW,
+ 	};
+diff --git a/drivers/mtd/nand/spi/gigadevice.c b/drivers/mtd/nand/spi/gigadevice.c
+--- a/drivers/mtd/nand/spi/gigadevice.c
++++ b/drivers/mtd/nand/spi/gigadevice.c
+@@ -531,7 +531,7 @@
+ 		     SPINAND_INFO_OP_VARIANTS(&read_cache_variants_1gq5,
+ 					      &write_cache_variants,
+ 					      &update_cache_variants),
+-		     SPINAND_HAS_QE_BIT,
++		     SPINAND_HAS_QE_BIT | SPINAND_BBM_1BYTE,
+ 		     SPINAND_ECCINFO(&gd5fxgqx_variant2_ooblayout,
+ 				     gd5fxgq4uexxg_ecc_get_status)),
+ 	SPINAND_INFO("GD5F1GM7RExxG",

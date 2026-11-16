@@ -1,0 +1,14 @@
+#!/bin/sh
+# SPDX-License-Identifier: MIT
+# BusyBox init receives a signal, so preserve the mode across its shutdown.
+mode_file=/sys/bus/platform/devices/20700008.reboot-mode/next_mode
+
+if [ "$#" -eq 1 ] && [ "$1" = bootloader ]; then
+	printf '%s\n' bootloader > "$mode_file" || exit 1
+	exec /bin/busybox reboot
+fi
+
+if [ -e "$mode_file" ]; then
+	printf '%s\n' normal > "$mode_file" || exit 1
+fi
+exec /bin/busybox reboot "$@"

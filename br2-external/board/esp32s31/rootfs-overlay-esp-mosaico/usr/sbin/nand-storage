@@ -1,0 +1,49 @@
+#!/bin/sh
+# SPDX-License-Identifier: MIT
+# Explicit setup for the V1.2 NAND layout. An optional offline overlay
+# archive migrates every file and overlayfs metadata without treating
+# credentials specially. Keep that archive outside the source tree.
+set -eu
+
+. /usr/libexec/nand-storage.sh
+
+[ "$#" -ge 2 ] && [ "$1" = init ] && [ "$2" = ERASE ] && [ "$#" -le 3 ] || {
+	echo "usage: nand-storage init ERASE [overlay.tar]" >&2
+	exit 1
+}
+
+data=$(nand_mtd nand-data 100663296) || { echo "96 MiB nand-data not found" >&2; exit 1; }
+swap=$(nand_mtd nand-swap 33554432) || { echo "32 MiB nand-swap not found" >&2; exit 1; }
+archive=${3:-}
+[ -z "$archive" ] || [ -r "$archive" ] || { echo "cannot read $archive" >&2; exit 1; }
+[ -z "$(nand_ubi "$data")" ] || { echo "NAND data is attached; refusing to erase it" >&2; exit 1; }
+[ ! -d /sys/block/mtdswap"${swap#mtd}" ] || { echo "NAND swap is in use" >&2; exit 1; }
+
+mkdir /run/nand-storage.lock || { echo "NAND setup is already running" >&2; exit 1; }
+mount_dir=/run/nand-storage.lock/mnt
+ubi=
+cleanup()
+{
+	umount "$mount_dir" 2>/dev/null || :
+	[ -z "$ubi" ] || ubidetach -p "/dev/$data" 2>/dev/null || :
+	rmdir "$mount_dir" /run/nand-storage.lock 2>/dev/null || :
+}
+trap cleanup EXIT
+trap 'exit 1' HUP INT TERM
+mkdir "$mount_dir"
+
+echo "Formatting /dev/$data (96 MiB) and /dev/$swap (32 MiB)"
+ubiformat -y "/dev/$data"
+flash_erase -q "/dev/$swap" 0 0
+ubiattach -p "/dev/$data"
+ubi=$(nand_ubi "$data")
+ubimkvol "/dev/$ubi" -N data -m
+mount -t ubifs "$ubi:data" "$mount_dir"
+mkdir "$mount_dir/upper" "$mount_dir/work"
+if [ -n "$archive" ]; then
+	tar --xattrs --xattrs-include='*' --numeric-owner -xpf "$archive" -C "$mount_dir/upper"
+fi
+# Last: early init will not use a partially imported upper layer.
+printf '%s\n' 1 > "$mount_dir/.storage-ready"
+sync
+echo "NAND storage is ready; reboot to use it"

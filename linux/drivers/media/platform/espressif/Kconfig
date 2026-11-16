@@ -1,0 +1,20 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config VIDEO_ESP32S31_CAMERA
+	tristate "ESP32-S31 parallel camera capture"
+	depends on SOC_ESP32S31 && VIDEO_DEV && OF && DMA_ENGINE
+	select MEDIA_CONTROLLER
+	select VIDEO_V4L2_SUBDEV_API
+	select V4L2_FWNODE
+	select VIDEOBUF2_DMA_SG
+	help
+	  Capture eight-bit DVP UYVY video through LCD_CAM and AXI DMA.
+	  Frame buffers are allocated as scatter-gather PSRAM pages.
+
+config VIDEO_ESP_MOSAICO_CAMERA_MODULE
+	tristate "ESP-Mosaico removable left camera module"
+	depends on I2C && OF
+	select CRC16
+	help
+	  Poll the left-slot EEPROM and verify its module descriptor before
+	  creating the camera sensor. Remove the sensor when disconnected.

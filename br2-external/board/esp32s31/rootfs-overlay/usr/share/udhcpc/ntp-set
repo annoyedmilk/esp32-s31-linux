@@ -1,0 +1,16 @@
+#!/bin/sh
+# SPDX-License-Identifier: MIT
+# ntpd -S script of the udhcpc hook default.script.d/ntp.  At the first
+# sync ("step" for a late clock, "stratum" for a clock that was right),
+# save the time and end ntpd, which is the parent: the board is a client
+# that sets its clock once for each lease.
+
+case "$1" in
+step|stratum) ;;
+*) exit 0 ;;
+esac
+
+/etc/init.d/S01clock.sh save
+logger -t ntp "clock set: $(date -u)"
+rm -f /var/run/ntp-sync.pid
+kill "$PPID"

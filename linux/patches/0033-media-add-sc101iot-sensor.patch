@@ -1,0 +1,53 @@
+From: whatshu <shussm@qq.com>
+Subject: [PATCH] media: i2c: register the SC101IOT sensor
+
+Register the SC101IOT driver; mode data is loaded from the root filesystem.
+
+Signed-off-by: whatshu <shussm@qq.com>
+---
+diff --git a/drivers/media/i2c/Kconfig b/drivers/media/i2c/Kconfig
+--- a/drivers/media/i2c/Kconfig
++++ b/drivers/media/i2c/Kconfig
+@@ -1811,6 +1811,18 @@
+ 	  To compile this driver as a module, choose M here: the
+ 	  module will be called max96717.
+ 
++config VIDEO_SC101IOT
++	tristate "SmartSens SC101IOT DVP sensor"
++	depends on I2C && VIDEO_DEV && COMMON_CLK
++	select MEDIA_CONTROLLER
++	select VIDEO_V4L2_SUBDEV_API
++	select FW_LOADER
++	help
++	  SC101IOT sensor with a board-supplied 20 MHz clock. The VGA UYVY
++	  mode data is loaded from sc101iot/vga-uyvy.bin in /lib/firmware.
++	  The driver provides a single 640x480 UYVY capture mode.
++	  To compile this driver as a module, choose M here.
++
+ endmenu
+ 
+ endif # VIDEO_DEV
+diff --git a/drivers/media/i2c/Makefile b/drivers/media/i2c/Makefile
+--- a/drivers/media/i2c/Makefile
++++ b/drivers/media/i2c/Makefile
+@@ -1,6 +1,8 @@
+ # SPDX-License-Identifier: GPL-2.0
+ 
+ msp3400-objs	:=	msp3400-driver.o msp3400-kthreads.o
++
++obj-$(CONFIG_VIDEO_SC101IOT) += sc101iot.o
+ 
+ obj-$(CONFIG_SDR_MAX2175) += max2175.o
+ obj-$(CONFIG_VIDEO_AD5820) += ad5820.o
+diff --git a/Documentation/devicetree/bindings/vendor-prefixes.yaml b/Documentation/devicetree/bindings/vendor-prefixes.yaml
+--- a/Documentation/devicetree/bindings/vendor-prefixes.yaml
++++ b/Documentation/devicetree/bindings/vendor-prefixes.yaml
+@@ -1575,6 +1575,8 @@
+     description: ShenZhen Smartfiber Technology Co, Ltd.
+   "^smartlabs,.*":
+     description: SmartLabs LLC
++  "^smartsens,.*":
++    description: SmartSens Technology Co., Ltd.
+   "^smartrg,.*":
+     description: SmartRG, Inc.
+   "^smi,.*":

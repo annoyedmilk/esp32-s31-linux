@@ -1,8 +1,7 @@
 #!/bin/sh
 # SPDX-License-Identifier: MIT
 # Start wpa_supplicant on wlan0.  wpa_cli runs /usr/sbin/wpa-dhcp-action
-# at each connection, which starts or renews the DHCP lease.  watch_cli
-# keeps wpa_cli running.
+# at each connection, which starts or renews the DHCP lease.
 # The config is /etc/wpa_supplicant.conf, or wpa_supplicant.conf on p1 of
 # the disk when it exists: that file stays after "make sdroot", which
 # replaces the root.
@@ -12,30 +11,6 @@ CONF=/etc/wpa_supplicant.conf
 . /etc/default/disk
 [ -r "${DISK_MNT:+$DISK_MNT/wpa_supplicant.conf}" ] &&
 	CONF=$DISK_MNT/wpa_supplicant.conf
-
-# wpa_cli -a ends when wpa_supplicant does not answer a PING in 10 s, for
-# example while the firmware restarts.  Start it again, and give it the
-# connection that it did not see.
-watch_cli()
-{
-	sup=/var/run/wpa_supplicant.$IFACE.pid
-	cli=/var/run/wpa_cli.$IFACE.pid
-	# wpa_supplicant -B returns before the daemon writes its pidfile.
-	for _ in $(seq 1 10); do
-		[ -s $sup ] && break
-		sleep 1
-	done
-	# BusyBox kill -0 "" succeeds: test the pidfile first.
-	while [ -s $sup ] && kill -0 "$(cat $sup)" 2>/dev/null; do
-		if ! { [ -s $cli ] && kill -0 "$(cat $cli)" 2>/dev/null; }; then
-			wpa_cli -B -i $IFACE -a /usr/sbin/wpa-dhcp-action -P $cli
-			wpa_cli -i $IFACE status 2>/dev/null |
-				grep -q '^wpa_state=COMPLETED' &&
-				/usr/sbin/wpa-dhcp-action $IFACE CONNECTED
-		fi
-		sleep 5
-	done
-}
 
 start_wifi()
 {
@@ -49,8 +24,13 @@ start_wifi()
 		echo "wifi: wpa_supplicant did not start, see /var/log/messages"
 		return 1
 	fi
-	watch_cli </dev/null >/dev/null 2>&1 &
-	echo $! > /var/run/wpa_watch.$IFACE.pid
+	# Without -r, wpa_cli -a ends when wpa_supplicant does not answer a
+	# PING in 10 s, for example while the firmware restarts, and no script
+	# sees the next connection.  With -r it connects again by itself, so
+	# no shell has to wait next to it.  -r ignores -B: start-stop-daemon
+	# puts it in the background and writes the pidfile.
+	start-stop-daemon -S -b -m -p /var/run/wpa_cli.$IFACE.pid \
+		-x /usr/sbin/wpa_cli -- -r -i $IFACE -a /usr/sbin/wpa-dhcp-action
 	echo "wifi: wpa_supplicant on $IFACE with $CONF"
 }
 
@@ -61,7 +41,7 @@ start)
 	;;
 stop)
 	# udhcpd and the firewall entries are from ap.sh.
-	for p in wpa_watch wpa_cli wpa_supplicant udhcpc udhcpd; do
+	for p in wpa_cli wpa_supplicant udhcpc udhcpd; do
 		f=/var/run/$p.$IFACE.pid
 		[ -s $f ] && kill "$(cat $f)" 2>/dev/null
 		rm -f $f

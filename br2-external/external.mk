@@ -7,6 +7,12 @@ define ESP32S31_COPY_KERNEL_SOURCES
 endef
 LINUX_PRE_PATCH_HOOKS += ESP32S31_COPY_KERNEL_SOURCES
 
+# RISC-V modules retain many unused assembler labels after --strip-debug.
+# Keep relocation targets, but omit unused symbols from installed modules.
+ifeq ($(BR2_STRIP_strip),y)
+LINUX_MAKE_FLAGS += INSTALL_MOD_STRIP=--strip-unneeded
+endif
+
 # After Buildroot writes .config: drop the EAP methods, DPP, P2P and TDLS
 # that nothing here needs.
 WPA_SUPPLICANT_UNUSED = EAP_SIM EAP_AKA EAP_AKA_PRIME EAP_SAKE EAP_GPSK \

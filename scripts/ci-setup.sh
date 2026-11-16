@@ -17,10 +17,11 @@ DEBIAN_FRONTEND=noninteractive $sudo apt-get install -y --no-install-recommends 
 	libssl-dev libusb-1.0-0
 
 # ESP-IDF at the tested commit, only with the tools for this chip.
-: "${IDF_PATH:=$HOME/esp/esp-idf}"
+: "${IDF_PATH:=$PWD/external/esp-idf}"
+export IDF_PATH
 commit=$(cat bootloader/esp-idf.version)
 idf() { git -C "$IDF_PATH" "$@"; }
-if [ ! -d "$IDF_PATH/.git" ]; then
+if [ ! -e "$IDF_PATH/.git" ]; then
 	git clone --filter=blob:none https://github.com/espressif/esp-idf.git "$IDF_PATH"
 fi
 idf cat-file -e "$commit^{commit}" 2>/dev/null ||
@@ -30,5 +31,5 @@ idf submodule update --init --recursive --filter=blob:none
 IDF_PATH=$IDF_PATH scripts/patch-esp-idf.sh
 "$IDF_PATH/install.sh" esp32s31
 # The tested esptool, in the Python environment of ESP-IDF.
-python=$(ls -d "$HOME"/.espressif/python_env/*/bin/python | tail -1)
+python=$(scripts/idf-python.sh)
 "$python" -m pip install "esptool==$(cat bootloader/esptool.version)"

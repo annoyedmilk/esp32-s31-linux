@@ -1,0 +1,6 @@
+config BR2_PACKAGE_CAMERA_PREVIEW
+	bool "camera-preview"
+	help
+	  Foreground V4L2-to-fbdev preview for ESP-Mosaico CameraBoard.
+	  Reconnects after module removal. Requires a 480x480 RGB565
+	  framebuffer and a 640x480 UYVY V4L2 capture device at runtime.

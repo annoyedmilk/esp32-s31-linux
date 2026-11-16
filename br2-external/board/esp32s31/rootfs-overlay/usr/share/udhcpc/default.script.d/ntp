@@ -3,7 +3,9 @@
 # udhcpc hook.  There is no RTC, and S01clock.sh sets only the last known time,
 # which is late.  Thus set the clock at each new lease and renewal, with the
 # servers of DHCP option 42 first, then those of /etc/default/ntp.  ntpd -q
-# stops after 10 s without a reply, so try again until the clock is set.
+# stops after 10 s without a reply.  Instead, one ntpd without -q tries
+# again by itself (at most 512 s apart), and ntp-set stops it at the first
+# sync: no shell waits next to it.
 
 case "$1" in
 bound|renew) ;;
@@ -23,15 +25,5 @@ for s in $ntpsrv $NTP_SERVERS; do
 	peers="$peers -p $s"
 done
 
-(
-	for wait in 0 10 30 60 120 300 600 1800 3600; do
-		sleep $wait
-		if ntpd -q -n $peers >/dev/null 2>&1; then
-			/etc/init.d/S01clock.sh save
-			logger -t ntp "clock set: $(date -u)"
-			break
-		fi
-	done
-	rm -f $pid
-) </dev/null >/dev/null 2>&1 &
+ntpd -n $peers -S /usr/share/udhcpc/ntp-set </dev/null >/dev/null 2>&1 &
 echo $! >$pid

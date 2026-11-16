@@ -1,0 +1,3 @@
+# Locally calculated from the pinned upstream archive and license.
+sha256  3e0dc5ceafcdb2e7a7fe419376110aa2edcc7cf2d55775cf0ac63146bc95375e  sc101iot-firmware-cd6194c97c43d6997eee13faf9e4c2ac4cae0c26.tar.gz
+sha256  cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30  esp_cam_sensor/LICENSE

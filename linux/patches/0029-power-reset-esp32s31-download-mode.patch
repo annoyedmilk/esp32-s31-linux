@@ -1,0 +1,35 @@
+From: whatshu <shussm@qq.com>
+Subject: [PATCH] power: reset: add ESP32-S31 ROM download reboot mode
+
+Select FORCE_DOWNLOAD immediately before the normal SBI system reset.
+
+Signed-off-by: whatshu <shussm@qq.com>
+---
+diff --git a/drivers/power/reset/Kconfig b/drivers/power/reset/Kconfig
+--- a/drivers/power/reset/Kconfig
++++ b/drivers/power/reset/Kconfig
+@@ -8,6 +8,15 @@
+ 	  Say Y here to enable board reset and power off
+ 
+ if POWER_RESET
++
++config POWER_RESET_ESP32S31_MODE
++	bool "ESP32-S31 ROM download reboot mode"
++	depends on SOC_ESP32S31 && OF
++	help
++	  Select the ROM UART/USB download path at the next system restart.
++	  Expose a next_mode attribute for BusyBox init, and accept the
++	  standard RESTART2 bootloader command. The normal reset continues
++	  to use the SBI system reset service.
+ 
+ config POWER_RESET_AS3722
+ 	bool "ams AS3722 power-off driver"
+diff --git a/drivers/power/reset/Makefile b/drivers/power/reset/Makefile
+--- a/drivers/power/reset/Makefile
++++ b/drivers/power/reset/Makefile
+@@ -1,4 +1,5 @@
+ # SPDX-License-Identifier: GPL-2.0
++obj-$(CONFIG_POWER_RESET_ESP32S31_MODE) += esp32s31-reboot-mode.o
+ obj-$(CONFIG_POWER_RESET_AS3722) += as3722-poweroff.o
+ obj-$(CONFIG_POWER_RESET_AT91_POWEROFF) += at91-poweroff.o
+ obj-$(CONFIG_POWER_RESET_AT91_RESET) += at91-reset.o

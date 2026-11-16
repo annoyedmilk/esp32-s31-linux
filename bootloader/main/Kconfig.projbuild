@@ -7,4 +7,12 @@ config S31_LINUX_DISPLAY
         The loader starts the panel and keeps its frame buffer at
         0x50F40000 for Linux.  sdkconfig.defaults.korvo1 sets it.
 
+config S31_LINUX_BOARD_ESP_MOSAICO
+    bool "ESP-Mosaico CoreBoard V1.2 (QSPI LCD, CST9220 touch)"
+    default n
+    depends on !S31_LINUX_DISPLAY
+    help
+        Build the ESP-Mosaico board code of the loader.  Linux owns the
+        board peripherals.  sdkconfig.defaults.esp-mosaico sets it.
+
 endmenu

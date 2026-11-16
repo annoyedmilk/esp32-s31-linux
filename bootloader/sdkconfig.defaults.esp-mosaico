@@ -1,0 +1,4 @@
+# ESP-Mosaico CoreBoard V1.2. Linux owns the board peripherals.
+CONFIG_S31_LINUX_BOARD_ESP_MOSAICO=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions-esp-mosaico.csv"
+CONFIG_ESP_CONSOLE_SECONDARY_NONE=y

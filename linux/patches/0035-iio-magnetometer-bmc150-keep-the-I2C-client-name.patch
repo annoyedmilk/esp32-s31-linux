@@ -1,0 +1,22 @@
+From: whatshu <shussm@qq.com>
+Subject: [PATCH] iio: magnetometer: bmc150: keep the I2C client name
+
+The non-deprecated bosch,bmm150 compatible does not match a legacy I2C
+device ID. In that case the core receives a NULL name and the IIO device
+has no name attribute. Use the I2C client name as a fallback, retaining
+the legacy ID name when one is available.
+
+Signed-off-by: whatshu <shussm@qq.com>
+---
+diff --git a/drivers/iio/magnetometer/bmc150_magn_i2c.c b/drivers/iio/magnetometer/bmc150_magn_i2c.c
+--- a/drivers/iio/magnetometer/bmc150_magn_i2c.c
++++ b/drivers/iio/magnetometer/bmc150_magn_i2c.c
+@@ -18,7 +18,7 @@ static int bmc150_magn_i2c_probe(struct i2c_client *client)
+ {
+ 	const struct i2c_device_id *id = i2c_client_get_device_id(client);
+ 	struct regmap *regmap;
+-	const char *name = NULL;
++	const char *name = client->name;
+ 
+ 	regmap = devm_regmap_init_i2c(client, &bmc150_magn_regmap_config);
+ 	if (IS_ERR(regmap)) {

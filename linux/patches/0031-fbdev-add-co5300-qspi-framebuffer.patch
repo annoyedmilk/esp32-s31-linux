@@ -1,0 +1,32 @@
+Subject: [PATCH] fbdev: add CO5300 QSPI framebuffer support
+
+---
+diff --git a/drivers/video/fbdev/Kconfig b/drivers/video/fbdev/Kconfig
+--- a/drivers/video/fbdev/Kconfig
++++ b/drivers/video/fbdev/Kconfig
+@@ -1802,4 +1802,14 @@
+ source "drivers/video/fbdev/omap2/Kconfig"
+ source "drivers/video/fbdev/mmp/Kconfig"
+ 
++config FB_CO5300
++	tristate "CO5300 480x480 QSPI framebuffer"
++	depends on FB && SPI && OF
++	select FB_SYSMEM_HELPERS_DEFERRED
++	select FB_DEFERRED_IO
++	select REGULATOR
++	help
++	  Framebuffer for the CO5300 QSPI panel on ESP-Mosaico CoreBoard
++	  V1.2. Uses RGB565 and deferred updates over a four-wire data bus.
++
+ source "drivers/video/fbdev/core/Kconfig"
+diff --git a/drivers/video/fbdev/Makefile b/drivers/video/fbdev/Makefile
+--- a/drivers/video/fbdev/Makefile
++++ b/drivers/video/fbdev/Makefile
+@@ -121,6 +121,7 @@
+ obj-$(CONFIG_FB_OF)               += offb.o
+ obj-$(CONFIG_FB_SSD1307)	  += ssd1307fb.o
+ obj-$(CONFIG_FB_SIMPLE)           += simplefb.o
++obj-$(CONFIG_FB_CO5300)           += co5300fb.o
+ 
+ # the test framebuffer is last
+ obj-$(CONFIG_FB_VIRTUAL)          += vfb.o

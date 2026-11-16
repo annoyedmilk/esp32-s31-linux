@@ -37,7 +37,7 @@ jobs:
     runs-on: ubuntu-24.04
     strategy:
       matrix:
-        board: [esp32s31, coreboard1, korvo1]
+        board: [esp32s31, coreboard1, korvo1, esp-mosaico]
     # Buildroot builds a toolchain, the kernel and the userspace: approximately
     # 2 to 3 hours on a hosted runner.  The limit for a job is 6 hours.
     timeout-minutes: 350
@@ -65,12 +65,10 @@ jobs:
         id: idf
         run: echo "commit=$(cat bootloader/esp-idf.version)" >> "$GITHUB_OUTPUT"
 
-      - name: Cache ESP-IDF and its tools
+      - name: Cache ESP-IDF tools
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: |
-            ~/esp/esp-idf
-            ~/.espressif
+          path: ~/.espressif
           key: esp-idf-${{ steps.idf.outputs.commit }}
 
       - name: Install the host packages and ESP-IDF

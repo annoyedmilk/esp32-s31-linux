@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: GPL-2.0-only
+config SND_SOC_ESP32S31_I2S
+	tristate "ESP32-S31 standard I2S controller"
+	depends on SOC_ESP32S31 || COMPILE_TEST
+	depends on OF && COMMON_CLK && HAS_DMA
+	select SND_SOC_GENERIC_DMAENGINE_PCM
+	help
+	  Standard stereo I2S with cyclic AHB DMA, a fractional crystal
+	  clock and small coherent PCM buffers. Capture and playback are
+	  supported separately; simultaneous streams are not supported.

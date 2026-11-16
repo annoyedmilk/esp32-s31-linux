@@ -1,0 +1,45 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/media/smartsens,sc101iot.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: SmartSens SC101IOT parallel camera sensor
+
+maintainers:
+  - whatshu <shussm@qq.com>
+
+allOf:
+  - $ref: /schemas/media/video-interface-devices.yaml#
+
+properties:
+  compatible:
+    const: smartsens,sc101iot
+  reg:
+    maxItems: 1
+  clocks:
+    maxItems: 1
+    description: Board-supplied 20 MHz input clock
+  vdd-supply: true
+  powerdown-gpios:
+    maxItems: 1
+  port:
+    $ref: /schemas/graph.yaml#/$defs/port-base
+    unevaluatedProperties: false
+    properties:
+      endpoint:
+        $ref: video-interfaces.yaml#
+        unevaluatedProperties: false
+        properties:
+          bus-width:
+            const: 8
+
+required:
+  - compatible
+  - reg
+  - clocks
+  - vdd-supply
+  - powerdown-gpios
+  - port
+
+unevaluatedProperties: false
