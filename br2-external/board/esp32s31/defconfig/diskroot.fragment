@@ -26,8 +26,6 @@ BR2_PACKAGE_FASTFETCH=y
 # Buildroot and strace 7.1 do not support RV32, so br2-external has a port.
 BR2_PACKAGE_STRACE_RV32=y
 BR2_PACKAGE_GDB=y
-BR2_PACKAGE_GDB_SERVER=y
-# BR2_PACKAGE_GDB_DEBUGGER is not set
 BR2_PACKAGE_TCPDUMP=y
 # Links needs OpenSSL and the CA certificates for HTTPS after the board
 # clock is set.

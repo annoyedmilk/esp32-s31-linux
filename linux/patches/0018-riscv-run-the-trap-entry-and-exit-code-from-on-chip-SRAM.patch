@@ -4,11 +4,13 @@ Subject: [PATCH] riscv: run the trap entry and exit code from on-chip SRAM
 Link the entry, irqentry and noinstr text for on-chip SRAM, which the
 core fetches without the I-cache.  See docs/internals.md, "The
 instruction cache".
+
+Upstream: not sent
 ---
 diff --git a/arch/riscv/Kconfig b/arch/riscv/Kconfig
 --- a/arch/riscv/Kconfig
 +++ b/arch/riscv/Kconfig
-@@ -937,7 +937,31 @@
+@@ -937,7 +937,32 @@
  	help
  	  Specify the Pages of thread stack size (from 4KB to 64KB), which also
  	  affects irq stack size, which is equal to thread stack size.
@@ -16,6 +18,7 @@ diff --git a/arch/riscv/Kconfig b/arch/riscv/Kconfig
 +config RISCV_TRAP_SRAM
 +	bool
 +	depends on MMU && 32BIT && !XIP_KERNEL && !RELOCATABLE && !STRICT_KERNEL_RWX
++	depends on !JUMP_LABEL
 +	help
 +	  Run the trap entry and exit code, the noinstr text, from on-chip
 +	  SRAM that the core fetches without its instruction cache.  Each

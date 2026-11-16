@@ -1,0 +1,24 @@
+From: Marco Müller <hello@annoyedmilk.ch>
+Subject: [PATCH] host: keep power save off by default
+
+With CONFIG_CFG80211_DEFAULT_PS=y, the default of the kernel, cfg80211
+sets WIPHY_FLAG_PS_ON_BY_DEFAULT and calls set_power_mgmt with "on" when
+the station interface comes up.  Since the driver has set_power_mgmt,
+this turns on the modem sleep of the firmware at each boot: ping through
+the access point took 150 ms on average instead of 11 ms.  The firmware
+starts with WIFI_PS_NONE for a low RX latency, so clear the flag.
+"iw dev wlan0 set power_save on" still turns it on.
+
+Upstream: not sent
+---
+--- a/host/esp_cfg80211.c
++++ b/host/esp_cfg80211.c
+@@ -2872,6 +2872,8 @@
+ 	/* set caps */
+ 	wiphy->flags |= WIPHY_FLAG_AP_PROBE_RESP_OFFLOAD;
+ 	wiphy->flags |= WIPHY_FLAG_REPORTS_OBSS;
++	/* The firmware starts with power save off: report it so. */
++	wiphy->flags &= ~WIPHY_FLAG_PS_ON_BY_DEFAULT;
+ 	//wiphy->features |= NL80211_CMD_PROBE_CLIENT;
+ 	wiphy->features |= NL80211_FEATURE_SK_TX_STATUS;
+ 

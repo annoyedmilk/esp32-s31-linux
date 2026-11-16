@@ -55,11 +55,11 @@
 #define FW_PSRAM_HEAP_SIZE          0x00040000U
 
 /* SRAM of the kernel (dma-pool and trap-sram in esp32s31.dtsi), not heap. */
-#define LINUX_DMA_POOL_ADDR         0x2F040000U
-#define LINUX_DMA_POOL_SIZE         0x00010000U
+#define LINUX_SRAM_ADDR             0x2F040000U
+#define LINUX_SRAM_SIZE             0x00010000U
 
-SOC_RESERVE_MEMORY_REGION(LINUX_DMA_POOL_ADDR,
-                          LINUX_DMA_POOL_ADDR + LINUX_DMA_POOL_SIZE,
+SOC_RESERVE_MEMORY_REGION(LINUX_SRAM_ADDR,
+                          LINUX_SRAM_ADDR + LINUX_SRAM_SIZE,
                           linux_dma_pool);
 
 /* The ROM start code of hart 1 uses this stack: keep it out of the heap. */
@@ -123,11 +123,16 @@ static void fence_i(void)
     __asm__ volatile ("fence.i" ::: "memory");
 }
 
+/* The radios run: a store between the two steps would be lost. */
 static void flush_l1_cache_before_handoff(void)
 {
+    static portMUX_TYPE lock = portMUX_INITIALIZER_UNLOCKED;
+
+    portENTER_CRITICAL(&lock);
     cache_ll_writeback_all(CACHE_LL_LEVEL_ALL, CACHE_TYPE_DATA, CACHE_LL_ID_ALL);
     cache_ll_invalidate_all(CACHE_LL_LEVEL_ALL, CACHE_TYPE_ALL, CACHE_LL_ID_ALL);
     fence_i();
+    portEXIT_CRITICAL(&lock);
 }
 
 /* Open each APM: one region, all addresses, RWX for all modes and masters. */
@@ -212,8 +217,8 @@ static void protect_linux_memory(void)
     PMP_RESET_AND_ENTRY_SET(14, PMPADDR_NAPOT(PSRAM_UNCACHED_BASE,
                                               PSRAM_UNCACHED_BASE + PSRAM_PMA_SIZE),
                             PMP_NO_ACCESS);
-    PMP_RESET_AND_ENTRY_SET(15, PMPADDR_NAPOT(LINUX_DMA_POOL_ADDR,
-                                              LINUX_DMA_POOL_ADDR + LINUX_DMA_POOL_SIZE),
+    PMP_RESET_AND_ENTRY_SET(15, PMPADDR_NAPOT(LINUX_SRAM_ADDR,
+                                              LINUX_SRAM_ADDR + LINUX_SRAM_SIZE),
                             PMP_NO_ACCESS);
 
     if (PMP_ENTRY_CFG_READ(11) != PMP_NO_ACCESS_TOR ||
@@ -251,7 +256,7 @@ static void start_linux_hart(void)
 static const esp_partition_t *find_partition(const char *name)
 {
     const esp_partition_t *part = esp_partition_find_first(
-        ESP_PARTITION_TYPE_DATA, 0x40, name);
+        ESP_PARTITION_TYPE_DATA, S31_LINUX_PARTITION_SUBTYPE, name);
     if (!part) {
         ESP_LOGE(TAG, "%s partition not found", name);
     }

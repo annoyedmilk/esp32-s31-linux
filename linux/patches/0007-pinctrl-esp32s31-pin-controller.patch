@@ -3,6 +3,8 @@ Subject: [PATCH] pinctrl: esp32s31: add the ESP32-S31 pin controller
 
 One driver for the IO MUX, the GPIO matrix and the GPIO registers: they
 share a block.
+
+Upstream: not sent
 ---
 diff --git a/drivers/pinctrl/Kconfig b/drivers/pinctrl/Kconfig
 --- a/drivers/pinctrl/Kconfig

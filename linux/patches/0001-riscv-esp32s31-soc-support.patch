@@ -3,6 +3,8 @@ Subject: [PATCH] riscv: esp32s31: add the SoC, its CLIC and its UART
 
 The ESP32-S31 has only a CLIC: stvec is in CLIC mode, and sie and sip do
 not exist.  Add the SoC option, the irqchip, the UART and the DT directory.
+
+Upstream: not sent
 ---
 diff --git a/arch/riscv/Kconfig.socs b/arch/riscv/Kconfig.socs
 --- a/arch/riscv/Kconfig.socs
@@ -107,7 +109,7 @@ diff --git a/arch/riscv/kernel/head.S b/arch/riscv/kernel/head.S
  	csrw CSR_TVEC, a0
  
  	/*
-@@ -208,9 +212,19 @@
+@@ -208,9 +212,18 @@
  SYM_CODE_END(_start)
  
  SYM_CODE_START(_start_kernel)
@@ -117,8 +119,7 @@ diff --git a/arch/riscv/kernel/head.S b/arch/riscv/kernel/head.S
 +	 * sets up, sends the interrupts.  Keep all S-mode interrupts off
 +	 * until the CLIC driver starts.
 +	 */
-+	li t0, 2
-+	csrc sstatus, t0
++	csrci CSR_STATUS, SR_SIE
 +#else
  	/* Mask all interrupts */
  	csrw CSR_IE, zero

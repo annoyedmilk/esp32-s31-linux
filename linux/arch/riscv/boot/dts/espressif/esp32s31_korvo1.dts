@@ -13,10 +13,6 @@
 	compatible = "esp,esp32s31-korvo-1", "esp,esp32s31";
 
 	reserved-memory {
-		#address-cells = <1>;
-		#size-cells = <1>;
-		ranges;
-
 		/* The LCD DMA reads it after the handoff, uncached (PMA). */
 		fb_region: framebuffer@50f40000 {
 			reg = <0x50f40000 0xc0000>;

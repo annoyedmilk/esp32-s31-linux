@@ -1,6 +1,8 @@
 #!/bin/sh
 # SPDX-License-Identifier: MIT
 # No RTC: set the last known time, so TLS works before NTP.
+# rcS sources an S*.sh script in a subshell, with $1 = start: no new shell
+# starts.  Each other script runs as its own process.
 
 STAMP=/etc/timestamp
 FORMAT='%Y-%m-%d %H:%M:%S'

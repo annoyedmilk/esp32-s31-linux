@@ -5,11 +5,7 @@
 
 #include "ble-ha.h"
 
-/* 00467768-6228-2272-4663-277478268000, in the byte order of the air. */
-static const uint8_t improv_uuid[16] = {
-	0x00, 0x80, 0x26, 0x78, 0x74, 0x27, 0x63, 0x46,
-	0x72, 0x22, 0x28, 0x62, 0x68, 0x77, 0x46, 0x00,
-};
+static const uint8_t improv_uuid[16] = IMPROV(0x00);
 
 /*
  * An LE Advertising Report event (after the packet type): event code,
@@ -78,14 +74,10 @@ size_t hci_acl_frame(uint8_t *buf, uint16_t handle, uint16_t cid,
 	size_t l2 = len + 4;
 
 	buf[0] = HCI_ACL;
-	buf[1] = handle & 0xff;
-	buf[2] = (handle >> 8) & 0x0f;
-	buf[3] = l2 & 0xff;
-	buf[4] = (uint8_t)(l2 >> 8);
-	buf[5] = len & 0xff;
-	buf[6] = (uint8_t)(len >> 8);
-	buf[7] = cid & 0xff;
-	buf[8] = (uint8_t)(cid >> 8);
+	put16(buf + 1, handle & 0x0fff);
+	put16(buf + 3, (uint16_t)l2);
+	put16(buf + 5, (uint16_t)len);
+	put16(buf + 7, cid);
 	memcpy(buf + 9, data, len);
 	return len + 9;
 }

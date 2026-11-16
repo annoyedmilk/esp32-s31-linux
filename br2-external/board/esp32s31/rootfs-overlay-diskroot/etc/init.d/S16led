@@ -4,10 +4,7 @@
 # boot.  With LED_TRIGGER=none, it does nothing.
 
 LED=/sys/class/leds/rgb:status
-LED_TRIGGER=none
-LED_COLOR="0 0 255"
-LED_NETDEV=wlan0
-[ -r /etc/default/led ] && . /etc/default/led
+. /etc/default/led
 
 case "$1" in
 start)

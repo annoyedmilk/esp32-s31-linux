@@ -136,6 +136,7 @@ class HostToolsTests(unittest.TestCase):
         self.git("-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid",
                  "commit", "--allow-empty", "-qm", "Patched SDK")
         script = self.copy_script("ci-build.sh")
+        self.copy_script("copy-images.sh")
         self.executable(self.project / "scripts/mkdefconfigs.sh")
         for relative in (
             "linux/example.c", "shared/example.h",

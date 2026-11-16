@@ -6,6 +6,8 @@ entries: 4 KiB with the 256 descriptors of dw_mmc, 256 KiB in all for a
 card that takes one request at a time.  Eight requests queue 1 MiB of
 I/O, more than the card has in flight.  On a machine with 16 MiB, the
 difference is 1.5 % of the RAM.
+
+Upstream: not sent
 ---
 diff --git a/drivers/mmc/core/queue.c b/drivers/mmc/core/queue.c
 --- a/drivers/mmc/core/queue.c

@@ -9,8 +9,6 @@
 #
 #   mqtt-led.sh
 
-LED=/sys/class/leds/rgb:status
-
 . /etc/default/mqtt
 set -- -h "$MQTT_HOST" -p "$MQTT_PORT" -i "$MQTT_ID-led"
 [ -n "$MQTT_USER" ] && set -- "$@" -u "$MQTT_USER" -P "$MQTT_PASS"
@@ -30,5 +28,5 @@ mosquitto_sub "$@" -t "esp32s31/$MQTT_ID/led" | while read -r r g b extra; do
 		echo "mqtt-led: refused: $r $g $b $extra" >&2
 		continue
 	fi
-	echo "$r $g $b" > $LED/multi_intensity && echo 255 > $LED/brightness
+	/usr/share/examples/led.sh "$r" "$g" "$b"
 done

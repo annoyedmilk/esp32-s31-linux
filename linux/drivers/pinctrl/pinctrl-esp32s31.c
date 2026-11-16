@@ -143,22 +143,23 @@ struct esp32s31_pinctrl {
 	unsigned int parents[ESP32S31_NBANKS];
 };
 
+static void esp32s31_rmw(struct esp32s31_pinctrl *pctrl, void __iomem *reg,
+			 u32 clr, u32 set)
+{
+	guard(raw_spinlock_irqsave)(&pctrl->lock);
+	writel((readl(reg) & ~clr) | set, reg);
+}
+
 static void esp32s31_iomux_rmw(struct esp32s31_pinctrl *pctrl,
 			       unsigned int pin, u32 clr, u32 set)
 {
-	void __iomem *reg = pctrl->iomux + pin * 4;
-
-	guard(raw_spinlock_irqsave)(&pctrl->lock);
-	writel((readl(reg) & ~clr) | set, reg);
+	esp32s31_rmw(pctrl, pctrl->iomux + pin * 4, clr, set);
 }
 
 static void esp32s31_pin_rmw(struct esp32s31_pinctrl *pctrl, unsigned int pin,
 			     u32 clr, u32 set)
 {
-	void __iomem *reg = pctrl->gpio + ESP32S31_GPIO_PIN(pin);
-
-	guard(raw_spinlock_irqsave)(&pctrl->lock);
-	writel((readl(reg) & ~clr) | set, reg);
+	esp32s31_rmw(pctrl, pctrl->gpio + ESP32S31_GPIO_PIN(pin), clr, set);
 }
 
 /* Bank 1 has pins 32 and higher, at a fixed offset from bank 0. */
@@ -179,8 +180,7 @@ static void esp32s31_cnnt_select(struct esp32s31_pinctrl *pctrl,
 		    func != esp32s31_cnnt_pads[i].func)
 			continue;
 
-		guard(raw_spinlock_irqsave)(&pctrl->lock);
-		writel(readl(pctrl->cnnt) | esp32s31_cnnt_pads[i].sel, pctrl->cnnt);
+		esp32s31_rmw(pctrl, pctrl->cnnt, 0, esp32s31_cnnt_pads[i].sel);
 	}
 }
 

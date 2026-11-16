@@ -136,6 +136,9 @@ static int read_varint(const uint8_t *p, size_t len, size_t *pos, uint32_t *v)
 	for (shift = 0; shift < 35; shift += 7) {
 		if (*pos >= len)
 			return 0;
+		/* The fifth byte has room for 4 bits of a 32-bit value. */
+		if (shift == 28 && (p[*pos] & 0x70))
+			return -1;
 		*v |= (uint32_t)(p[*pos] & 0x7f) << shift;
 		if (!(p[(*pos)++] & 0x80))
 			return 1;

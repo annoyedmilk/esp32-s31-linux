@@ -121,7 +121,6 @@ static void esp32s31_ws2812_set(struct led_classdev *cdev,
 	struct led_classdev_mc *mc = lcdev_to_mccdev(cdev);
 	struct esp32s31_ws2812 *priv =
 		container_of(mc, struct esp32s31_ws2812, mc);
-	unsigned long flags;
 	u32 grb;
 
 	led_mc_calc_color_components(mc, brightness);
@@ -131,10 +130,9 @@ static void esp32s31_ws2812_set(struct led_classdev *cdev,
 	      (mc->subled_info[0].brightness << 8) |
 	      mc->subled_info[2].brightness;
 
-	spin_lock_irqsave(&priv->lock, flags);
+	guard(spinlock_irqsave)(&priv->lock);
 	if (esp32s31_ws2812_send(priv, grb))
 		dev_warn_ratelimited(cdev->dev, "no TX end from the RMT\n");
-	spin_unlock_irqrestore(&priv->lock, flags);
 }
 
 static int esp32s31_ws2812_probe(struct platform_device *pdev)
@@ -142,7 +140,6 @@ static int esp32s31_ws2812_probe(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 	struct led_init_data init_data = { };
 	struct esp32s31_ws2812 *priv;
-	struct device_node *child;
 	struct reset_control *rst;
 	struct clk *clk;
 	void __iomem *mem_lp;
@@ -199,7 +196,8 @@ static int esp32s31_ws2812_probe(struct platform_device *pdev)
 	if (ret)
 		return ret;
 
-	child = of_get_next_available_child(dev->of_node, NULL);
+	struct device_node *child __free(device_node) =
+		of_get_next_available_child(dev->of_node, NULL);
 	if (!child)
 		return dev_err_probe(dev, -EINVAL, "no LED node\n");
 
@@ -216,7 +214,6 @@ static int esp32s31_ws2812_probe(struct platform_device *pdev)
 	init_data.fwnode = of_fwnode_handle(child);
 	ret = devm_led_classdev_multicolor_register_ext(dev, &priv->mc,
 							&init_data);
-	of_node_put(child);
 	if (ret)
 		return dev_err_probe(dev, ret, "cannot register the LED\n");
 

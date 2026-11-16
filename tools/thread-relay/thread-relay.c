@@ -36,7 +36,7 @@ static int open_device(const char *path)
 	struct termios tio;
 	int fd = open(path, O_RDWR | O_NOCTTY | O_CLOEXEC);
 
-	/* A tty (a pseudo-terminal in the tests) must pass the bytes as they are. */
+	/* A tty must pass the bytes as they are. */
 	if (fd >= 0 && tcgetattr(fd, &tio) == 0) {
 		cfmakeraw(&tio);
 		tcsetattr(fd, TCSANOW, &tio);

@@ -10,6 +10,22 @@
 #define HCI_ACL		0x02
 #define HCI_EVT		0x04
 
+/* Little-endian 16-bit fields of HCI, L2CAP and ATT. */
+static inline uint16_t get16(const uint8_t *p)
+{
+	return (uint16_t)(p[0] | p[1] << 8);
+}
+
+static inline void put16(uint8_t *p, uint16_t v)
+{
+	p[0] = v & 0xff;
+	p[1] = (uint8_t)(v >> 8);
+}
+
+/* 00467768-6228-2272-4663-2774782680XX, in the byte order of the air. */
+#define IMPROV(x) { x, 0x80, 0x26, 0x78, 0x74, 0x27, 0x63, 0x46, \
+		    0x72, 0x22, 0x28, 0x62, 0x68, 0x77, 0x46, 0x00 }
+
 #define ADV_MAX		31
 #define ADV_BATCH	16
 

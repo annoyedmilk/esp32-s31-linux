@@ -3,6 +3,8 @@ Subject: [PATCH] sbi_timer: add platform hooks for the S-mode timer interrupt
 
 The ESP32-S31 has no writable mip.  The platform sets the pending bit in
 the CLIC.
+
+Upstream: not sent
 ---
 diff --git a/include/sbi/sbi_timer.h b/include/sbi/sbi_timer.h
 --- a/include/sbi/sbi_timer.h

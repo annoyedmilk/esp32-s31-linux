@@ -19,7 +19,8 @@ with open(log, "a") as f:
             text = data.decode().strip()
         except UnicodeError:
             text = binascii.hexlify(data).decode()
-        line = "%04d-%02d-%02d %02d:%02d:%02d %s %s" % (time.localtime()[:6] + (sender, text))
+        line = "{:04d}-{:02d}-{:02d} {:02d}:{:02d}:{:02d} {} {}".format(
+            *(time.localtime()[:6] + (sender, text)))
         print(line)
         f.write(line + "\n")
         f.flush()

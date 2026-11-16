@@ -146,13 +146,10 @@ static void IRAM_ATTR shm_doorbell_isr(void *arg)
 	portYIELD_FROM_ISR(woken);
 }
 
-static void shm_free_frame(void *buf)
-{
-	heap_caps_free(buf);
-}
-
+/* After the data that it announces: fence rw,rw does not order the MMIO write. */
 static void ring_host_doorbell(void)
 {
+	__asm__ volatile ("fence iorw, iorw" ::: "memory");
 	REG_WRITE(DOORBELL_TO_HOST_REG, 1);
 }
 
@@ -172,6 +169,8 @@ static void shm_service_host_requests(void)
 		esp_deep_sleep_start();
 	}
 }
+
+static void shm_deinit(interface_handle_t *handle);
 
 static interface_handle_t *shm_init(void)
 {
@@ -195,11 +194,7 @@ static interface_handle_t *shm_init(void)
 	return &s_handle;
 
 fail:
-	if (s_rx_sem)
-		vSemaphoreDelete(s_rx_sem);
-	if (s_space_sem)
-		vSemaphoreDelete(s_space_sem);
-	s_rx_sem = s_space_sem = NULL;
+	shm_deinit(NULL);
 	ESP_LOGE(TAG, "shared-memory transport init failed");
 	return NULL;
 }
@@ -241,6 +236,17 @@ static int32_t shm_write(interface_handle_t *handle,
 	return buf_handle->payload_len;
 }
 
+/* Give the ring up to TAIL back to the host, and wake it when it waits. */
+static void release_to_fw(uint32_t tail)
+{
+	shm_store(to_fw.ctrl + ESP_SHM_TAIL_OFF, tail);
+	shm_fence();
+	if (shm_load(to_fw.ctrl + ESP_SHM_WAIT_OFF)) {
+		shm_store(to_fw.ctrl + ESP_SHM_WAIT_OFF, 0);
+		ring_host_doorbell();
+	}
+}
+
 static int shm_read(interface_handle_t *handle,
 		    interface_buffer_handle_t *buf_handle)
 {
@@ -267,7 +273,7 @@ static int shm_read(interface_handle_t *handle,
 	    ESP_SHM_RECORD_LEN(len) > head - tail) {
 		/* A broken record: drop all frames, the host recovers. */
 		ESP_LOGE(TAG, "bad frame length %u", (unsigned)len);
-		shm_store(to_fw.ctrl + ESP_SHM_TAIL_OFF, head);
+		release_to_fw(head);
 		return 0;
 	}
 
@@ -275,13 +281,7 @@ static int shm_read(interface_handle_t *handle,
 	if (!buf)
 		return 0;
 	ring_copy_out(&to_fw, tail + 4, buf, len);
-	shm_store(to_fw.ctrl + ESP_SHM_TAIL_OFF, tail + ESP_SHM_RECORD_LEN(len));
-	shm_fence();
-
-	if (shm_load(to_fw.ctrl + ESP_SHM_WAIT_OFF)) {
-		shm_store(to_fw.ctrl + ESP_SHM_WAIT_OFF, 0);
-		ring_host_doorbell();
-	}
+	release_to_fw(tail + ESP_SHM_RECORD_LEN(len));
 
 	hdr = (const struct esp_payload_header *)buf;
 	buf_handle->if_type = hdr->if_type;
@@ -291,7 +291,7 @@ static int shm_read(interface_handle_t *handle,
 	buf_handle->payload = buf;
 	buf_handle->payload_len = len;
 	buf_handle->priv_buffer_handle = buf;
-	buf_handle->free_buf_handle = shm_free_frame;
+	buf_handle->free_buf_handle = heap_caps_free;
 	return len;
 }
 
@@ -343,13 +343,24 @@ int interface_remove_driver(void)
 	return 0;
 }
 
+/* One TLV with a 32-bit little-endian value. */
+static void put_tlv32(uint8_t **pos, uint16_t *len, uint8_t type, uint32_t val)
+{
+	uint32_t val_le = htole32(val);
+
+	*(*pos)++ = type;
+	*(*pos)++ = LENGTH_4_BYTE;
+	memcpy(*pos, &val_le, sizeof(val_le));
+	*pos += sizeof(val_le);
+	*len += 2 + sizeof(val_le);
+}
+
 /* The same boot event as the USB transport sends. */
 esp_err_t send_bootup_event_to_host(uint32_t cap, uint32_t ext_cap)
 {
 	struct esp_internal_bootup_event *event;
 	interface_buffer_handle_t buf_handle = { 0 };
 	struct fw_data *fw_p;
-	uint32_t val_le;
 	uint16_t len = 0;
 	uint8_t *pos;
 
@@ -375,30 +386,13 @@ esp_err_t send_bootup_event_to_host(uint32_t cap, uint32_t ext_cap)
 	*pos++ = CONFIG_IDF_FIRMWARE_CHIP_ID;
 	len += 3;
 
-	*pos++ = ESP_BOOTUP_CAPABILITY;
-	*pos++ = LENGTH_4_BYTE;
-	val_le = htole32(cap);
-	memcpy(pos, &val_le, sizeof(val_le));
-	pos += sizeof(val_le);
-	len += 2 + sizeof(val_le);
-
-	if (ext_cap) {
-		*pos++ = ESP_BOOTUP_EXT_CAPABILITY;
-		*pos++ = LENGTH_4_BYTE;
-		val_le = htole32(ext_cap);
-		memcpy(pos, &val_le, sizeof(val_le));
-		pos += sizeof(val_le);
-		len += 2 + sizeof(val_le);
-	}
+	put_tlv32(&pos, &len, ESP_BOOTUP_CAPABILITY, cap);
+	if (ext_cap)
+		put_tlv32(&pos, &len, ESP_BOOTUP_EXT_CAPABILITY, ext_cap);
 
 	esp_hosted_add_boot_mac_tlv(&pos, &len);
 
-	*pos++ = ESP_BOOTUP_RX_BUF_SIZE;
-	*pos++ = LENGTH_4_BYTE;
-	val_le = htole32(SHM_TO_FW_FRAME_MAX);
-	memcpy(pos, &val_le, sizeof(val_le));
-	pos += sizeof(val_le);
-	len += 2 + sizeof(val_le);
+	put_tlv32(&pos, &len, ESP_BOOTUP_RX_BUF_SIZE, SHM_TO_FW_FRAME_MAX);
 
 	*pos++ = ESP_BOOTUP_FW_DATA;
 	*pos++ = sizeof(struct fw_data);

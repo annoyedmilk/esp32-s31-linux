@@ -3,6 +3,8 @@ Subject: [PATCH] init: report the missing kernel memory protection as info
 
 STRICT_KERNEL_RWX is off on RV32 (4 MiB alignment).  Do not warn at each
 boot.
+
+Upstream: not sent
 ---
 diff --git a/init/main.c b/init/main.c
 --- a/init/main.c

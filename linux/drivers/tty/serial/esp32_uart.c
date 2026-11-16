@@ -52,10 +52,6 @@
 #define UART_PARITY				BIT(0)
 #define UART_PARITY_EN				BIT(1)
 #define UART_BIT_NUM				GENMASK(3, 2)
-#define UART_BIT_NUM_5				0
-#define UART_BIT_NUM_6				1
-#define UART_BIT_NUM_7				2
-#define UART_BIT_NUM_8				3
 #define UART_STOP_BIT_NUM			GENMASK(5, 4)
 #define UART_STOP_BIT_NUM_1			1
 #define UART_STOP_BIT_NUM_2			3
@@ -92,7 +88,6 @@
 
 struct esp32_port {
 	struct uart_port port;
-	struct clk *clk;
 };
 
 static const struct of_device_id esp32_uart_dt_ids[] = {
@@ -175,13 +170,16 @@ static unsigned int esp32_uart_get_mctrl(struct uart_port *port)
 	return ret;
 }
 
+static void esp32_uart_int_ena(struct uart_port *port, u32 clr, u32 set)
+{
+	u32 int_ena = esp32_uart_read(port, UART_INT_ENA_REG);
+
+	esp32_uart_write(port, UART_INT_ENA_REG, (int_ena & ~clr) | set);
+}
+
 static void esp32_uart_stop_tx(struct uart_port *port)
 {
-	u32 int_ena;
-
-	int_ena = esp32_uart_read(port, UART_INT_ENA_REG);
-	int_ena &= ~UART_TXFIFO_EMPTY_INT;
-	esp32_uart_write(port, UART_INT_ENA_REG, int_ena);
+	esp32_uart_int_ena(port, UART_TXFIFO_EMPTY_INT, 0);
 }
 
 static void esp32_uart_rxint(struct uart_port *port)
@@ -221,18 +219,15 @@ static void esp32_uart_put_char(struct uart_port *port, u8 c)
 	esp32_uart_write(port, UART_FIFO_REG, c);
 }
 
+/* Counts delay loops: the console writes with the interrupts off. */
 static void esp32_uart_put_char_sync(struct uart_port *port, u8 c)
 {
-	unsigned long timeout = jiffies + HZ;
+	u32 status;
 
-	while (esp32_uart_tx_fifo_cnt(port) >= ESP32_UART_TX_FIFO_SIZE) {
-		if (time_after(jiffies, timeout)) {
-			dev_warn(port->dev, "timeout waiting for TX FIFO\n");
-			return;
-		}
-		cpu_relax();
-	}
-	esp32_uart_put_char(port, c);
+	if (!readl_poll_timeout_atomic(port->membase + UART_STATUS_REG, status,
+				       FIELD_GET(UART_TXFIFO_CNT, status) <
+				       ESP32_UART_TX_FIFO_SIZE, 1, USEC_PER_SEC))
+		esp32_uart_put_char(port, c);
 }
 
 static void esp32_uart_transmit_buffer(struct uart_port *port)
@@ -248,13 +243,8 @@ static void esp32_uart_transmit_buffer(struct uart_port *port)
 				       ESP32_UART_TX_FIFO_SIZE - tx_fifo_used,
 				       true, esp32_uart_put_char(port, ch),
 				       ({}));
-	if (pending) {
-		u32 int_ena;
-
-		int_ena = esp32_uart_read(port, UART_INT_ENA_REG);
-		int_ena |= UART_TXFIFO_EMPTY_INT;
-		esp32_uart_write(port, UART_INT_ENA_REG, int_ena);
-	}
+	if (pending)
+		esp32_uart_int_ena(port, 0, UART_TXFIFO_EMPTY_INT);
 }
 
 static irqreturn_t esp32_uart_int(int irq, void *dev_id)
@@ -266,8 +256,11 @@ static irqreturn_t esp32_uart_int(int irq, void *dev_id)
 
 	if (status & ESP32_UART_RX_INTS)
 		esp32_uart_rxint(port);
-	if (status & UART_TXFIFO_EMPTY_INT)
+	if (status & UART_TXFIFO_EMPTY_INT) {
+		uart_port_lock(port);
 		esp32_uart_transmit_buffer(port);
+		uart_port_unlock(port);
+	}
 
 	esp32_uart_write(port, UART_INT_CLR_REG, status);
 
@@ -276,29 +269,18 @@ static irqreturn_t esp32_uart_int(int irq, void *dev_id)
 
 static void esp32_uart_stop_rx(struct uart_port *port)
 {
-	u32 int_ena;
-
-	int_ena = esp32_uart_read(port, UART_INT_ENA_REG);
-	int_ena &= ~(UART_RXFIFO_FULL_INT | UART_RXFIFO_TOUT_INT);
-	esp32_uart_write(port, UART_INT_ENA_REG, int_ena);
+	esp32_uart_int_ena(port, UART_RXFIFO_FULL_INT | UART_RXFIFO_TOUT_INT, 0);
 }
 
 static int esp32_uart_startup(struct uart_port *port)
 {
-	struct esp32_port *sport = container_of(port, struct esp32_port, port);
 	unsigned long flags;
 	u32 conf1;
 	int ret;
 
-	ret = clk_prepare_enable(sport->clk);
+	ret = request_irq(port->irq, esp32_uart_int, 0, DRIVER_NAME, port);
 	if (ret)
 		return ret;
-
-	ret = request_irq(port->irq, esp32_uart_int, 0, DRIVER_NAME, port);
-	if (ret) {
-		clk_disable_unprepare(sport->clk);
-		return ret;
-	}
 
 	uart_port_lock_irqsave(port, &flags);
 	esp32_uart_write(port, UART_CLK_CONF_REG,
@@ -322,11 +304,8 @@ static int esp32_uart_startup(struct uart_port *port)
 
 static void esp32_uart_shutdown(struct uart_port *port)
 {
-	struct esp32_port *sport = container_of(port, struct esp32_port, port);
-
 	esp32_uart_write(port, UART_INT_ENA_REG, 0);
 	free_irq(port->irq, port);
-	clk_disable_unprepare(sport->clk);
 }
 
 /* The caller latches it with esp32_uart_update(). */
@@ -373,20 +352,7 @@ static void esp32_uart_set_termios(struct uart_port *port,
 			conf0 |= UART_PARITY;
 	}
 
-	switch (termios->c_cflag & CSIZE) {
-	case CS5:
-		conf0 |= FIELD_PREP(UART_BIT_NUM, UART_BIT_NUM_5);
-		break;
-	case CS6:
-		conf0 |= FIELD_PREP(UART_BIT_NUM, UART_BIT_NUM_6);
-		break;
-	case CS7:
-		conf0 |= FIELD_PREP(UART_BIT_NUM, UART_BIT_NUM_7);
-		break;
-	case CS8:
-		conf0 |= FIELD_PREP(UART_BIT_NUM, UART_BIT_NUM_8);
-		break;
-	}
+	conf0 |= FIELD_PREP(UART_BIT_NUM, tty_get_char_size(termios->c_cflag) - 5);
 
 	if (termios->c_cflag & CSTOPB)
 		conf0 |= FIELD_PREP(UART_STOP_BIT_NUM, UART_STOP_BIT_NUM_2);
@@ -424,13 +390,6 @@ static void esp32_uart_config_port(struct uart_port *port, int flags)
 }
 
 #ifdef CONFIG_CONSOLE_POLL
-static int esp32_uart_poll_init(struct uart_port *port)
-{
-	struct esp32_port *sport = container_of(port, struct esp32_port, port);
-
-	return clk_prepare_enable(sport->clk);
-}
-
 static int esp32_uart_poll_get_char(struct uart_port *port)
 {
 	if (esp32_uart_rx_fifo_cnt(port))
@@ -453,7 +412,6 @@ static const struct uart_ops esp32_uart_pops = {
 	.type		= esp32_uart_type,
 	.config_port	= esp32_uart_config_port,
 #ifdef CONFIG_CONSOLE_POLL
-	.poll_init	= esp32_uart_poll_init,
 	.poll_put_char	= esp32_uart_put_char_sync,
 	.poll_get_char	= esp32_uart_poll_get_char,
 #endif
@@ -487,7 +445,6 @@ static int __init esp32_uart_console_setup(struct console *co, char *options)
 	int bits = 8;
 	int parity = 'n';
 	int flow = 'n';
-	int ret;
 
 	if (co->index == -1 || co->index >= ARRAY_SIZE(esp32_uart_ports))
 		co->index = 0;
@@ -496,22 +453,10 @@ static int __init esp32_uart_console_setup(struct console *co, char *options)
 	if (!sport)
 		return -ENODEV;
 
-	ret = clk_prepare_enable(sport->clk);
-	if (ret)
-		return ret;
-
 	if (options)
 		uart_parse_options(options, &baud, &parity, &bits, &flow);
 
 	return uart_set_options(&sport->port, co, baud, parity, bits, flow);
-}
-
-static int esp32_uart_console_exit(struct console *co)
-{
-	struct esp32_port *sport = esp32_uart_ports[co->index];
-
-	clk_disable_unprepare(sport->clk);
-	return 0;
 }
 
 static struct uart_driver esp32_uart_reg;
@@ -520,7 +465,6 @@ static struct console esp32_uart_console = {
 	.write		= esp32_uart_console_write,
 	.device		= uart_console_device,
 	.setup		= esp32_uart_console_setup,
-	.exit		= esp32_uart_console_exit,
 	.flags		= CON_PRINTBUFFER,
 	.index		= -1,
 	.data		= &esp32_uart_reg,
@@ -585,6 +529,7 @@ static int esp32_uart_probe(struct platform_device *pdev)
 	struct uart_port *port;
 	struct esp32_port *sport;
 	struct resource *res;
+	struct clk *clk;
 	int ret;
 
 	sport = devm_kzalloc(&pdev->dev, sizeof(*sport), GFP_KERNEL);
@@ -600,27 +545,23 @@ static int esp32_uart_probe(struct platform_device *pdev)
 	}
 	if (ret >= UART_NR) {
 		dev_err(&pdev->dev, "driver limited to %d serial ports\n", UART_NR);
-		return -ENOMEM;
+		return -ENODEV;
 	}
 
 	port->line = ret;
 
-	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	if (!res)
-		return -ENODEV;
-
-	port->mapbase = res->start;
-	port->membase = devm_ioremap_resource(&pdev->dev, res);
+	port->membase = devm_platform_get_and_ioremap_resource(pdev, 0, &res);
 	if (IS_ERR(port->membase))
 		return PTR_ERR(port->membase);
+	port->mapbase = res->start;
 
-	sport->clk = devm_clk_get(&pdev->dev, NULL);
-	if (IS_ERR(sport->clk))
-		return PTR_ERR(sport->clk);
+	/* The fixed 40 MHz crystal: on for as long as the device is bound. */
+	clk = devm_clk_get_enabled(&pdev->dev, NULL);
+	if (IS_ERR(clk))
+		return PTR_ERR(clk);
 
-	port->uartclk = clk_get_rate(sport->clk);
+	port->uartclk = clk_get_rate(clk);
 	port->dev = &pdev->dev;
-	port->type = PORT_GENERIC;
 	port->iotype = UPIO_MEM;
 	ret = platform_get_irq(pdev, 0);
 	if (ret < 0)

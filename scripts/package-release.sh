@@ -10,13 +10,14 @@
 set -eu
 
 cd "$(dirname "$0")/.."
-# The images of a local build contain the files of local-overlay/.
-if [ -n "$(ls -A local-overlay | grep -vxF .empty)" ]; then
-	echo "local-overlay/ has files, which can be keys: do not release this build" >&2
-	exit 1
-fi
 version=${1:?usage: $0 VERSION BOARD}
 board=${2:?usage: $0 VERSION BOARD}
+# The root keeps the files of local-overlay/, which can be keys, until make
+# rootfs-clean; post-build.sh marks such a build.
+if [ -e "build/$board/local-overlay-used" ]; then
+	echo "build/$board has files of local-overlay/: run make rootfs-clean and build it again" >&2
+	exit 1
+fi
 name=esp32s31-linux-$version-$board
 out=build/release
 stage=$out/$name-flash
@@ -51,7 +52,8 @@ done
 echo "$flash_args" | sed 's/^ //' > "$stage/flash_args"
 
 # One image for offset 0, for the simplest flash command.
-(cd "$stage" && esptool --chip esp32s31 merge-bin -o flash.bin $(cat flash_args))
+flash_files=$(cat "$stage/flash_args")
+(cd "$stage" && esptool --chip esp32s31 merge-bin -o flash.bin $flash_files)
 
 disk=sdcard
 case $board in
@@ -74,11 +76,9 @@ The board mounts its root from the stick with this image (disk signature
 esp32s31)
 	title="the ESP32-S31-WROOM-3-N16R16V module alone (UART only)"
 	usage="The full system is in the flash.  The root is writable, and the files
-stay after a reboot and after a new flash.bin.  Not after an update from
-v0.9.1 or older: the data partition moved, and the first boot formats it.
-A data partition without UBI
-(a new board, or a board from v0.4.0) is erased and formatted at the first
-boot.  To go back to the image, run flash_erase /dev/mtd1 0 0 and reboot." ;;
+stay after a reboot and after a new flash.bin.  On a new board, the first
+boot formats the data partition.  To go back to the image, run
+flash_erase /dev/mtd1 0 0 and reboot." ;;
 esp-mosaico)
 	cp scripts/flash-esp-mosaico.py scripts/reset-from-bootloader.py "$stage/"
 	title="the ESP-Mosaico CoreBoard V1.2"
@@ -121,6 +121,10 @@ $usage
 
 Console: CH343 debug UART, 115200 8N1, logged in as root. SSH takes root
 only with a key: add it to /root/.ssh/authorized_keys from the console.
+
+The images contain free software. The licence texts and the sources are
+in esp32s31-linux-$version-licenses.tar.xz and
+esp32s31-linux-$version-sources.tar of the same release.
 TXT
 else
 cat > "$stage/FLASH.txt" <<TXT
@@ -136,6 +140,10 @@ $usage
 
 Console: the same UART port, 115200 8N1, logged in as root. SSH takes root
 only with a key: add it to /root/.ssh/authorized_keys from the console.
+
+The images contain free software. The licence texts and the sources are
+in esp32s31-linux-$version-licenses.tar.xz and
+esp32s31-linux-$version-sources.tar of the same release.
 TXT
 fi
 
@@ -146,6 +154,6 @@ if [ -f "$card" ]; then
 fi
 # The checksums of all packages in build/release, also of other boards.
 (cd "$out" && rm -f SHA256SUMS &&
-	set -- $(ls) &&
+	set -- * &&
 	{ sha256sum "$@" 2>/dev/null || shasum -a 256 "$@"; } > SHA256SUMS)
 ls -l "$out"

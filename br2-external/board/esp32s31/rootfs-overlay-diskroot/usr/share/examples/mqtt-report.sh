@@ -17,13 +17,12 @@ up=$(cut -d' ' -f1 /proc/uptime)
 mem=$(awk '$1 == "MemAvailable:" { print $2 }' /proc/meminfo)
 rssi=$(iw dev wlan0 link 2>/dev/null | awk '$1 == "signal:" { print $2 }')
 
-# Home Assistant: name, key, unit, device class
-for s in "Uptime uptime s duration" "Memory available mem_kb kB data_size" \
-	 "Wi-Fi signal rssi dBm signal_strength"; do
-	key=$(echo "$s" | awk '{ print $(NF-2) }')
-	unit=$(echo "$s" | awk '{ print $(NF-1) }')
-	class=$(echo "$s" | awk '{ print $NF }')
-	name=$(echo "$s" | awk '{ NF -= 3; print }')
+# Home Assistant: key, unit, device class, name.  read keeps "$@".
+for s in "uptime s duration Uptime" "mem_kb kB data_size Memory available" \
+	 "rssi dBm signal_strength Wi-Fi signal"; do
+	read -r key unit class name <<EOF
+$s
+EOF
 	mosquitto_pub "$@" -r -t "homeassistant/sensor/${MQTT_ID}_$key/config" -m \
 "{\"name\":\"$name\",\"unique_id\":\"${MQTT_ID}_$key\",\"state_topic\":\"$state\",\
 \"value_template\":\"{{ value_json.$key }}\",\"unit_of_measurement\":\"$unit\",\

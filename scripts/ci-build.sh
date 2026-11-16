@@ -19,13 +19,9 @@ cd "$(dirname "$0")/.."
 : "${BR_OUTPUT:=$PWD/build/br-output-$BOARD}"
 : "${BR_DL_DIR:=$PWD/build/br-dl}"
 export IDF_PATH BR2_DL_DIR="$BR_DL_DIR"
-
-want=$(cat bootloader/esp-idf.version)
-have=$(git -C "$IDF_PATH" rev-parse HEAD~1)
-if [ "$want" != "$have" ]; then
-	echo "ESP-IDF is on $have, but bootloader/esp-idf.version wants $want" >&2
-	exit 1
-fi
+# post-build.sh writes it into /etc/os-release; the release workflow sets it.
+ESP32S31_VERSION=$(make -s version)
+export ESP32S31_VERSION
 
 scripts/mkdefconfigs.sh --check
 make bootloader BOARD="$BOARD"
@@ -56,21 +52,5 @@ fi
 printf '%s\n' "$inputs" > "$stamp"
 br
 
-out=build/$BOARD
-mkdir -p "$out/buildroot"
-# linux.size is the last sector of the linux partition, after the Image.
-size=$(awk -F'[ ,]+' '$1 == "linux" { print $5 }' "bootloader/partitions-$BOARD.csv")
-test "$(wc -c < "$BR_OUTPUT/images/Image")" -le $((size - 4096))
-cp "$BR_OUTPUT/images/Image" "$BR_OUTPUT/images/linux.size" "$out/"
-for f in rootfs.ext2 sdcard.img; do
-	if [ -f "$BR_OUTPUT/images/$f" ]; then
-		cp "$BR_OUTPUT/images/$f" "$out/buildroot/"
-	fi
-done
-
-# The root in the flash, on a board with a rootfs partition.
-size=$(awk -F'[ ,]+' '$1 == "rootfs" { print $5 }' "bootloader/partitions-$BOARD.csv")
-if [ -n "$size" ]; then
-	test "$(wc -c < "$BR_OUTPUT/images/rootfs.squashfs")" -le $((size))
-	cp "$BR_OUTPUT/images/rootfs.squashfs" "$out/"
-fi
+scripts/copy-images.sh "$BR_OUTPUT/images" "build/$BOARD" \
+	"bootloader/partitions-$BOARD.csv"

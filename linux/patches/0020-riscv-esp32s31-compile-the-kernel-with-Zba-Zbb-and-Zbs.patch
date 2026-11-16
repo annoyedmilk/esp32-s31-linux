@@ -2,6 +2,8 @@ From: Marco Müller <hello@annoyedmilk.ch>
 Subject: [PATCH] riscv: esp32s31: compile the kernel with Zba, Zbb and Zbs
 
 All harts have the three extensions.
+
+Upstream: not sent
 ---
 diff --git a/arch/riscv/Makefile b/arch/riscv/Makefile
 --- a/arch/riscv/Makefile

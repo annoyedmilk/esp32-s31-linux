@@ -174,9 +174,9 @@ void shm_flash_kick(void)
 void shm_flash_init(void (*done)(void))
 {
 	const esp_partition_t *root = esp_partition_find_first(ESP_PARTITION_TYPE_DATA,
-							      0x40, "rootfs");
+							      S31_LINUX_PARTITION_SUBTYPE, "rootfs");
 	const esp_partition_t *data = esp_partition_find_first(ESP_PARTITION_TYPE_DATA,
-							      0x40, "data");
+							      S31_LINUX_PARTITION_SUBTYPE, "data");
 
 	const void *map = NULL;
 	spi_flash_mmap_handle_t handle;
@@ -188,10 +188,14 @@ void shm_flash_init(void (*done)(void))
 	if (root && data && data->address == root->address + root->size)
 		size += data->size;
 	if (root && spi_flash_mmap(root->address, size,
-				   SPI_FLASH_MMAP_DATA, &map, &handle) == ESP_OK &&
-	    flash_task_start(done)) {
-		s_base = root->address;
-		s_size = size;
+				   SPI_FLASH_MMAP_DATA, &map, &handle) == ESP_OK) {
+		if (flash_task_start(done)) {
+			s_base = root->address;
+			s_size = size;
+		} else {
+			spi_flash_munmap(handle);
+			map = NULL;
+		}
 	}
 	*flash_word(ESP_SHM_FLASH_MAP_OFF) = (uint32_t)map;
 	*flash_word(ESP_SHM_FLASH_SIZE_OFF) = s_size;

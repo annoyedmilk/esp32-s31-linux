@@ -14,7 +14,7 @@ def write(name, value):
 
 
 def color(red, green, blue):
-    write("multi_intensity", "%d %d %d" % (red, green, blue))
+    write("multi_intensity", f"{red} {green} {blue}")
     write("brightness", "255")
 
 

@@ -3,6 +3,8 @@ Subject: [PATCH] riscv: esp32s31: sync the caches for new code
 
 The I-cache refills from PSRAM, and fence.i does not invalidate it.  Ask
 the firmware to sync, and for a new user page only its folio.
+
+Upstream: not sent
 ---
 diff --git a/arch/riscv/include/asm/cacheflush.h b/arch/riscv/include/asm/cacheflush.h
 --- a/arch/riscv/include/asm/cacheflush.h

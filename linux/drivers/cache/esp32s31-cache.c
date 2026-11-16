@@ -29,7 +29,6 @@
 
 /* 0x09000000 + mvendorid.  Keep the IDs the same as in OpenSBI. */
 #define ESP32S31_SBI_EXT		0x09000612
-#define ESP32S31_SBI_CACHE_WBACK_ALL	0
 #define ESP32S31_SBI_CACHE_INV		1
 #define ESP32S31_SBI_CACHE_WBACK	2
 #define ESP32S31_SBI_CACHE_WBACK_INV	3

@@ -3,7 +3,7 @@
 
 #include "loader.h"
 
-/* A board without a display.  Linux starts all other peripherals. */
+/* Without CONFIG_S31_LINUX_DISPLAY: no panel.  Linux starts the peripherals. */
 
 void board_start_display(void)
 {

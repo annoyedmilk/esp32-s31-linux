@@ -3,6 +3,9 @@
 
 #include <stdbool.h>
 
+/* The data subtype of the partitions for Linux in partitions-*.csv. */
+#define S31_LINUX_PARTITION_SUBTYPE 0x40
+
 /* The flash mailbox for Linux: map the window and start the mailbox task,
  * which calls done() per request.  The transport calls these. */
 void shm_flash_init(void (*done)(void));

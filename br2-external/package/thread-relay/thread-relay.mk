@@ -10,9 +10,9 @@ THREAD_RELAY_SITE = $(BR2_EXTERNAL_ESP32S31_PATH)/../tools/thread-relay
 THREAD_RELAY_SITE_METHOD = local
 THREAD_RELAY_LICENSE = MIT
 
+# -B: the local site copies the tool directory with a binary from the host.
 define THREAD_RELAY_BUILD_CMDS
-	$(TARGET_MAKE_ENV) $(MAKE) -B -C $(@D) CC="$(TARGET_CC)" \
-		CFLAGS="$(TARGET_CFLAGS)" LDFLAGS="$(TARGET_LDFLAGS)" thread-relay
+	$(TARGET_MAKE_ENV) $(MAKE) -B -C $(@D) $(TARGET_CONFIGURE_OPTS) thread-relay
 endef
 
 define THREAD_RELAY_INSTALL_TARGET_CMDS

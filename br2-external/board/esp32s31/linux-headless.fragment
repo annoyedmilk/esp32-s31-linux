@@ -1,0 +1,15 @@
+# The boards without a panel, the module and the Function-CoreBoard-1:
+# linux.config without the parts of the Korvo-1 that both lack.  Buildroot
+# merges it before the fragment of the board.
+
+# No loadable modules: the m options of linux.config are built in.
+# CONFIG_MODULES is not set
+
+# No panel, VTs, input devices or card.
+# CONFIG_FB is not set
+# CONFIG_VT is not set
+# CONFIG_INPUT is not set
+# CONFIG_HID is not set
+# CONFIG_MMC is not set
+# No script waits for a disk that comes later.
+# CONFIG_UEVENT_HELPER is not set

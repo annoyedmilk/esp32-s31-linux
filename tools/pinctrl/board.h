@@ -43,7 +43,6 @@ int snapshot_load(const char *path, struct regs *r, struct board *b);
 void snapshot_dump(FILE *f, struct regs *r, const struct board *b);
 
 void copy_str(char *dst, unsigned int len, const char *src);
-void board_init(struct board *b);
 const struct header *board_header(const char *compatible);
 unsigned int header_npads(const struct header *hdr);
 int pad_gpio(const struct header *hdr, unsigned int pad, const char **label);

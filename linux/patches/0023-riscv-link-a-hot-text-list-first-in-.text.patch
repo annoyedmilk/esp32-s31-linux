@@ -1,0 +1,56 @@
+From: Marco Müller <hello@annoyedmilk.ch>
+Subject: [PATCH] riscv: link a hot text list first in .text
+
+On a core with a small instruction cache of few ways, a hot path runs at
+a speed that depends on where its functions are linked: three of its
+lines in one set evict each other on each pass.  A change anywhere else
+in the kernel moves the functions, so the speed of the path changes with
+unrelated code.
+
+RISCV_HOT_TEXT links the input sections that arch/riscv/kernel/
+hot-text.lds.h names, then the plain .text of the assembly files and
+the scheduler text, at the start of .text.  Only the head and the trap
+text are before them, so the layout of the hot path changes only when
+its own code changes.  See docs/internals.md, "The instruction cache".
+
+Upstream: not sent
+---
+diff --git a/arch/riscv/Kconfig b/arch/riscv/Kconfig
+--- a/arch/riscv/Kconfig
++++ b/arch/riscv/Kconfig
+@@ -962,6 +962,16 @@
+ 	help
+ 	  Size of the SRAM for the trap code, a multiple of the page size.
+ 
++config RISCV_HOT_TEXT
++	bool
++	help
++	  Link the functions of a hot path first in .text, in the order of
++	  arch/riscv/kernel/hot-text.lds.h, then the plain .text of the
++	  assembly files and the scheduler text.  Their place in the
++	  instruction cache then does not change with the rest of the
++	  kernel.  Selected by SoCs with a small instruction cache; the SoC
++	  support provides the list.
++
+ config RISCV_MISALIGNED
+ 	bool
+ 	help
+diff --git a/arch/riscv/kernel/vmlinux.lds.S b/arch/riscv/kernel/vmlinux.lds.S
+--- a/arch/riscv/kernel/vmlinux.lds.S
++++ b/arch/riscv/kernel/vmlinux.lds.S
+@@ -55,8 +55,15 @@
+ 	.text : AT(ADDR(.text) - LOAD_OFFSET) {
+ 		_text = .;
+ 		_stext = .;
++#ifdef CONFIG_RISCV_HOT_TEXT
++#include "hot-text.lds.h"
++		*(.text)
++		SCHED_TEXT
++#endif
+ 		TEXT_TEXT
++#ifndef CONFIG_RISCV_HOT_TEXT
+ 		SCHED_TEXT
++#endif
+ 		LOCK_TEXT
+ 		KPROBES_TEXT
+ #ifndef CONFIG_RISCV_TRAP_SRAM

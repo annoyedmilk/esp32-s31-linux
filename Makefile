@@ -6,6 +6,12 @@ ifeq ($(filter $(BOARD),esp32s31 coreboard1 korvo1 esp-mosaico),)
 $(error BOARD must be esp32s31, coreboard1, korvo1 or esp-mosaico, not "$(BOARD)")
 endif
 
+# The version of the images: the tag of a release, else the commit.  CI sets
+# it once for each job; the container and idf.py get it from the environment.
+ESP32S31_VERSION ?= $(shell git describe --always --dirty)
+ESP32S31_VERSION := $(ESP32S31_VERSION)
+export ESP32S31_VERSION
+
 BUILD_DIR := build/$(BOARD)
 LOG_DIR := logs
 SERIAL_LOG_DIR ?= $(LOG_DIR)/serial
@@ -68,6 +74,7 @@ BR_MAKE := make O=$(BR_O) BR2_EXTERNAL=/work/br2-external BR2_DL_DIR=/br/dl \
 CONTAINER ?= $(shell command -v container 2>/dev/null)
 BR_RUN = "$(CONTAINER)" run --rm --cpus $(JOBS) --memory $(BR_MEMORY) \
 	--uid $(shell id -u) --gid $(shell id -g) -e HOME=/br/home \
+	-e ESP32S31_VERSION=$(ESP32S31_VERSION) \
 	-v $(BR_VOLUME):/br -v "$(CURDIR)":/work "$(BR_IMAGE)"
 # The same image without the build volume, for checks that only read files.
 BR_TOOLS = "$(CONTAINER)" run --rm --uid $(shell id -u) --gid $(shell id -g) \
@@ -79,7 +86,6 @@ part_field = $(shell awk -F'[ ,]+' '$$1 == "$(1)" { print $$$(2) }' $(PARTITIONS
 
 # The squashfs root in the flash: empty on a board with its root on a disk.
 ROOT_OFFSET := $(call part_field,rootfs,4)
-ROOT_SIZE := $(call part_field,rootfs,5)
 SD_DISK ?=
 SD_RAW = $(subst /dev/disk,/dev/rdisk,$(SD_DISK))
 # The FAT partition of sdpart, not below 4G.  The root gets the rest minus swap.
@@ -103,7 +109,7 @@ LINUX_SIZE_OFFSET := $(shell printf '0x%x' $$(( $(LINUX_OFFSET) + $(LINUX_SIZE) 
 
 .DEFAULT_GOAL := help
 
-.PHONY: help check ports build bootloader opensbi kernel defconfigs \
+.PHONY: help version check ports build bootloader opensbi kernel defconfigs \
 	kernel-check kernel-clean kernel-vmlinux kernel-menuconfig \
 	kernel-saveconfig \
 	container-image \
@@ -115,6 +121,7 @@ help:
 		'ESP32-S31 Linux (macOS host)' \
 		'' \
 		'  make check                         verify host tools and submodules' \
+		'  make version                       print the version of the images' \
 		'  make ports                         list connected serial devices' \
 		'  make build                         build loader, OpenSBI, Linux, rootfs' \
 		'  make flash FLASH_PORT=/dev/cu.X    build and flash the complete image' \
@@ -167,6 +174,9 @@ help:
 		'On esp32s31 and esp-mosaico the rootfs is in flash; on korvo1, SD;' \
 		'on coreboard1, a USB stick.'
 
+version:
+	@echo $(ESP32S31_VERSION)
+
 check:
 	@test "$$(uname -s)" = Darwin || { echo 'this build is supported on macOS only'; exit 1; }
 	@test -n "$(PYTHON)" -a -x "$(PYTHON)" || { echo 'missing ESP-IDF Python environment'; exit 1; }
@@ -200,6 +210,10 @@ bootloader:
 			echo 'apply the ESP-Hosted patches and the backports to ESP-IDF first:'; \
 			echo '  IDF_PATH=$(IDF_PATH) scripts/patch-esp-idf.sh'; exit 1; }; \
 	done
+	@want=$$(cat bootloader/esp-idf.version); \
+	have=$$(git -C "$(IDF_PATH)" rev-parse HEAD~1); \
+	test "$$want" = "$$have" || { \
+		echo "ESP-IDF is on $$have, but bootloader/esp-idf.version wants $$want"; exit 1; }
 	@export IDF_PYTHON_ENV_PATH="$(IDF_PYTHON_ENV)"; \
 	if ! source "$(IDF_PATH)/export.sh" >"$(BUILD_DIR)/idf-export.log" 2>&1; then \
 		cat "$(BUILD_DIR)/idf-export.log"; \
@@ -208,7 +222,8 @@ bootloader:
 	fi; \
 	cd bootloader && "$(PYTHON)" "$(IDF_PATH)/tools/idf.py" -B ../$(BUILD_DIR)/bootloader \
 		-D SDKCONFIG="$(CURDIR)/$(BUILD_DIR)/sdkconfig" \
-		-D SDKCONFIG_DEFAULTS="$(SDKCONFIG_DEFAULTS)" build
+		-D SDKCONFIG_DEFAULTS="$(SDKCONFIG_DEFAULTS)" \
+		-D PROJECT_VER="$(ESP32S31_VERSION)" build
 
 opensbi:
 	@rm -rf "$(OPENSBI_SRC)"
@@ -266,6 +281,19 @@ KERNEL_SYNC = sum=$$({ find /work/linux -type f ! -name ._\* | sort | xargs cat;
 	fi; \
 	mkdir -p $(BR_O); echo "$$sum" > $$stamp
 
+# Buildroot copies a local package (tools/) only at its first build: when a
+# source of a tool changes, build the tools again.
+TOOLS_SYNC = sum=$$(find /work/tools \( -name '*.[ch]' -o -name Makefile \) \
+		! -name ._\* | sort | xargs cat | sha256sum | cut -d" " -f1); \
+	stamp=$(BR_O)/.esp32s31-tools-inputs; \
+	if test -f $(BR_O)/.config && \
+		test "$$(cat $$stamp 2>/dev/null)" != "$$sum"; then \
+		echo "tools changed: building them again"; \
+		$(BR_MAKE) ble-ha-dirclean esp32s31-pinctrl-dirclean \
+			thread-relay-dirclean; \
+	fi; \
+	echo "$$sum" > $$stamp
+
 # Only the kernel: the images do not contain it, so "all" would only write
 # the card image again.  The defconfig first, as in rootfs.
 kernel: br-volume
@@ -311,6 +339,7 @@ rootfs: br-volume
 		cd /work/$(BR_DIR); \
 		$(BR_MAKE) $(BR_DEFCONFIG); \
 		$(KERNEL_SYNC); \
+		$(TOOLS_SYNC); \
 		$(BR_MAKE)'
 	@$(MAKE) --no-print-directory br-artifacts
 
@@ -318,19 +347,8 @@ rootfs: br-volume
 # linux.size is the last flash sector of the linux partition, with the
 # manifest in its last 12 bytes (mklinuxsize.py).
 br-artifacts:
-	@$(BR_RUN) sh -c 'set -e; \
-		mkdir -p /work/$(BR_OUT) /work/$(BUILD_DIR); \
-		test $$(wc -c < $(BR_O)/images/Image) -le $$(( $(LINUX_SIZE) - 4096 )) || \
-			{ echo "Image is larger than the $(LINUX_SIZE) partition without its last sector"; exit 1; }; \
-		cp $(BR_O)/images/Image $(BR_O)/images/linux.size /work/$(BUILD_DIR)/; \
-		if test -f $(BR_O)/images/rootfs.squashfs; then \
-			test $$(wc -c < $(BR_O)/images/rootfs.squashfs) -le $$(( $(ROOT_SIZE) )) || \
-				{ echo "rootfs.squashfs is larger than the $(ROOT_SIZE) partition"; exit 1; }; \
-			cp $(BR_O)/images/rootfs.squashfs /work/$(BUILD_DIR)/; \
-		fi; \
-		for f in rootfs.ext2 sdcard.img; do \
-			if test -f $(BR_O)/images/$$f; then cp $(BR_O)/images/$$f /work/$(BR_OUT)/; fi; \
-		done'
+	@$(BR_RUN) /work/scripts/copy-images.sh $(BR_O)/images /work/$(BUILD_DIR) \
+		/work/$(PARTITIONS)
 
 # The downloads in the volume stay.
 rootfs-clean: br-volume
@@ -344,8 +362,8 @@ sdcard: rootfs
 		echo 'Buildroot produced no sdcard.img; check post-image.sh'; exit 1; }
 	@ls -l "$(BR_OUT)/sdcard.img"
 
-# Stop if SD_DISK is not set.
-SD_DISK_REQUIRED = @test -n "$(SD_DISK)" || { \
+# Stop unless SD_DISK is a whole disk: dd to a bare diskN writes a file.
+SD_DISK_REQUIRED = @echo "$(SD_DISK)" | grep -Eqx '/dev/disk[0-9]+' || { \
 	echo 'set SD_DISK=/dev/diskN (see: diskutil list external)'; exit 1; }
 # Stop if the user does not type $(1).
 SD_CONFIRM = @read -r -p 'Type $(1) to continue: ' reply; \
@@ -396,6 +414,7 @@ sdroot:
 	@part=$$(diskutil info -plist "$(SD_DISK)s2" | plutil -extract TotalSize raw -) && \
 		test "$$part" -ge $$(stat -f %z "$(BR_OUT)/rootfs.ext2") || { \
 		echo '$(SD_DISK)s2 is smaller than rootfs.ext2; run make sdpart or sdwrite'; exit 1; }
+	$(SD_SHOW)
 	@echo "This overwrites the root partition $(SD_DISK)s2."
 	$(call SD_CONFIRM,WRITE)
 	@diskutil unmountDisk "$(SD_DISK)"

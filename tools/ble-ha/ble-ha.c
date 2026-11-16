@@ -14,6 +14,7 @@
  * cannot use it at the same time.  It ends when it has nothing to do.
  */
 
+#include <ctype.h>
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -53,7 +54,7 @@ static struct {
 	int scanning;
 	struct adv batch[ADV_BATCH];
 	int nbatch;
-	long batch_ms;		/* when the first of the batch came */
+	int64_t batch_ms;	/* when the first of the batch came */
 	/* Improv */
 	int improv, advertising, adv_dirty;
 	int conn;
@@ -79,25 +80,29 @@ static void on_signal(int sig)
 	stop = 1;
 }
 
-static time_t now(void)
+static int64_t now_ms(void)
 {
 	struct timespec ts;
 
 	clock_gettime(CLOCK_MONOTONIC, &ts);
-	return ts.tv_sec;
+	return (int64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
 }
 
-static long now_ms(void)
+static time_t now(void)
 {
-	struct timespec ts;
-
-	clock_gettime(CLOCK_MONOTONIC, &ts);
-	return ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+	return (time_t)(now_ms() / 1000);
 }
 
 /* ---- The adapter ---- */
 
 static void handle_packet(const uint8_t *p, size_t len);
+
+/* A hard error of the HCI socket: the adapter is gone, so ble-ha ends. */
+static void adapter_gone(void)
+{
+	syslog(LOG_ERR, "adapter: %s", strerror(errno));
+	stop = 1;
+}
 
 static ssize_t hci_read(uint8_t *buf, size_t len, int ms)
 {
@@ -116,26 +121,37 @@ static ssize_t hci_read(uint8_t *buf, size_t len, int ms)
 static int hci_cmd(uint16_t op, const void *param, uint8_t plen, uint8_t *ret, size_t rlen)
 {
 	uint8_t pkt[260];
-	long end = now_ms() + 2000;
+	int64_t end = now_ms() + 2000;
 
 	pkt[0] = HCI_CMD;
-	pkt[1] = op & 0xff;
-	pkt[2] = (uint8_t)(op >> 8);
+	put16(pkt + 1, op);
 	pkt[3] = plen;
-	memcpy(pkt + 4, param, plen);
-	if (write(s.hci, pkt, 4u + plen) != 4 + plen)
+	if (plen)
+		memcpy(pkt + 4, param, plen);
+	if (write(s.hci, pkt, 4u + plen) != 4 + plen) {
+		if (errno != EINTR && errno != EAGAIN)
+			adapter_gone();
 		return -1;
-	while (now_ms() < end) {
-		ssize_t n = hci_read(pkt, sizeof(pkt), (int)(end - now_ms()));
+	}
+	for (;;) {
+		int64_t left = end - now_ms();
+		ssize_t n;
 
+		if (left <= 0)
+			break;
+		n = hci_read(pkt, sizeof(pkt), (int)left);
+		if (n < 0 && errno != EINTR) {
+			adapter_gone();
+			return -1;
+		}
 		if (n <= 0)
 			continue;
-		if (pkt[0] == HCI_EVT && pkt[1] == 0x0e && n >= 7 && (pkt[4] | pkt[5] << 8) == op) {
+		if (pkt[0] == HCI_EVT && pkt[1] == 0x0e && n >= 7 && get16(pkt + 4) == op) {
 			if (ret)
 				memcpy(ret, pkt + 6, (size_t)n - 6 < rlen ? (size_t)n - 6 : rlen);
 			return pkt[6];
 		}
-		if (pkt[0] == HCI_EVT && pkt[1] == 0x0f && n >= 7 && (pkt[5] | pkt[6] << 8) == op)
+		if (pkt[0] == HCI_EVT && pkt[1] == 0x0f && n >= 7 && get16(pkt + 5) == op)
 			return pkt[3];
 		handle_packet(pkt, (size_t)n);
 	}
@@ -156,12 +172,12 @@ static int hci_init(void)
 	    hci_cmd(0x1009, NULL, 0, r, sizeof(r)))		/* Read BD_ADDR */
 		return -1;
 	memcpy(s.bdaddr, r + 1, 6);
-	if (hci_cmd(0x2002, NULL, 0, r, sizeof(r)) == 0 && (r[1] | r[2] << 8)) {
-		s.acl_len = (uint16_t)(r[1] | r[2] << 8);	/* LE Read Buffer Size */
+	if (hci_cmd(0x2002, NULL, 0, r, sizeof(r)) == 0 && get16(r + 1)) {
+		s.acl_len = get16(r + 1);	/* LE Read Buffer Size */
 		s.acl_credits = r[3];
 	} else if (hci_cmd(0x1005, NULL, 0, r, sizeof(r)) == 0) {
-		s.acl_len = (uint16_t)(r[1] | r[2] << 8);	/* Read Buffer Size */
-		s.acl_credits = (uint16_t)(r[4] | r[5] << 8);
+		s.acl_len = get16(r + 1);	/* Read Buffer Size */
+		s.acl_credits = get16(r + 4);
 	}
 	if (s.acl_len < 27)
 		s.acl_len = 27;
@@ -234,8 +250,7 @@ static void notify(uint16_t handle, const uint8_t *v, size_t len)
 	if (len + 3 > sizeof(pdu))
 		len = sizeof(pdu) - 3;
 	pdu[0] = 0x1b;
-	pdu[1] = handle & 0xff;
-	pdu[2] = (uint8_t)(handle >> 8);
+	put16(pdu + 1, handle);
 	memcpy(pdu + 3, v, len);
 	acl_send(4, pdu, len + 3);
 }
@@ -318,6 +333,7 @@ static void rpc_write(void *ctx, const uint8_t *data, size_t len)
 
 	(void)ctx;
 	if (s.rpc_len + len > sizeof(s.rpc)) {
+		memset(s.rpc, 0, s.rpc_len);
 		s.rpc_len = 0;
 		set_state(s.gatt.state, IMPROV_ERR_INVALID);
 		return;
@@ -335,7 +351,8 @@ static void rpc_write(void *ctx, const uint8_t *data, size_t len)
 	}
 	set_state(s.gatt.state, IMPROV_ERR_NONE);
 	improv_command(&c);
-	memset(&c, 0, sizeof(c));
+	/* c is dead here: a memset() may be removed, and it holds the passphrase. */
+	explicit_bzero(&c, sizeof(c));
 }
 
 static void join_poll(void)
@@ -390,12 +407,13 @@ static void handle_acl(const uint8_t *p, size_t len)
 
 	if (len < 5)
 		return;
-	dl = (size_t)(p[3] | p[4] << 8);
+	dl = get16(p + 3);
 	if (dl + 5 > len)
 		return;
 	if (((p[2] >> 4) & 3) != 1)	/* a start fragment */
 		s.l2_len = 0;
 	if (s.l2_len + dl > sizeof(s.l2)) {
+		memset(s.l2, 0, s.l2_len);
 		s.l2_len = 0;
 		return;
 	}
@@ -407,7 +425,17 @@ static void handle_acl(const uint8_t *p, size_t len)
 	if (s.l2_len < need)
 		return;
 	l2cap_frame((uint16_t)(s.l2[2] | s.l2[3] << 8), s.l2 + 4, need - 4);
+	memset(s.l2, 0, s.l2_len);
 	s.l2_len = 0;
+}
+
+/* The buffers of a link can hold a Wi-Fi passphrase. */
+static void forget_link(void)
+{
+	memset(s.l2, 0, sizeof(s.l2));
+	memset(s.rpc, 0, sizeof(s.rpc));
+	memset(s.gatt.prep, 0, sizeof(s.gatt.prep));
+	s.l2_len = s.rpc_len = s.gatt.prep_len = 0;
 }
 
 static void le_meta(const uint8_t *ev, size_t len)
@@ -425,12 +453,11 @@ static void le_meta(const uint8_t *ev, size_t len)
 			s.batch[s.nbatch++] = ads[i];
 	} else if (ev[2] == 0x01 && len >= 6 && ev[3] == 0) {
 		/* LE Connection Complete: the advertising has stopped. */
-		s.conn = (ev[4] | ev[5] << 8) & 0x0fff;
+		s.conn = get16(ev + 4) & 0x0fff;
 		s.advertising = 0;
-		s.l2_len = s.rpc_len = 0;
+		forget_link();
 		s.gatt.mtu = 23;
 		memset(s.gatt.cccd, 0, sizeof(s.gatt.cccd));
-		s.gatt.prep_len = 0;
 		syslog(LOG_INFO, "improv: a client connected");
 	}
 }
@@ -450,17 +477,18 @@ static void handle_packet(const uint8_t *p, size_t len)
 		le_meta(p + 1, len - 1);
 		break;
 	case 0x05:	/* Disconnection Complete */
-		if (len >= 6 && ((p[4] | p[5] << 8) & 0x0fff) == s.conn) {
+		if (len >= 6 && (get16(p + 4) & 0x0fff) == s.conn) {
 			/* The controller does not report the packets of a closed link. */
 			s.acl_credits += s.conn_sent;
 			s.conn_sent = 0;
 			s.conn = -1;
 			s.adv_dirty = 1;
+			forget_link();
 		}
 		break;
 	case 0x13:	/* Number of Completed Packets */
 		if (len >= 8) {
-			uint16_t n = (uint16_t)(p[6] | p[7] << 8);
+			uint16_t n = get16(p + 6);
 
 			s.acl_credits += n;
 			s.conn_sent -= n < s.conn_sent ? n : s.conn_sent;
@@ -581,7 +609,6 @@ static void tune_client(int fd)
 	int on = 1, idle = 20, intvl = 5, cnt = 4;
 	unsigned int user_ms = 30000;
 
-	fcntl(fd, F_SETFL, O_NONBLOCK);
 	setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &on, sizeof(on));
 	setsockopt(fd, IPPROTO_TCP, TCP_KEEPIDLE, &idle, sizeof(idle));
 	setsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL, &intvl, sizeof(intvl));
@@ -591,7 +618,7 @@ static void tune_client(int fd)
 
 static void accept_client(void)
 {
-	int fd = accept(s.lfd, NULL, NULL), i;
+	int fd = accept4(s.lfd, NULL, NULL, SOCK_CLOEXEC | SOCK_NONBLOCK), i;
 
 	if (fd < 0)
 		return;
@@ -650,8 +677,7 @@ static void setup_info(void)
 	gethostname(s.name, sizeof(s.name) - 1);
 	read_line("/sys/class/net/wlan0/address", s.mac, sizeof(s.mac));
 	for (i = 0; s.mac[i]; i++)
-		if (s.mac[i] >= 'a' && s.mac[i] <= 'f')
-			s.mac[i] -= 'a' - 'A';
+		s.mac[i] = (char)toupper((unsigned char)s.mac[i]);
 	snprintf(s.bt_mac, sizeof(s.bt_mac), "%02X:%02X:%02X:%02X:%02X:%02X",
 		 s.bdaddr[5], s.bdaddr[4], s.bdaddr[3], s.bdaddr[2], s.bdaddr[1], s.bdaddr[0]);
 	read_line("/proc/device-tree/model", s.model, sizeof(s.model));
@@ -693,7 +719,7 @@ static int improv_needed(void)
 /* A batch goes out 100 ms after its first advertisement, or when it is full. */
 static int poll_timeout(void)
 {
-	long left = s.batch_ms + 100 - now_ms();
+	int64_t left = s.batch_ms + 100 - now_ms();
 
 	if (s.nbatch)
 		return left > 0 ? (int)left : 0;
@@ -737,17 +763,20 @@ static void run(void)
 		if (s.adv_dirty && s.improv && s.conn < 0)
 			set_advertising(1);
 		set_scan(subscribers() > 0);
+		/* hci_cmd() can find the adapter gone: no event comes after that. */
+		if (stop)
+			break;
 		pfd[0] = (struct pollfd){ .fd = s.hci, .events = POLLIN };
 		pfd[1] = (struct pollfd){ .fd = s.lfd, .events = POLLIN };
 		for (i = 0; i < MAX_CLIENTS; i++)
 			pfd[2 + i] = (struct pollfd){ .fd = s.clients[i].fd, .events = POLLIN };
 		if (poll(pfd, 2 + MAX_CLIENTS, poll_timeout()) < 0 && errno != EINTR)
 			break;
-		if (pfd[0].revents & POLLIN) {
+		if (pfd[0].revents & (POLLIN | POLLERR | POLLHUP)) {
 			ssize_t n = read(s.hci, pkt, sizeof(pkt));
 
 			if (n < 0 && errno != EINTR) {
-				syslog(LOG_ERR, "adapter: %s", strerror(errno));
+				adapter_gone();
 				break;
 			}
 			if (n > 0)

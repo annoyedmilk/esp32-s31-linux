@@ -8,23 +8,10 @@
 
 DAEMON=/usr/sbin/ble-ha
 MDNS=/etc/mdns.d/esphomelib.service
-BT_PROXY_ALLOW=
-IMPROV=auto
-[ -r /etc/default/ble-ha ] && . /etc/default/ble-ha
+. /etc/default/ble-ha
+. /usr/lib/nft-allow.sh
 
 # Put the hosts of $1 in the sets of the proxy rule in nftables.conf.
-allow()
-{
-	nft flush set inet filter ble_ha4 &&
-		nft flush set inet filter ble_ha6 || return 1
-	for a in $1; do
-		case $a in
-		*:*) nft add element inet filter ble_ha6 "{ $a }" ;;
-		*) nft add element inet filter ble_ha4 "{ $a }" ;;
-		esac || return 1
-	done
-}
-
 mdns()
 {
 	if [ "$1" = on ]; then
@@ -33,18 +20,25 @@ mdns()
 	else
 		rm -f $MDNS
 	fi
-	pidof mdnsd >/dev/null && kill -HUP $(pidof mdnsd)
+	killall -HUP mdnsd 2>/dev/null
 }
 
 start()
 {
+	# bluetoothd takes the adapter when a device is paired (S40bluetooth),
+	# and ble-ha then exits: do not open the port or announce the proxy.
+	set -- /var/lib/bluetooth/*/*/info
+	if [ -e "$1" ] || pidof bluetoothd >/dev/null; then
+		echo "ble-ha: bluetoothd has the adapter" >&2
+		return 0
+	fi
 	set --
 	if [ -n "$BT_PROXY_ALLOW" ]; then
-		if allow "$BT_PROXY_ALLOW"; then
+		if nft_allow ble_ha "$BT_PROXY_ALLOW"; then
 			mdns on
 			set -- -p
 		else
-			allow "" 2>/dev/null
+			nft_allow ble_ha "" 2>/dev/null
 			echo "ble-ha: cannot open the firewall for $BT_PROXY_ALLOW; no proxy" >&2
 		fi
 	fi
@@ -59,7 +53,7 @@ start)
 	;;
 stop)
 	start-stop-daemon --stop --quiet --exec $DAEMON --retry 10
-	allow "" 2>/dev/null
+	nft_allow ble_ha "" 2>/dev/null
 	[ -e $MDNS ] && mdns off
 	;;
 restart)

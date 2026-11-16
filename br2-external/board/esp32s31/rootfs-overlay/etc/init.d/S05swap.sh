@@ -11,8 +11,7 @@ ZRAM_SIZE=6M	# uncompressed
 
 start_zram()
 {
-	echo lz4 > $ZRAM/comp_algorithm &&
-		echo $ZRAM_SIZE > $ZRAM/disksize &&
+	echo $ZRAM_SIZE > $ZRAM/disksize &&
 		mkswap /dev/zram0 >/dev/null &&
 		swapon -p 100 /dev/zram0 &&
 		echo "swap: /dev/zram0 ($ZRAM_SIZE, lz4) active"
@@ -22,7 +21,8 @@ start_zram()
 start_disk()
 {
 	[ -b "${DISK_SWAP:-}" ] || return
-	set -- $(od -An -tx1 -j482 -N1 $DISK 2>/dev/null)
+	type=$(od -An -tx1 -j482 -N1 $DISK 2>/dev/null)
+	set -- $type
 	[ "$1" = 82 ] || return
 	mkswap $DISK_SWAP >/dev/null &&
 		swapon -p 10 $DISK_SWAP &&
