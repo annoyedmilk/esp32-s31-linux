@@ -1,0 +1,34 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Marco Müller <hello@annoyedmilk.ch>
+Date: Tue, 17 Nov 2026 22:14:11 +0100
+Subject: [PATCH] fix(spi_flash): enable suspend for GD25Q256E (0xC84019)
+
+The GD25Q256E (JEDEC ID C8 40 19) supports program/erase suspend (75h)
+and resume (7Ah), with SUS1 at S15 and SUS2 at S10, which is what the
+GD driver reads with RDSR2 (35h) and mask 0x84.  It was not in the list
+of GD chips with SPI_FLASH_CHIP_CAP_SUSPEND, so with
+CONFIG_SPI_FLASH_AUTO_SUSPEND esp_flash_suspend_cmd_init() returned
+ESP_ERR_NOT_SUPPORTED and init_flash asserted at boot.  The Waveshare
+ESP32-S31 Zero has this chip.
+
+The chip needs tRS >= 100 us (DS-00526 Rev1.3, AC characteristics,
+note 3), so CONFIG_SPI_FLASH_SUSPEND_TRS_VAL_US must be at least 100;
+the default is 50.
+
+Upstream: none (not in master on 2026-11-17)
+---
+ components/spi_flash/spi_flash_chip_gd.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/components/spi_flash/spi_flash_chip_gd.c b/components/spi_flash/spi_flash_chip_gd.c
+index 4948a192b22..01dccc691f9 100644
+--- a/components/spi_flash/spi_flash_chip_gd.c
++++ b/components/spi_flash/spi_flash_chip_gd.c
+@@ -41,6 +41,7 @@ spi_flash_caps_t spi_flash_chip_gd_get_caps(esp_flash_t *chip)
+     case 0xC84016:
+     case 0xC84017:
+     case 0xC84018:
++    case 0xC84019:
+     case 0xC84319:
+         caps_flags |= SPI_FLASH_CHIP_CAP_SUSPEND;
+         break;

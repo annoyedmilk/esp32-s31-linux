@@ -60,3 +60,5 @@ CONFIG_COMPILER_OPTIMIZATION_SIZE=y
 # PSRAM (shm_flash.c needs it).  The flash of the module (XMC, 0x46) has
 # suspend and resume.
 CONFIG_SPI_FLASH_AUTO_SUSPEND=y
+# The GD25Q256E needs tRS >= 100 us (DS-00526 Rev1.3); the default is 50.
+CONFIG_SPI_FLASH_SUSPEND_TRS_VAL_US=100
