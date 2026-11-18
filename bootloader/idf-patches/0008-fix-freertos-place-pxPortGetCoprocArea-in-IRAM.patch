@@ -1,0 +1,40 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Marius Vikhammer <marius.vikhammer@espressif.com>
+Date: Mon, 26 Oct 2026 10:24:55 +0800
+Subject: [PATCH] fix(freertos): place pxPortGetCoprocArea in IRAM
+
+rtos_int_enter calls it to save the HWLP context of the
+interrupted task. With CONFIG_FREERTOS_IN_IRAM=n it was in
+flash, so an IRAM interrupt arriving while the cache was
+disabled, with the HWLP state dirty, caused a cache error
+panic on ESP32-P4 and ESP32-S31.
+
+Closes https://github.com/espressif/esp-idf/issues/19308
+
+Upstream: b3b3caf2e98 (master)
+---
+ components/freertos/linker.lf | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/components/freertos/linker.lf b/components/freertos/linker.lf
+index a690ca11ffe..82e68b6220b 100644
+--- a/components/freertos/linker.lf
++++ b/components/freertos/linker.lf
+@@ -150,6 +150,8 @@ entries:
+         #   - vPortSetStackWatchpoint is called from vTaskSwitchContext, which is in IRAM.
+         # - vPortCoprocUsedInISR is directly called from RISC-V assembly code with a direct branch instruction which
+         #   may be too far when placed in Flash. Hence, it is always placed in internal RAM
++        # - pxPortGetCoprocArea is called by rtos_int_enter to save the HWLP context of the interrupted task, so it
++        #   must be in IRAM for interrupts that run while the cache is disabled.
+         # - The following functions are called from an ISR context, thus are placed in IRAM unless ISR functions are
+         #   placed into flash.
+         #   - xPortInIsrContext
+@@ -166,6 +168,8 @@ entries:
+             port:vPortYieldOtherCore (noflash_text)
+             port:vPortSetStackWatchpoint (noflash_text)
+             port:vPortCoprocUsedInISR (noflash_text)
++            if SOC_CPU_COPROC_NUM > 0:
++                port:pxPortGetCoprocArea (noflash_text)
+             if FREERTOS_UNICORE = n:
+                 port:xPortEnterCriticalTimeout (noflash_text)
+                 port:vPortExitCriticalMultiCore (noflash_text)
