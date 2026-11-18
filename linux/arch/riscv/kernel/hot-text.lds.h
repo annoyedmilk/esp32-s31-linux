@@ -2,7 +2,7 @@
 /*
  * The kernel functions of a pipe round trip on the ESP32-S31, linked first
  * in .text (RISCV_HOT_TEXT).  The function profiler of a test build gave
- * the traced functions while tools/pipe-rtt ran; objdump gave the callees
+ * the traced functions during a pipe round trip; objdump gave the callees
  * that it cannot see (inline and notrace).  A section that holds out-of-line
  * copies of a static inline function from many files is left out: its
  * copies would cost more than one cache line.  A name that a kernel update

@@ -376,7 +376,7 @@ A measurement on hart 1 also agrees (below). The ESP-IDF option
   address, a pipe round trip between two processes took 136 µs, against
   174 µs with the trap code in PSRAM. Kallsyms does not cover this range.
 - **The hot text** (`CONFIG_RISCV_HOT_TEXT`, `patches/0023` and `0024`).
-  Linux 7.3.4 made the pipe round trip of `tools/pipe-rtt` 18 to 25 %
+  Linux 7.3.4 made the pipe round trip between two processes 18 to 25 %
   slower with no change on its path. A jump over N bytes in a cold
   function of `mm/` gave 139 to 167 µs for the same code: the layout
   decided. Now the kernel functions of the round trip are linked first in
@@ -740,8 +740,8 @@ boots or runs of each build on the Korvo-1.
 - **iperf3:** `iperf3 -c HOST -t 30` (TX) and `-R` (RX) to a host on
   Ethernet, through the same access point on the same channel at the same
   distance. The value of the receiver line.
-- **Pipe round trip:** `tools/pipe-rtt`, one static binary for all builds:
-  10000 rounds of one byte between two processes, after 1000 rounds.
+- **Pipe round trip:** one static binary for all builds: 10000 rounds of
+  one byte between two processes, after 1000 rounds.
 - **SD read:** `echo 3 > /proc/sys/vm/drop_caches`, then
   `dd if=/dev/mmcblk0 of=/dev/null bs=1M count=64 iflag=direct`.
 - **MemAvailable at idle:** 60 s after the banner, after
