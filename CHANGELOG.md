@@ -11,7 +11,9 @@ Each version, newest first. The update notes come first in each version.
   deleted file stops its service: copy it from the image again.
 - Update: `nft -i` is not in the image. The other `nft` commands do not
   change.
-- Linux 7.3.4.
+- Linux 7.3.5, with Bluetooth L2CAP security fixes.
+- Buildroot 2026.08.2, with security fixes for musl, libcurl, iperf3,
+  expat, GLib and zlib.
 - ESP-Hosted 1.0.6.0.24. `iw dev wlan0 set power_save on` turns on the
   modem sleep of the station. Power save stays off by default.
 - `/etc/os-release` has the version of the image (`IMAGE_VERSION`), and the
@@ -30,6 +32,12 @@ Each version, newest first. The update notes come first in each version.
   release page then says so.
 - Fixes in `ble-ha` (the clock after 24.8 days of uptime, the wipe of a
   Wi-Fi passphrase) and in the UART console (a hang with the interrupts off).
+- The `esp32s31` build supports the GigaDevice GD25Q256E flash of the
+  Waveshare ESP32-S31-Zero: the flash suspend of ESP-IDF accepts this
+  chip, and the time from a resume to the next suspend is 100 µs on all
+  boards, as its datasheet requires. The Zero is not tested yet.
+- The loader no longer panics on an interrupt while the cache is off
+  (ESP-IDF fix for the ESP32-S31).
 
 ## v0.11.0
 
