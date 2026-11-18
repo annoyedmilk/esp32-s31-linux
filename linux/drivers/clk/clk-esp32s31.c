@@ -37,6 +37,17 @@
 #define HP_CPU_FREQ_CTRL0		0x04
 #define HP_SYS_FREQ_CTRL0		0x0c
 #define HP_APB_FREQ_CTRL0		0x10
+#define HP_GPSPI2_CTRL0			0x6c
+#define HP_GPSPI_SYS_CLK_EN		BIT(0)
+#define HP_GPSPI_APB_CLK_EN		BIT(1)
+#define HP_GPSPI_RST_EN			BIT(2)
+#define HP_GPSPI_FORCE_NORST		BIT(3)
+#define HP_GPSPI_CLK_SRC_SEL		GENMASK(5, 4)
+#define HP_GPSPI_HS_CLK_EN		BIT(6)
+#define HP_GPSPI_HS_CLK_DIV_NUM		GENMASK(14, 7)
+#define HP_GPSPI_MST_CLK_DIV_NUM		GENMASK(22, 15)
+/* Bit number, not a mask: the gate API takes a bit index (see hp_init). */
+#define HP_GPSPI_MST_CLK_EN		23
 #define HP_RMT_CTRL0			0xbc
 #define HP_SDIO_HOST_CTRL0		0xc0
 #define HP_SDIO_LS_CLK_EN		3
@@ -330,6 +341,31 @@ static int esp32s31_hp_init(struct esp32s31_clk *ec)
 						    ec->base + HP_SDIO_HOST_CTRL0,
 						    HP_SDIO_LS_CLK_EN, 0,
 						    &ec->lock);
+
+	/*
+	 * GPSPI2: does not fit esp32s31_periphs[] (one bus gate + one mux +
+	 * one 8-bit divider + one function gate). It has two enables and two
+	 * dividers, so it gets separate code here, like SDMMC/SDIO_LS above.
+	 * Static bits first (MST_EN left clear: the gate below owns it),
+	 * then a fixed 80 MHz parent (BBPLL / 3 / 2: SRC_SEL 2, HS_DIV 2,
+	 * MST_DIV 1) gated on MST_EN. Register 0x6c reads 0x816b here and
+	 * 0x80816b once a consumer enables the clock.
+	 */
+	writel(HP_GPSPI_SYS_CLK_EN | HP_GPSPI_APB_CLK_EN |
+	       HP_GPSPI_FORCE_NORST |
+	       FIELD_PREP(HP_GPSPI_CLK_SRC_SEL, 2) | HP_GPSPI_HS_CLK_EN |
+	       FIELD_PREP(HP_GPSPI_HS_CLK_DIV_NUM, 2) |
+	       FIELD_PREP(HP_GPSPI_MST_CLK_DIV_NUM, 1),
+	       ec->base + HP_GPSPI2_CTRL0);
+	hw = devm_clk_hw_register_fixed_rate(ec->dev, "gpspi2-fixed", NULL,
+					     0, 80000000);
+	if (IS_ERR(hw))
+		return PTR_ERR(hw);
+	hws[ESP32S31_CLK_GPSPI2] =
+		devm_clk_hw_register_gate_parent_hw(ec->dev, "gpspi2", hw, 0,
+						    ec->base + HP_GPSPI2_CTRL0,
+						    HP_GPSPI_MST_CLK_EN, 0,
+						    &ec->lock);
 	return 0;
 }
 
@@ -488,10 +524,12 @@ static const struct esp32s31_reset esp32s31_hp_resets[] = {
 	[ESP32S31_RST_I2C0] = { HP_I2C_CTRL0(0), HP_PERIPH_RST_EN },
 	[ESP32S31_RST_I2C1] = { HP_I2C_CTRL0(1), HP_PERIPH_RST_EN },
 	[ESP32S31_RST_RMT] = { HP_RMT_CTRL0, HP_PERIPH_RST_EN },
+	/* Reset is bit 2 of HP_GPSPI2_CTRL0, not bit 1 like I2C/RMT. */
+	[ESP32S31_RST_GPSPI2] = { HP_GPSPI2_CTRL0, HP_GPSPI_RST_EN },
 };
 
 static const struct esp32s31_clk_data esp32s31_hp_data = {
-	.nclks = ESP32S31_CLK_SDIO_LS + 1,
+	.nclks = ESP32S31_CLK_GPSPI2 + 1,
 	.init = esp32s31_hp_init,
 	.resets = esp32s31_hp_resets,
 	.nresets = ARRAY_SIZE(esp32s31_hp_resets),

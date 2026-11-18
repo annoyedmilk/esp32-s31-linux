@@ -28,15 +28,15 @@
 	gpio-reserved-ranges = <4 1>, <26 9>, <41 1>, <58 2>, <60 1>;
 	/* The nets of the board; the flash pins of the module. */
 	gpio-line-names =
-		/*  0 */ "X32K_N", "X32K_P", "", "", "ETH_INTN", "PHY_MDC",
+		/*  0 */ "LCD_RST", "X32K_P", "", "LCD_TE", "ETH_INTN", "PHY_MDC",
 		/*  6 */ "PHY_MDIO", "ETH_PHY_RST", "ETH_TXD0", "ETH_TXD1",
 		/* 10 */ "ETH_TXD2", "ETH_TXD3", "ETH_TXCTL", "ETH_TXCLK",
 		/* 14 */ "ETH_RX_CLK", "ETH_RCTL", "ETH_RXD3", "ETH_RXD2",
 		/* 18 */ "ETH_RXD1", "ETH_RXD0", "SD_D0", "SD_D1", "SD_D2",
 		/* 23 */ "SD_D3", "SD_CLK", "SD_CMD", "SPICS", "SPIQ",
 		/* 28 */ "SPIWP", "", "SPIHD", "SPICLK", "SPID", "USB1P1_DN",
-		/* 34 */ "USB1P1_DP", "", "", "", "", "", "", "", "", "", "",
-		/* 45 */ "", "", "", "", "", "ESP_I2C_SCL", "ESP_I2C_SDA",
+		/* 34 */ "USB1P1_DP", "QSPI_IO3", "", "", "", "", "", "", "", "", "",
+		/* 45 */ "QSPI_SCLK", "QSPI_CS", "QSPI_IO0", "QSPI_IO1", "QSPI_IO2", "ESP_I2C_SCL", "ESP_I2C_SDA",
 		/* 52 */ "I2S_MCLK", "I2S_SCLK", "I2S_ASDOUT", "I2S_LRCK",
 		/* 56 */ "I2S_DSDIN", "PA_CTRL", "U0TXD", "U0RXD", "RGB_CTRL",
 		/* 61 */ "BOOT";
@@ -87,6 +87,26 @@
 				 <ESP32S31_MATRIX_INOUT(48, ESP32S31_SIG_I2C1_SCL)>;
 			bias-pull-up;
 			drive-open-drain;
+		};
+	};
+
+	/*
+	 * Shield QSPI to the CO5300 panel: SCLK GPIO45, IO0 GPIO47, IO1
+	 * GPIO48, IO2 GPIO49, IO3 GPIO35. CS is GPIO46, driven by the SPI
+	 * core as a GPIO chip select (cs-gpios below), so the native CS0
+	 * matrix route is deliberately NOT in this pinctrl state: the
+	 * driver warns that a routed native CS fights the GPIO level.
+	 */
+	gpspi2_cfg: gpspi2-cfg {
+		gpspi2-pins {
+			pinmux = <ESP32S31_MATRIX_OUT(45, ESP32S31_SIG_GPSPI2_SCLK)>,
+				 <ESP32S31_MATRIX_INOUT(47, ESP32S31_SIG_GPSPI2_MOSI)>,
+				 <ESP32S31_MATRIX_INOUT(48, ESP32S31_SIG_GPSPI2_MISO)>,
+				 <ESP32S31_MATRIX_INOUT(49, ESP32S31_SIG_GPSPI2_WP)>,
+				 <ESP32S31_MATRIX_INOUT(35, ESP32S31_SIG_GPSPI2_HD)>;
+			drive-strength = <20>;
+			bias-pull-up;
+			input-enable;
 		};
 	};
 
@@ -155,4 +175,26 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&led_cfg>;
 	status = "okay";
+};
+
+/* Shield QSPI: CO5300 panel on CS0, spidev for the Phase 1 ID test. */
+&gpspi2 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&gpspi2_cfg>;
+	cs-gpios = <&pinctrl 46 GPIO_ACTIVE_LOW>;
+	status = "okay";
+
+	spidev@0 {
+		/*
+		 * Dummy compatible from spidev's DT allow-list: plain
+		 * "spidev" in DT is explicitly rejected by the kernel
+		 * (spidev_of_check, "spidev listed directly in DT is not
+		 * supported"), so the device never binds and /dev/spidev2.0
+		 * never appears. "rohm,dh2228fv" is the dummy GrieferPig
+		 * uses for the same test.
+		 */
+		compatible = "rohm,dh2228fv";
+		reg = <0>;
+		spi-max-frequency = <20000000>;
+	};
 };

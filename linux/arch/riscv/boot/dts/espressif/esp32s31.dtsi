@@ -77,6 +77,7 @@
 
 	aliases {
 		serial0 = &uart0;
+		spi2 = &gpspi2;
 	};
 
 	cpus {
@@ -317,6 +318,20 @@
 				 <&hp_clkrst ESP32S31_CLK_I2C1>;
 			clock-names = "apb", "core";
 			resets = <&hp_clkrst ESP32S31_RST_I2C1>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		gpspi2: spi@2038f000 {
+			compatible = "espressif,esp32s31-gpspi";
+			reg = <0x2038f000 0x1000>;
+			interrupt-parent = <&clic>;
+			interrupts = <41 4 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&hp_clkrst ESP32S31_CLK_GPSPI2>;
+			resets = <&hp_clkrst ESP32S31_RST_GPSPI2>;
+			num-cs = <6>;
+			espressif,max-data-lines = <4>;
 			#address-cells = <1>;
 			#size-cells = <0>;
 			status = "disabled";

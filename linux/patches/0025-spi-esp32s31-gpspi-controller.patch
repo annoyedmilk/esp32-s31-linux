@@ -1,0 +1,44 @@
+From: Rumi <rumi@example.com>
+Subject: [PATCH] spi: esp32s31: add the ESP32-S31 GPSPI controller
+
+The ESP32-S31 has GPSPI2 and GPSPI3 controllers with a 64-byte FIFO.
+Add their host/target driver to the SPI Kconfig and Makefile. The
+driver itself lives in linux/drivers/spi/spi-esp32s31.c (ported
+verbatim from GrieferPig/linux-esp32-s31, branch v6.18-esp32-s31);
+this patch only carries the Kconfig/Makefile hunks, like patches
+0013 (clk) and 0016 (i2c).
+
+Upstream: not sent
+---
+diff --git a/drivers/spi/Kconfig b/drivers/spi/Kconfig
+--- a/drivers/spi/Kconfig
++++ b/drivers/spi/Kconfig
+@@ -411,6 +411,17 @@ config SPI_EP93XX
+ 	  This enables using the Cirrus EP93xx SPI controller in master
+ 	  mode.
+ 
++config SPI_ESP32S31
++	tristate "Espressif ESP32-S31 GPSPI controller"
++	depends on SOC_ESP32S31 || COMPILE_TEST
++	depends on OF
++	help
++	  PIO master-mode support for the GPSPI2 and GPSPI3 controllers in
++	  Espressif ESP32-S31 SoCs. Transfers use the 64-byte hardware FIFO.
++
++	  This driver can also be built as a module. If so, the module
++	  will be called spi-esp32s31.
++
+ config SPI_FALCON
+ 	bool "Falcon SPI controller support"
+ 	depends on SOC_FALCON
+diff --git a/drivers/spi/Makefile b/drivers/spi/Makefile
+--- a/drivers/spi/Makefile
++++ b/drivers/spi/Makefile
+@@ -56,6 +56,7 @@ obj-$(CONFIG_SPI_DW_BT1)		+= spi-dw-bt1.o
+ obj-$(CONFIG_SPI_DW_MMIO)		+= spi-dw-mmio.o
+ obj-$(CONFIG_SPI_DW_PCI)		+= spi-dw-pci.o
+ obj-$(CONFIG_SPI_EP93XX)		+= spi-ep93xx.o
++obj-$(CONFIG_SPI_ESP32S31)		+= spi-esp32s31.o
+ obj-$(CONFIG_SPI_FALCON)		+= spi-falcon.o
+ obj-$(CONFIG_SPI_FSI)			+= spi-fsi.o
+ obj-$(CONFIG_SPI_FSL_CPM)		+= spi-fsl-cpm.o
