@@ -13,6 +13,17 @@ the scheduler text, at the start of .text.  Only the head and the trap
 text are before them, so the layout of the hot path changes only when
 its own code changes.  See docs/internals.md, "The instruction cache".
 
+The rest of .text is TEXT_TEXT without its ". = ALIGN(PAGE_SIZE)" before
+.text.hot.  With the hot text before that ALIGN, each call from the
+main text to it crosses the ALIGN.  When ld relaxes a call to JAL, it
+adds the section alignment to the distance as a margin, but not an
+ALIGN of the linker script.  GP relaxation then removes bytes before the
+target, the ALIGN keeps the caller in place, and the distance can grow
+by up to 4095 bytes after the check.  With Linux 7.3.5 on the Korvo-1,
+a call from ext4_mb_new_blocks to preempt_schedule went to 0x100010
+bytes, 16 bytes past the JAL range, and the link stopped with
+"relocation truncated to fit: R_RISCV_JAL".
+
 Upstream: not sent
 ---
 diff --git a/arch/riscv/Kconfig b/arch/riscv/Kconfig
@@ -38,7 +49,7 @@ diff --git a/arch/riscv/Kconfig b/arch/riscv/Kconfig
 diff --git a/arch/riscv/kernel/vmlinux.lds.S b/arch/riscv/kernel/vmlinux.lds.S
 --- a/arch/riscv/kernel/vmlinux.lds.S
 +++ b/arch/riscv/kernel/vmlinux.lds.S
-@@ -55,8 +55,15 @@
+@@ -55,8 +55,23 @@
  	.text : AT(ADDR(.text) - LOAD_OFFSET) {
  		_text = .;
  		_stext = .;
@@ -46,9 +57,17 @@ diff --git a/arch/riscv/kernel/vmlinux.lds.S b/arch/riscv/kernel/vmlinux.lds.S
 +#include "hot-text.lds.h"
 +		*(.text)
 +		SCHED_TEXT
-+#endif
++		/* TEXT_TEXT without ALIGN(PAGE_SIZE): ld relaxation misses it */
++		*(.text.asan.* .text.tsan.*)
++		*(.text.unknown .text.unknown.*)
++		TEXT_SPLIT
++		TEXT_UNLIKELY
++		TEXT_HOT
++		*(TEXT_MAIN .text.fixup)
++		TEXT_NOINSTR
++		*(.ref.text)
++#else
  		TEXT_TEXT
-+#ifndef CONFIG_RISCV_HOT_TEXT
  		SCHED_TEXT
 +#endif
  		LOCK_TEXT
