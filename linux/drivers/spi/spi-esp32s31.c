@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /* ESP32-S31 GPSPI2/GPSPI3 host and target driver.
  *
- * Ported verbatim from GrieferPig/linux-esp32-s31, branch v6.18-esp32-s31
+ * Originally ported from GrieferPig/linux-esp32-s31, branch v6.18-esp32-s31
  * (drivers/spi/spi-esp32s31.c), into annoyedmilk/esp32-s31-linux 7.3.4.
- * One code change: probe() uses reset_control_assert/deassert instead
- * of reset_control_reset(), because annoyedmilk's reset controller has
- * no .reset op (see the comment at that call site).
+ * Adapted for this port's reset controller, GPIO CS and PIO initialization.
  * Kconfig depends on SOC_ESP32S31 (see patch 0025) instead of
  * ARCH_ESPRESSIF.
  */
@@ -108,6 +106,7 @@ struct esp32s31_spi {
 	u32 gpio_cs_drive_strength;
 	int irq;
 	bool target;
+	bool polling;
 	bool target_aborted;
 };
 
@@ -398,36 +397,68 @@ stop:
 	return ret;
 }
 
+static int esp32s31_spi_transaction_error(struct esp32s31_spi *s,
+					const char *phase)
+{
+	dev_err_ratelimited(s->dev,
+		"%s timeout: CMD=%08x RAW=%08x ST=%08x USER=%08x CTRL=%08x CLOCK=%08x MISC=%08x DMA=%08x\n",
+		phase, readl(s->base + S31_SPI_CMD),
+		readl(s->base + S31_SPI_INT_RAW), readl(s->base + S31_SPI_INT_ST),
+		readl(s->base + S31_SPI_USER), readl(s->base + S31_SPI_CTRL),
+		readl(s->base + S31_SPI_CLOCK), readl(s->base + S31_SPI_MISC),
+		readl(s->base + S31_SPI_DMA_CONF));
+	writel(0, s->base + S31_SPI_INT_ENA);
+	synchronize_irq(s->irq);
+	/* Stop the state machine before the core releases the physical CS. */
+	esp32s31_spi_target_reset(s);
+	writel(~0U, s->base + S31_SPI_INT_CLR);
+	return -ETIMEDOUT;
+}
+
 static int esp32s31_spi_wait_transaction(struct esp32s31_spi *s,
 					 unsigned int timeout_ms)
 {
 	u32 cmd;
 	unsigned long timeout;
 
+	/* A late IRQ from an earlier chunk must not complete the next one. */
+	writel(0, s->base + S31_SPI_INT_ENA);
+	synchronize_irq(s->irq);
 	reinit_completion(&s->done);
-	writel(S31_SPI_TRANS_DONE, s->base + S31_SPI_INT_CLR);
-	writel(S31_SPI_TRANS_DONE, s->base + S31_SPI_INT_ENA);
+	writel(~0U, s->base + S31_SPI_INT_CLR);
 	writel(S31_SPI_CMD_UPDATE, s->base + S31_SPI_CMD);
 	if (readl_poll_timeout(s->base + S31_SPI_CMD, cmd,
-			       !(cmd & S31_SPI_CMD_UPDATE), 1, 1000)) {
-		writel(0, s->base + S31_SPI_INT_ENA);
-		return -ETIMEDOUT;
-	}
-	writel(S31_SPI_CMD_USR, s->base + S31_SPI_CMD);
-	timeout = wait_for_completion_timeout(&s->done,
-					       msecs_to_jiffies(timeout_ms));
-	writel(0, s->base + S31_SPI_INT_ENA);
-	if (!timeout)
-		return -ETIMEDOUT;
+			       !(cmd & S31_SPI_CMD_UPDATE), 1, 1000))
+		return esp32s31_spi_transaction_error(s, "UPDATE");
 
-	/*
-	 * TRANS_DONE can reach the CPU before the synchronized USR command bit
-	 * has fallen.  Returning at that point lets the SPI core deassert a GPIO
-	 * chip select while the hardware is still shifting the tail of the
-	 * transaction.  Treat CMD.USR as the authoritative idle boundary.
-	 */
-	return readl_poll_timeout(s->base + S31_SPI_CMD, cmd,
-				  !(cmd & S31_SPI_CMD_USR), 1, 100000);
+	if (!s->polling)
+		writel(S31_SPI_TRANS_DONE, s->base + S31_SPI_INT_ENA);
+	writel(S31_SPI_CMD_USR, s->base + S31_SPI_CMD);
+	if (s->polling) {
+		if (readl_poll_timeout(s->base + S31_SPI_INT_RAW, cmd,
+				       cmd & S31_SPI_TRANS_DONE, 10,
+				       timeout_ms * 1000))
+			return esp32s31_spi_transaction_error(s, "TRANS_DONE");
+		timeout = 1;
+	} else {
+		timeout = wait_for_completion_timeout(&s->done,
+					       msecs_to_jiffies(timeout_ms));
+	}
+	if (!timeout) {
+		/* Diagnose a lost interrupt separately from a stalled shifter. */
+		if (!(readl(s->base + S31_SPI_INT_RAW) & S31_SPI_TRANS_DONE))
+			return esp32s31_spi_transaction_error(s, "TRANS_DONE");
+		dev_warn_once(s->dev,
+			"TRANS_DONE pending without IRQ; using polling, check CLIC route\n");
+		s->polling = true;
+	}
+	writel(0, s->base + S31_SPI_INT_ENA);
+	/* The IRQ can precede CMD.USR falling. Keep GPIO CS low until idle. */
+	if (readl_poll_timeout(s->base + S31_SPI_CMD, cmd,
+			       !(cmd & S31_SPI_CMD_USR), 1, 100000))
+		return esp32s31_spi_transaction_error(s, "USR");
+	writel(S31_SPI_TRANS_DONE, s->base + S31_SPI_INT_CLR);
+	return 0;
 }
 
 static void esp32s31_spi_dma_complete(void *data)
@@ -647,6 +678,10 @@ static int esp32s31_spi_transfer_one(struct spi_controller *ctlr,
 
 	if (!xfer->len || xfer->len > esp32s31_spi_max_transfer_size(spi))
 		return xfer->len ? -EMSGSIZE : 0;
+	/* Multi-line SPI is half duplex on this controller. */
+	if (xfer->tx_buf && xfer->rx_buf &&
+	    (xfer->tx_nbits > 1 || xfer->rx_nbits > 1))
+		return -EINVAL;
 	if (xfer->tx_nbits > s->max_data_lines ||
 	    xfer->rx_nbits > s->max_data_lines)
 		return -EINVAL;
@@ -900,11 +935,11 @@ static int esp32s31_spi_probe(struct platform_device *pdev)
 	/* CPU FIFO mode; leave all DMA paths disabled. */
 	writel(target ? S31_SPI_SLAVE_MODE : 0, s->base + S31_SPI_SLAVE);
 	writel(0, s->base + S31_SPI_USER);
-	/* IDF's master initialization disables premature AFIFO-error endings. */
-	writel(readl(s->base + S31_SPI_USER1) &
-	       ~S31_SPI_MST_WFULL_ERR_END_EN, s->base + S31_SPI_USER1);
-	writel(readl(s->base + S31_SPI_USER2) &
-	       ~S31_SPI_MST_REMPTY_ERR_END_EN, s->base + S31_SPI_USER2);
+	/* Match spi_ll_master_init(): clear CS timing and AFIFO-error endings. */
+	writel(0, s->base + S31_SPI_USER1);
+	writel(0, s->base + S31_SPI_USER2);
+	writel(0, s->base + S31_SPI_INT_ENA);
+	writel(~0U, s->base + S31_SPI_INT_CLR);
 	writel(target ? 0 : (S31_SPI_SLV_RX_SEG_TRANS_CLR_EN |
 			      S31_SPI_SLV_TX_SEG_TRANS_CLR_EN),
 	       s->base + S31_SPI_DMA_CONF);

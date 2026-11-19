@@ -41,7 +41,6 @@
 #define HP_GPSPI_SYS_CLK_EN		BIT(0)
 #define HP_GPSPI_APB_CLK_EN		BIT(1)
 #define HP_GPSPI_RST_EN			BIT(2)
-#define HP_GPSPI_FORCE_NORST		BIT(3)
 #define HP_GPSPI_CLK_SRC_SEL		GENMASK(5, 4)
 #define HP_GPSPI_HS_CLK_EN		BIT(6)
 #define HP_GPSPI_HS_CLK_DIV_NUM		GENMASK(14, 7)
@@ -347,12 +346,12 @@ static int esp32s31_hp_init(struct esp32s31_clk *ec)
 	 * one 8-bit divider + one function gate). It has two enables and two
 	 * dividers, so it gets separate code here, like SDMMC/SDIO_LS above.
 	 * Static bits first (MST_EN left clear: the gate below owns it),
-	 * then a fixed 80 MHz parent (BBPLL / 3 / 2: SRC_SEL 2, HS_DIV 2,
-	 * MST_DIV 1) gated on MST_EN. Register 0x6c reads 0x816b here and
-	 * 0x80816b once a consumer enables the clock.
+	 * with FORCE_NORST clear, as in IDF, to permit the reset pulse.
+	 * Then a fixed 80 MHz parent (BBPLL / 3 / 2: SRC_SEL 2, HS_DIV 2,
+	 * MST_DIV 1) gated on MST_EN. Register 0x6c is programmed to 0x8163 here and
+	 * 0x808163 once a consumer enables the clock.
 	 */
 	writel(HP_GPSPI_SYS_CLK_EN | HP_GPSPI_APB_CLK_EN |
-	       HP_GPSPI_FORCE_NORST |
 	       FIELD_PREP(HP_GPSPI_CLK_SRC_SEL, 2) | HP_GPSPI_HS_CLK_EN |
 	       FIELD_PREP(HP_GPSPI_HS_CLK_DIV_NUM, 2) |
 	       FIELD_PREP(HP_GPSPI_MST_CLK_DIV_NUM, 1),
