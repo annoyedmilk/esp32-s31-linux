@@ -1,0 +1,13 @@
+# Append AFTER linux-headless.fragment and linux-coreboard1.fragment.
+# Built in: fbcon must register before userspace starts.
+CONFIG_BUILTIN_DTB_NAME="espressif/esp32s31_coreboard1_amoled"
+CONFIG_FB=y
+CONFIG_FB_CO5300=y
+# CONFIG_FB_SIMPLE is not set
+CONFIG_VT=y
+CONFIG_VT_CONSOLE=y
+CONFIG_FRAMEBUFFER_CONSOLE=y
+# CONFIG_FRAMEBUFFER_CONSOLE_DEFERRED_TAKEOVER is not set
+# CONFIG_LOGO is not set
+CONFIG_CMDLINE="earlycon=sbi console=tty0 console=ttyS0,115200 esp32_shm.radio_service=bt+154 root=PARTUUID=45533331-02 rootfstype=ext4 rootwait rootflags=errors=remount-ro rw"
+CONFIG_FB_DEVICE=y

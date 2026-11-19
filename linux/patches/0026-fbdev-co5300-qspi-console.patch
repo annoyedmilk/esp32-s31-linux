@@ -1,0 +1,39 @@
+From: ESP32-S31 Linux contributors
+Subject: [PATCH] fbdev: add CO5300 QSPI AMOLED console
+
+The driver is copied from linux/drivers/video/fbdev/co5300fb.c.
+Deferred I/O keeps sleeping SPI transfers out of fbcon rendering.
+
+Upstream: not sent
+---
+diff --git a/drivers/video/fbdev/Kconfig b/drivers/video/fbdev/Kconfig
+--- a/drivers/video/fbdev/Kconfig
++++ b/drivers/video/fbdev/Kconfig
+@@ -1759,6 +1759,16 @@
+ 	  and could also have been called by other names when coupled with
+ 	  a bridge adapter.
+ 
++config FB_CO5300
++	tristate "CO5300 QSPI AMOLED framebuffer"
++	depends on FB && SPI
++	depends on GPIOLIB
++	select FB_SYSMEM_HELPERS_DEFERRED
++	help
++	  RGB565 framebuffer console for a CO5300 AMOLED panel on a
++	  four-lane SPI bus. Commands use one lane; pixels use four lanes.
++	  Build in for kernel boot messages. The module is co5300fb.
++
+ config FB_SIMPLE
+ 	tristate "Simple framebuffer support"
+ 	depends on FB
+diff --git a/drivers/video/fbdev/Makefile b/drivers/video/fbdev/Makefile
+--- a/drivers/video/fbdev/Makefile
++++ b/drivers/video/fbdev/Makefile
+@@ -10,6 +10,7 @@
+ obj-$(CONFIG_FB_MACMODES)      += macmodes.o
+ obj-$(CONFIG_FB_SBUS)          += sbuslib.o
+ obj-$(CONFIG_FB_WMT_GE_ROPS)   += wmt_ge_rops.o
++obj-$(CONFIG_FB_CO5300)        += co5300fb.o
+ 
+ # Hardware specific drivers go first
+ obj-$(CONFIG_FB_AMIGA)            += amifb.o c2p_planar.o

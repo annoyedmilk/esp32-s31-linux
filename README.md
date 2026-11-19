@@ -18,6 +18,9 @@ ESP ROM -> ESP-IDF 2nd stage -> loader (hart 0) -> OpenSBI (hart 1) -> Linux (ha
 the code is. [CHANGELOG.md](CHANGELOG.md) lists the changes of each
 release.
 
+For the CO5300 QSPI AMOLED shield, see
+[the SPI investigation and opt-in boot console](docs/amoled-spi-debug.md).
+
 ## Quick start
 
 There are three builds. The ESP32-S31-WROOM-3-N16R16V module is the module

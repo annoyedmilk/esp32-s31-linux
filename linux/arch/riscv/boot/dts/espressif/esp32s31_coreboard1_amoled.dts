@@ -1,0 +1,22 @@
+// SPDX-License-Identifier: GPL-2.0+
+/* PCB wiring from the existing shield DTS; geometry from Espressif's
+ * CO5300 reference panel. Override geometry/init-sequence for your module.
+ */
+#include "esp32s31_coreboard1.dts"
+
+&gpspi2 {
+	espressif,gpio-cs-drive-strength = <20>;
+	/delete-node/ spidev@0;
+
+	panel@0 {
+		compatible = "chipone,co5300";
+		reg = <0>;
+		spi-max-frequency = <1000000>;
+		spi-tx-bus-width = <4>;
+		reset-gpios = <&pinctrl 0 GPIO_ACTIVE_LOW>;
+		chipone,width = <466>;
+		chipone,height = <466>;
+		chipone,x-offset = <6>;
+		chipone,y-offset = <0>;
+	};
+};
